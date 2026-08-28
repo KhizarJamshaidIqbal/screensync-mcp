@@ -1,0 +1,40 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+android {
+    namespace = "com.screensync.mcp"
+    compileSdk = flutter.compileSdkVersion
+    // Pinned to the locally installed, intact NDK (flutter.ndkVersion points at a
+    // partially downloaded 28.2.13676358 that is missing source.properties).
+    ndkVersion = "29.0.14206865"
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_11
+    }
+
+    defaultConfig {
+        applicationId = "com.screensync.mcp"
+        minSdkVersion = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.debug
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}

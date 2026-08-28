@@ -1,0 +1,22 @@
+# Flutter
+.dart_tool/
+.flutter-plugins-dependencies
+build/
+*.iml
+.gradle/
+android/.gradle/
+android/local.properties
+
+# Node
+node_modules/
+dist/
+
+# Hub data (captured screenshots are sensitive)
+mcp-server/data/
+
+# Local work artifacts
+/*.png
+.workbuddy-ai/
+
+# Kotlin build logs
+android/.kotlin/

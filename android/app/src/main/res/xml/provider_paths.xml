@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Allow sharing captured frames from app documents + cache dirs. -->
+    <files-path name="captures" path="/" />
+    <cache-path name="cache" path="/" />
+    <external-files-path name="ext" path="/" />
+</paths>
