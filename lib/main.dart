@@ -74,8 +74,22 @@ class _ScreenSyncAppState extends State<ScreenSyncApp> {
           title: 'ScreenSync MCP',
           debugShowCheckedModeBanner: false,
           themeMode: settings.themeMode,
-          theme: AppTheme.light(),
-          darkTheme: AppTheme.dark(),
+          theme:
+              AppTheme.light(accent: AppAccent.at(settings.accentColorIndex)),
+          darkTheme: AppTheme.dark(
+            accent: AppAccent.at(settings.accentColorIndex),
+            amoled: settings.amoledDark,
+          ),
+          builder: (context, child) {
+            // E1: clamp extreme system text scales so layouts stay intact
+            // while still honoring accessibility scaling up to 1.3x.
+            final mq = MediaQuery.of(context);
+            final clamped = mq.copyWith(
+              textScaler: mq.textScaler
+                  .clamp(minScaleFactor: 0.8, maxScaleFactor: 1.3),
+            );
+            return MediaQuery(data: clamped, child: child!);
+          },
           home: settings.onboardingDone
               ? const HomeScreen()
               : OnboardingScreen(

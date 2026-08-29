@@ -258,6 +258,71 @@ class ScreenRepository {
     return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
   }
 
+  /// D1: in-app MCP tool runner. Maps a catalog tool name onto the hub's
+  /// HTTP surface and returns the pretty-printed JSON result. Tools that
+  /// only exist over stdio return an explanatory message instead of failing.
+  Future<String> runCatalogTool(String name,
+      {Map<String, dynamic> args = const {}}) async {
+    Future<String> get(String path) async {
+      final res = await http
+          .get(_endpoint(path), headers: _authHeaders(json: false))
+          .timeout(const Duration(seconds: 8));
+      return _prettyJson(res.body, res.statusCode);
+    }
+
+    Future<String> post(String path, Map<String, dynamic> body) async {
+      final res = await http
+          .post(_endpoint(path), headers: _authHeaders(), body: jsonEncode(body))
+          .timeout(const Duration(seconds: 12));
+      return _prettyJson(res.body, res.statusCode);
+    }
+
+    switch (name) {
+      case 'get_latest_screenshot':
+        return get('/api/screens/latest');
+      case 'get_device_status':
+        return get('/api/device/status');
+      case 'get_mcp_catalog':
+        return get('/api/mcp/catalog');
+      case 'list_recent_screens':
+      case 'get_recent_screenshots':
+        return get('/api/screens/latest');
+      case 'publish_inspection':
+        return get('/api/inspections/latest');
+      case 'publish_patch':
+        return get('/api/patches/latest');
+      default:
+        if (name.startsWith('control_')) {
+          return post('/api/control/${name.substring(8)}', args);
+        }
+        return jsonEncode({
+          'note': 'Tool "$name" is stdio-only — run it from an MCP client '
+              '(Claude Code / Desktop) connected via the Connect Kit.',
+        });
+    }
+  }
+
+  String _prettyJson(String body, int status) {
+    try {
+      final decoded = jsonDecode(body);
+      // Truncate giant base64 image payloads so the UI stays responsive.
+      if (decoded is Map<String, dynamic>) {
+        for (final key in ['imageDataUrl']) {
+          final v = decoded[key];
+          if (v is String && v.length > 200) {
+            decoded[key] = '${v.substring(0, 120)}… (${v.length} chars)';
+          }
+        }
+      }
+      return const JsonEncoder.withIndent('  ').convert({
+        'httpStatus': status,
+        'result': decoded,
+      });
+    } catch (_) {
+      return 'HTTP $status\n$body';
+    }
+  }
+
   Future<Map<String, dynamic>?> fetchDeviceStatus() async {
     try {
       final res = await http

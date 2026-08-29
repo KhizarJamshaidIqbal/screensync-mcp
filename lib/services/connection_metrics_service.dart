@@ -131,6 +131,34 @@ class ConnectionMetricsService {
     return sum ~/ _latency.length;
   }
 
+  /// B2: nth percentile over the buffered window (0..100). Null if empty.
+  int? percentile(int p) {
+    if (_latency.isEmpty) return null;
+    final sorted = _latency.toList()..sort();
+    final idx = ((p / 100) * (sorted.length - 1)).round();
+    return sorted[idx.clamp(0, sorted.length - 1)];
+  }
+
+  int? get p50 => percentile(50);
+  int? get p95 => percentile(95);
+
+  /// B2: jitter = mean absolute delta between consecutive samples.
+  int? get jitter {
+    if (_latency.length < 2) return null;
+    final list = _latency.toList();
+    var sum = 0;
+    for (var i = 1; i < list.length; i++) {
+      sum += (list[i] - list[i - 1]).abs();
+    }
+    return sum ~/ (list.length - 1);
+  }
+
+  int _droppedFrames = 0;
+
+  /// B2: frames that failed to reach the hub this session.
+  int get droppedFrames => _droppedFrames;
+  void recordDroppedFrame() => _droppedFrames++;
+
   /// Worst sample in the window. Null if empty.
   int? get peakLatency =>
       _latency.isEmpty ? null : _latency.reduce((a, b) => a > b ? a : b);

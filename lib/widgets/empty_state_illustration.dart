@@ -31,7 +31,7 @@ class EmptyStateIllustration extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
                 fontSize: 13, height: 1.5, color: AppTheme.darkTextDim),
           ),
           if (ctaLabel != null && onCta != null) ...[

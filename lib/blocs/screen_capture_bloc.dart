@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' as io;
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,6 +19,7 @@ import '../services/capture_trigger_bridge.dart';
 import '../services/connection_metrics_service.dart';
 import '../services/device_intent_service.dart';
 import '../services/live_event_service.dart';
+import '../services/session_recorder_service.dart';
 import '../services/settings_service.dart';
 import '../services/shake_trigger_service.dart';
 import 'hub_maintenance_mixin.dart';
@@ -122,8 +124,21 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
     on<ClearTelemetryEvent>(_onClearTelemetry);
     on<OverlayBubbleToggledExternally>(_onOverlayToggledExternally);
     on<LiveHubEventEvent>(_onLiveHubEvent);
-    on<LiveConnectionEvent>((event, emit) =>
-        emit(state.copyWith(liveConnected: event.connected)));
+    on<LiveConnectionEvent>((event, emit) {
+      // F2: connection transitions land on the activity timeline so both
+      // the feed and the UI toast layer can react.
+      if (event.connected != state.liveConnected) {
+        _metrics.recordActivity(ActivityEvent(
+          kind: event.connected ? 'connected' : 'disconnected',
+          label: event.connected
+              ? 'Live stream connected'
+              : 'Live stream lost — reconnecting…',
+          timestamp: DateTime.now(),
+        ));
+        add(const ActivityRecordedEvent());
+      }
+      emit(state.copyWith(liveConnected: event.connected));
+    });
     // Live-bridge (ConnectionHero 2.0) handlers.
     on<LatencySampledEvent>(_onLatencySampled);
     on<QuickCaptureRequestedEvent>(_onQuickCapture);
@@ -134,6 +149,7 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
         emit(state.copyWith(activityFeed: _metrics.activityFeed)));
     on<SessionStatsChangedEvent>((event, emit) =>
         emit(state.copyWith(sessionStats: _metrics.sessionStats)));
+    on<DeviceNameResolvedEvent>(_onDeviceNameResolved);
   }
 
   /// Overlay-engine taps arrive via both the plugin message bus and the
@@ -174,6 +190,20 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
     add(ToggleSyncModeEvent(
         SyncMode.values[_settings.syncModeIndex.clamp(0, SyncMode.values.length - 1)]));
     add(SetQualityEvent(_settings.defaultQuality));
+    _fetchDeviceName();
+  }
+
+  /// F2: Resolve the Android device model (e.g. "Pixel 7") via device_info_plus
+  /// so the Connection Hero shows a real label instead of "This phone".
+  Future<void> _fetchDeviceName() async {
+    try {
+      final info = await DeviceInfoPlugin().androidInfo;
+      if (info.model.isNotEmpty) {
+        add(DeviceNameResolvedEvent(info.model));
+      }
+    } catch (_) {
+      // Desktop / emulator without Android → fall back to "This phone".
+    }
   }
 
   void _syncShakeListener() {
@@ -192,8 +222,9 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
   // ── Live push (SSE) ──
 
   void _wireLiveEvents() {
-    _liveSub = LiveEventService.instance.events
-        .listen((event) => add(LiveHubEventEvent(event.type)));
+    _liveSub = LiveEventService.instance.events.listen((event) =>
+        add(LiveHubEventEvent(event.type,
+            label: event.label, ok: event.ok, agentName: event.agentName)));
     _liveConnSub = LiveEventService.instance.connectionState
         .listen((connected) => add(LiveConnectionEvent(connected)));
     // Re-sync the SSE connection whenever hub URL / token state changes.
@@ -220,6 +251,41 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
 
   Future<void> _onLiveHubEvent(
       LiveHubEventEvent event, Emitter<ScreenCaptureState> emit) async {
+    // F3: agent_connect — surface the AI agent's identity (e.g. "Claude Code")
+    // so the Connection Hero shows a real label instead of "Your AI".
+    if (event.type == 'agent_connect') {
+      if (event.agentName != null && event.agentName!.isNotEmpty) {
+        emit(state.copyWith(agentName: event.agentName));
+      }
+      return;
+    }
+    // B3: tool calls land on the AI activity timeline with their real name.
+    if (event.type == 'tool') {
+      final activity = ActivityEvent(
+        kind: 'tool',
+        label: event.label ?? 'tool call',
+        timestamp: DateTime.now(),
+      );
+      _metrics.recordActivity(activity);
+      SessionRecorderService.instance.observe(activity);
+      _metrics.recordAIResponse();
+      add(const ActivityRecordedEvent());
+      add(const SessionStatsChangedEvent());
+      return;
+    }
+    // B1: a frame landed on the hub — refresh the live strip / gallery.
+    if (event.type == 'frame') {
+      final activity = ActivityEvent(
+        kind: 'frame',
+        label: 'Frame delivered',
+        timestamp: DateTime.now(),
+      );
+      _metrics.recordActivity(activity);
+      SessionRecorderService.instance.observe(activity);
+      add(const ActivityRecordedEvent());
+      add(LoadGalleryEvent());
+      return;
+    }
     if (event.type != 'inspection' && event.type != 'patch') return;
     add(FetchDiagnosisEvent());
     DeviceIntentService.postNotification(
@@ -308,11 +374,36 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
     }
   }
 
+  /// C2: opt-in privacy redaction (pixelation) BEFORE anything is
+  /// persisted or uploaded. No-op when the setting is off.
+  Future<CapturedFrame> _applyRedaction(CapturedFrame frame) async {
+    if (!_settings.redactionEnabled) return frame;
+    try {
+      final jpeg = frame.mimeType == 'image/jpeg';
+      final redacted = await CapturePipeline.redact(
+        frame.imageBytes,
+        jpeg: jpeg,
+      );
+      return CapturedFrame(
+        imageBytes: redacted,
+        mimeType: frame.mimeType,
+        filename: frame.filename,
+        timestamp: frame.timestamp,
+      );
+    } catch (_) {
+      // Redaction must never lose a capture — fall back to the original.
+      return frame;
+    }
+  }
+
   /// Persists a captured frame and pushes it through the sync pipeline
   /// (LAN hub / Drive per current sync mode). Shared by tap-capture and
   /// region-crop commit so both take the exact same delivery path.
   Future<void> _persistAndSync(
-      CapturedFrame frame, Emitter<ScreenCaptureState> emit) async {
+      CapturedFrame rawFrame, Emitter<ScreenCaptureState> emit) async {
+    // C2: apply opt-in privacy redaction BEFORE anything is persisted or
+    // uploaded. No-op when the setting is off.
+    final frame = await _applyRedaction(rawFrame);
     final cacheId = await _persistFrame(frame);
 
     // Live-bridge: every successful capture (regardless of where it ends up)
@@ -331,6 +422,7 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
       } catch (_) {
         hubOk = false;
       }
+      if (!hubOk) _metrics.recordDroppedFrame();
       if (cacheId != null && hubOk) {
         await _cacheRepo.markSyncedHub(cacheId);
         _metrics.incrementHubPush();
@@ -638,5 +730,10 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
       Emitter<ScreenCaptureState> emit) async {
     HapticFeedback.lightImpact();
     add(SyncPendingEvent());
+  }
+
+  void _onDeviceNameResolved(
+      DeviceNameResolvedEvent event, Emitter<ScreenCaptureState> emit) {
+    emit(state.copyWith(deviceName: event.name));
   }
 }

@@ -49,7 +49,7 @@ class ConnectKitCard extends StatelessWidget {
                 IconButton(
                   tooltip: 'Don\'t show again',
                   visualDensity: VisualDensity.compact,
-                  icon: Icon(Icons.close_rounded,
+                  icon: const Icon(Icons.close_rounded,
                       size: 18, color: AppTheme.darkTextDim),
                   onPressed: () =>
                       SettingsService.instance.connectKitDismissed = true,

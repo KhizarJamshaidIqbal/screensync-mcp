@@ -20,3 +20,8 @@ mcp-server/data/
 
 # Kotlin build logs
 android/.kotlin/
+
+# Hub runtime logs
+mcp-server/hub_live.log
+mcp-server/hub_live.err.log
+analyze_out.txt

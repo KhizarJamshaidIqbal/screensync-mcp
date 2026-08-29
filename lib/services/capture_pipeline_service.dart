@@ -108,6 +108,26 @@ class CapturePipeline {
     return Uint8List.fromList(img.encodeJpg(image, quality: jpegQuality));
   }
 
+  /// C2 privacy redaction: Dart-side pixelation blur applied BEFORE any
+  /// upload leaves the device. Opt-in via Settings. Pixelation (mosaic) is
+  /// preferred over gaussian for text privacy — it's irreversible at this
+  /// block size and much cheaper on-device than a wide gaussian kernel.
+  static Future<Uint8List> redact(
+    Uint8List bytes, {
+    bool jpeg = false,
+    int jpegQuality = 74,
+    int blockSize = 14,
+  }) async {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
+    final redacted = img.pixelate(decoded,
+        size: blockSize, mode: img.PixelateMode.average);
+    final out = jpeg
+        ? img.encodeJpg(redacted, quality: jpegQuality)
+        : img.encodePng(redacted);
+    return Uint8List.fromList(out);
+  }
+
   /// 320px-wide PNG thumbnail for the local gallery grid.
   static Future<Uint8List> thumbnail(Uint8List imageBytes) async {
     final codec = await ui.instantiateImageCodec(imageBytes, targetWidth: 320);

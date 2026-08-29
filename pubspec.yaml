@@ -24,6 +24,7 @@ dependencies:
   http: ^1.2.2
 
   # Enterprise upgrade: sensors / storage / discovery / visuals
+  device_info_plus: ^11.0.0     # device model for Connection Hero label
   sensors_plus: ^6.1.1            # shake-to-capture accelerometer stream
   bonsoir: ^5.1.11                # mDNS/Bonjour hub discovery on LAN
   path_provider: ^2.1.5           # pending-snap import & thumbnails dir
@@ -33,6 +34,7 @@ dependencies:
   image: ^4.5.2                   # JPEG encode for low-latency preset
   meta: ^1.17.0                   # @visibleForTesting annotations
   mobile_scanner: ^7.4.0
+  qr_flutter: ^4.1.0            # D2: Connect-Kit QR code
 
 dev_dependencies:
   flutter_test:

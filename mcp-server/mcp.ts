@@ -18,6 +18,7 @@ import {
   toolDefinitions,
 } from "./catalog.js";
 import { log } from "./config.js";
+import { emitHubEvent } from "./events.js";
 import {
   latestFrame,
   listFrames,
@@ -61,6 +62,8 @@ export function createMcpServer() {
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    // B3: surface every tool call on the phone's AI activity timeline.
+    emitHubEvent("tool", request.params.name, true);
     try {
       if (request.params.name === "get_mcp_catalog") {
         return textResult(buildCatalog());

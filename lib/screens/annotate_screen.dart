@@ -177,7 +177,7 @@ class _AnnotateScreenState extends State<AnnotateScreen> {
     switch (stroke.tool) {
       case _Tool.freehand:
         final path = Path()..moveTo(pts.first.dx, pts.first.dy);
-        for (final p in pts.skip(1)) path.lineTo(p.dx, p.dy);
+        for (final p in pts.skip(1)) { path.lineTo(p.dx, p.dy); }
         canvas.drawPath(path, paint);
       case _Tool.arrow:
         final from = pts.first;
@@ -382,7 +382,7 @@ class _StrokesPainter extends CustomPainter {
       switch (stroke.tool) {
         case _Tool.freehand:
           final path = Path()..moveTo(pts.first.dx, pts.first.dy);
-          for (final p in pts.skip(1)) path.lineTo(p.dx, p.dy);
+          for (final p in pts.skip(1)) { path.lineTo(p.dx, p.dy); }
           canvas.drawPath(path, paint);
         case _Tool.arrow:
           final from = pts.first;

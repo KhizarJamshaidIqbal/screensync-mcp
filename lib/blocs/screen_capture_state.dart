@@ -59,6 +59,14 @@ class ScreenCaptureState extends Equatable {
   /// a mini timeline; full ring is in the metrics service.
   final List<ActivityEvent> activityFeed;
 
+  /// Android device model (e.g. "Pixel 7", "sdk gphone64 x86 64") — surfaced
+  /// on the Connection Hero instead of a static "This phone" placeholder.
+  final String? deviceName;
+
+  /// Connected AI agent name (e.g. "Claude Desktop", "Claude Code") surfaced
+  /// on the Connection Hero instead of a static "Your AI" placeholder.
+  final String? agentName;
+
   const ScreenCaptureState({
     this.status = CaptureStatus.idle,
     this.syncMode = SyncMode.hybrid,
@@ -84,6 +92,8 @@ class ScreenCaptureState extends Equatable {
     this.latencyHistory = const [],
     this.sessionStats = const SessionStats(),
     this.activityFeed = const [],
+    this.deviceName,
+    this.agentName,
   });
 
   ScreenCaptureState copyWith({
@@ -111,6 +121,8 @@ class ScreenCaptureState extends Equatable {
     List<int>? latencyHistory,
     SessionStats? sessionStats,
     List<ActivityEvent>? activityFeed,
+    String? deviceName,
+    String? agentName,
   }) {
     return ScreenCaptureState(
       status: status ?? this.status,
@@ -145,6 +157,8 @@ class ScreenCaptureState extends Equatable {
       latencyHistory: latencyHistory ?? this.latencyHistory,
       sessionStats: sessionStats ?? this.sessionStats,
       activityFeed: activityFeed ?? this.activityFeed,
+      deviceName: deviceName ?? this.deviceName,
+      agentName: agentName ?? this.agentName,
     );
   }
 
@@ -175,5 +189,7 @@ class ScreenCaptureState extends Equatable {
         latencyHistory,
         sessionStats,
         activityFeed,
+        deviceName,
+        agentName,
       ];
 }

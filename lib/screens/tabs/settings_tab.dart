@@ -1,9 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../blocs/screen_capture_bloc.dart';
 import '../../core/app_theme.dart';
+import '../../models/custom_preset.dart';
+import '../../models/region_favorite.dart';
 import '../../services/device_intent_service.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/common_widgets.dart';
@@ -61,7 +63,7 @@ class _SettingsTabState extends State<SettingsTab> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // ── Appearance ─
+        // -- Appearance -
         GlassPanel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,7 +86,7 @@ class _SettingsTabState extends State<SettingsTab> {
                 onSelect: (m) => setState(() => settings.themeMode = m),
               ),
               SwitchListTile(
-                activeColor: AppTheme.primary,
+                activeThumbColor: AppTheme.primary,
                 contentPadding: EdgeInsets.zero,
                 dense: true,
                 title: const Text('Simple mode',
@@ -103,14 +105,14 @@ class _SettingsTabState extends State<SettingsTab> {
         ).animate().fadeIn(duration: 240.ms),
         const SizedBox(height: 14),
 
-        // ── Hub connection ──
+        // -- Hub connection --
         HubConnectionSection(
           hubUrlController: _hubUrlController,
           tokenController: _tokenController,
         ),
         const SizedBox(height: 14),
 
-        // ── Capture behaviour ──
+        // -- Capture behaviour --
         GlassPanel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,13 +123,13 @@ class _SettingsTabState extends State<SettingsTab> {
                 title: 'Capture behaviour',
               ),
               SwitchListTile(
-                activeColor: AppTheme.primary,
+                activeThumbColor: AppTheme.primary,
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Shake-to-capture',
                     style: TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Text(
-                    'A firm shake (≥ threshold m/s²) triggers an instant capture',
+                    'A firm shake (= threshold m/s�) triggers an instant capture',
                     style: AppTheme.typeBodyMedium
                         .copyWith(color: AppTheme.darkTextDim)),
                 value: settings.shakeEnabled,
@@ -147,7 +149,7 @@ class _SettingsTabState extends State<SettingsTab> {
                         max: 25,
                         divisions: 17,
                         label:
-                            '${settings.shakeThreshold.toStringAsFixed(0)} m/s²',
+                            '${settings.shakeThreshold.toStringAsFixed(0)} m/s�',
                         onChanged: (v) =>
                             setState(() => settings.shakeThreshold = v),
                         onChangeEnd: (_) => context
@@ -156,7 +158,7 @@ class _SettingsTabState extends State<SettingsTab> {
                       ),
                     ),
                     Text(
-                        '${settings.shakeThreshold.toStringAsFixed(0)} m/s²',
+                        '${settings.shakeThreshold.toStringAsFixed(0)} m/s�',
                         style: const TextStyle(
                             fontSize: 12, fontFamily: 'monospace')),
                   ],
@@ -166,7 +168,15 @@ class _SettingsTabState extends State<SettingsTab> {
         ),
         const SizedBox(height: 14),
 
-        // ── Permission doctor ──
+        // -- Privacy & capture power (C1/C2/C3) --
+        _privacyCard(settings),
+        const SizedBox(height: 14),
+        _presetsCard(settings),
+        const SizedBox(height: 14),
+        _regionFavoritesCard(settings),
+        const SizedBox(height: 14),
+
+        // -- Permission doctor --
         GlassPanel(
           borderColor: (_batteryOk ? AppTheme.success : AppTheme.warning)
               .withValues(alpha: 0.4),
@@ -199,7 +209,7 @@ class _SettingsTabState extends State<SettingsTab> {
               ),
               const SizedBox(height: 8),
               Text(
-                'OEMs (MIUI/HyperOS, One UI…) kill overlays aggressively. '
+                'OEMs (MIUI/HyperOS, One UI�) kill overlays aggressively. '
                 'Grant every item below, then pull-to-refresh this tab.',
                 style: AppTheme.typeBodyMedium
                     .copyWith(color: AppTheme.darkTextDim),
@@ -226,7 +236,7 @@ class _SettingsTabState extends State<SettingsTab> {
                 icon: Icons.auto_fix_high_rounded,
                 title: 'Vendor auto-start / background',
                 subtitle: _brand == 'stock'
-                    ? 'Stock Android — nothing extra needed'
+                    ? 'Stock Android � nothing extra needed'
                     : 'Opens the hidden OEM permissions page',
                 trailing: const Text('Open'),
                 onTap: _brand == 'stock'
@@ -245,7 +255,7 @@ class _SettingsTabState extends State<SettingsTab> {
         ),
         const SizedBox(height: 14),
 
-        // ── Drive BYOS info ──
+        // -- Drive BYOS info --
         const GlassPanel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -271,7 +281,7 @@ class _SettingsTabState extends State<SettingsTab> {
                   label: 'OAuth scope', value: 'drive.file (restricted)'),
               _DriveRow(
                   label: 'Retention',
-                  value: '20 files on Drive · 60 on device'),
+                  value: '20 files on Drive � 60 on device'),
               SizedBox(height: 8),
               Text(
                 'drive.file scope limits access to files this app created. '
@@ -287,13 +297,256 @@ class _SettingsTabState extends State<SettingsTab> {
     );
   }
 
+  // ── C2: privacy redaction toggle ──
+  Widget _privacyCard(SettingsService settings) {
+    return GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeader(
+            icon: Icons.privacy_tip_rounded,
+            gradient: AppTheme.gradPrimary,
+            title: 'Privacy redaction',
+          ),
+          SwitchListTile(
+            activeThumbColor: AppTheme.primary,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Redact before sending',
+                style:
+                    TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            subtitle: Text(
+                'Pixelate every captured frame on-device before it is stored '
+                'or uploaded to the hub / Drive.',
+                style: AppTheme.typeBodyMedium
+                    .copyWith(color: AppTheme.darkTextDim)),
+            value: settings.redactionEnabled,
+            onChanged: (v) => setState(() => settings.redactionEnabled = v),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── C1: custom capture presets manager ──
+  Widget _presetsCard(SettingsService settings) {
+    final presets = CustomPreset.decodeList(settings.customPresetsRaw);
+    final activeId = settings.activeCustomPresetId;
+    return GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: SectionHeader(
+                  icon: Icons.tune_rounded,
+                  gradient: AppTheme.gradPrimary,
+                  title: 'Capture presets',
+                ),
+              ),
+              IconButton(
+                tooltip: 'Add preset',
+                icon: const Icon(Icons.add_rounded),
+                onPressed: () => _addPresetDialog(settings, presets),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (presets.isEmpty)
+            Text('No custom presets yet. Tap + to add one.',
+                style: AppTheme.typeBodyMedium
+                    .copyWith(color: AppTheme.darkTextDim))
+          else
+            for (final p in presets)
+              RadioListTile<String>(
+                activeColor: AppTheme.primary,
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: p.id,
+                groupValue: activeId,
+                onChanged: (v) =>
+                    setState(() => settings.activeCustomPresetId = v ?? ''),
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: Text(p.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                    ),
+                    IconButton(
+                      tooltip: 'Delete preset',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          size: 18),
+                      onPressed: () {
+                        final next =
+                            presets.where((e) => e.id != p.id).toList();
+                        setState(() {
+                          settings.customPresetsRaw =
+                              CustomPreset.encodeList(next);
+                          if (activeId == p.id) {
+                            settings.activeCustomPresetId = '';
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                subtitle: Text(p.summary,
+                    style: AppTheme.typeCaption
+                        .copyWith(color: AppTheme.darkTextDim)),
+              ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addPresetDialog(
+      SettingsService settings, List<CustomPreset> presets) async {
+    final nameCtrl = TextEditingController();
+    var width = 720;
+    var jpeg = true;
+    final result = await showDialog<CustomPreset>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('New preset'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Name', hintText: 'e.g. Docs scan'),
+                ),
+                const SizedBox(height: 12),
+                const Text('Resolution (long edge)',
+                    style: TextStyle(fontSize: 12)),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final w in const [0, 480, 720, 1080])
+                      ChoiceChip(
+                        label: Text(w == 0 ? 'Native' : '${w}px'),
+                        selected: width == w,
+                        onSelected: (_) => setLocal(() => width = w),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text('Format', style: TextStyle(fontSize: 12)),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('JPEG'),
+                      selected: jpeg,
+                      onSelected: (_) => setLocal(() => jpeg = true),
+                    ),
+                    ChoiceChip(
+                      label: const Text('PNG'),
+                      selected: !jpeg,
+                      onSelected: (_) => setLocal(() => jpeg = false),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty) return;
+                Navigator.pop(
+                  ctx,
+                  CustomPreset(
+                    id: DateTime.now().microsecondsSinceEpoch.toString(),
+                    name: name,
+                    maxWidth: width,
+                    jpeg: jpeg,
+                    jpegQuality: 74,
+                  ),
+                );
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null) return;
+    final next = [...presets, result];
+    setState(() {
+      settings.customPresetsRaw = CustomPreset.encodeList(next);
+      settings.activeCustomPresetId = result.id;
+    });
+  }
+
+  // ── C3: region favorites list ──
+  Widget _regionFavoritesCard(SettingsService settings) {
+    final favs = RegionFavorite.decodeList(settings.regionFavoritesRaw);
+    return GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeader(
+            icon: Icons.crop_rounded,
+            gradient: AppTheme.gradGreen,
+            title: 'Region favorites',
+          ),
+          const SizedBox(height: 4),
+          if (favs.isEmpty)
+            Text(
+                'No saved regions yet. Save a crop from the region editor to '
+                'reuse it here.',
+                style: AppTheme.typeBodyMedium
+                    .copyWith(color: AppTheme.darkTextDim))
+          else
+            for (final f in favs)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: const Icon(Icons.crop_free_rounded,
+                    color: AppTheme.primary),
+                title: Text(f.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: Text(f.summary,
+                    style: AppTheme.typeCaption
+                        .copyWith(color: AppTheme.darkTextDim)),
+                trailing: IconButton(
+                  tooltip: 'Delete region',
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  onPressed: () {
+                    final next =
+                        favs.where((e) => e.name != f.name).toList();
+                    setState(() => settings.regionFavoritesRaw =
+                        RegionFavorite.encodeList(next));
+                  },
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+
   static String _brandLabel(String? brand) {
     return switch (brand) {
-      'xiaomi' => 'Xiaomi · MIUI/HyperOS',
-      'samsung' => 'Samsung · One UI',
-      'huawei' => 'Huawei · EMUI',
-      'oppo' => 'OPPO · ColorOS',
-      'vivo' => 'vivo · Funtouch',
+      'xiaomi' => 'Xiaomi � MIUI/HyperOS',
+      'samsung' => 'Samsung � One UI',
+      'huawei' => 'Huawei � EMUI',
+      'oppo' => 'OPPO � ColorOS',
+      'vivo' => 'vivo � Funtouch',
       _ => 'Stock Android',
     };
   }

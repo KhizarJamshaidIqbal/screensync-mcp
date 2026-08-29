@@ -135,9 +135,12 @@ class OverlayBubbleToggledExternally extends ScreenCaptureEvent {
 /// Pushed by the hub over SSE when a frame/inspection/patch lands.
 class LiveHubEventEvent extends ScreenCaptureEvent {
   final String type;
-  const LiveHubEventEvent(this.type);
+  final String? label;
+  final bool ok;
+  final String? agentName;
+  const LiveHubEventEvent(this.type, {this.label, this.ok = true, this.agentName});
   @override
-  List<Object?> get props => [type];
+  List<Object?> get props => [type, label, ok, agentName];
 }
 
 class LiveConnectionEvent extends ScreenCaptureEvent {
@@ -186,4 +189,13 @@ class ActivityRecordedEvent extends ScreenCaptureEvent {
 /// timestamp). Same pattern as above.
 class SessionStatsChangedEvent extends ScreenCaptureEvent {
   const SessionStatsChangedEvent();
+}
+
+/// F2: Emitted internally when device_info_plus resolves the Android device
+/// model. No-op on desktop / non-Android platforms.
+class DeviceNameResolvedEvent extends ScreenCaptureEvent {
+  final String name;
+  const DeviceNameResolvedEvent(this.name);
+  @override
+  List<Object?> get props => [name];
 }

@@ -30,6 +30,12 @@ class _HomeScreenState extends State<HomeScreen> {
   int _lastRegionId = 0;
   bool _cropOpen = false;
 
+  /// A1: selected primary destination (Dashboard · Gallery · Diagnose ·
+  /// MCP · Settings). Bodies preserved in an IndexedStack.
+
+  /// F2: last live-connection value we showed a toast for.
+  bool? _lastLiveToast;
+
   /// Opens the full-screen region crop editor with the freshly captured
   /// full frame, then commits the chosen crop rect back to the BLoC.
   Future<void> _openRegionEditor(BuildContext context, ScreenCaptureState state) async {
@@ -68,8 +74,22 @@ class _HomeScreenState extends State<HomeScreen> {
       listenWhen: (previous, current) =>
           previous.status != current.status ||
           previous.errorMessage != current.errorMessage ||
-          previous.regionRequestId != current.regionRequestId,
+          previous.regionRequestId != current.regionRequestId ||
+          previous.liveConnected != current.liveConnected,
       listener: (context, state) {
+        // F2: reconnect/disconnect toasts (backoff handled by the service).
+        if (_lastLiveToast != null && _lastLiveToast != state.liveConnected) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+              content: Text(state.liveConnected
+                  ? 'Live stream reconnected.'
+                  : 'Live stream lost — retrying with backoff…'),
+            ));
+        }
+        _lastLiveToast = state.liveConnected;
         if (state.regionRequestId != _lastRegionId &&
             state.regionBytes != null) {
           _lastRegionId = state.regionRequestId;
@@ -86,8 +106,30 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       },
       builder: (context, state) {
+        // Single-screen layout: Dashboard only. Other tabs (Gallery,
+        // Diagnose, MCP, Settings) remain reachable via the layers/hub icon
+        // in the app bar (HubScreen). No bottom navigation bar.
         return Scaffold(
+          body: Stack(
+            children: [
+              const SafeArea(
+                bottom: false,
+                child: DashboardTab(onQuality: _noop),
+              ),
+              if (_showCelebration)
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 24,
+                  child: CaptureCelebration(
+                    framePath: _celebrationPath,
+                    synced: _celebrationSynced,
+                  ),
+                ),
+            ],
+          ),
           appBar: AppBar(
+            titleSpacing: 12,
             title: Row(
               children: [
                 Container(
@@ -108,68 +150,78 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.white, size: 15),
                 ),
                 const SizedBox(width: 10),
-                const Text('ScreenSync'),
-                const SizedBox(width: 5),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    'MCP',
-                    style: AppTheme.microLabel
-                        .copyWith(color: AppTheme.darkTextDim),
+                // Flexible so the brand block never forces an overflow on
+                // narrow screens; it shrinks/ellipsizes before pushing the
+                // trailing actions off-screen.
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Flexible(
+                        child: Text(
+                          'ScreenSync',
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'MCP',
+                          style: AppTheme.microLabel
+                              .copyWith(color: AppTheme.darkTextDim),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppTheme.success.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                              color: AppTheme.success.withValues(alpha: 0.35)),
+                        ),
+                        child: Text(
+                          'v2.5',
+                          style: AppTheme.microLabel
+                              .copyWith(color: AppTheme.success),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppTheme.success.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                        color: AppTheme.success.withValues(alpha: 0.35)),
-                  ),
-                  child: Text(
-                    'v2.5',
-                    style:
-                        AppTheme.microLabel.copyWith(color: AppTheme.success),
-                  ),
-                ),
-                const Spacer(),
-                _ConnectionToggleButton(
+              ],
+            ),
+            actions: [
+              Semantics(
+                label: 'Connection toggle',
+                child: _ConnectionToggleButton(
                   connected:
                       state.hubOnline == true || state.liveConnected == true,
                   busy: state.discovering,
-                  onDisconnect: () =>
-                      _confirmDisconnect(context, context.read<ScreenCaptureBloc>()),
+                  onDisconnect: () => _confirmDisconnect(
+                      context, context.read<ScreenCaptureBloc>()),
                   onConnect: () => context
                       .read<ScreenCaptureBloc>()
                       .add(AutoConnectHubEvent()),
                 ),
-                const SizedBox(width: 4),
-                IconButton(
+              ),
+              const SizedBox(width: 2),
+              Semantics(
+                label: 'Open hub',
+                child: IconButton(
                   tooltip: 'Open hub',
+                  visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.layers_rounded),
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const HubScreen()),
                   ),
                 ),
-                const ThemeQuickToggle(),
-              ],
-            ),
-          ),
-          body: Stack(
-            children: [
-              const DashboardTab(onQuality: _noop),
-              if (_showCelebration)
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: 24,
-                  child: CaptureCelebration(
-                    framePath: _celebrationPath,
-                    synced: _celebrationSynced,
-                  ),
-                ),
+              ),
+              const ThemeQuickToggle(),
+              const SizedBox(width: 4),
             ],
           ),
         );

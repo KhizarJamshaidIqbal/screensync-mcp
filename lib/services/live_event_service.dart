@@ -7,7 +7,22 @@ import 'package:http/http.dart' as http;
 class LiveHubEvent {
   final String type;
   final DateTime at;
-  const LiveHubEvent({required this.type, required this.at});
+
+  /// Optional detail (e.g. the MCP tool name for `tool` events).
+  final String? label;
+  final bool ok;
+
+  /// Connected AI agent name (e.g. "Claude Desktop", "Claude Code") surfaced
+  /// on the Connection Hero "Your AI" label. Null until agent_connect arrives.
+  final String? agentName;
+
+  const LiveHubEvent({
+    required this.type,
+    required this.at,
+    this.label,
+    this.ok = true,
+    this.agentName,
+  });
 }
 
 /// Keeps a single persistent SSE connection to the hub's /api/events so the
@@ -103,6 +118,9 @@ class LiveEventService {
             type: decoded['type']?.toString() ?? '',
             at: DateTime.tryParse(decoded['at']?.toString() ?? '') ??
                 DateTime.now(),
+            label: decoded['label']?.toString(),
+            ok: decoded['ok'] != false,
+            agentName: decoded['agentName']?.toString(),
           ));
         }
       } catch (_) {/* malformed event line */}

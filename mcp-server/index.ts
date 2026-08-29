@@ -2,7 +2,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { log } from "./config.js";
+import { agentName, log } from "./config.js";
+import { emitHubEvent } from "./events.js";
 import { startHttpHub } from "./hub.js";
 import { createMcpServer } from "./mcp.js";
 
@@ -26,6 +27,11 @@ async function main() {
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+
+  // Broadcast the connected AI agent identity so the phone can show it
+  // instead of a static "Your AI" placeholder.
+  emitHubEvent("agent_connect", undefined, undefined, agentName);
+  log("INFO", "Agent identity emitted", { agentName });
 
   const server = createMcpServer();
   await server.connect(new StdioServerTransport());

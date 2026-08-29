@@ -281,6 +281,8 @@ export async function startHttpHub(): Promise<HubHandle> {
     }
     const { action } = req.params;
     const b = (req.body ?? {}) as Record<string, unknown>;
+    // B3: control actions also show on the phone's AI activity timeline.
+    emitHubEvent("tool", `control_${action}`, true);
     try {
       const control = await import("./control.js");
       switch (action) {

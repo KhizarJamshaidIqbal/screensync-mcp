@@ -12,6 +12,9 @@ import '../../widgets/connection_hero/connection_hero.dart';
 import '../../widgets/permission_checklist.dart';
 import '../../widgets/connect_kit_card.dart';
 import '../../widgets/ref_widgets.dart';
+import '../../widgets/live_stream_strip.dart';
+import '../../widgets/health_hud.dart';
+import '../../widgets/ai_timeline.dart';
 import '../dashboard/bubble_status_card.dart';
 import '../dashboard/capture_controls_card.dart';
 import '../dashboard/detail_cards.dart';
@@ -34,6 +37,7 @@ class DashboardTab extends StatefulWidget {
 
 class _DashboardTabState extends State<DashboardTab> {
   bool _showDetails = false;
+  bool _showHealth = false;
   int _frameCount = 4;
   final ScrollController _scroll = ScrollController();
 
@@ -66,6 +70,8 @@ class _DashboardTabState extends State<DashboardTab> {
             DashboardTab.isLoopbackDefault(state.hubUrl) &&
                 state.hubOnline == false;
         final simple = SettingsService.instance.simpleMode;
+        final metrics = context.read<ScreenCaptureBloc>().metrics;
+        final live = state.liveConnected;
         return ListView(
           controller: _scroll,
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -114,6 +120,44 @@ class _DashboardTabState extends State<DashboardTab> {
             const PermissionChecklist(),
             if (showLoopbackWarning && !simple) ...[
               const LoopbackWarningBanner(),
+              const SizedBox(height: 14),
+            ],
+            const SizedBox(height: 14),
+            // B1: live thumbnail strip (same frame source as StoredFrames).
+            LiveStreamStrip(frames: state.gallery, live: live),
+            const SizedBox(height: 14),
+            // B2: collapsible latency/health mini-HUD.
+            Row(
+              children: [
+                const Expanded(child: SectionHead(title: 'Link health')),
+                IconButton(
+                  tooltip: _showHealth ? 'Hide health' : 'Show health',
+                  icon: Icon(_showHealth
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded),
+                  onPressed: () => setState(() => _showHealth = !_showHealth),
+                ),
+              ],
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: _showHealth
+                  ? Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: HealthHud(
+                        p50: metrics.p50,
+                        p95: metrics.p95,
+                        jitter: metrics.jitter,
+                        dropped: metrics.droppedFrames,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            // B3: AI activity timeline (same feed as the metrics service).
+            if (!simple) ...[
+              AiActivityTimeline(events: state.activityFeed),
               const SizedBox(height: 14),
             ],
             const SectionHead(title: 'Configuration'),
@@ -258,7 +302,7 @@ class _ConfigCard extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded,
+            const Icon(Icons.chevron_right_rounded,
                 size: 18, color: AppTheme.darkTextDim),
           ],
         ),

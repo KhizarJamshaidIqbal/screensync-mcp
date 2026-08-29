@@ -16,10 +16,16 @@ class LatencySparkline extends StatelessWidget {
     super.key,
     required this.samples,
     this.height = 36,
+    this.p50,
+    this.p95,
   });
 
   final List<int> samples;
   final double height;
+
+  /// Optional percentile marker lines (from metrics). Null → not drawn.
+  final int? p50;
+  final int? p95;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +55,8 @@ class LatencySparkline extends StatelessWidget {
                     samples: samples,
                     lineColor: color,
                     pointColor: color,
+                    p50: p50,
+                    p95: p95,
                   ),
                 ),
               ),
@@ -125,11 +133,15 @@ class _SparklinePainter extends CustomPainter {
     required this.samples,
     required this.lineColor,
     required this.pointColor,
+    this.p50,
+    this.p95,
   });
 
   final List<int> samples;
   final Color lineColor;
   final Color pointColor;
+  final int? p50;
+  final int? p95;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -171,6 +183,25 @@ class _SparklinePainter extends CustomPainter {
         ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
     );
 
+    // Horizontal percentile marker lines (p50 / p95).
+    void marker(int? ms, Color c, double dashOn) {
+      if (ms == null) return;
+      final v = (ms.clamp(0, maxY.toInt())) / maxY;
+      final my = padY + (1 - v) * usableH;
+      final p = Paint()
+        ..color = c.withValues(alpha: 0.45)
+        ..strokeWidth = 0.8;
+      var mx = padX;
+      while (mx < size.width - padX) {
+        final e = (mx + dashOn).clamp(0.0, size.width - padX);
+        canvas.drawLine(Offset(mx, my), Offset(e, my), p);
+        mx = e + 4;
+      }
+    }
+
+    marker(p50, AppTheme.primary, 3);
+    marker(p95, AppTheme.warning, 2);
+
     // Line.
     final linePaint = Paint()
       ..color = lineColor
@@ -202,5 +233,7 @@ class _SparklinePainter extends CustomPainter {
   bool shouldRepaint(covariant _SparklinePainter old) =>
       old.samples != samples ||
       old.lineColor != lineColor ||
-      old.pointColor != pointColor;
+      old.pointColor != pointColor ||
+      old.p50 != p50 ||
+      old.p95 != p95;
 }

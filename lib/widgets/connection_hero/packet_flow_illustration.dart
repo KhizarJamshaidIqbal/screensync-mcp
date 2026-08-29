@@ -1,38 +1,77 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:io' as dart_io;
+import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+
+import '../../blocs/screen_capture_bloc.dart';
 import '../../core/app_theme.dart';
 
-/// Animated packet-flow illustration. Replaces the static dashed line in the
-/// original PhoneLinkIllustration with a stream of glowing particles whose
-/// speed reflects link latency: a fast link sends packets quickly, a slow
-/// link crawls. Includes a 5-segment speed bar above the line and the
-/// existing latency pill on the left.
+/// Animated packet-flow illustration ("Live Bridge").
 ///
-/// Performance note: the painter rebuilds every frame via
-/// [ListenableBuilder], but the `shouldRepaint` check returns `false` for
-/// any other packet state. The packets array itself is small (5 items) so
-/// GC pressure is negligible.
+/// Upgrades over the original static line:
+///  - Breathing / glowing AI orb with one-shot ripple pulses on new activity.
+///  - Packet colour reacts to latency band (green/amber/red) as well as speed.
+///  - Faint reverse-direction packets (AI → phone) → reads as a two-way link.
+///  - Subtle reactive waveform accent behind the packet line.
+///  - Long-press the AI orb → quick AI actions (wired to real bloc events).
+///  - Camera-flash micro-animation on the orb when a capture/frame event fires.
+///  - Tasteful parallax offset on device tilt (accelerometer, graceful no-op).
 class PacketFlowIllustration extends StatefulWidget {
   const PacketFlowIllustration({
     super.key,
     required this.online,
     required this.latencyMs,
+    this.activityPulseKey,
+    this.flashPulseKey,
+    this.jitter,
+    this.latestFramePath,
+    this.deviceName,
+    this.agentName,
   });
 
   final bool online;
   final int? latencyMs;
+
+  /// Bumps whenever a new activity event/frame arrives → triggers a ripple.
+  final Object? activityPulseKey;
+
+  /// Bumps whenever a capture/frame (screenshot) event fires → camera flash.
+  final Object? flashPulseKey;
+
+  /// Recent latency jitter — drives waveform amplitude. Null → calm line.
+  final int? jitter;
+
+  /// Path to the latest captured frame PNG. When non-null and the file
+  /// exists, the phone mock shows the real screenshot instead of the
+  /// purple-gradient placeholder.
+  final String? latestFramePath;
+
+  /// Android device model (e.g. "Pixel 7") — replaces "This phone" label.
+  final String? deviceName;
+
+  /// Connected AI agent name (e.g. "Claude Desktop") — replaces "Your AI" label.
+  final String? agentName;
 
   @override
   State<PacketFlowIllustration> createState() => _PacketFlowIllustrationState();
 }
 
 class _PacketFlowIllustrationState extends State<PacketFlowIllustration>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+    with TickerProviderStateMixin {
+  late final AnimationController _controller; // packet travel
+  late final AnimationController _breathe; // orb breathing
+  late final AnimationController _ripple; // one-shot ripple
+  late final AnimationController _flash; // camera flash
 
-  // Each packet has a phase offset so they're staggered along the line.
-  // 0..1, with 0 = at phone, 1 = at AI.
+  StreamSubscription<UserAccelerometerEvent>? _accelSub;
+  double _tiltX = 0, _tiltY = 0;
+
   static const _packetPhases = <double>[0.0, 0.22, 0.44, 0.66, 0.88];
+  static const _reversePhases = <double>[0.12, 0.55, 0.83];
 
   @override
   void initState() {
@@ -41,26 +80,71 @@ class _PacketFlowIllustrationState extends State<PacketFlowIllustration>
       vsync: this,
       duration: _cycleDurationFor(widget.latencyMs),
     )..repeat();
+    _breathe = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat(reverse: true);
+    _ripple = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _flash = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
+    _initSensors();
+  }
+
+  void _initSensors() {
+    try {
+      // Use USER acceleration (gravity removed) so a phone at rest yields
+      // ~0 tilt. Raw accelerometer reports constant gravity (~9.8 on the
+      // resting axis), which would permanently offset the orb/label and push
+      // the caption into the metrics ribbon below. userAccelerometer is ~0 at
+      // rest and only responds to actual movement — the intended parallax.
+      _accelSub = userAccelerometerEventStream().listen(
+        (e) {
+          if (!mounted) return;
+          // Small, clamped parallax. Low-pass filter for smoothness.
+          setState(() {
+            _tiltX = (_tiltX * 0.85 + (e.x.clamp(-4.0, 4.0) / 4.0) * 4) * 1;
+            _tiltY = (_tiltY * 0.85 + (e.y.clamp(-4.0, 4.0) / 4.0) * 4) * 1;
+          });
+        },
+        onError: (_) {},
+        cancelOnError: true,
+      );
+    } catch (_) {
+      // Desktop/emulator without sensors → no-op.
+    }
   }
 
   @override
   void didUpdateWidget(covariant PacketFlowIllustration oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Re-derive cycle duration when latency changes meaningfully so the
-    // visual speed stays in sync with the sparkline.
     if (oldWidget.latencyMs != widget.latencyMs && widget.online) {
       _controller.duration = _cycleDurationFor(widget.latencyMs);
+    }
+    if (oldWidget.activityPulseKey != widget.activityPulseKey &&
+        widget.activityPulseKey != null) {
+      _ripple.forward(from: 0);
+    }
+    if (oldWidget.flashPulseKey != widget.flashPulseKey &&
+        widget.flashPulseKey != null) {
+      _flash.forward(from: 0);
     }
   }
 
   @override
   void dispose() {
+    _accelSub?.cancel();
     _controller.dispose();
+    _breathe.dispose();
+    _ripple.dispose();
+    _flash.dispose();
     super.dispose();
   }
 
-  /// Faster link ⇒ shorter cycle. Clamp at sane bounds so animation
-  /// doesn't break on extreme values.
   Duration _cycleDurationFor(int? ms) {
     if (!widget.online || ms == null) {
       return const Duration(milliseconds: 2400);
@@ -71,17 +155,98 @@ class _PacketFlowIllustrationState extends State<PacketFlowIllustration>
     return const Duration(milliseconds: 2600);
   }
 
+  /// Reactive packet colour by latency band.
+  Color _packetColor() {
+    if (!widget.online) return AppTheme.danger;
+    final ms = widget.latencyMs;
+    if (ms == null) return AppTheme.primary;
+    if (ms < 100) return AppTheme.success;
+    if (ms <= 250) return AppTheme.warning;
+    return AppTheme.danger;
+  }
+
+  void _showOrbMenu(Offset globalPos) {
+    final bloc = context.read<ScreenCaptureBloc>();
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPos.dx,
+        globalPos.dy,
+        overlay.size.width - globalPos.dx,
+        overlay.size.height - globalPos.dy,
+      ),
+      items: const [
+        PopupMenuItem(
+          value: 'capture',
+          child: Row(children: [
+            Icon(Icons.camera_alt_rounded, size: 16),
+            SizedBox(width: 8),
+            Text('Capture now'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'sync',
+          child: Row(children: [
+            Icon(Icons.cloud_sync_rounded, size: 16),
+            SizedBox(width: 8),
+            Text('Sync pending'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'ping',
+          child: Row(children: [
+            Icon(Icons.wifi_tethering_rounded, size: 16),
+            SizedBox(width: 8),
+            Text('Ping hub'),
+          ]),
+        ),
+      ],
+    ).then((v) {
+      if (v == null || !mounted) return;
+      switch (v) {
+        case 'capture':
+          bloc.add(QuickCaptureRequestedEvent());
+        case 'sync':
+          bloc.add(QuickSyncRequestedEvent());
+        case 'ping':
+          bloc.add(QuickPingRequestedEvent());
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final accent = widget.online ? AppTheme.primary : AppTheme.danger;
-    return Row(
-      children: [
-        Column(
-          children: [
-            _PhoneMock(online: widget.online),
-            const SizedBox(height: 8),
-            const MicroLabelCompact('This phone'),
-          ],
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final accent = _packetColor();
+    // Reserve a fixed height so the tallest column (phone/orb + caption) never
+    // bleeds into the metrics ribbon below, even with the ±4px tilt parallax.
+    return SizedBox(
+      height: 110,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+        Transform.translate(
+          offset: Offset(-_tiltX, -_tiltY),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                label: 'Phone screen — live capture preview',
+                child: _PhoneMock(
+                  online: widget.online,
+                  latestFramePath: widget.latestFramePath,
+                ),
+              ),
+              const SizedBox(height: 8),
+              MicroLabelCompact(
+                widget.deviceName ?? 'This phone',
+              ),
+            ],
+          ),
         ),
         Expanded(
           child: Column(
@@ -91,15 +256,19 @@ class _PacketFlowIllustrationState extends State<PacketFlowIllustration>
               else
                 const SizedBox(height: 20),
               SizedBox(
-                height: 14,
-                child: ListenableBuilder(
-                  listenable: _controller,
+                height: 20,
+                child: AnimatedBuilder(
+                  animation: _controller,
                   builder: (_, __) => CustomPaint(
                     painter: _PacketFlowPainter(
                       progress: _controller.value,
                       phases: _packetPhases,
+                      reversePhases: _reversePhases,
                       color: accent,
                       active: widget.online,
+                      waveAmp: reduceMotion
+                          ? 0
+                          : _waveAmpFor(widget.jitter),
                     ),
                     child: const SizedBox.expand(),
                   ),
@@ -108,21 +277,55 @@ class _PacketFlowIllustrationState extends State<PacketFlowIllustration>
             ],
           ),
         ),
-        Column(
-          children: [
-            _Orb(active: widget.online),
-            const SizedBox(height: 8),
-            const MicroLabelCompact('Your AI'),
-          ],
+        Transform.translate(
+          offset: Offset(_tiltX, _tiltY),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                button: true,
+                label: '${widget.agentName ?? "Your AI"}. Long-press for quick actions.',
+                child: Tooltip(
+                  message: 'Long-press for AI actions',
+                  child: GestureDetector(
+                    onLongPressStart: (d) {
+                      HapticFeedback.selectionClick();
+                      _showOrbMenu(d.globalPosition);
+                    },
+                    child: _BreathingOrb(
+                      active: widget.online,
+                      breathe: _breathe,
+                      ripple: _ripple,
+                      flash: _flash,
+                      reduceMotion: reduceMotion,
+                      accent: accent,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              MicroLabelCompact(widget.agentName ?? 'Your AI'),
+            ],
+          ),
         ),
-      ],
+        ],
+      ),
     );
+  }
+
+  double _waveAmpFor(int? jitter) {
+    if (!widget.online || jitter == null) return 0;
+    return (jitter / 120).clamp(0.0, 1.0) * 4.5;
   }
 }
 
 class _PhoneMock extends StatelessWidget {
-  const _PhoneMock({required this.online});
+  const _PhoneMock({required this.online, this.latestFramePath});
   final bool online;
+  final String? latestFramePath;
+
+  bool get _hasFrame =>
+      latestFramePath != null && dart_io.File(latestFramePath!).existsSync();
 
   @override
   Widget build(BuildContext context) {
@@ -133,53 +336,155 @@ class _PhoneMock extends StatelessWidget {
       decoration: BoxDecoration(
         color: dark ? const Color(0xFF2E2150) : const Color(0xFFE6DEF6),
         borderRadius: BorderRadius.circular(10),
-        border:
-            Border.all(color: AppTheme.primary.withValues(alpha: 0.35), width: 1.5),
+        border: Border.all(
+            color: AppTheme.primary.withValues(alpha: 0.35), width: 1.5),
         boxShadow: AppTheme.elevLow,
       ),
-      child: Center(
-        child: Container(
-          width: 26,
-          height: 40,
-          decoration: BoxDecoration(
-            gradient: online
-                ? AppTheme.gradOrb
-                : const LinearGradient(
-                    colors: [Color(0xFFB9B3CC), Color(0xFF9C94BC)]),
-            borderRadius: BorderRadius.circular(5),
-          ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8.5),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          child: _hasFrame
+              ? Image.file(
+                  dart_io.File(latestFramePath!),
+                  key: ValueKey('frame_$latestFramePath'),
+                  width: 44,
+                  height: 64,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _PlaceholderScreen(online: online),
+                )
+              : _PlaceholderScreen(key: const ValueKey('placeholder'), online: online),
         ),
       ),
     );
   }
 }
 
-class _Orb extends StatelessWidget {
-  const _Orb({required this.active});
-  final bool active;
+/// Purple-gradient placeholder shown when no live frame is available.
+class _PlaceholderScreen extends StatelessWidget {
+  const _PlaceholderScreen({super.key, required this.online});
+  final bool online;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 56,
-      height: 56,
+      width: 44,
+      height: 64,
       decoration: BoxDecoration(
-        gradient: active
+        gradient: online
             ? AppTheme.gradOrb
             : const LinearGradient(
-                colors: [Color(0xFF8A85A3), Color(0xFF6B6485)]),
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: (active ? AppTheme.primary : const Color(0xFF6B6485))
-                .withValues(alpha: 0.55),
-            blurRadius: 22,
-            spreadRadius: 2,
-          ),
-        ],
+                colors: [Color(0xFFB9B3CC), Color(0xFF9C94BC)]),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: const Center(
-        child: Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
+        child: SizedBox(
+          width: 26,
+          height: 40,
+        ),
+      ),
+    );
+  }
+}
+
+/// Breathing AI orb with ripple + camera-flash overlays.
+class _BreathingOrb extends StatelessWidget {
+  const _BreathingOrb({
+    required this.active,
+    required this.breathe,
+    required this.ripple,
+    required this.flash,
+    required this.reduceMotion,
+    required this.accent,
+  });
+
+  final bool active;
+  final AnimationController breathe;
+  final AnimationController ripple;
+  final AnimationController flash;
+  final bool reduceMotion;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 72,
+      height: 72,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([breathe, ripple, flash]),
+        builder: (context, _) {
+          final b = reduceMotion ? 0.5 : breathe.value; // 0..1
+          final double glowBlur = 16 + (active ? b * 12 : 0.0);
+          final double scale = active && !reduceMotion ? 1 + b * 0.04 : 1.0;
+          final baseColor = active ? AppTheme.primary : const Color(0xFF6B6485);
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              // One-shot ripple.
+              if (ripple.isAnimating || ripple.value > 0)
+                Container(
+                  width: 40 + ripple.value * 34,
+                  height: 40 + ripple.value * 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: accent.withValues(
+                          alpha: (1 - ripple.value).clamp(0.0, 1.0) * 0.6),
+                      width: 2,
+                    ),
+                  ),
+                ),
+              // The orb.
+              Transform.scale(
+                scale: scale,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: active
+                        ? AppTheme.gradOrb
+                        : const LinearGradient(
+                            colors: [Color(0xFF8A85A3), Color(0xFF6B6485)]),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: baseColor.withValues(alpha: 0.55),
+                        blurRadius: glowBlur,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.auto_awesome_rounded,
+                        color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
+              // Camera-flash / eye-blink overlay.
+              if (flash.value > 0)
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(
+                      alpha: (math.sin(flash.value * math.pi)).clamp(0.0, 1.0) *
+                          0.85,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.remove_red_eye_rounded,
+                    size: 20,
+                    color: AppTheme.primary.withValues(
+                      alpha: (math.sin(flash.value * math.pi)).clamp(0.0, 1.0),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -218,9 +523,6 @@ class _LatencyPill extends StatelessWidget {
 }
 
 class MicroLabelCompact extends StatelessWidget {
-  // Local copy of MicroLabel so this widget stays self-contained — the
-  // dashboard may delete PhoneLinkIllustration, and we don't want a broken
-  // import if ref_widgets moves.
   const MicroLabelCompact(this.text, {super.key, this.color});
   final String text;
   final Color? color;
@@ -229,8 +531,8 @@ class MicroLabelCompact extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text.toUpperCase(),
-      style: AppTheme.microLabel
-          .copyWith(color: color ?? AppTheme.darkTextDim),
+      style:
+          AppTheme.microLabel.copyWith(color: color ?? AppTheme.darkTextDim),
     );
   }
 }
@@ -239,14 +541,18 @@ class _PacketFlowPainter extends CustomPainter {
   _PacketFlowPainter({
     required this.progress,
     required this.phases,
+    required this.reversePhases,
     required this.color,
     required this.active,
+    required this.waveAmp,
   });
 
   final double progress; // 0..1
-  final List<double> phases; // 0..1, staggered
+  final List<double> phases;
+  final List<double> reversePhases;
   final Color color;
   final bool active;
+  final double waveAmp;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -254,7 +560,29 @@ class _PacketFlowPainter extends CustomPainter {
     const leftPad = 4.0, rightPad = 4.0;
     final usableW = size.width - leftPad - rightPad;
 
-    // Background dashed line (always visible — the "cable" itself).
+    // Reactive waveform accent behind the line.
+    if (active && waveAmp > 0.1) {
+      final wavePaint = Paint()
+        ..color = color.withValues(alpha: 0.22)
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke;
+      final path = Path();
+      const steps = 40;
+      for (var i = 0; i <= steps; i++) {
+        final t = i / steps;
+        final x = leftPad + t * usableW;
+        final phase = t * 4 * math.pi + progress * 2 * math.pi;
+        final yy = y + math.sin(phase) * waveAmp;
+        if (i == 0) {
+          path.moveTo(x, yy);
+        } else {
+          path.lineTo(x, yy);
+        }
+      }
+      canvas.drawPath(path, wavePaint);
+    }
+
+    // Background dashed line (the "cable").
     final linePaint = Paint()
       ..color = color.withValues(alpha: active ? 0.35 : 0.4)
       ..strokeWidth = 1.5
@@ -268,7 +596,6 @@ class _PacketFlowPainter extends CustomPainter {
     }
 
     if (!active) {
-      // Big X over the cable when offline.
       final cross = Paint()
         ..color = color
         ..strokeWidth = 2.4
@@ -279,34 +606,38 @@ class _PacketFlowPainter extends CustomPainter {
       return;
     }
 
-    // Glowing packets riding the line.
+    // Forward packets (phone → AI).
     for (final phase in phases) {
       final t = (progress + phase) % 1.0;
       final px = leftPad + t * usableW;
+      final alpha = _edgeFade(t);
+      canvas.drawCircle(Offset(px, y), 5.5,
+          Paint()..color = color.withValues(alpha: 0.25 * alpha));
+      canvas.drawCircle(Offset(px, y), 2.6,
+          Paint()..color = color.withValues(alpha: 0.95 * alpha));
+    }
 
-      // Fade in/out at the ends so packets don't pop in/out abruptly.
-      final alpha = (t < 0.1)
-          ? (t / 0.1).clamp(0.0, 1.0)
-          : (t > 0.9 ? (1 - (t - 0.9) / 0.1).clamp(0.0, 1.0) : 1.0);
-
-      // Outer glow.
-      canvas.drawCircle(
-        Offset(px, y),
-        5.5,
-        Paint()..color = color.withValues(alpha: 0.25 * alpha),
-      );
-      // Bright core.
-      canvas.drawCircle(
-        Offset(px, y),
-        2.6,
-        Paint()..color = color.withValues(alpha: 0.95 * alpha),
-      );
+    // Reverse packets (AI → phone), fainter & offset above the line.
+    final ry = y - 3.5;
+    for (final phase in reversePhases) {
+      final t = (progress + phase) % 1.0;
+      final px = leftPad + (1 - t) * usableW; // travels right→left
+      final alpha = _edgeFade(t);
+      canvas.drawCircle(Offset(px, ry), 3.4,
+          Paint()..color = color.withValues(alpha: 0.14 * alpha));
+      canvas.drawCircle(Offset(px, ry), 1.6,
+          Paint()..color = color.withValues(alpha: 0.45 * alpha));
     }
   }
+
+  double _edgeFade(double t) => (t < 0.1)
+      ? (t / 0.1).clamp(0.0, 1.0)
+      : (t > 0.9 ? (1 - (t - 0.9) / 0.1).clamp(0.0, 1.0) : 1.0);
 
   @override
   bool shouldRepaint(covariant _PacketFlowPainter old) =>
       old.progress != progress ||
       old.color != color ||
-      old.active != active;
+      old.active != active ||
+      old.waveAmp != waveAmp;
 }

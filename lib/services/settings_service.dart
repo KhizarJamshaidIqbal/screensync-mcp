@@ -28,6 +28,12 @@ class SettingsService extends ChangeNotifier {
   static const _kTelemetry = 'telemetry_log';
   static const _kOnboardingDone = 'onboarding_done';
   static const _kSimpleMode = 'simple_mode';
+  static const _kAccentColor = 'accent_color_index';
+  static const _kAmoledDark = 'amoled_dark';
+  static const _kRedaction = 'redaction_enabled';
+  static const _kCustomPresets = 'custom_presets';
+  static const _kActivePreset = 'active_preset_id';
+  static const _kRegionFavorites = 'region_favorites';
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -132,6 +138,57 @@ class SettingsService extends ChangeNotifier {
   bool get simpleMode => _prefs.getBool(_kSimpleMode) ?? false;
   set simpleMode(bool v) {
     _prefs.setBool(_kSimpleMode, v);
+    notifyListeners();
+  }
+
+  // ── Theming (E3) ──
+
+  /// Index into [AppAccent.palette]; 0 = default violet.
+  int get accentColorIndex => _prefs.getInt(_kAccentColor) ?? 0;
+  set accentColorIndex(int i) {
+    _prefs.setInt(_kAccentColor, i);
+    notifyListeners();
+  }
+
+  /// True-black dark variant for AMOLED displays.
+  bool get amoledDark => _prefs.getBool(_kAmoledDark) ?? false;
+  set amoledDark(bool v) {
+    _prefs.setBool(_kAmoledDark, v);
+    notifyListeners();
+  }
+
+  // ── Privacy redaction (C2) ──
+
+  /// Opt-in: blur/pixelate frames before they leave the device.
+  bool get redactionEnabled => _prefs.getBool(_kRedaction) ?? false;
+  set redactionEnabled(bool v) {
+    _prefs.setBool(_kRedaction, v);
+    notifyListeners();
+  }
+
+  // ── Custom capture presets (C1) ──
+
+  /// Raw JSON strings of user-defined presets (parsed by CustomPreset).
+  List<String> get customPresetsRaw =>
+      _prefs.getStringList(_kCustomPresets) ?? const [];
+  set customPresetsRaw(List<String> v) {
+    _prefs.setStringList(_kCustomPresets, v);
+    notifyListeners();
+  }
+
+  /// Id of the active custom preset ('' = use built-in quality preset).
+  String get activeCustomPresetId => _prefs.getString(_kActivePreset) ?? '';
+  set activeCustomPresetId(String id) {
+    _prefs.setString(_kActivePreset, id);
+    notifyListeners();
+  }
+
+  // ── Region favorites (C3) ──
+
+  List<String> get regionFavoritesRaw =>
+      _prefs.getStringList(_kRegionFavorites) ?? const [];
+  set regionFavoritesRaw(List<String> v) {
+    _prefs.setStringList(_kRegionFavorites, v);
     notifyListeners();
   }
 

@@ -1,5 +1,24 @@
 import 'package:flutter/material.dart';
 
+/// Accent palette for the E3 theme picker. Index 0 is the brand violet.
+class AppAccent {
+  const AppAccent(this.label, this.color);
+  final String label;
+  final Color color;
+
+  static const palette = <AppAccent>[
+    AppAccent('Violet', Color(0xFF7C3AED)),
+    AppAccent('Indigo', Color(0xFF4F46E5)),
+    AppAccent('Cyan', Color(0xFF0891B2)),
+    AppAccent('Emerald', Color(0xFF059669)),
+    AppAccent('Amber', Color(0xFFD97706)),
+    AppAccent('Rose', Color(0xFFE11D48)),
+  ];
+
+  static Color at(int index) =>
+      palette[index.clamp(0, palette.length - 1)].color;
+}
+
 /// ScreenSync design tokens — violet "watching over your shoulder" system.
 /// Light = soft lavender; dark = deep indigo. Serif display type with italic
 /// accents, uppercase micro-labels, glossy gradient tiles.
@@ -94,15 +113,29 @@ class AppTheme {
     BoxShadow(color: Color(0x337C3AED), blurRadius: 32, offset: Offset(0, 14)),
   ];
 
-  static ThemeData dark() =>
-      _base(Brightness.dark, darkBg, darkSurface, darkSurfaceAlt, darkBorder);
+  static ThemeData dark({Color? accent, bool amoled = false}) => _base(
+        Brightness.dark,
+        amoled ? const Color(0xFF000000) : darkBg,
+        amoled ? const Color(0xFF0A0A0A) : darkSurface,
+        amoled ? const Color(0xFF050505) : darkSurfaceAlt,
+        darkBorder,
+        accent: accent,
+      );
 
-  static ThemeData light() => _base(
-      Brightness.light, lightBg, lightSurface, lightSurfaceAlt, lightBorder);
+  static ThemeData light({Color? accent, bool amoled = false}) => _base(
+        Brightness.light,
+        lightBg,
+        lightSurface,
+        lightSurfaceAlt,
+        lightBorder,
+        accent: accent,
+      );
 
   static ThemeData _base(Brightness brightness, Color bg, Color surface,
-      Color surfaceAlt, Color border) {
+      Color surfaceAlt, Color border,
+      {Color? accent}) {
     final isDark = brightness == Brightness.dark;
+    final seed = accent ?? primary;
     final text = isDark ? const Color(0xFFF2EEFB) : const Color(0xFF221A38);
     return ThemeData(
       useMaterial3: true,
@@ -118,9 +151,9 @@ class AppTheme {
         bodySmall: typeCaption.copyWith(color: darkTextDim),
       ),
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primary,
+        seedColor: seed,
         brightness: brightness,
-        primary: primary,
+        primary: seed,
         secondary: secondary,
         surface: surface,
       ),

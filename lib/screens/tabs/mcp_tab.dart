@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../blocs/screen_capture_bloc.dart';
 import '../../core/app_theme.dart';
@@ -94,7 +95,13 @@ class _McpTabState extends State<McpTab> {
               return Column(children: [
                 _section('Tools (${catalog.tools.length})',
                     icon: Icons.build_rounded),
-                ...catalog.tools.map(_toolTile),
+                ...catalog.tools.map((t) => _ToolTile(
+                      tool: t,
+                      runner: (name) => context
+                          .read<ScreenCaptureBloc>()
+                          .screenRepository
+                          .runCatalogTool(name),
+                    )),
                 const SizedBox(height: 14),
                 _section('Skills / Prompts (${catalog.prompts.length})',
                     icon: Icons.auto_awesome_rounded,
@@ -174,6 +181,29 @@ class _McpTabState extends State<McpTab> {
                     size: 18),
                 label: Text(_showKitPreview ? 'Hide preview' : 'Preview kit'),
               ),
+              if (catalog != null) ...[
+                const SizedBox(height: 12),
+                // D2: QR of the same connect-kit string that gets copied.
+                Center(
+                  child: Semantics(
+                    label: 'Connect Kit QR code — scan to configure an agent',
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusM),
+                      ),
+                      child: QrImageView(
+                        data: _kit(catalog),
+                        size: 180,
+                        backgroundColor: Colors.white,
+                        errorCorrectionLevel: QrErrorCorrectLevel.M,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               if (_showKitPreview && catalog != null) ...[
                 const SizedBox(height: 8),
                 CodePanel(title: 'connect-kit.txt', code: _kit(catalog)),
@@ -191,27 +221,6 @@ class _McpTabState extends State<McpTab> {
       Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: SectionHeader(icon: icon, gradient: gradient, title: title),
-      );
-
-  Widget _toolTile(McpToolInfo tool) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: GlassPanel(
-          child: ExpansionTile(
-            tilePadding: EdgeInsets.zero,
-            childrenPadding: const EdgeInsets.only(top: 6),
-            title: Text(tool.name,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 14)),
-            subtitle: Text(tool.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11, color: dimColor(context))),
-            children: [
-              Text(tool.description,
-                  style: TextStyle(fontSize: 12, color: dimColor(context))),
-            ],
-          ),
-        ),
       );
 
   Widget _promptTile(McpPromptInfo prompt) => Padding(
@@ -274,4 +283,103 @@ class _McpTabState extends State<McpTab> {
           ],
         ),
       );
+}
+
+/// D1: in-app tool runner tile. Invokes the tool via the repository and shows
+/// the JSON result inline (loading + error states).
+class _ToolTile extends StatefulWidget {
+  const _ToolTile({required this.tool, required this.runner});
+
+  final McpToolInfo tool;
+  final Future<String> Function(String name) runner;
+
+  @override
+  State<_ToolTile> createState() => _ToolTileState();
+}
+
+class _ToolTileState extends State<_ToolTile> {
+  bool _running = false;
+  String? _result;
+  String? _error;
+
+  Future<void> _run() async {
+    setState(() {
+      _running = true;
+      _result = null;
+      _error = null;
+    });
+    try {
+      final out = await widget.runner(widget.tool.name);
+      if (!mounted) return;
+      setState(() => _result = out);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassPanel(
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(top: 6),
+          title: Text(widget.tool.name,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600, fontSize: 14)),
+          subtitle: Text(widget.tool.description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: dimColor(context))),
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(widget.tool.description,
+                  style:
+                      TextStyle(fontSize: 12, color: dimColor(context))),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                FilledButton.icon(
+                  onPressed: _running ? null : _run,
+                  icon: _running
+                      ? const SizedBox.square(
+                          dimension: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.play_arrow_rounded, size: 18),
+                  label: Text(_running ? 'Running…' : 'Run'),
+                ),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.danger.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusS),
+                  border: Border.all(
+                      color: AppTheme.danger.withValues(alpha: 0.35)),
+                ),
+                child: Text(_error!,
+                    style: TextStyle(
+                        fontSize: 12, color: AppTheme.danger)),
+              ),
+            ],
+            if (_result != null) ...[
+              const SizedBox(height: 10),
+              CodePanel(title: '${widget.tool.name}.json', code: _result!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }

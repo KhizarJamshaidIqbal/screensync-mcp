@@ -75,7 +75,7 @@ class _CaptureControlsCardState extends State<CaptureControlsCard> {
               Switch(
                 value: _paused,
                 onChanged: _loaded ? _toggle : null,
-                activeColor: AppTheme.primary,
+                activeThumbColor: AppTheme.primary,
                 activeTrackColor: AppTheme.primary.withValues(alpha: 0.3),
                 inactiveTrackColor:
                     dark ? AppTheme.darkSurfaceAlt : AppTheme.lightSurfaceAlt,
