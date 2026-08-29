@@ -8,6 +8,7 @@ import 'overlay_bubble.dart';
 import 'repositories/screen_repository.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/privacy_policy_screen.dart';
 import 'services/capture_trigger_bridge.dart';
 import 'services/device_intent_service.dart';
 import 'services/settings_service.dart';
@@ -90,12 +91,18 @@ class _ScreenSyncAppState extends State<ScreenSyncApp> {
             );
             return MediaQuery(data: clamped, child: child!);
           },
-          home: settings.onboardingDone
-              ? const HomeScreen()
-              : OnboardingScreen(
-                  onFinished: () =>
-                      SettingsService.instance.onboardingDone = true,
-                ),
+          // First-run flow: splash → Privacy Policy → Onboarding → Home.
+          home: !settings.privacyAccepted
+              ? PrivacyPolicyScreen(
+                  onAccepted: () =>
+                      SettingsService.instance.privacyAccepted = true,
+                )
+              : settings.onboardingDone
+                  ? const HomeScreen()
+                  : OnboardingScreen(
+                      onFinished: () =>
+                          SettingsService.instance.onboardingDone = true,
+                    ),
         ),
       ),
     );

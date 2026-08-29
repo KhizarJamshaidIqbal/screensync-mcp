@@ -8,9 +8,9 @@ import '../../models/custom_preset.dart';
 import '../../models/region_favorite.dart';
 import '../../services/device_intent_service.dart';
 import '../../services/settings_service.dart';
-import '../../widgets/common_widgets.dart';
 import '../../widgets/ref_widgets.dart';
 import '../dashboard/detail_cards.dart';
+import '../privacy_policy_screen.dart';
 import '../settings/hub_connection_section.dart';
 
 class SettingsTab extends StatefulWidget {
@@ -321,6 +321,21 @@ class _SettingsTabState extends State<SettingsTab> {
                     .copyWith(color: AppTheme.darkTextDim)),
             value: settings.redactionEnabled,
             onChanged: (v) => setState(() => settings.redactionEnabled = v),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const PrivacyPolicyScreen(readOnly: true),
+              ),
+            ),
+            icon: const Icon(Icons.menu_book_rounded, size: 16),
+            label: const Text('Read the Privacy Policy'),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 32),
+              textStyle:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),

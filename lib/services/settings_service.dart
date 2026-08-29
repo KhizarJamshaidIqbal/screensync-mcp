@@ -27,6 +27,7 @@ class SettingsService extends ChangeNotifier {
   static const _kConnectKitDismissed = 'connect_kit_dismissed';
   static const _kTelemetry = 'telemetry_log';
   static const _kOnboardingDone = 'onboarding_done';
+  static const _kPrivacyAccepted = 'privacy_accepted';
   static const _kSimpleMode = 'simple_mode';
   static const _kAccentColor = 'accent_color_index';
   static const _kAmoledDark = 'amoled_dark';
@@ -131,6 +132,14 @@ class SettingsService extends ChangeNotifier {
   bool get onboardingDone => _prefs.getBool(_kOnboardingDone) ?? false;
   set onboardingDone(bool v) {
     _prefs.setBool(_kOnboardingDone, v);
+    notifyListeners();
+  }
+
+  /// Privacy policy reviewed & accepted (shown once, between splash and
+  /// onboarding on first run).
+  bool get privacyAccepted => _prefs.getBool(_kPrivacyAccepted) ?? false;
+  set privacyAccepted(bool v) {
+    _prefs.setBool(_kPrivacyAccepted, v);
     notifyListeners();
   }
 
