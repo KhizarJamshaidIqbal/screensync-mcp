@@ -3,14 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>About Us — ScreenSync MCP | EpsolDev</title>
-<meta name="description" content="About EpsolDev — the team behind ScreenSync MCP. Our story, mission, and why we built the bridge between your phone and your AI.">
-<link rel="canonical" href="https://epsoldev.com/about.html">
+<title>About EpsolDev — The Team Behind ScreenSync MCP</title>
+<meta name="description" content="Meet EpsolDev, the team behind ScreenSync MCP. Our story, mission, and why we built a private, local-first bridge between your Android phone and any AI agent.">
+<meta name="robots" content="index,follow">
+<meta name="author" content="EpsolDev">
+<meta name="theme-color" content="#6541D6">
+<link rel="canonical" href="https://screensyncmcp.epsoldev.com/about.html">
+<link rel="alternate" hreflang="x-default" href="https://screensyncmcp.epsoldev.com/about.html">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://epsoldev.com/about.html">
-<meta property="og:title" content="About Us — ScreenSync MCP by EpsolDev">
+<meta property="og:url" content="https://screensyncmcp.epsoldev.com/about.html">
+<meta property="og:title" content="About EpsolDev — The Team Behind ScreenSync MCP">
 <meta property="og:description" content="Our story, mission, and why we built the bridge between your phone and your AI.">
-<meta property="og:image" content="https://epsoldev.com/assets/logo.png">
+<meta property="og:image" content="https://screensyncmcp.epsoldev.com/assets/logo.png">
+<meta property="og:site_name" content="ScreenSync MCP">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:url" content="https://screensyncmcp.epsoldev.com/about.html">
+<meta name="twitter:title" content="About EpsolDev — The Team Behind ScreenSync MCP">
+<meta name="twitter:description" content="Our story, mission, and why we built the bridge between your phone and your AI.">
+<meta name="twitter:image" content="https://screensyncmcp.epsoldev.com/assets/logo.png">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,7 +30,36 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <link rel="stylesheet" href="css/custom.css">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"AboutPage","name":"About EpsolDev","url":"https://epsoldev.com/about.html","publisher":{"@type":"Organization","name":"EpsolDev","url":"https://epsoldev.com","email":"info@epsoldev.com"}}
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://epsoldev.com/#organization",
+      "name": "EpsolDev",
+      "url": "https://epsoldev.com",
+      "logo": "https://screensyncmcp.epsoldev.com/assets/logo.png",
+      "email": "info@epsoldev.com",
+      "sameAs": [],
+      "contactPoint": { "@type": "ContactPoint", "email": "info@epsoldev.com", "contactType": "customer support" }
+    },
+    {
+      "@type": "AboutPage",
+      "name": "About EpsolDev",
+      "url": "https://screensyncmcp.epsoldev.com/about.html",
+      "description": "The story and mission of EpsolDev, the team behind ScreenSync MCP.",
+      "publisher": { "@id": "https://epsoldev.com/#organization" },
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://screensyncmcp.epsoldev.com/" },
+        { "@type": "ListItem", "position": 2, "name": "About", "item": "https://screensyncmcp.epsoldev.com/about.html" }
+      ]
+    }
+  ]
+}
 </script>
 </head>
 <body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
@@ -62,7 +102,7 @@
     <div class="mt-4 space-y-4 text-[#4B4460] leading-relaxed">
       <p>ScreenSync MCP started with a simple frustration: AI agents were getting incredibly capable — they could write code, plan tasks, and reason through problems — but they were <strong>blind to the one screen that matters most: your phone</strong>. Debugging a mobile app meant endlessly describing what you saw, taking screenshots by hand, dragging them into a chat, and repeating that loop dozens of times a day.</p>
       <p>So we built the bridge. First a floating bubble that captured any screen in one tap. Then a tiny hub that received frames over the local network. Then the Model Context Protocol arrived and everything clicked: with MCP, <em>any</em> agent could not only see the phone but also act on it — tap, swipe, type, inspect the UI tree, compare frames, read logs.</p>
-      <p>Today ScreenSync MCP is a full pipeline: a polished Flutter app, a Node.js hub with 25+ tools, live SSE streaming with real latency stats, QR pairing, and a privacy architecture where <strong>your data never touches our servers — because we don't have any.</strong></p>
+      <p>Today ScreenSync MCP is a full pipeline: a polished Flutter app, a Node.js hub with 25+ tools, live SSE streaming with real latency stats, QR pairing, and a privacy architecture where <strong>your data never touches our servers — because we don't have any.</strong> Read more about where we're heading on our <a href="goal.html" class="text-[#6541D6] font-semibold underline">Goal &amp; Vision page</a>.</p>
     </div>
   </div>
 

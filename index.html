@@ -3,16 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ScreenSync MCP — Your AI, Watching Over Your Shoulder | EpsolDev</title>
-<meta name="description" content="ScreenSync MCP connects your Android phone to any AI agent via the Model Context Protocol. Live screen capture, 25+ MCP tools, LAN-first privacy, floating bubble capture — your AI sees and controls your phone in real time.">
+<title>ScreenSync MCP — Live Android Screen Capture for AI Agents</title>
+<meta name="description" content="ScreenSync MCP connects your Android phone to any AI agent via the Model Context Protocol. Live screen capture, 25+ MCP tools, LAN-first privacy. Free by EpsolDev.">
 <meta name="keywords" content="ScreenSync MCP, MCP server, Model Context Protocol, Android screen capture, AI agent tools, mobile automation, screen sharing AI, EpsolDev">
-<link rel="canonical" href="https://epsoldev.com/">
+<meta name="robots" content="index,follow">
+<meta name="author" content="EpsolDev">
+<meta name="theme-color" content="#6541D6">
+<link rel="canonical" href="https://screensyncmcp.epsoldev.com/">
+<link rel="alternate" hreflang="x-default" href="https://screensyncmcp.epsoldev.com/">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://epsoldev.com/">
-<meta property="og:title" content="ScreenSync MCP — Your AI, Watching Over Your Shoulder">
+<meta property="og:url" content="https://screensyncmcp.epsoldev.com/">
+<meta property="og:title" content="ScreenSync MCP — Live Android Screen Capture for AI Agents">
 <meta property="og:description" content="Connect your Android phone to any AI agent. Live screen capture, 25+ MCP tools, LAN-first privacy.">
-<meta property="og:image" content="https://epsoldev.com/assets/logo.png">
+<meta property="og:image" content="https://screensyncmcp.epsoldev.com/assets/logo.png">
+<meta property="og:site_name" content="ScreenSync MCP">
+<meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:url" content="https://screensyncmcp.epsoldev.com/">
+<meta name="twitter:title" content="ScreenSync MCP — Live Android Screen Capture for AI Agents">
+<meta name="twitter:description" content="Connect your Android phone to any AI agent. Live screen capture, 25+ MCP tools, LAN-first privacy.">
+<meta name="twitter:image" content="https://screensyncmcp.epsoldev.com/assets/logo.png">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,13 +33,91 @@
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "ScreenSync MCP",
-  "operatingSystem": "Android",
-  "applicationCategory": "DeveloperApplication",
-  "description": "ScreenSync MCP connects your Android phone to any AI agent via the Model Context Protocol. Live screen capture, 25+ MCP tools, LAN-first privacy.",
-  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "publisher": { "@type": "Organization", "name": "EpsolDev", "url": "https://epsoldev.com" }
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://epsoldev.com/#organization",
+      "name": "EpsolDev",
+      "url": "https://epsoldev.com",
+      "logo": "https://screensyncmcp.epsoldev.com/assets/logo.png",
+      "sameAs": [],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "info@epsoldev.com",
+        "contactType": "customer support"
+      }
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://screensyncmcp.epsoldev.com/#website",
+      "url": "https://screensyncmcp.epsoldev.com/",
+      "name": "ScreenSync MCP",
+      "description": "Live Android screen capture and control for AI agents over the Model Context Protocol.",
+      "publisher": { "@id": "https://epsoldev.com/#organization" },
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://screensyncmcp.epsoldev.com/#app",
+      "name": "ScreenSync MCP",
+      "operatingSystem": "Android",
+      "applicationCategory": "DeveloperApplication",
+      "softwareVersion": "2.5",
+      "description": "ScreenSync MCP connects your Android phone to any AI agent via the Model Context Protocol. Live screen capture, 25+ MCP tools, LAN-first privacy.",
+      "url": "https://screensyncmcp.epsoldev.com/",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "featureList": [
+        "Live screen capture via MediaProjection",
+        "25+ MCP tools for full device control",
+        "LAN-first, token-secured transport",
+        "Floating bubble one-tap capture",
+        "Shake-to-capture gesture",
+        "mDNS auto-discovery",
+        "Connect-Kit QR pairing",
+        "Live SSE streaming with latency telemetry",
+        "Google Drive BYOS fallback",
+        "Local SQLite capture history"
+      ],
+      "author": { "@id": "https://epsoldev.com/#organization" },
+      "publisher": { "@id": "https://epsoldev.com/#organization" }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://screensyncmcp.epsoldev.com/" }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Does my screen data leave my network?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No — by default everything stays on your LAN. Frames go phone to hub over your own Wi-Fi with bearer-token auth. Only if you explicitly enable the Google Drive BYOS fallback do frames sync through your own Drive account." }
+        },
+        {
+          "@type": "Question",
+          "name": "Which AI agents work with ScreenSync MCP?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Any MCP-compatible client: Claude Desktop, Claude Code, OpenClaw, custom agents — anything that speaks Model Context Protocol over stdio can use all 25+ tools and 4 built-in prompts." }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need root or ADB on the phone?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No root needed. Screen capture uses Android's official MediaProjection API with your one-time consent. Device-control tools (tap/swipe/type) use ADB from the hub side — ideal with wireless debugging." }
+        },
+        {
+          "@type": "Question",
+          "name": "What happens when I leave my Wi-Fi network?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Hybrid mode automatically falls back to Google Drive BYOS sync (if you enabled it). Captures queue locally in SQLite and push when a route is available — the dashboard shows unsynced counts." }
+        },
+        {
+          "@type": "Question",
+          "name": "Is it free?",
+          "acceptedAnswer": { "@type": "Answer", "text": "ScreenSync MCP is currently free while in active development by EpsolDev." }
+        }
+      ]
+    }
+  ]
 }
 </script>
 </head>
