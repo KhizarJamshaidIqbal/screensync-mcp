@@ -1,0 +1,93 @@
+/* ScreenSync MCP — custom polish beyond Tailwind */
+:root {
+  --brand: #6541D6;
+  --brand-light: #8B6AEC;
+  --brand-deep: #150E27;
+  --lavender: #EFEAF9;
+}
+
+html { scroll-behavior: smooth; }
+body { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; }
+
+/* ---------- Scroll reveal ---------- */
+.reveal { opacity: 0; transform: translateY(28px); transition: opacity .6s cubic-bezier(.22,.61,.36,1), transform .6s cubic-bezier(.22,.61,.36,1); }
+.reveal.visible { opacity: 1; transform: none; }
+/* Ensure elements visible before JS loads never flash blank */
+@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } }
+.reveal-delay-1 { transition-delay: .1s; }
+.reveal-delay-2 { transition-delay: .2s; }
+.reveal-delay-3 { transition-delay: .3s; }
+
+/* ---------- Glass nav ---------- */
+.glass-nav { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: rgba(255,255,255,.78); border-bottom: 1px solid rgba(101,65,214,.08); }
+
+/* ---------- Hero glow ---------- */
+.hero-glow {
+  background:
+    radial-gradient(60% 55% at 50% 0%, rgba(139,106,236,.16) 0%, rgba(139,106,236,0) 70%),
+    radial-gradient(40% 40% at 85% 20%, rgba(101,65,214,.10) 0%, rgba(101,65,214,0) 70%),
+    radial-gradient(35% 35% at 10% 30%, rgba(239,234,249,.9) 0%, rgba(239,234,249,0) 70%);
+}
+
+/* ---------- Cards ---------- */
+.lux-card { background:#fff; border:1px solid #EDE9F7; border-radius:1.5rem; box-shadow:0 8px 40px rgba(101,65,214,.07); transition: transform .35s ease, box-shadow .35s ease; }
+.lux-card:hover { transform: translateY(-6px); box-shadow:0 18px 56px rgba(101,65,214,.14); }
+
+/* ---------- Gradient text ---------- */
+.grad-text { background: linear-gradient(100deg,#6541D6 10%,#8B6AEC 60%,#B39DF3 95%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ---------- Buttons ---------- */
+.btn-primary { background: linear-gradient(135deg,#6541D6,#7E5BE6); color:#fff; box-shadow:0 10px 30px rgba(101,65,214,.35); transition: all .3s ease; }
+.btn-primary:hover { transform: translateY(-2px); box-shadow:0 16px 40px rgba(101,65,214,.45); }
+.btn-secondary { background:#fff; color:#6541D6; border:1.5px solid #E3DBF8; transition: all .3s ease; }
+.btn-secondary:hover { border-color:#6541D6; background:#FBFAFE; }
+
+/* ---------- Animated connection line ---------- */
+.dash-line { stroke-dasharray: 8 8; animation: dashmove 1.4s linear infinite; }
+@keyframes dashmove { to { stroke-dashoffset: -16; } }
+.pulse-dot { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+@keyframes pulse { 0%,100% { opacity:1; transform:scale(1);} 50% { opacity:.55; transform:scale(1.25);} }
+
+/* ---------- Float animation (hero mockup) ---------- */
+.float-slow { animation: floaty 6s ease-in-out infinite; }
+@keyframes floaty { 0%,100% { transform: translateY(0) rotate(0.5deg);} 50% { transform: translateY(-14px) rotate(-0.5deg);} }
+
+/* sparkle twinkle */
+.twinkle { animation: twinkle 2.6s ease-in-out infinite; }
+.twinkle:nth-child(2n) { animation-delay: .8s; }
+.twinkle:nth-child(3n) { animation-delay: 1.4s; }
+@keyframes twinkle { 0%,100% { opacity:.25; transform:scale(.85);} 50% { opacity:1; transform:scale(1.1);} }
+
+/* ---------- Screenshot frame ---------- */
+.phone-frame { border-radius: 2rem; border: 6px solid #1E1633; box-shadow: 0 24px 70px rgba(21,14,39,.25); overflow: hidden; background:#1E1633; }
+.phone-frame img { display:block; border-radius: 1.6rem; }
+
+/* ---------- Marquee for tools ---------- */
+.marquee { overflow: hidden; }
+.marquee-track { display:flex; gap:.75rem; width:max-content; animation: marquee 38s linear infinite; }
+.marquee:hover .marquee-track { animation-play-state: paused; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+/* ---------- FAQ ---------- */
+.faq-item .faq-a { display:grid; grid-template-rows: 0fr; transition: grid-template-rows .4s ease; }
+.faq-item.open .faq-a { grid-template-rows: 1fr; }
+.faq-item .faq-a > div { overflow: hidden; }
+.faq-item.open .chev { transform: rotate(180deg); }
+.chev { transition: transform .3s ease; }
+
+/* ---------- Legal pages ---------- */
+.prose-legal h2 { font-size:1.5rem; font-weight:700; color:#1E1633; margin:2.5rem 0 .9rem; scroll-margin-top: 6rem; }
+.prose-legal h3 { font-size:1.15rem; font-weight:600; color:#2A2242; margin:1.8rem 0 .6rem; }
+.prose-legal p, .prose-legal li { color:#4B4460; line-height:1.85; margin-bottom:.7rem; }
+.prose-legal ul { list-style: disc; padding-left:1.4rem; margin-bottom:1rem; }
+.prose-legal strong { color:#1E1633; }
+.prose-legal table { width:100%; border-collapse:collapse; margin:1.2rem 0; font-size:.925rem; }
+.prose-legal th { background:#F6F3FD; color:#1E1633; text-align:left; padding:.7rem .9rem; border:1px solid #EDE9F7; }
+.prose-legal td { padding:.7rem .9rem; border:1px solid #EDE9F7; color:#4B4460; }
+
+/* counters */
+.stat-num { font-variant-numeric: tabular-nums; }
+
+/* mobile menu */
+#mobileMenu { transition: max-height .4s ease, opacity .3s ease; max-height: 0; opacity: 0; overflow: hidden; }
+#mobileMenu.open { max-height: 420px; opacity: 1; }
