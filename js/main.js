@@ -3,12 +3,23 @@
   'use strict';
 
   // ---------- Scroll reveal ----------
+  const revealEls = document.querySelectorAll('.reveal');
   const io = new IntersectionObserver((entries) => {
     entries.forEach((e) => {
       if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
     });
-  }, { threshold: 0.12 });
-  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+  }, { threshold: 0.05, rootMargin: '60px 0px 0px 0px' });
+  revealEls.forEach((el) => io.observe(el));
+  // Immediately show any element already in viewport on load (avoids blank flash)
+  window.addEventListener('load', () => {
+    revealEls.forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.top < window.innerHeight && r.bottom > 0) {
+        el.classList.add('visible');
+        io.unobserve(el);
+      }
+    });
+  });
 
   // ---------- Mobile menu ----------
   const burger = document.getElementById('burger');
