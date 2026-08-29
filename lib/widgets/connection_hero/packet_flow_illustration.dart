@@ -222,6 +222,13 @@ class _PacketFlowIllustrationState extends State<PacketFlowIllustration>
     final reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final accent = _packetColor();
+    // Side columns are as wide as their captions (long device models), so the
+    // cable's column starts/ends away from the phone's and orb's visual edges.
+    // Extend the painted cable by exactly that overflow so it still meets the
+    // phone's right edge and tucks into the orb (72px slot, 56px orb → 8px
+    // inset + 2px tuck) on the right.
+    final leftExt = _captionOverflow(widget.deviceName ?? 'This phone', 44) + 2;
+    const rightExt = 10.0;
     // Reserve a fixed height so the tallest column (phone/orb + caption) never
     // bleeds into the metrics ribbon below, even with the ±4px tilt parallax.
     return SizedBox(
@@ -249,31 +256,49 @@ class _PacketFlowIllustrationState extends State<PacketFlowIllustration>
           ),
         ),
         Expanded(
-          child: Column(
+          // Bottom-anchored Stack: the row is a fixed 110px tall with the side
+          // columns bottom-aligned, so icon centers are stable from the bottom
+          // (phone ≈ captionH+40, orb ≈ captionH+44). Cable center lands at
+          // captionH+42 → passes through both icons; the latency pill hovers
+          // 4dp above the cable's center instead of floating at the top.
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              if (widget.online && widget.latencyMs != null)
-                _LatencyPill(latencyMs: widget.latencyMs!)
-              else
-                const SizedBox(height: 20),
-              SizedBox(
-                height: 20,
-                child: AnimatedBuilder(
-                  animation: _controller,
-                  builder: (_, __) => CustomPaint(
-                    painter: _PacketFlowPainter(
-                      progress: _controller.value,
-                      phases: _packetPhases,
-                      reversePhases: _reversePhases,
-                      color: accent,
-                      active: widget.online,
-                      waveAmp: reduceMotion
-                          ? 0
-                          : _waveAmpFor(widget.jitter),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: _captionHeight() + 32,
+                child: SizedBox(
+                  height: 20,
+                  child: AnimatedBuilder(
+                    animation: _controller,
+                    builder: (_, __) => CustomPaint(
+                      painter: _PacketFlowPainter(
+                        progress: _controller.value,
+                        phases: _packetPhases,
+                        reversePhases: _reversePhases,
+                        color: accent,
+                        active: widget.online,
+                        leftExt: leftExt,
+                        rightExt: rightExt,
+                        waveAmp: reduceMotion
+                            ? 0
+                            : _waveAmpFor(widget.jitter),
+                      ),
+                      child: const SizedBox.expand(),
                     ),
-                    child: const SizedBox.expand(),
                   ),
                 ),
               ),
+              if (widget.online && widget.latencyMs != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: _captionHeight() + 46,
+                  child: Center(
+                    child: _LatencyPill(latencyMs: widget.latencyMs!),
+                  ),
+                ),
             ],
           ),
         ),
@@ -304,7 +329,17 @@ class _PacketFlowIllustrationState extends State<PacketFlowIllustration>
                 ),
               ),
               const SizedBox(height: 8),
-              MicroLabelCompact(widget.agentName ?? 'Your AI'),
+              // Caption shares the orb's 72px slot so a long agent name can't
+              // widen this column and drift the caption off the orb's center.
+              SizedBox(
+                width: 72,
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: MicroLabelCompact(widget.agentName ?? 'Your AI'),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -316,6 +351,22 @@ class _PacketFlowIllustrationState extends State<PacketFlowIllustration>
   double _waveAmpFor(int? jitter) {
     if (!widget.online || jitter == null) return 0;
     return (jitter / 120).clamp(0.0, 1.0) * 4.5;
+  }
+
+  double _captionOverflow(String text, double slotWidth) {
+    final tp = TextPainter(
+      text: TextSpan(text: text.toUpperCase(), style: AppTheme.microLabel),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return math.max(0.0, (tp.width - slotWidth) / 2);
+  }
+
+  double _captionHeight() {
+    final tp = TextPainter(
+      text: const TextSpan(text: 'A', style: AppTheme.microLabel),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return tp.height;
   }
 }
 
@@ -544,6 +595,8 @@ class _PacketFlowPainter extends CustomPainter {
     required this.reversePhases,
     required this.color,
     required this.active,
+    required this.leftExt,
+    required this.rightExt,
     required this.waveAmp,
   });
 
@@ -552,12 +605,18 @@ class _PacketFlowPainter extends CustomPainter {
   final List<double> reversePhases;
   final Color color;
   final bool active;
+  final double leftExt;
+  final double rightExt;
   final double waveAmp;
 
   @override
   void paint(Canvas canvas, Size size) {
     final y = size.height / 2;
-    const leftPad = 4.0, rightPad = 4.0;
+    // Negative pads extend the cable past this column so it meets the phone's
+    // right edge and the orb's visual left edge (side columns are widened by
+    // their captions; see build()).
+    final leftPad = -leftExt;
+    final rightPad = -rightExt;
     final usableW = size.width - leftPad - rightPad;
 
     // Reactive waveform accent behind the line.
@@ -600,7 +659,7 @@ class _PacketFlowPainter extends CustomPainter {
         ..color = color
         ..strokeWidth = 2.4
         ..strokeCap = StrokeCap.round;
-      final cx = size.width / 2;
+      final cx = leftPad + usableW / 2;
       canvas.drawLine(Offset(cx - 4, y - 4), Offset(cx + 4, y + 4), cross);
       canvas.drawLine(Offset(cx + 4, y - 4), Offset(cx - 4, y + 4), cross);
       return;
@@ -639,5 +698,7 @@ class _PacketFlowPainter extends CustomPainter {
       old.progress != progress ||
       old.color != color ||
       old.active != active ||
+      old.leftExt != leftExt ||
+      old.rightExt != rightExt ||
       old.waveAmp != waveAmp;
 }
