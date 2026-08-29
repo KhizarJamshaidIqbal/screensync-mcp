@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScreenSync MCP — Live Android Screen Capture for AI Agents</title>
+<meta name="description" content="ScreenSync MCP connects your Android phone to any AI agent via the Model Context Protocol. Live screen capture, 25+ MCP tools, LAN-first privacy. Free by EpsolDev.">
+<meta name="keywords" content="ScreenSync MCP, MCP server, Model Context Protocol, Android screen capture, AI agent tools, mobile automation, screen sharing AI, EpsolDev">
+<meta name="robots" content="index,follow">
+<meta name="author" content="EpsolDev">
+<meta name="theme-color" content="#6541D6">
+<link rel="canonical" href="https://screensyncmcp.epsoldev.com/">
+<link rel="alternate" hreflang="x-default" href="https://screensyncmcp.epsoldev.com/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://screensyncmcp.epsoldev.com/">
+<meta property="og:title" content="ScreenSync MCP — Live Android Screen Capture for AI Agents">
+<meta property="og:description" content="Connect your Android phone to any AI agent. Live screen capture, 25+ MCP tools, LAN-first privacy.">
+<meta property="og:image" content="https://screensyncmcp.epsoldev.com/assets/logo.png">
+<meta property="og:site_name" content="ScreenSync MCP">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:url" content="https://screensyncmcp.epsoldev.com/">
+<meta name="twitter:title" content="ScreenSync MCP — Live Android Screen Capture for AI Agents">
+<meta name="twitter:description" content="Connect your Android phone to any AI agent. Live screen capture, 25+ MCP tools, LAN-first privacy.">
+<meta name="twitter:image" content="https://screensyncmcp.epsoldev.com/assets/logo.png">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="css/custom.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://epsoldev.com/#organization",
+      "name": "EpsolDev",
+      "url": "https://epsoldev.com",
+      "logo": "https://screensyncmcp.epsoldev.com/assets/logo.png",
+      "sameAs": [],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "info@epsoldev.com",
+        "contactType": "customer support"
+      }
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://screensyncmcp.epsoldev.com/#website",
+      "url": "https://screensyncmcp.epsoldev.com/",
+      "name": "ScreenSync MCP",
+      "description": "Live Android screen capture and control for AI agents over the Model Context Protocol.",
+      "publisher": { "@id": "https://epsoldev.com/#organization" },
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://screensyncmcp.epsoldev.com/#app",
+      "name": "ScreenSync MCP",
+      "operatingSystem": "Android",
+      "applicationCategory": "DeveloperApplication",
+      "softwareVersion": "2.5",
+      "description": "ScreenSync MCP connects your Android phone to any AI agent via the Model Context Protocol. Live screen capture, 25+ MCP tools, LAN-first privacy.",
+      "url": "https://screensyncmcp.epsoldev.com/",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "featureList": [
+        "Live screen capture via MediaProjection",
+        "25+ MCP tools for full device control",
+        "LAN-first, token-secured transport",
+        "Floating bubble one-tap capture",
+        "Shake-to-capture gesture",
+        "mDNS auto-discovery",
+        "Connect-Kit QR pairing",
+        "Live SSE streaming with latency telemetry",
+        "Google Drive BYOS fallback",
+        "Local SQLite capture history"
+      ],
+      "author": { "@id": "https://epsoldev.com/#organization" },
+      "publisher": { "@id": "https://epsoldev.com/#organization" }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://screensyncmcp.epsoldev.com/" }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Does my screen data leave my network?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No — by default everything stays on your LAN. Frames go phone to hub over your own Wi-Fi with bearer-token auth. Only if you explicitly enable the Google Drive BYOS fallback do frames sync through your own Drive account." }
+        },
+        {
+          "@type": "Question",
+          "name": "Which AI agents work with ScreenSync MCP?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Any MCP-compatible client: Claude Desktop, Claude Code, OpenClaw, custom agents — anything that speaks Model Context Protocol over stdio can use all 25+ tools and 4 built-in prompts." }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need root or ADB on the phone?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No root needed. Screen capture uses Android's official MediaProjection API with your one-time consent. Device-control tools (tap/swipe/type) use ADB from the hub side — ideal with wireless debugging." }
+        },
+        {
+          "@type": "Question",
+          "name": "What happens when I leave my Wi-Fi network?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Hybrid mode automatically falls back to Google Drive BYOS sync (if you enabled it). Captures queue locally in SQLite and push when a route is available — the dashboard shows unsynced counts." }
+        },
+        {
+          "@type": "Question",
+          "name": "Is it free?",
+          "acceptedAnswer": { "@type": "Answer", "text": "ScreenSync MCP is currently free while in active development by EpsolDev." }
+        }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
+
+<!-- ═══════════ NAV ═══════════ -->
+<header class="glass-nav fixed top-0 inset-x-0 z-50">
+  <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
+    <a href="index.html" class="flex items-center gap-2.5">
+      <img src="assets/logo.png" alt="ScreenSync MCP logo" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
+      <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
+    </a>
+    <div class="hidden md:flex items-center gap-7 text-[15px] font-medium text-[#4B4460]">
+      <a href="index.html" class="hover:text-[#6541D6] transition">Home</a>
+      <a href="about.html" class="hover:text-[#6541D6] transition">About</a>
+      <a href="goal.html" class="hover:text-[#6541D6] transition">Goal</a>
+      <a href="#demo" class="hover:text-[#6541D6] transition">Demo</a>
+      <a href="privacy.html" class="hover:text-[#6541D6] transition">Privacy</a>
+      <a href="data-policy.html" class="hover:text-[#6541D6] transition">Data Policy</a>
+      <a href="#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold">Get Connected</a>
+    </div>
+    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false">
+      <i data-lucide="menu" class="w-6 h-6"></i>
+    </button>
+  </nav>
+  <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
+    <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
+      <a href="index.html" class="py-1.5">Home</a>
+      <a href="about.html" class="py-1.5">About</a>
+      <a href="goal.html" class="py-1.5">Goal</a>
+      <a href="privacy.html" class="py-1.5">Privacy</a>
+      <a href="data-policy.html" class="py-1.5">Data Policy</a>
+      <a href="#connect" class="btn-primary px-5 py-2.5 rounded-full text-sm font-semibold text-center mt-1">Get Connected</a>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════ HERO ═══════════ -->
+<section class="hero-glow pt-32 pb-20 sm:pt-40 sm:pb-28 overflow-hidden relative">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-2 gap-14 items-center">
+    <div class="reveal">
+      <span class="inline-flex items-center gap-2 bg-white border border-purple-100 rounded-full px-4 py-1.5 text-xs font-semibold text-[#6541D6] shadow-sm mb-6">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span> LIVE · Model Context Protocol · v2.5
+      </span>
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.08] tracking-tight">
+        Your AI,<br><span class="grad-text">watching over</span><br>your shoulder.
+      </h1>
+      <p class="mt-6 text-lg text-[#4B4460] leading-relaxed max-w-lg">
+        ScreenSync MCP turns your Android phone into a <strong>live window for any AI agent</strong>.
+        Real-time screen capture, full device control, and 25+ MCP tools — all over your own LAN,
+        with privacy built in.
+      </p>
+      <div class="mt-9 flex flex-wrap gap-4">
+        <a href="#connect" class="btn-primary px-7 py-3.5 rounded-full font-semibold inline-flex items-center gap-2">
+          <i data-lucide="zap" class="w-4.5 h-4.5 w-5 h-5"></i> Connect Your AI
+        </a>
+        <a href="#how" class="btn-secondary px-7 py-3.5 rounded-full font-semibold inline-flex items-center gap-2">
+          <i data-lucide="play-circle" class="w-5 h-5"></i> How It Works
+        </a>
+      </div>
+      <div class="mt-10 grid grid-cols-3 gap-4 max-w-md">
+        <div><div class="stat-num text-3xl font-extrabold grad-text" data-count="25" data-suffix="+">0</div><div class="text-xs text-[#7A7291] font-medium mt-1">MCP Tools</div></div>
+        <div><div class="stat-num text-3xl font-extrabold grad-text" data-count="94" data-suffix="ms">0</div><div class="text-xs text-[#7A7291] font-medium mt-1">P50 Latency</div></div>
+        <div><div class="stat-num text-3xl font-extrabold grad-text" data-count="100" data-suffix="%">0</div><div class="text-xs text-[#7A7291] font-medium mt-1">LAN-first Privacy</div></div>
+      </div>
+    </div>
+    <div class="reveal reveal-delay-1 relative flex justify-center">
+      <svg class="absolute -top-8 left-6 w-8 h-8 text-[#8B6AEC] twinkle" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0l2.6 9.4L24 12l-9.4 2.6L12 24l-2.6-9.4L0 12l9.4-2.6z"/></svg>
+      <svg class="absolute top-16 right-4 w-5 h-5 text-[#B39DF3] twinkle" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0l2.6 9.4L24 12l-9.4 2.6L12 24l-2.6-9.4L0 12l9.4-2.6z"/></svg>
+      <svg class="absolute bottom-10 left-0 w-6 h-6 text-[#D5C8F7] twinkle" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0l2.6 9.4L24 12l-9.4 2.6L12 24l-2.6-9.4L0 12l9.4-2.6z"/></svg>
+      <div class="phone-frame float-slow w-64 sm:w-72">
+        <img src="assets/screenshots/dashboard.png" alt="ScreenSync MCP dashboard — live connection to your AI" width="1080" height="2400" loading="eager">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ CONNECTION DIAGRAM ═══════════ -->
+<section id="how" class="py-20 sm:py-28">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="text-center max-w-2xl mx-auto reveal">
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">THIS PHONE <span class="grad-text">⟷</span> YOUR AI</h2>
+      <p class="mt-4 text-[#4B4460] text-lg">Three pieces. One live loop. Your phone streams frames to a tiny hub on your computer, and your AI agent sees — and acts — through MCP.</p>
+    </div>
+
+    <div class="mt-14 lux-card p-8 sm:p-12 reveal">
+      <div class="grid sm:grid-cols-3 gap-8 items-center text-center">
+        <div>
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#6541D6] to-[#8B6AEC] flex items-center justify-center shadow-lg shadow-purple-200">
+            <i data-lucide="smartphone" class="w-8 h-8 text-white"></i>
+          </div>
+          <h3 class="mt-4 font-bold text-lg">Your Phone</h3>
+          <p class="text-sm text-[#7A7291] mt-1.5">Flutter app captures the screen via MediaProjection — floating bubble, shake-to-capture, or on demand.</p>
+        </div>
+        <div class="relative">
+          <svg class="w-full h-12 hidden sm:block" viewBox="0 0 300 40" fill="none" aria-hidden="true">
+            <path class="dash-line" d="M10 20 C 80 -5, 220 45, 290 20" stroke="#8B6AEC" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="10" cy="20" r="5" fill="#6541D6" class="pulse-dot"/>
+            <circle cx="290" cy="20" r="5" fill="#6541D6" class="pulse-dot"/>
+          </svg>
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-white border-2 border-purple-100 flex items-center justify-center shadow-md sm:-mt-2">
+            <i data-lucide="server" class="w-8 h-8 text-[#6541D6]"></i>
+          </div>
+          <h3 class="mt-4 font-bold text-lg">MCP Hub</h3>
+          <p class="text-sm text-[#7A7291] mt-1.5">A lightweight Node.js hub on your computer (port 3000). Discovered automatically via mDNS. Secured by a bearer token.</p>
+        </div>
+        <div>
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#150E27] to-[#3A2A6B] flex items-center justify-center shadow-lg">
+            <i data-lucide="bot" class="w-8 h-8 text-white"></i>
+          </div>
+          <h3 class="mt-4 font-bold text-lg">Your AI Agent</h3>
+          <p class="text-sm text-[#7A7291] mt-1.5">Claude, or any MCP-compatible agent, connects over stdio — sees frames, reads UI hierarchy, taps, swipes, types.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 steps -->
+    <div class="mt-14 grid sm:grid-cols-3 gap-6">
+      <div class="lux-card p-7 reveal">
+        <div class="text-5xl font-extrabold text-purple-100">01</div>
+        <h3 class="font-bold text-lg mt-2">Install &amp; Pair</h3>
+        <p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Run the hub on your computer, open the app, and pair instantly with the Connect-Kit QR code. mDNS finds the hub on your LAN — zero configuration.</p>
+      </div>
+      <div class="lux-card p-7 reveal reveal-delay-1">
+        <div class="text-5xl font-extrabold text-purple-100">02</div>
+        <h3 class="font-bold text-lg mt-2">Go Live</h3>
+        <p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Grant screen-capture permission once. The app streams frames over Server-Sent Events with live latency stats (P50/P95, jitter, drops) on the Connection Hero.</p>
+      </div>
+      <div class="lux-card p-7 reveal reveal-delay-2">
+        <div class="text-5xl font-extrabold text-purple-100">03</div>
+        <h3 class="font-bold text-lg mt-2">Let AI Work</h3>
+        <p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Your agent calls MCP tools: grab the latest screenshot, inspect the UI tree, tap buttons, run autonomous UI tests, reproduce bugs, audit accessibility.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ LIVE DEMO VIDEO ═══════════ -->
+<section id="demo" class="py-20 sm:py-28 bg-white border-y border-purple-50">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="text-center max-w-2xl mx-auto reveal">
+      <span class="inline-flex items-center gap-2 bg-purple-50 border border-purple-100 rounded-full px-4 py-1.5 text-xs font-semibold text-[#6541D6] mb-5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span> RECORDED LIVE · NO CUTS
+      </span>
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Watch an AI <span class="grad-text">drive the phone.</span></h2>
+      <p class="mt-4 text-[#4B4460] text-lg">A real session: the agent connects to the hub, captures the screen, reads the UI hierarchy, taps a button — then compares frames to verify it worked. All through MCP.</p>
+    </div>
+    <div class="mt-12 reveal">
+      <div class="lux-card p-2 sm:p-3 max-w-5xl mx-auto overflow-hidden">
+        <video controls preload="metadata" playsinline poster="assets/demo_poster.jpg" class="w-full rounded-xl block" aria-label="Live demo: AI agent controlling an Android phone through ScreenSync MCP">
+          <source src="assets/demo.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+      <div class="mt-6 flex flex-wrap justify-center gap-3 text-xs font-semibold text-[#6541D6]">
+        <span class="bg-purple-50 border border-purple-100 rounded-full px-3.5 py-1.5">capture_screen</span>
+        <span class="bg-purple-50 border border-purple-100 rounded-full px-3.5 py-1.5">get_ui_hierarchy</span>
+        <span class="bg-purple-50 border border-purple-100 rounded-full px-3.5 py-1.5">control_tap</span>
+        <span class="bg-purple-50 border border-purple-100 rounded-full px-3.5 py-1.5">compare_frames</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FEATURES ═══════════ -->
+<section class="py-20 sm:py-28">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="text-center max-w-2xl mx-auto reveal">
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Everything your agent needs.<br><span class="grad-text">Nothing it doesn't.</span></h2>
+      <p class="mt-4 text-[#4B4460] text-lg">Built feature-by-feature from real workflows — mobile debugging, UI testing, live inspection.</p>
+    </div>
+    <div class="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="lux-card p-7 reveal"><i data-lucide="circle-dot" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Floating Bubble Capture</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">A draggable overlay bubble captures any app on your phone with one tap — no switching back and forth.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-1"><i data-lucide="radio" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Live SSE Stream</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Frames and events stream in real time over Server-Sent Events. Watch the AI activity timeline as tool calls happen.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-2"><i data-lucide="wifi" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">mDNS Auto-Discovery</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">The app finds your hub on the LAN automatically via Bonjour/mDNS. Wireless debugging friendly — no cables, no IP typing.</p></div>
+      <div class="lux-card p-7 reveal"><i data-lucide="qr-code" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Connect-Kit QR Pairing</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Scan a QR code to pair phone and hub instantly — token, host, and port exchanged in one secure step.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-1"><i data-lucide="gauge" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Health HUD &amp; Telemetry</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Latency sparkline, P50/P95, jitter, dropped-frame counter, sync log — full visibility into the pipeline.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-2"><i data-lucide="vibrate" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Shake-to-Capture</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Shake your phone to snap a frame hands-free — with adjustable sensitivity threshold in Settings.</p></div>
+      <div class="lux-card p-7 reveal"><i data-lucide="sliders-horizontal" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Quality Presets</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Stream, Fast, and Inspect presets balance latency vs fidelity — JPEG low-latency mode included.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-1"><i data-lucide="cloud" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Google Drive BYOS Fallback</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Off the LAN? Frames sync through <em>your own</em> Google Drive (Bring Your Own Storage) — hybrid mode switches automatically.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-2"><i data-lucide="database" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Local Capture History</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Every capture is cached in a local SQLite gallery with sync state — browse, re-push, or clear anytime.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ MCP TOOLS ═══════════ -->
+<section class="py-20 sm:py-28">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="text-center max-w-2xl mx-auto reveal">
+      <span class="inline-flex items-center gap-2 bg-purple-50 rounded-full px-4 py-1.5 text-xs font-bold text-[#6541D6] uppercase tracking-wider">Model Context Protocol</span>
+      <h2 class="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight">25+ tools. <span class="grad-text">Full device control.</span></h2>
+      <p class="mt-4 text-[#4B4460] text-lg">Your agent doesn't just watch — it acts. Every tool is exposed over standard MCP stdio.</p>
+    </div>
+  </div>
+  <div class="mt-12 marquee reveal" aria-hidden="true">
+    <div class="marquee-track">
+      <!-- set 1 -->
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">📸 get_latest_screenshot</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🗂 list_recent_screens</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">📱 get_device_status</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">👆 control_tap</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">👉 control_swipe</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">⌨️ control_type</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🌲 get_ui_hierarchy</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🔍 control_tap_text</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🔁 control_swipe_until</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🌐 control_open_url</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🆚 compare_frames</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">⏳ wait_for_frame</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">📜 get_logcat</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🎬 record_screen</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🚀 control_launch_app</span>
+      <!-- set 2 (duplicate for loop) -->
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">📸 get_latest_screenshot</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🗂 list_recent_screens</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">📱 get_device_status</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">👆 control_tap</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">👉 control_swipe</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">⌨️ control_type</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🌲 get_ui_hierarchy</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🔍 control_tap_text</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🔁 control_swipe_until</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🌐 control_open_url</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🆚 compare_frames</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">⏳ wait_for_frame</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">📜 get_logcat</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🎬 record_screen</span>
+      <span class="bg-white border border-purple-100 rounded-full px-5 py-2.5 text-sm font-semibold text-[#4B4460] shadow-sm whitespace-nowrap">🚀 control_launch_app</span>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+    <div class="lux-card p-6 reveal"><i data-lucide="scan-eye" class="w-7 h-7 text-[#6541D6]"></i><h4 class="font-bold mt-3">inspect_latest_mobile_screen</h4><p class="text-xs text-[#7A7291] mt-1.5 leading-relaxed">Built-in prompt: agent grabs and deeply analyzes the current phone screen.</p></div>
+    <div class="lux-card p-6 reveal reveal-delay-1"><i data-lucide="test-tube-2" class="w-7 h-7 text-[#6541D6]"></i><h4 class="font-bold mt-3">autonomous_ui_test</h4><p class="text-xs text-[#7A7291] mt-1.5 leading-relaxed">Agent walks your app's UI by itself — tapping, asserting, and reporting.</p></div>
+    <div class="lux-card p-6 reveal reveal-delay-2"><i data-lucide="bug" class="w-7 h-7 text-[#6541D6]"></i><h4 class="font-bold mt-3">reproduce_bug</h4><p class="text-xs text-[#7A7291] mt-1.5 leading-relaxed">Describe a bug in plain language — the agent reproduces it on-device with logs.</p></div>
+    <div class="lux-card p-6 reveal reveal-delay-3"><i data-lucide="accessibility" class="w-7 h-7 text-[#6541D6]"></i><h4 class="font-bold mt-3">accessibility_audit</h4><p class="text-xs text-[#7A7291] mt-1.5 leading-relaxed">Automated a11y sweep of the live UI hierarchy: labels, contrast, touch targets.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════ SCREENSHOTS ═══════════ -->
+<section class="py-20 sm:py-28 bg-white border-y border-purple-50">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="text-center max-w-2xl mx-auto reveal">
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">See it <span class="grad-text">in action</span></h2>
+      <p class="mt-4 text-[#4B4460] text-lg">Real screenshots from the live app — dashboard, hub, gallery, MCP catalog, telemetry &amp; more.</p>
+    </div>
+    <div class="mt-14 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 sm:gap-7">
+      <figure class="reveal cursor-pointer" data-shot="assets/screenshots/dashboard.png"><div class="phone-frame !border-4"><img src="assets/screenshots/dashboard.png" alt="Dashboard — live connection status, latency and AI activity" loading="lazy" width="1080" height="2400"></div><figcaption class="text-center text-xs font-semibold text-[#7A7291] mt-3">Dashboard · Live Connection</figcaption></figure>
+      <figure class="reveal reveal-delay-1 cursor-pointer" data-shot="assets/screenshots/hub.png"><div class="phone-frame !border-4"><img src="assets/screenshots/hub.png" alt="Hub menu — Gallery, Diagnose, MCP, Telemetry, Settings" loading="lazy" width="1080" height="2400"></div><figcaption class="text-center text-xs font-semibold text-[#7A7291] mt-3">ScreenSync Hub</figcaption></figure>
+      <figure class="reveal reveal-delay-2 cursor-pointer" data-shot="assets/screenshots/mcp.png"><div class="phone-frame !border-4"><img src="assets/screenshots/mcp.png" alt="MCP catalog — connect an AI agent, tool list" loading="lazy" width="1080" height="2400"></div><figcaption class="text-center text-xs font-semibold text-[#7A7291] mt-3">MCP · Agent Connect</figcaption></figure>
+      <figure class="reveal reveal-delay-3 cursor-pointer" data-shot="assets/screenshots/gallery.png"><div class="phone-frame !border-4"><img src="assets/screenshots/gallery.png" alt="Gallery — local capture history" loading="lazy" width="1080" height="2400"></div><figcaption class="text-center text-xs font-semibold text-[#7A7291] mt-3">Gallery · History</figcaption></figure>
+      <figure class="reveal cursor-pointer" data-shot="assets/screenshots/telemetry.png"><div class="phone-frame !border-4"><img src="assets/screenshots/telemetry.png" alt="Telemetry — performance and sync log" loading="lazy" width="1080" height="2400"></div><figcaption class="text-center text-xs font-semibold text-[#7A7291] mt-3">Telemetry</figcaption></figure>
+      <figure class="reveal reveal-delay-1 cursor-pointer" data-shot="assets/screenshots/diagnose.png"><div class="phone-frame !border-4"><img src="assets/screenshots/diagnose.png" alt="Diagnose — bug heatmap and patches" loading="lazy" width="1080" height="2400"></div><figcaption class="text-center text-xs font-semibold text-[#7A7291] mt-3">Diagnose</figcaption></figure>
+      <figure class="reveal reveal-delay-2 cursor-pointer" data-shot="assets/screenshots/settings.png"><div class="phone-frame !border-4"><img src="assets/screenshots/settings.png" alt="Settings — hub, theme, permissions" loading="lazy" width="1080" height="2400"></div><figcaption class="text-center text-xs font-semibold text-[#7A7291] mt-3">Settings</figcaption></figure>
+      <div class="reveal reveal-delay-3 lux-card flex flex-col items-center justify-center text-center p-6 min-h-[200px]">
+        <i data-lucide="sparkles" class="w-8 h-8 text-[#6541D6]"></i>
+        <p class="font-bold mt-3 text-sm">…and more inside</p>
+        <p class="text-xs text-[#7A7291] mt-1">Onboarding, QR pairing, region crop, annotate &amp; diff tools.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- lightbox -->
+<div id="lightbox" class="hidden fixed inset-0 z-[100] bg-[#150E27]/90 items-center justify-center p-6 cursor-zoom-out">
+  <img id="lightboxImg" src="" alt="Screenshot preview" class="max-h-[90vh] max-w-full rounded-2xl shadow-2xl">
+</div>
+
+<!-- ═══════════ ARCHITECTURE / TECH ═══════════ -->
+<section class="py-20 sm:py-28">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-2 gap-14 items-center">
+    <div class="reveal">
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Engineered for <span class="grad-text">trust &amp; speed</span></h2>
+      <ul class="mt-8 space-y-5">
+        <li class="flex gap-4"><div class="w-11 h-11 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center"><i data-lucide="shield-check" class="w-5.5 h-5.5 w-6 h-6 text-[#6541D6]"></i></div><div><h4 class="font-bold">LAN-first, token-secured</h4><p class="text-sm text-[#4B4460] mt-1">Frames travel over your own Wi-Fi network with bearer-token auth. Nothing touches third-party servers unless <em>you</em> enable Drive fallback.</p></div></li>
+        <li class="flex gap-4"><div class="w-11 h-11 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center"><i data-lucide="timer" class="w-6 h-6 text-[#6541D6]"></i></div><div><h4 class="font-bold">~94ms median latency</h4><p class="text-sm text-[#4B4460] mt-1">Measured P50 on LAN with the Stream preset. Health pings every 20 seconds keep the link honest.</p></div></li>
+        <li class="flex gap-4"><div class="w-11 h-11 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center"><i data-lucide="blocks" class="w-6 h-6 text-[#6541D6]"></i></div><div><h4 class="font-bold">Open architecture</h4><p class="text-sm text-[#4B4460] mt-1">Flutter (BLoC) app · Node.js/TypeScript hub · standard MCP stdio + HTTP/SSE. Works with any MCP-compatible client.</p></div></li>
+        <li class="flex gap-4"><div class="w-11 h-11 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center"><i data-lucide="layout-grid" class="w-6 h-6 text-[#6541D6]"></i></div><div><h4 class="font-bold">Responsive by contract</h4><p class="text-sm text-[#4B4460] mt-1">Every app screen is tested at ≤360dp — adaptive shell scales from small phones to tablets, light &amp; dark themes.</p></div></li>
+      </ul>
+    </div>
+    <div class="reveal reveal-delay-1">
+      <div class="lux-card p-7 sm:p-9 font-mono text-[13px] leading-relaxed bg-[#150E27] !border-[#2A2242] text-purple-100 overflow-x-auto">
+        <div class="flex gap-1.5 mb-5"><span class="w-3 h-3 rounded-full bg-red-400"></span><span class="w-3 h-3 rounded-full bg-yellow-400"></span><span class="w-3 h-3 rounded-full bg-green-400"></span></div>
+<pre class="whitespace-pre">╭──────────────╮   mDNS + token    ╭──────────────╮
+│  📱 PHONE     │ ────────────────▶ │  🖥 MCP HUB   │
+│  Flutter app  │   HTTP :3000      │  Node.js/TS  │
+│  MediaProj.   │ ◀──────────────── │  SSE events  │
+╰──────────────╯   live frames     ╰──────┬───────╯
+                                          │ MCP stdio
+                                          ▼
+                                   ╭──────────────╮
+                                   │  🤖 AI AGENT  │
+                                   │  25+ tools    │
+                                   │  4 prompts    │
+                                   ╰──────────────╯</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FAQ ═══════════ -->
+<section class="py-20 sm:py-28 bg-white border-y border-purple-50">
+  <div class="max-w-3xl mx-auto px-5 sm:px-8">
+    <div class="text-center reveal">
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Questions, <span class="grad-text">answered</span></h2>
+    </div>
+    <div class="mt-12 space-y-4">
+      <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Does my screen data leave my network?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">No — by default everything stays on your LAN. Frames go phone → hub over your own Wi-Fi with bearer-token auth. Only if you explicitly enable the Google Drive BYOS fallback do frames sync through <em>your own</em> Drive account. See our <a href="data-policy.html" class="text-[#6541D6] font-semibold underline">Data Policy</a>.</div></div></div>
+      <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Which AI agents work with ScreenSync MCP?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">Any MCP-compatible client: Claude Desktop, Claude Code, OpenClaw, custom agents — anything that speaks Model Context Protocol over stdio can use all 25+ tools and 4 built-in prompts.</div></div></div>
+      <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Do I need root or ADB on the phone?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">No root needed. Screen capture uses Android's official MediaProjection API with your one-time consent. Device-control tools (tap/swipe/type) use ADB from the hub side — ideal with wireless debugging.</div></div></div>
+      <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">What happens when I leave my Wi-Fi network?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">Hybrid mode automatically falls back to Google Drive BYOS sync (if you enabled it). Captures queue locally in SQLite and push when a route is available — the dashboard shows unsynced counts.</div></div></div>
+      <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Is it free?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">ScreenSync MCP is currently free while in active development by EpsolDev. Follow the <a href="goal.html" class="text-[#6541D6] font-semibold underline">Goal page</a> for the roadmap.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ CTA ═══════════ -->
+<section id="connect" class="py-20 sm:py-28">
+  <div class="max-w-4xl mx-auto px-5 sm:px-8">
+    <div class="reveal rounded-[2rem] bg-gradient-to-br from-[#6541D6] via-[#7451DE] to-[#8B6AEC] p-10 sm:p-16 text-center text-white shadow-2xl shadow-purple-300 relative overflow-hidden">
+      <svg class="absolute top-6 left-8 w-6 h-6 text-white/40 twinkle" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0l2.6 9.4L24 12l-9.4 2.6L12 24l-2.6-9.4L0 12l9.4-2.6z"/></svg>
+      <svg class="absolute bottom-8 right-10 w-8 h-8 text-white/30 twinkle" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0l2.6 9.4L24 12l-9.4 2.6L12 24l-2.6-9.4L0 12l9.4-2.6z"/></svg>
+      <h2 class="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight">Give your AI <br class="sm:hidden">eyes &amp; hands.</h2>
+      <p class="mt-5 text-purple-100 text-lg max-w-xl mx-auto">Set up the hub, scan the QR, and your agent is watching in under two minutes.</p>
+      <div class="mt-9 flex flex-wrap justify-center gap-4">
+        <a href="mailto:info@epsoldev.com" class="bg-white text-[#6541D6] px-8 py-3.5 rounded-full font-bold inline-flex items-center gap-2 hover:scale-105 transition shadow-lg"><i data-lucide="mail" class="w-5 h-5"></i> info@epsoldev.com</a>
+        <a href="about.html" class="border-2 border-white/50 px-8 py-3.5 rounded-full font-bold inline-flex items-center gap-2 hover:bg-white/10 transition"><i data-lucide="users" class="w-5 h-5"></i> About EpsolDev</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer class="bg-[#150E27] text-purple-200/80">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-3 gap-10">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <img src="assets/logo.png" alt="ScreenSync MCP" class="w-9 h-9 rounded-xl">
+        <span class="font-extrabold text-white text-lg">ScreenSync MCP</span>
+      </div>
+      <p class="text-sm mt-4 leading-relaxed text-purple-200/60">Your AI, watching over your shoulder. Live Android screen capture &amp; control for MCP agents — LAN-first, privacy-first.</p>
+    </div>
+    <div>
+      <h4 class="text-white font-bold mb-4">Pages</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="index.html" class="hover:text-white transition">Home</a></li>
+        <li><a href="about.html" class="hover:text-white transition">About Us</a></li>
+        <li><a href="goal.html" class="hover:text-white transition">Goal &amp; Vision</a></li>
+        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
+        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4 class="text-white font-bold mb-4">Contact</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li class="flex items-center gap-2"><i data-lucide="globe" class="w-4 h-4"></i><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
+        <li class="flex items-center gap-2"><i data-lucide="mail" class="w-4 h-4"></i><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10 py-6 text-center text-xs text-purple-200/50">© <span class="year"></span> EpsolDev · ScreenSync MCP v2.5 · All rights reserved.</div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>
