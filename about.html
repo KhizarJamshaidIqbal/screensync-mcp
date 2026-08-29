@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About Us — ScreenSync MCP | EpsolDev</title>
+<meta name="description" content="About EpsolDev — the team behind ScreenSync MCP. Our story, mission, and why we built the bridge between your phone and your AI.">
+<link rel="canonical" href="https://epsoldev.com/about.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://epsoldev.com/about.html">
+<meta property="og:title" content="About Us — ScreenSync MCP by EpsolDev">
+<meta property="og:description" content="Our story, mission, and why we built the bridge between your phone and your AI.">
+<meta property="og:image" content="https://epsoldev.com/assets/logo.png">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="css/custom.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"AboutPage","name":"About EpsolDev","url":"https://epsoldev.com/about.html","publisher":{"@type":"Organization","name":"EpsolDev","url":"https://epsoldev.com","email":"info@epsoldev.com"}}
+</script>
+</head>
+<body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
+
+<header class="glass-nav fixed top-0 inset-x-0 z-50">
+  <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
+    <a href="index.html" class="flex items-center gap-2.5">
+      <img src="assets/logo.png" alt="ScreenSync MCP logo" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
+      <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
+    </a>
+    <div class="hidden md:flex items-center gap-7 text-[15px] font-medium text-[#4B4460]">
+      <a href="index.html" class="hover:text-[#6541D6] transition">Home</a>
+      <a href="about.html" class="hover:text-[#6541D6] transition">About</a>
+      <a href="goal.html" class="hover:text-[#6541D6] transition">Goal</a>
+      <a href="privacy.html" class="hover:text-[#6541D6] transition">Privacy</a>
+      <a href="data-policy.html" class="hover:text-[#6541D6] transition">Data Policy</a>
+      <a href="index.html#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold">Get Connected</a>
+    </div>
+    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false"><i data-lucide="menu" class="w-6 h-6"></i></button>
+  </nav>
+  <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
+    <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
+      <a href="index.html" class="py-1.5">Home</a><a href="about.html" class="py-1.5">About</a><a href="goal.html" class="py-1.5">Goal</a><a href="privacy.html" class="py-1.5">Privacy</a><a href="data-policy.html" class="py-1.5">Data Policy</a>
+    </div>
+  </div>
+</header>
+
+<section class="hero-glow pt-32 pb-12 sm:pt-40 sm:pb-16">
+  <div class="max-w-4xl mx-auto px-5 sm:px-8 text-center reveal">
+    <span class="inline-flex items-center gap-2 bg-white border border-purple-100 rounded-full px-4 py-1.5 text-xs font-semibold text-[#6541D6] shadow-sm"><i data-lucide="users" class="w-3.5 h-3.5"></i> The people behind the product</span>
+    <h1 class="mt-5 text-4xl sm:text-5xl font-extrabold tracking-tight">About <span class="grad-text">EpsolDev</span></h1>
+    <p class="mt-4 text-[#4B4460] text-lg max-w-2xl mx-auto">We build tools that make AI genuinely useful — starting with giving it eyes and hands on the device you use most.</p>
+  </div>
+</section>
+
+<main class="max-w-4xl mx-auto px-5 sm:px-8 pb-24 space-y-8">
+
+  <div class="lux-card p-7 sm:p-12 reveal">
+    <h2 class="text-2xl font-extrabold tracking-tight">Our story</h2>
+    <div class="mt-4 space-y-4 text-[#4B4460] leading-relaxed">
+      <p>ScreenSync MCP started with a simple frustration: AI agents were getting incredibly capable — they could write code, plan tasks, and reason through problems — but they were <strong>blind to the one screen that matters most: your phone</strong>. Debugging a mobile app meant endlessly describing what you saw, taking screenshots by hand, dragging them into a chat, and repeating that loop dozens of times a day.</p>
+      <p>So we built the bridge. First a floating bubble that captured any screen in one tap. Then a tiny hub that received frames over the local network. Then the Model Context Protocol arrived and everything clicked: with MCP, <em>any</em> agent could not only see the phone but also act on it — tap, swipe, type, inspect the UI tree, compare frames, read logs.</p>
+      <p>Today ScreenSync MCP is a full pipeline: a polished Flutter app, a Node.js hub with 25+ tools, live SSE streaming with real latency stats, QR pairing, and a privacy architecture where <strong>your data never touches our servers — because we don't have any.</strong></p>
+    </div>
+  </div>
+
+  <div class="grid sm:grid-cols-3 gap-6">
+    <div class="lux-card p-7 reveal">
+      <i data-lucide="eye" class="w-9 h-9 text-[#6541D6]"></i>
+      <h3 class="font-bold text-lg mt-4">See</h3>
+      <p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Your agent watches the live screen — not a stale screenshot from five minutes ago.</p>
+    </div>
+    <div class="lux-card p-7 reveal reveal-delay-1">
+      <i data-lucide="hand" class="w-9 h-9 text-[#6541D6]"></i>
+      <h3 class="font-bold text-lg mt-4">Act</h3>
+      <p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Tap, swipe, type, launch apps — full device control through standard MCP tools.</p>
+    </div>
+    <div class="lux-card p-7 reveal reveal-delay-2">
+      <i data-lucide="lock" class="w-9 h-9 text-[#6541D6]"></i>
+      <h3 class="font-bold text-lg mt-4">Trust</h3>
+      <p class="text-sm text-[#4B4460] mt-2 leading-relaxed">LAN-first, token-secured, zero telemetry. Privacy isn't a feature — it's the architecture.</p>
+    </div>
+  </div>
+
+  <div class="lux-card p-7 sm:p-12 reveal">
+    <h2 class="text-2xl font-extrabold tracking-tight">What we believe</h2>
+    <ul class="mt-5 space-y-4">
+      <li class="flex gap-4"><div class="w-10 h-10 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center"><i data-lucide="home" class="w-5 h-5 text-[#6541D6]"></i></div><div><h4 class="font-bold">Local-first is the future</h4><p class="text-sm text-[#4B4460] mt-1">The most trustworthy cloud is the one you don't need. Your screen data belongs on your hardware.</p></div></li>
+      <li class="flex gap-4"><div class="w-10 h-10 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center"><i data-lucide="puzzle" class="w-5 h-5 text-[#6541D6]"></i></div><div><h4 class="font-bold">Open standards win</h4><p class="text-sm text-[#4B4460] mt-1">We bet on MCP instead of a proprietary API, so ScreenSync works with every agent — today's and tomorrow's.</p></div></li>
+      <li class="flex gap-4"><div class="w-10 h-10 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center"><i data-lucide="gem" class="w-5 h-5 text-[#6541D6]"></i></div><div><h4 class="font-bold">Craft matters</h4><p class="text-sm text-[#4B4460] mt-1">Every screen is tested down to 360dp, every animation earns its place, every latency millisecond is measured.</p></div></li>
+    </ul>
+  </div>
+
+  <div class="lux-card p-7 sm:p-12 reveal text-center">
+    <h2 class="text-2xl font-extrabold tracking-tight">Get in touch</h2>
+    <p class="mt-3 text-[#4B4460]">Questions, feedback, partnership ideas — we read everything.</p>
+    <div class="mt-6 flex flex-wrap justify-center gap-4">
+      <a href="mailto:info@epsoldev.com" class="btn-primary px-7 py-3 rounded-full font-semibold inline-flex items-center gap-2"><i data-lucide="mail" class="w-5 h-5"></i> info@epsoldev.com</a>
+      <a href="https://epsoldev.com" class="btn-secondary px-7 py-3 rounded-full font-semibold inline-flex items-center gap-2"><i data-lucide="globe" class="w-5 h-5"></i> epsoldev.com</a>
+    </div>
+  </div>
+</main>
+
+<footer class="bg-[#150E27] text-purple-200/80">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-3 gap-10">
+    <div>
+      <div class="flex items-center gap-2.5"><img src="assets/logo.png" alt="ScreenSync MCP" class="w-9 h-9 rounded-xl"><span class="font-extrabold text-white text-lg">ScreenSync MCP</span></div>
+      <p class="text-sm mt-4 leading-relaxed text-purple-200/60">Your AI, watching over your shoulder. Live Android screen capture &amp; control for MCP agents — LAN-first, privacy-first.</p>
+    </div>
+    <div>
+      <h4 class="text-white font-bold mb-4">Pages</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="index.html" class="hover:text-white transition">Home</a></li>
+        <li><a href="about.html" class="hover:text-white transition">About Us</a></li>
+        <li><a href="goal.html" class="hover:text-white transition">Goal &amp; Vision</a></li>
+        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
+        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4 class="text-white font-bold mb-4">Contact</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li class="flex items-center gap-2"><i data-lucide="globe" class="w-4 h-4"></i><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
+        <li class="flex items-center gap-2"><i data-lucide="mail" class="w-4 h-4"></i><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10 py-6 text-center text-xs text-purple-200/50">© <span class="year"></span> EpsolDev · ScreenSync MCP v2.5 · All rights reserved.</div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>
