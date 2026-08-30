@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "ScreenSync MCP",
+  "version": "1.0.0",
+  "description": "Live Android screen dashboard & remote control for your ScreenSync MCP hub — real-time streaming, latency telemetry, AI activity and device control in one tab.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "pages/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "alarms"],
+  "host_permissions": [
+    "https://screensyncmcp.epsoldev.com/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*"
+  ],
+  "optional_host_permissions": ["http://*/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com;"
+  }
+}
