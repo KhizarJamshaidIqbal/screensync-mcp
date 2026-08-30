@@ -92,6 +92,7 @@
     <p>This Data Policy complements our <a href="privacy.html" class="text-[#6541D6] font-semibold">Privacy Policy</a> with an engineering-level view of the complete data lifecycle in ScreenSync MCP. Our design principle: <strong>your data stays on hardware you own, moves only over networks you control, and is deletable by you at every stage.</strong></p>
 
     <h2 id="map">1. Data Map — Every Store, Every Location</h2>
+    <div class="overflow-x-auto">
     <table>
       <thead><tr><th>Data</th><th>Store</th><th>Physical location</th><th>Controlled by</th></tr></thead>
       <tbody>
@@ -105,6 +106,7 @@
         <tr><td>Drive BYOS uploads (optional)</td><td>Your Google Drive folder</td><td>Google servers, your account</td><td>You (via Google)</td></tr>
       </tbody>
     </table>
+    </div>
     <p><strong>Not on this map:</strong> any EpsolDev server. We don't operate one for the App. Zero telemetry is phoned home.</p>
 
     <h2 id="flow">2. Data Flow — How a Frame Travels</h2>
@@ -117,6 +119,7 @@
     </ul>
 
     <h2 id="transport">3. Transport Security</h2>
+    <div class="overflow-x-auto">
     <table>
       <thead><tr><th>Path</th><th>Protocol</th><th>Auth</th><th>Network scope</th></tr></thead>
       <tbody>
@@ -126,6 +129,7 @@
         <tr><td>Hub → AI agent</td><td>MCP stdio (local process)</td><td>OS process boundary</td><td>Your computer</td></tr>
       </tbody>
     </table>
+    </div>
     <p>Recommendation: run the hub only on trusted networks (home/office Wi-Fi with WPA2/WPA3), keep your pairing token private, and regenerate it from the Connect Kit if you suspect exposure.</p>
 
     <h2 id="retention">4. Retention</h2>
