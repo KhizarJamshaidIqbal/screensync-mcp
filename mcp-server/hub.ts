@@ -7,7 +7,7 @@ import { Bonjour, type Service } from "bonjour-service";
 import express from "express";
 import QRCode from "qrcode";
 import { buildCatalog } from "./catalog.js";
-import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, MAX_BODY_BYTES, isAuthorized, log } from "./config.js";
+import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, MAX_BODY_BYTES, agentName, isAuthorized, log } from "./config.js";
 import { hubEvents, emitHubEvent, type HubEvent } from "./events.js";
 import {
   ensureDataDirs,
@@ -162,6 +162,10 @@ export async function startHttpHub(): Promise<HubHandle> {
       Connection: "keep-alive",
     });
     res.write(": connected\n\n");
+    // Immediately replay agent identity so the phone always sees the name
+    // even if it connects after the one-time startup event was emitted.
+    const welcomeEvent = JSON.stringify({ type: "agent_connect", at: new Date().toISOString(), agentName });
+    res.write(`data: ${welcomeEvent}\n\n`);
     sseClients.add(res);
     req.on("close", () => sseClients.delete(res));
   });

@@ -24,4 +24,3 @@ export function emitHubEvent(
     ...(agentName !== undefined ? { agentName } : {}),
   } satisfies HubEvent);
 }
-}

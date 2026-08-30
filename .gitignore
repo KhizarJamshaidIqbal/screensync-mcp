@@ -25,3 +25,15 @@ android/.kotlin/
 mcp-server/hub_live.log
 mcp-server/hub_live.err.log
 analyze_out.txt
+
+android/app/key.properties
+
+android/app/*.jks
+
+*.jks
+
+**/key.properties
+
+mcp-server/hub_bg.log
+mcp-server/hub_bg.err.log
+mcp-server/test/out/
