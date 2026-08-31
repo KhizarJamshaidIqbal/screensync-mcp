@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ScreenSync MCP — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles/brand.css">
+<link rel="stylesheet" href="../styles/components.css">
+</head>
+<body>
+<div class="dash">
+  <header class="card dash-header row spread">
+    <div class="row">
+      <img src="../icons/icon32.png" alt="" width="28" height="28">
+      <strong style="font-size:16px">ScreenSync <span class="grad-text">MCP</span></strong>
+      <span class="pill" id="status-pill"></span>
+      <span class="pill" id="sse-chip"></span>
+      <span class="pill" id="device-chip" hidden></span>
+    </div>
+    <div class="row">
+      <button class="btn btn-ghost btn-sm" id="btn-pair">Pair QR</button>
+      <button class="btn btn-ghost btn-sm" id="btn-setup">Setup</button>
+    </div>
+  </header>
+
+  <section class="card dash-frame">
+    <div class="row spread" style="margin-bottom:12px">
+      <strong>Live screen</strong>
+      <span class="dim" style="font-size:12px">click frame to tap the phone</span>
+    </div>
+    <div id="frame"></div>
+  </section>
+
+  <section class="card dash-feed">
+    <strong>AI activity</strong>
+    <div id="feed"></div>
+  </section>
+
+  <section class="card dash-web">
+    <div id="web-access"></div>
+  </section>
+
+  <section class="card dash-side">
+    <div id="viewers-top"></div>
+  </section>
+
+  <section class="card dash-control">
+    <div id="control"></div>
+    <div class="pad-result" id="pad-result"></div>
+  </section>
+
+  <section class="card dash-viewers">
+    <div id="viewers"></div>
+  </section>
+
+  <section class="card dash-catalog">
+    <div id="catalog"></div>
+  </section>
+</div>
+<script type="module" src="dashboard.js"></script>
+</body>
+</html>

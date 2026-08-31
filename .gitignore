@@ -1,0 +1,4 @@
+# This branch mirrors extension/ from the private main repo. Do not edit here.
+*.zip
+.DS_Store
+Thumbs.db

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ScreenSync MCP — Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles/brand.css">
+<link rel="stylesheet" href="../styles/components.css">
+</head>
+<body>
+<div class="onb">
+  <div class="card onb-card">
+    <div class="onb-steps"><span id="s1" class="on"></span><span id="s2"></span><span id="s3"></span></div>
+
+    <section id="step-welcome">
+      <div class="onb-hero-icon"><img src="../icons/icon48.png" alt="" width="40" height="40"></div>
+      <h1 style="font-size:26px">Your AI, <span class="grad-text">watching over</span><br>your shoulder.</h1>
+      <p class="dim mt">ScreenSync MCP turns your Android phone into a live window for any AI agent — right inside your browser. Connect to your hub to stream frames, watch AI activity and control the device.</p>
+      <button class="btn btn-primary mt-lg" id="btn-start">Get started</button>
+    </section>
+
+    <section id="step-connect" hidden>
+      <h2 style="font-size:20px">Connect to your hub</h2>
+      <p class="dim mt" id="probe-msg">Probing localhost…</p>
+      <div class="mt-lg">
+        <label class="field"><span>Hub URL</span><input class="input" id="url" placeholder="http://192.168.1.10:3000"></label>
+        <label class="field"><span>Pairing token</span><input class="input" id="token" placeholder="screensync-local-dev"></label>
+        <label class="field"><span>Paste pairing link (optional)</span>
+          <textarea class="input" id="pair" placeholder="screensync://pair?url=…&token=…  or  {&quot;url&quot;:…}  or  http://ip:3000#token"></textarea>
+        </label>
+        <div class="row">
+          <button class="btn btn-ghost btn-sm" id="btn-apply">Apply link</button>
+          <button class="btn btn-primary" id="btn-connect">Connect</button>
+        </div>
+        <div class="err" id="conn-err" hidden></div>
+      </div>
+    </section>
+
+    <section id="step-guide" hidden>
+      <h2 style="font-size:20px">Set up agents & MCP</h2>
+      <p class="dim mt">The hub is connected. Here's how to wire AI agents (fetched live from screensyncmcp.epsoldev.com).</p>
+      <div id="guide-body" class="mt"></div>
+      <button class="btn btn-primary mt-lg" id="btn-done">Continue</button>
+    </section>
+
+    <section id="step-done" hidden>
+      <div class="onb-hero-icon" style="background:linear-gradient(135deg,#059669,#10B981)">✓</div>
+      <h2 style="font-size:24px">You're live!</h2>
+      <p class="dim mt">Open the dashboard to watch your phone screen in real time, or use the toolbar icon any time.</p>
+      <button class="btn btn-primary mt-lg" id="btn-dash">Open Dashboard</button>
+    </section>
+  </div>
+</div>
+<script type="module" src="onboarding.js"></script>
+</body>
+</html>

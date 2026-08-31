@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "ScreenSync MCP",
+  "version": "1.1.0",
+  "description": "The ScreenSync bridge for your browser: gives your AI agent supervised access to your live web tabs — see, read, click and type — just like the mobile app does for your phone.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "pages/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "alarms", "tabs", "scripting", "activeTab"],
+  "host_permissions": [
+    "https://screensyncmcp.epsoldev.com/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*",
+    "<all_urls>"
+  ],
+  "optional_host_permissions": ["http://*/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com;"
+  }
+}
