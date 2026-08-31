@@ -1,5 +1,7 @@
 import { getSettings } from './storage.js';
 import { hubFetch } from './api.js';
+import { execAdvTool } from './web-adv.js';
+import { execWatch } from './web-watch.js';
 
 // Browser-side executor for the hub's web bridge. The hub pushes
 // {type:'web_request', id, tool, args} over SSE; we run the tool against the
@@ -222,6 +224,58 @@ async function executeWebTool(tool, args) {
     case 'web_scroll': {
       const tab = await pickActiveTab();
       return inject(tab, { ...args, __tool: tool });
+    }
+    case 'web_eval':
+    case 'web_console':
+    case 'web_network':
+    case 'web_dialog':
+    case 'web_storage':
+    case 'web_perf':
+    case 'web_wait_for':
+    case 'web_key':
+    case 'web_hover':
+    case 'web_select': {
+      const tab = await pickActiveTab();
+      if (RESTRICTED_TAB.test(tab.url || '')) {
+        return { ok: false, error: `Cannot run web tools on this tab (${tab.url}). Switch to a normal web page first.` };
+      }
+      return execAdvTool(tool, tab, args);
+    }
+    case 'web_tabs': {
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      return { ok: true, data: { tabs: tabs.map((t) => ({ tabId: t.id, url: t.url, title: t.title, active: t.active })) } };
+    }
+    case 'web_tab': {
+      const action = String(args.action || 'open');
+      if (action === 'open') {
+        const url = String(args.url || '');
+        if (!/^https?:/i.test(url)) return { ok: false, error: 'Only http(s) URLs are supported.' };
+        const created = await chrome.tabs.create({ url });
+        await waitForTabComplete(created.id, 20000);
+        const t = await chrome.tabs.get(created.id);
+        return { ok: true, data: { tabId: t.id, url: t.url, title: t.title } };
+      }
+      if (action === 'switch') {
+        const tabId = Number(args.tabId);
+        if (!tabId) return { ok: false, error: 'tabId is required for switch' };
+        const t = await chrome.tabs.update(tabId, { active: true });
+        if (t.windowId) await chrome.windows.update(t.windowId, { focused: true });
+        return { ok: true, data: { tabId, url: t.url, title: t.title } };
+      }
+      if (action === 'close') {
+        const tabId = Number(args.tabId);
+        if (!tabId) return { ok: false, error: 'tabId is required for close' };
+        await chrome.tabs.remove(tabId);
+        return { ok: true, data: { closed: tabId } };
+      }
+      return { ok: false, error: `Unknown web_tab action: ${action}` };
+    }
+    case 'web_watch': {
+      const tab = await pickActiveTab();
+      if (RESTRICTED_TAB.test(tab.url || '')) {
+        return { ok: false, error: `Cannot capture this tab (${tab.url}). Switch to a normal web page first.` };
+      }
+      return execWatch(tab, args, hubFetch);
     }
     default:
       return { ok: false, error: `Unknown web tool: ${tool}` };

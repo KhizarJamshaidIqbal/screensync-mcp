@@ -107,6 +107,24 @@ export function createMcpServer() {
             ],
           };
         }
+        if (request.params.name === "web_watch") {
+          // Realtime watch: hand every changed frame to the AI as an image, in
+          // capture order, so it can narrate the sequence like a video.
+          const d = r.data as { frames?: Array<{ index: number; ts: number; imageDataUrl: string }>; [k: string]: unknown } | undefined;
+          const frames = d?.frames ?? [];
+          const content: Array<{ type: "image"; data: string; mimeType: string } | { type: "text"; text: string }> = [];
+          for (const f of frames.slice(0, 12)) {
+            const du = f.imageDataUrl || "";
+            const [mime = "image/jpeg", b64 = ""] = du.includes(",") ? [du.slice(5, du.indexOf(";")), du.split(",", 2)[1]] : [];
+            content.push({ type: "image", data: b64, mimeType: mime || "image/jpeg" });
+          }
+          const { frames: _omit, ...summary } = d ?? {};
+          content.push({
+            type: "text",
+            text: JSON.stringify({ framesReturned: Math.min(frames.length, 12), frameTimestampsMs: frames.map((f) => f.ts), ...summary }, null, 2),
+          });
+          return { content };
+        }
         return textResult({ success: true, ...((r.data ?? {}) as object) });
       }
       if (request.params.name === "get_mcp_catalog") {

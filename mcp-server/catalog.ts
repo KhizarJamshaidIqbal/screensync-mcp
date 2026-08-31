@@ -380,7 +380,8 @@ export function getSkillsContent() {
       "After inspecting, call publish_inspection (bug regions) and optionally publish_patch (git fix).",
       "For the user's BROWSER: call web_status first, then web_screenshot / web_hierarchy to see the live tab, and web_click / web_type / web_navigate / web_scroll to act.",
       "Web bridge safety: if web_status reports offline or disabled, STOP and ask the user to enable 'Web access for AI agents' in the extension dashboard — never loop web_* calls.",
-      "For common browser jobs prefer the skills: web_see_and_report, web_form_autofill, web_visual_qa, web_reproduce_issue.",
+      "For common browser jobs prefer the skills: web_see_and_report, web_form_autofill, web_visual_qa, web_reproduce_issue, web_debug_session, web_watch_flow, web_perf_audit, web_multitab_workflow.",
+      "Advanced toolkit: web_eval/web_console/web_network/web_dialog/web_storage/web_perf/web_tabs/web_tab/web_wait_for/web_key/web_hover/web_select. web_watch returns changed frames as images — analyze them in capture order like a realtime video.",
     ],
     tools: toolDefinitions().map((t) => ({ name: t.name, purpose: t.description.split(".")[0] })),
     quickRecipes: [
@@ -415,6 +416,7 @@ export function connectionInfo() {
         "GET  /api/mcp/catalog",
         "POST /api/web/tool           run a web_* tool through the browser extension",
         "GET  /api/web/status         web-bridge presence + active tab",
+        "GET  /api/web/watch/:id/frames  streamed web_watch frames (live channel: SSE web_frame)",
       ],
     },
     discovery: { mdnsType: MDNS_TYPE, note: "The hub advertises itself via mDNS; the Flutter app auto-discovers it on the same LAN." },

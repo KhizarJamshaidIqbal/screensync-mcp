@@ -40,6 +40,9 @@ const sse = new SseClient({
       handleWebRequest(ev);
       return;
     }
+    // Live web_watch frames are high-volume; relay them to the dashboard live
+    // view only, never into the bounded feed cache.
+    if (ev && ev.type === 'web_frame') return;
     cache.events.unshift(ev);
     if (cache.events.length > EVENT_LOG_CAP) cache.events.length = EVENT_LOG_CAP;
     if (ev.type === 'frame' && ev.at) cache.lastFrameAt = ev.at;

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Express, Request, Response } from "express";
 import { isAuthorized, log } from "./config.js";
 import { emitHubEvent } from "./events.js";
+import { createFrameStore } from "./web-frame.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -26,6 +27,7 @@ const EXTENSION_RE_REGISTER_MS = 30_000; // matches the SW health alarm
 
 export function createWebBridge(broadcast: (payload: object, name?: string) => void): WebBridge {
   const pending = new Map<string, Pending>();
+  const frameStore = createFrameStore(broadcast);
 
   const presence = {
     webAccessEnabled: false,
@@ -135,6 +137,8 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       entry.resolve({ ok: b.ok === true, data: b.data, error: b.error });
       res.json({ success: true });
     });
+
+    frameStore.registerRoutes(app);
   };
 
   return { registerRoutes, status };

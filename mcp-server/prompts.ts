@@ -144,5 +144,78 @@ export function promptMessage(name: string, args: Record<string, string>): Promp
     );
   }
 
+  if (name === "web_debug_session") {
+    const steps = args.steps || "(no steps provided)";
+    const symptom = args.symptom ? `Reported symptom: ${args.symptom}.` : "";
+    return userMsg(
+      [
+        "Run a full debug session in the user's real browser, collecting evidence while you act.",
+        `Steps:\n${steps}`,
+        symptom,
+        "",
+        "1. web_status — stop and ask the user to enable 'Web access for AI agents' if offline/disabled.",
+        "2. web_console { clear: true } and web_network { clear: true } — start from clean buffers (hooks install automatically).",
+        "3. Perform each step with web_click / web_type / web_navigate; use web_hierarchy indexes to locate elements.",
+        "4. After the steps: web_console (look for errors/pageerrors), web_network (look for status >= 400 or errors), web_dialog (any intercepted dialogs), web_screenshot (final state).",
+        "Correlate the evidence with the symptom. Report: findings ordered by likelihood, the exact console/network lines as proof, likely root cause, and a suggested fix.",
+      ].join("\n"),
+      "Debug a web issue with console/network/dialog evidence",
+    );
+  }
+
+  if (name === "web_watch_flow") {
+    const action = args.action || "observe the page";
+    const duration = args.durationMs || "6000";
+    return userMsg(
+      [
+        "Watch the user's live browser tab like a realtime video while performing an action.",
+        `Action to perform: ${action}. Watch window: ${duration}ms.`,
+        "",
+        "1. web_status — stop and ask the user to enable 'Web access for AI agents' if offline/disabled.",
+        `2. web_watch { durationMs: ${duration} } is ONE blocking call — so FIRST start the observation, THEN act: call web_watch with the full duration, and note that the browser keeps running; if the action must happen mid-watch, split it: web_watch (short baseline), then the action (web_click/web_type/web_scroll), then web_watch again to capture the aftermath. Never skip the final watch of the consequence.`,
+        "3. Analyze EVERY returned frame in order like a video review: describe what changes between consecutive frames, timing of transitions (frame.ts offsets), and whether the visual result matches the action's intent.",
+        "4. If something looks off, re-watch with web_watch or take web_screenshot for full resolution.",
+        "Report a frame-by-frame narration plus a verdict: did the page behave as expected?",
+      ].join("\n"),
+      "Realtime frame-by-frame observation of a live action",
+    );
+  }
+
+  if (name === "web_perf_audit") {
+    const url = args.url || "(no URL provided — audit the current active tab)";
+    return userMsg(
+      [
+        `Performance-audit a page in the user's REAL browser. Target: ${url}.`,
+        "",
+        "1. web_status — stop and ask the user to enable Web access if offline/disabled.",
+        "2. web_navigate to the URL (fresh load gives honest metrics).",
+        "3. web_perf — read DOMContentLoaded/load/FCP/LCP, CLS, resource count, and the 5 slowest resources.",
+        "4. web_screenshot — see the rendered result.",
+        "5. Judge against Core Web Vitals budgets (LCP < 2500ms, CLS < 0.1) and the slowest-resources list.",
+        "Report: metric table vs budget, the 3 highest-impact optimizations (each tied to a specific slow resource or metric), and an overall grade.",
+      ].join("\n"),
+      "Performance audit of a page in the real browser",
+    );
+  }
+
+  if (name === "web_multitab_workflow") {
+    const urls = args.urls || "(no URLs provided)";
+    const goal = args.goal || "complete the task across the tabs";
+    return userMsg(
+      [
+        "Work across multiple tabs in the user's real browser.",
+        `Tabs to open: ${urls}. Goal: ${goal}.`,
+        "",
+        "1. web_status — stop and ask the user to enable Web access if offline/disabled.",
+        "2. web_tab { action: 'open', url } for each URL; web_tabs to get every tabId.",
+        "3. For each tab in turn: web_tab { action: 'switch', tabId }, then act (web_hierarchy + web_click/web_type) — actions always target the ACTIVE tab, so switch before every action.",
+        "4. Checkpoint with web_screenshot after meaningful progress in each tab.",
+        "5. When done, web_tabs to confirm the final tab state; close scratch tabs with web_tab { action: 'close' } only if the user expects cleanup.",
+        "Report per-tab outcomes and the final state, with screenshots as evidence.",
+      ].join("\n"),
+      "Multi-tab workflow in the real browser",
+    );
+  }
+
   return null;
 }

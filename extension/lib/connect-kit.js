@@ -52,6 +52,18 @@ connected and "Web access for AI agents" enabled in its dashboard:
   web_click       click by text / selector / index
   web_type        type into a field (optional submit)
   web_scroll      scroll the page
+  ADVANCED (Playwright-grade):
+  web_eval        run JavaScript in the page and return the result
+  web_console     console + page-error buffer (sinceCursor / clear)
+  web_network     fetch/XHR buffer with status + duration
+  web_dialog      intercepted alert/confirm/prompt (auto-handled, logged)
+  web_storage     localStorage / sessionStorage / cookies read-set-clear
+  web_perf        Core Web Vitals (FCP/LCP/CLS) + slowest resources
+  web_tabs        list tabs          web_tab  open / switch / close
+  web_wait_for    wait for selector or text
+  web_key         press a key (Enter submits forms)
+  web_hover       hover an element   web_select  pick a dropdown option
+  web_watch       REALTIME: 500ms frames with change detection, returned as images
 
 AFTER CONNECTING
 ${usageBlock}

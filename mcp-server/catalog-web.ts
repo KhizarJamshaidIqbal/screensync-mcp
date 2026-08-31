@@ -79,6 +79,163 @@ export function webToolDefinitions() {
         "Returns a structured snapshot of the active browser tab: title, URL, visible text, and a list of interactive elements (with indexes for web_click/web_type). Use to locate elements precisely instead of guessing.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
+    // ── Advanced toolkit (Playwright-grade) ──
+    {
+      name: "web_eval",
+      description:
+        "Evaluates a JavaScript expression in the active tab's page context (like Playwright's page.evaluate) and returns the JSON-safe result. Use for reading state the DOM snapshot doesn't expose, or one-off computations.",
+      inputSchema: {
+        type: "object",
+        required: ["expression"],
+        properties: { expression: { type: "string", maxLength: 5000, description: "JS expression, e.g. document.title or [...document.links].length" } },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_console",
+      description:
+        "Reads console output captured from the active tab (log/info/warn/error/debug plus page errors and unhandled rejections). Hooks install on first call; navigation resets them. Use sinceCursor from a previous call to fetch only new entries.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          level: { type: "string", enum: ["log", "info", "warn", "error", "debug", "pageerror"], description: "Return only this level." },
+          sinceCursor: { type: "integer", minimum: 0, description: "Only entries with id greater than this cursor." },
+          clear: { type: "boolean", default: false, description: "Empty the buffer after reading." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_network",
+      description:
+        "Reads fetch/XHR requests captured from the active tab (method, url, status, durationMs). Hooks install on first call and capture only requests made AFTER installation; trigger the action first, then read.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sinceCursor: { type: "integer", minimum: 0, description: "Only entries with id greater than this cursor." },
+          clear: { type: "boolean", default: false, description: "Empty the buffer after reading." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_dialog",
+      description:
+        "Reads alert/confirm/prompt dialogs intercepted on the active tab. Dialogs are auto-handled (alert dismissed, confirm accepted, prompt answered with its default) so automation never blocks.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sinceCursor: { type: "integer", minimum: 0, description: "Only entries with id greater than this cursor." },
+          clear: { type: "boolean", default: false, description: "Empty the buffer after reading." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_storage",
+      description:
+        "Reads or writes the active tab's localStorage, sessionStorage, or (read-only) document.cookie. httpOnly cookies are not visible to page scripts.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["get", "set", "clear"], default: "get" },
+          type: { type: "string", enum: ["local", "session", "cookie"], default: "local" },
+          key: { type: "string", maxLength: 500, description: "Key for get/set of a single entry." },
+          value: { type: "string", maxLength: 5000, description: "Value for set." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_perf",
+      description:
+        "Returns the active tab's performance metrics: DOMContentLoaded/load/FCP/LCP timing, CLS, resource count, and the 5 slowest resources.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    },
+    {
+      name: "web_tabs",
+      description: "Lists the browser's open tabs in the current window (tabId, url, title, active).",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    },
+    {
+      name: "web_tab",
+      description: "Manages tabs: open a URL in a new tab, switch focus to a tab by id, or close a tab.",
+      inputSchema: {
+        type: "object",
+        required: ["action"],
+        properties: {
+          action: { type: "string", enum: ["open", "switch", "close"] },
+          url: { type: "string", maxLength: 2000, description: "http(s) URL for action=open." },
+          tabId: { type: "integer", description: "Tab id from web_tabs for switch/close." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_wait_for",
+      description:
+        "Waits until a CSS selector exists or a text appears on the active tab (like Playwright's waitForSelector/waitForText). Use after actions that trigger async updates.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          selector: { type: "string", maxLength: 300, description: "CSS selector to wait for." },
+          text: { type: "string", maxLength: 300, description: "Visible text to wait for (alternative to selector)." },
+          timeoutMs: { type: "integer", minimum: 200, maximum: 15000, default: 5000 },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_key",
+      description:
+        "Presses a key on the focused element of the active tab (Enter, Tab, Escape, ArrowDown, single characters...). Enter inside a form submits it.",
+      inputSchema: {
+        type: "object",
+        required: ["key"],
+        properties: { key: { type: "string", maxLength: 20, description: "Key name, e.g. Enter, Tab, Escape, ArrowDown, or a single character." } },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_hover",
+      description: "Hovers an element on the active tab (fires mouseover/mouseenter/mousemove), located by selector, visible text, or index.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          selector: { type: "string", maxLength: 300 },
+          text: { type: "string", maxLength: 200 },
+          index: { type: "integer", minimum: 0 },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_select",
+      description: "Selects an option in a <select> on the active tab by its value or visible option text (fires input+change).",
+      inputSchema: {
+        type: "object",
+        required: ["value"],
+        properties: {
+          value: { type: "string", maxLength: 300, description: "Option value, or the option's visible text." },
+          selector: { type: "string", maxLength: 300, description: "CSS selector of the <select> (defaults to the first one)." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_watch",
+      description:
+        "Watches the active tab like a realtime video: captures frames every ~500ms (the browser's 2fps capture ceiling), skips identical ones via pixel diffing, and returns EVERY changed frame as images — analyze them frame-by-frame in order. Frames are also streamed live over SSE (web_frame).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          durationMs: { type: "integer", minimum: 1000, maximum: 10000, default: 6000, description: "How long to watch." },
+          maxFrames: { type: "integer", minimum: 1, maximum: 20, default: 12, description: "Stop early after this many changed frames." },
+          quality: { type: "integer", minimum: 20, maximum: 90, default: 60, description: "JPEG quality." },
+        },
+        additionalProperties: false,
+      },
+    },
   ];
 }
 
@@ -119,6 +276,41 @@ export function webSkillDefinitions() {
       arguments: [
         { name: "steps", description: "Repro steps, e.g. '1. open /cart 2. click Checkout 3. submit empty'.", required: true },
         { name: "expected", description: "What should happen, so deviation is obvious.", required: false },
+      ],
+    },
+    {
+      name: "web_debug_session",
+      description:
+        "Full debug session: reproduces an issue while collecting console errors, network failures, and dialog evidence, then reports root-cause findings with a final screenshot.",
+      arguments: [
+        { name: "steps", description: "What to do on the page, e.g. 'click Login with empty fields'.", required: true },
+        { name: "symptom", description: "The reported symptom, e.g. 'button does nothing'.", required: false },
+      ],
+    },
+    {
+      name: "web_watch_flow",
+      description:
+        "Realtime observation: starts web_watch on the live tab, performs the action while it records, then narrates every captured frame in order like a video review.",
+      arguments: [
+        { name: "action", description: "What to do while watching, e.g. 'submit the form' or 'scroll to the footer'.", required: true },
+        { name: "durationMs", description: "Watch window in ms (1000-10000, default 6000).", required: false },
+      ],
+    },
+    {
+      name: "web_perf_audit",
+      description:
+        "Performance audit of a page in the real browser: loads it, reads web_perf metrics (FCP/LCP/CLS/load), screenshots it, and gives prioritized optimization recommendations.",
+      arguments: [
+        { name: "url", description: "Page to audit (omit to audit the current tab).", required: false },
+      ],
+    },
+    {
+      name: "web_multitab_workflow",
+      description:
+        "Multi-tab workflow: opens pages in separate tabs, switches between them with web_tabs/web_tab, acts in each, and checkpoint-screenshots every tab before summarizing.",
+      arguments: [
+        { name: "urls", description: "Comma-separated URLs to open, e.g. 'https://a.com, https://b.com'.", required: true },
+        { name: "goal", description: "What to accomplish across the tabs.", required: true },
       ],
     },
   ];
