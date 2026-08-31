@@ -19,6 +19,7 @@ import {
 } from "./catalog.js";
 import { AUTH_TOKEN, HTTP_PORT, log } from "./config.js";
 import { emitHubEvent } from "./events.js";
+import { promptMessage } from "./prompts.js";
 import {
   latestFrame,
   listFrames,
@@ -349,76 +350,9 @@ export function createMcpServer() {
   }));
 
   server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-    const name = request.params.name;
-    const args = request.params.arguments ?? {};
-    const userMsg = (text: string, description: string) => ({
-      description,
-      messages: [{ role: "user" as const, content: { type: "text" as const, text } }],
-    });
-
-    if (name === "inspect_latest_mobile_screen") {
-      const focus = args.focus || "layout, rendering, accessibility, and interaction defects";
-      return userMsg(
-        `Use get_device_status, then get_latest_screenshot. Inspect the actual image for ${focus}. Report evidence, severity, likely Flutter cause, and a concrete fix. Ask for another bubble capture to verify the fix.`,
-        "Inspect the latest captured mobile screen",
-      );
-    }
-
-    if (name === "autonomous_ui_test") {
-      const target = args.target || "the current screen";
-      const goal = args.goal || "find any layout, rendering, or interaction defects";
-      return userMsg(
-        [
-          `You are driving a real Android phone via ScreenSync. Autonomously UI-test: ${target}.`,
-          `Goal: ${goal}.`,
-          "",
-          "Loop:",
-          "1. Open the target (control_launch_app for a package, or control_open_url for a URL).",
-          "2. control_screenshot to SEE the screen; get_ui_hierarchy to know what's tappable.",
-          "3. Inspect the image for defects (overflow, clipping, contrast, spacing, broken images).",
-          "4. Navigate with control_tap_text / control_swipe_until (never guess coordinates — use the hierarchy).",
-          "5. After each action, use compare_frames to confirm the UI changed as expected.",
-          "6. Check get_logcat (grep 'exception'/'error') for runtime errors after risky actions.",
-          "Report a concise findings list with severity + evidence. Stop when the goal is met or no new screens remain.",
-        ].join("\n"),
-        "Autonomous UI test driver",
-      );
-    }
-
-    if (name === "reproduce_bug") {
-      const steps = args.steps || "(no steps provided)";
-      const expected = args.expected ? `Expected behaviour: ${args.expected}.` : "";
-      return userMsg(
-        [
-          "Reproduce this bug on the live phone via ScreenSync, documenting each step.",
-          `Steps:\n${steps}`,
-          expected,
-          "",
-          "For EACH step: control_screenshot before, perform the action (prefer control_tap_text), then compare_frames after.",
-          "After the final step, call get_logcat (grep 'exception') to capture any stack trace.",
-          "Report: what actually happened vs expected, the exact step where it diverged, the screenshot evidence, and the logcat lines. Then propose a likely root cause and a fix (publish_patch if you can).",
-        ].join("\n"),
-        "Reproduce a bug step-by-step",
-      );
-    }
-
-    if (name === "accessibility_audit") {
-      const standard = args.standard || "WCAG AA";
-      return userMsg(
-        [
-          `Audit the current phone screen for accessibility against ${standard}.`,
-          "1. control_screenshot to see it; get_ui_hierarchy for element sizes and labels.",
-          "2. Flag tap targets smaller than 48x48dp (use the node bounds).",
-          "3. Flag low text/background contrast from the image.",
-          "4. Flag interactive elements with empty text AND empty content-desc (missing labels for screen readers).",
-          "5. Note any text likely to clip when the user scales font size up.",
-          "Report each issue with the element, its bounds, severity, and a concrete fix. Use publish_inspection to overlay the regions on the phone.",
-        ].join("\n"),
-        "Accessibility audit of the current screen",
-      );
-    }
-
-    throw new Error(`Unknown prompt: ${name}`);
+    const result = promptMessage(request.params.name, (request.params.arguments ?? {}) as Record<string, string>);
+    if (!result) throw new Error(`Unknown prompt: ${request.params.name}`);
+    return result;
   });
 
   return server;

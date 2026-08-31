@@ -81,3 +81,45 @@ export function webToolDefinitions() {
     },
   ];
 }
+
+// Agent-facing skills (MCP prompts) for the browser extension. Message
+// builders live in prompts.ts; these definitions are what clients list.
+export function webSkillDefinitions() {
+  return [
+    {
+      name: "web_see_and_report",
+      description:
+        "Looks at the user's live browser tab (web_screenshot + web_hierarchy) and explains what is on it — the 'what am I looking at?' skill.",
+      arguments: [
+        { name: "focus", description: "Optional focus, e.g. 'checkout state' or 'error messages'.", required: false },
+      ],
+    },
+    {
+      name: "web_form_autofill",
+      description:
+        "Fills and submits a form on the user's live tab using web_hierarchy indexes — no selector guessing, verifies the result visually.",
+      arguments: [
+        { name: "goal", description: "Which form and outcome, e.g. 'submit the contact form'.", required: true },
+        { name: "data", description: "Optional values to fill, e.g. 'name=Ada, email=ada@x.com'.", required: false },
+      ],
+    },
+    {
+      name: "web_visual_qa",
+      description:
+        "Audits a URL in the user's real browser — scrolls the whole page, screenshots each viewport, and reports layout/a11y defects with evidence.",
+      arguments: [
+        { name: "url", description: "Page to audit (omit to audit the current tab).", required: false },
+        { name: "focus", description: "Optional focus, e.g. 'mobile nav' or 'contrast'.", required: false },
+      ],
+    },
+    {
+      name: "web_reproduce_issue",
+      description:
+        "Reproduces a reported web bug step-by-step in the user's actual browser with before/after screenshot evidence and a divergence report.",
+      arguments: [
+        { name: "steps", description: "Repro steps, e.g. '1. open /cart 2. click Checkout 3. submit empty'.", required: true },
+        { name: "expected", description: "What should happen, so deviation is obvious.", required: false },
+      ],
+    },
+  ];
+}
