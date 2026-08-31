@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { execSync } from "node:child_process";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -324,6 +325,28 @@ export function createMcpServer() {
           ],
         };
       }
+      if (request.params.name === "os_mouse_click") {
+        const a = request.params.arguments as { x: number; y: number };
+        const { execSync } = require("child_process");
+        execSync(`python -c "import pyautogui; pyautogui.click(${a.x}, ${a.y})"`);
+        return textResult({ success: true, detail: `Clicked at ${a.x}, ${a.y}` });
+      }
+      if (request.params.name === "os_type") {
+        const a = request.params.arguments as { text: string };
+        const { execSync } = require("child_process");
+        // Escape quotes
+        const text = a.text.replace(/"/g, '\\"');
+        execSync(`python -c "import pyautogui; pyautogui.write(\\"${text}\\")"`);
+        return textResult({ success: true, detail: `Typed text` });
+      }
+      if (request.params.name === "os_hotkey") {
+        const a = request.params.arguments as { keys: string[] };
+        const { execSync } = require("child_process");
+        const keysStr = a.keys.map(k => `'${k}'`).join(", ");
+        execSync(`python -c "import pyautogui; pyautogui.hotkey(${keysStr})"`);
+        return textResult({ success: true, detail: `Pressed hotkey ${a.keys.join("+")}` });
+      }
+
       return textResult({ success: false, error: `Unknown tool: ${request.params.name}` }, true);
     } catch (error) {
       log("ERROR", "MCP tool failed", { tool: request.params.name, error: String(error) });

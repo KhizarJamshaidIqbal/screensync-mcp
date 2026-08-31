@@ -302,6 +302,44 @@ export function toolDefinitions() {
       },
     },
 
+    {
+      name: "os_mouse_click",
+      description: "Clicks the OS mouse at the specified absolute pixel coordinates using PyAutoGUI. Use this when the browser sandbox blocks web_click (e.g. chrome:// extensions).",
+      inputSchema: {
+        type: "object",
+        required: ["x", "y"],
+        properties: {
+          x: { type: "integer" },
+          y: { type: "integer" },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "os_type",
+      description: "Types text at the OS level using PyAutoGUI. Use this when the browser sandbox blocks web_type.",
+      inputSchema: {
+        type: "object",
+        required: ["text"],
+        properties: {
+          text: { type: "string" },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "os_hotkey",
+      description: "Presses a keyboard shortcut at the OS level using PyAutoGUI (e.g. ['ctrl', 'r']).",
+      inputSchema: {
+        type: "object",
+        required: ["keys"],
+        properties: {
+          keys: { type: "array", items: { type: "string" } },
+        },
+        additionalProperties: false,
+      },
+    },
+
     ...webToolDefinitions(),
   ];
 }
@@ -336,6 +374,21 @@ export function promptDefinitions() {
       description: "Guides the agent to audit the current screen for accessibility issues: tap-target size, contrast, missing labels, text scaling.",
       arguments: [
         { name: "standard", description: "Optional standard to check against, e.g. WCAG AA.", required: false },
+      ],
+    },
+    {
+      name: "mobile_social_publish",
+      description: "Guides the agent to autonomously publish social posts via native Android apps (Twitter/X, LinkedIn, Instagram, Reddit) with live visual + hierarchy verification.",
+      arguments: [
+        { name: "app", description: "Target mobile app name, e.g. 'Twitter / X', 'LinkedIn', 'Instagram', 'Reddit'.", required: true },
+        { name: "content", description: "Full text content, hashtags, and links to publish.", required: true },
+      ],
+    },
+    {
+      name: "mobile_autonomous_agent",
+      description: "Complete OODA Loop Mobile Agent (Observe, Orient, Decide, Act, Verify): drives native Android apps with vision + hierarchy + ADB control.",
+      arguments: [
+        { name: "task", description: "The complete mobile task or user goal to execute.", required: true },
       ],
     },
 
