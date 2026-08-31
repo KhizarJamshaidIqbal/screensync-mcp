@@ -4,6 +4,7 @@ const DEFAULTS = {
   hubUrl: 'http://localhost:3000',
   token: DEFAULT_TOKEN,
   onboardingComplete: false,
+  webAccessEnabled: false,
   setupGuideCache: null,
   setupGuideFetchedAt: null,
 };

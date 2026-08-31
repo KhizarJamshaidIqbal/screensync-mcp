@@ -37,3 +37,6 @@ android/app/*.jks
 mcp-server/hub_bg.log
 mcp-server/hub_bg.err.log
 mcp-server/test/out/
+mcp-server/hub_web.log
+mcp-server/hub_web.err.log
+mcp-server/test/out-web/

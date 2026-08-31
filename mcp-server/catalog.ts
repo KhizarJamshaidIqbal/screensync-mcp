@@ -1,4 +1,5 @@
 import { AUTH_TOKEN, DATA_DIR, HTTP_HOST, HTTP_PORT } from "./config.js";
+import { webToolDefinitions } from "./catalog-web.js";
 
 // Single source of truth for everything the MCP server exposes. The MCP
 // protocol handlers, the HTTP /api/mcp/catalog endpoint and the new
@@ -6,7 +7,7 @@ import { AUTH_TOKEN, DATA_DIR, HTTP_HOST, HTTP_PORT } from "./config.js";
 // always see the same catalog.
 
 export const SERVER_NAME = "screensync-mcp-server";
-export const SERVER_VERSION = "2.6.0";
+export const SERVER_VERSION = "2.7.0";
 export const MDNS_TYPE = "_screensync-hub._tcp";
 
 export function toolDefinitions() {
@@ -300,6 +301,8 @@ export function toolDefinitions() {
         additionalProperties: false,
       },
     },
+
+    ...webToolDefinitions(),
   ];
 }
 
@@ -366,19 +369,22 @@ export function resourceDefinitions() {
 export function getSkillsContent() {
   return {
     about:
-      "ScreenSync streams real Android screenshots from a phone to this MCP server. You inspect them visually and send findings back to the phone.",
+      "ScreenSync streams real Android screenshots from a phone to this MCP server, AND bridges your real browser tabs through the ScreenSync extension. You inspect phone screens visually, drive the phone via control_*, and see/act on the user's live browser via web_*.",
     rules: [
       "Read get_skills (this) first, then get_device_status to confirm a fresh frame.",
       "To SHOW images in preview, return the MCP image content directly in your reply (do not paste file paths/links).",
       "Be FAST and concise: prefer get_recent_screenshots for 'latest N images' in ONE call.",
       "Use get_latest_screenshot for a single full-res frame + metadata.",
       "After inspecting, call publish_inspection (bug regions) and optionally publish_patch (git fix).",
+      "For the user's BROWSER: call web_status first, then web_screenshot / web_hierarchy to see the live tab, and web_click / web_type / web_navigate / web_scroll to act.",
     ],
     tools: toolDefinitions().map((t) => ({ name: t.name, purpose: t.description.split(".")[0] })),
     quickRecipes: [
       { ask: "show me the latest 2 reference images", use: "get_recent_screenshots { limit: 2 }" },
       { ask: "why is my UI broken?", use: "get_latest_screenshot -> inspect -> publish_inspection" },
       { ask: "is the phone connected?", use: "get_device_status" },
+      { ask: "what am I looking at in my browser?", use: "web_status -> web_screenshot" },
+      { ask: "fill this web form for me", use: "web_hierarchy -> web_type -> web_click" },
     ],
   };
 }
@@ -403,6 +409,8 @@ export function connectionInfo() {
         "GET  /api/inspections/latest",
         "GET  /api/patches/latest",
         "GET  /api/mcp/catalog",
+        "POST /api/web/tool           run a web_* tool through the browser extension",
+        "GET  /api/web/status         web-bridge presence + active tab",
       ],
     },
     discovery: { mdnsType: MDNS_TYPE, note: "The hub advertises itself via mDNS; the Flutter app auto-discovers it on the same LAN." },
@@ -418,11 +426,13 @@ export function buildCatalog() {
     prompts: promptDefinitions(),
     resources: resourceDefinitions(),
     recommendedUsage: [
-      "1. get_device_status — confirm a fresh frame exists.",
+      "1. get_device_status — confirm a fresh phone frame exists.",
       "2. get_latest_screenshot — inspect the raw image (vision, no OCR).",
       "3. publish_inspection — send bug regions back to the phone heatmap.",
       "4. publish_patch — send a git patch for one-tap apply.",
-      "5. get_mcp_catalog — re-read this catalog anytime for full capability discovery.",
+      "5. web_status -> web_screenshot / web_hierarchy — see the user's live browser tab (needs the extension with Web access enabled).",
+      "6. web_click / web_type / web_navigate / web_scroll — act on the browser like the user would.",
+      "7. get_mcp_catalog — re-read this catalog anytime for full capability discovery.",
     ],
   };
 }

@@ -17,7 +17,7 @@ import {
   SERVER_VERSION,
   toolDefinitions,
 } from "./catalog.js";
-import { log } from "./config.js";
+import { AUTH_TOKEN, HTTP_PORT, log } from "./config.js";
 import { emitHubEvent } from "./events.js";
 import {
   latestFrame,
@@ -51,6 +51,29 @@ function textResult(value: unknown, isError = false) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }], isError };
 }
 
+/**
+ * Round-trips a web_* tool through the HTTP hub, which relays it over SSE to
+ * the ScreenSync browser extension. Goes through HTTP (not in-process calls)
+ * so it also works when this stdio server runs MCP-only beside another hub
+ * instance.
+ */
+async function callHubWebTool(tool: string, args: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+  const url = `http://127.0.0.1:${HTTP_PORT}/api/web/tool`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${AUTH_TOKEN}` },
+      body: JSON.stringify({ tool, args, timeoutMs: 45_000 }),
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch (error) {
+    return { ok: false, error: `ScreenSync hub is not reachable at ${url} (${String(error)}). Start the hub with 'npm start' and make sure the browser extension is connected.` };
+  }
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: unknown; error?: string };
+  return { ok: body.ok === true, data: body.data, error: body.error ?? (res.ok ? undefined : `Hub replied ${res.status}`) };
+}
+
 export function createMcpServer() {
   const server = new Server(
     { name: SERVER_NAME, version: SERVER_VERSION },
@@ -63,8 +86,28 @@ export function createMcpServer() {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     // B3: surface every tool call on the phone's AI activity timeline.
-    emitHubEvent("tool", request.params.name, true);
+    // (web_* tools emit their own timeline event after the bridge round trip.)
+    if (!request.params.name.startsWith("web_")) {
+      emitHubEvent("tool", request.params.name, true);
+    }
     try {
+      // ── Web bridge (browser access for AI agents) ──
+      if (request.params.name.startsWith("web_")) {
+        const r = await callHubWebTool(request.params.name, (request.params.arguments ?? {}) as Record<string, unknown>);
+        if (!r.ok) return textResult({ success: false, error: r.error }, true);
+        if (request.params.name === "web_screenshot") {
+          const d = r.data as { imageDataUrl?: string; url?: string; title?: string } | undefined;
+          const dataUrl = d?.imageDataUrl ?? "";
+          const [meta = "image/jpeg", base64 = ""] = dataUrl.includes(",") ? [dataUrl.slice(5, dataUrl.indexOf(";")), dataUrl.split(",", 2)[1]] : [];
+          return {
+            content: [
+              { type: "image" as const, data: base64, mimeType: meta || "image/jpeg" },
+              { type: "text" as const, text: JSON.stringify({ url: d?.url ?? null, title: d?.title ?? null }, null, 2) },
+            ],
+          };
+        }
+        return textResult({ success: true, ...((r.data ?? {}) as object) });
+      }
       if (request.params.name === "get_mcp_catalog") {
         return textResult(buildCatalog());
       }

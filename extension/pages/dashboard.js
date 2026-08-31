@@ -3,6 +3,7 @@ import { mountFrameViewer } from '../components/frame-viewer.js';
 import { mountFeed } from '../components/activity-feed.js';
 import { mountControlPad } from '../components/control-pad.js';
 import { mountCatalog } from '../components/catalog-browser.js';
+import { mountWebAccess } from '../components/web-access.js';
 import { renderViewers } from '../components/inspection-viewer.js';
 
 const send = (msg) => chrome.runtime.sendMessage(msg);
@@ -15,6 +16,7 @@ const frame = mountFrameViewer(document.getElementById('frame'), send);
 const feed = mountFeed(document.getElementById('feed'));
 mountControlPad(document.getElementById('control'), send, document.getElementById('pad-result'));
 mountCatalog(document.getElementById('catalog'), send);
+mountWebAccess(document.getElementById('web-access'), send);
 renderViewers(document.getElementById('viewers'), send);
 
 document.getElementById('btn-pair').onclick = async () => {

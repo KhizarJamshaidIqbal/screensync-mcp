@@ -5,6 +5,7 @@ self.addEventListener('unhandledrejection', (e) => console.error('[ss] sw reject
 import { getSettings, saveSettings } from './lib/storage.js';
 import { api, probeHub, hubFetch } from './lib/api.js';
 import { SseClient } from './lib/sse-client.js';
+import { handleWebRequest, registerWebBridge } from './lib/web-tools.js';
 import {
   GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, HEALTH_PERIOD_S, EVENT_LOG_CAP,
 } from './lib/constants.js';
@@ -32,6 +33,13 @@ function snapshot() {
 
 const sse = new SseClient({
   onEvent: (ev) => {
+    // Web bridge: the hub relays an agent's web_* tool call to us. Execute it
+    // against the user's browser and POST the result back — don't chart it
+    // as a normal feed event.
+    if (ev && ev.type === 'web_request') {
+      handleWebRequest(ev);
+      return;
+    }
     cache.events.unshift(ev);
     if (cache.events.length > EVENT_LOG_CAP) cache.events.length = EVENT_LOG_CAP;
     if (ev.type === 'frame' && ev.at) cache.lastFrameAt = ev.at;
@@ -70,6 +78,7 @@ chrome.alarms.onAlarm.addListener(async (a) => {
   if (a.name !== HEALTH_ALARM) return;
   await pollHealth();
   await ensureSse(); // revive SSE if the SW was terminated
+  await registerWebBridge(); // keeps web-bridge presence fresh on the hub
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -82,6 +91,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onStartup.addListener(() => {
   pollHealth();
   ensureSse();
+  registerWebBridge();
 });
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -128,8 +138,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           sse.stop();
           await ensureSse();
           pollHealth();
+          registerWebBridge();
           broadcast({ kind: 'settings', settings });
           sendResponse({ ok: true, settings });
+          break;
+        }
+        case 'get-web-status': {
+          // Hub-side presence (is the hub seeing our heartbeat) + local toggle.
+          const settings = await getSettings();
+          let bridge = { online: false, error: 'hub unreachable' };
+          try {
+            const r = await hubFetch('/api/web/status');
+            bridge = r.status || r;
+          } catch (e) { bridge = { online: false, error: e.message }; }
+          sendResponse({ ok: true, webAccessEnabled: !!settings.webAccessEnabled, bridge });
+          break;
+        }
+        case 'set-web-access': {
+          const settings = await saveSettings({ webAccessEnabled: !!msg.enabled });
+          await registerWebBridge();
+          broadcast({ kind: 'settings', settings });
+          sendResponse({ ok: true, webAccessEnabled: settings.webAccessEnabled });
+          break;
+        }
+        case 'web-test': {
+          // Runs the exact route an agent's web_* call takes, so the user
+          // can prove the loop before trusting it.
+          try {
+            const result = await hubFetch('/api/web/tool', { method: 'POST', body: { tool: 'web_status', args: {} } });
+            sendResponse({ ok: true, result });
+          } catch (e) {
+            sendResponse({ ok: true, result: { ok: false, error: e.message } });
+          }
           break;
         }
         case 'get-guide': {
@@ -166,3 +206,4 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // Boot.
 pollHealth();
 ensureSse();
+registerWebBridge();

@@ -63,5 +63,8 @@ export const FALLBACK_GUIDE = {
     'Hub not reachable — ensure `npm start` is running and the firewall allows port 3000 on the LAN.',
     '401 Unauthorized — the token must match SCREEN_SYNC_TOKEN on the hub.',
     '429 Too many live connections — max 10 concurrent /api/events clients; close another dashboard.',
+    'web_* tools say "not connected" — open this dashboard and confirm the heartbeat pill is green.',
+    'web_* tools say "Web access is disabled" — turn on the "Web access for AI agents" toggle in this dashboard.',
+    'web_* tools say "cannot access that page" — the active tab is a restricted page (chrome://, store, PDF); switch to a normal web page.',
   ],
 };

@@ -21,6 +21,7 @@ import {
   uploadSchema,
   type FrameMetadata,
 } from "./storage.js";
+import { createWebBridge } from "./web.js";
 
 export type HubHandle = {
   server: HttpServer;
@@ -138,11 +139,16 @@ export async function startHttpHub(): Promise<HubHandle> {
   // The phone keeps one persistent connection; the hub pushes frame /
   // inspection / patch events so the app reacts instantly instead of polling.
   const sseClients = new Set<express.Response>();
-  const broadcast = (event: HubEvent) => {
-    const line = `data: ${JSON.stringify(event)}\n\n`;
+  const broadcast = (payload: object, name = "event") => {
+    // Keep the legacy data-only framing for regular events (the phone app's
+    // SSE parser expects it); only non-default event kinds get a named line.
+    const line = name === "event"
+      ? `data: ${JSON.stringify(payload)}\n\n`
+      : `event: ${name}\ndata: ${JSON.stringify(payload)}\n\n`;
     for (const client of sseClients) client.write(line);
   };
-  hubEvents.on("event", broadcast);
+  hubEvents.on("event", (event: HubEvent) => broadcast(event));
+  const webBridge = createWebBridge(broadcast);
   const keepalive = setInterval(() => {
     for (const client of sseClients) client.write(": keepalive\n\n");
   }, 30_000);
@@ -326,6 +332,11 @@ export async function startHttpHub(): Promise<HubHandle> {
       res.status(400).json({ success: false, error: String(error) });
     }
   });
+
+  // ── Web bridge (browser access for AI agents) ──
+  // The ScreenSync extension connects over SSE; these routes let agents see
+  // and drive the user's browser tabs through it (web_* MCP tools).
+  webBridge.registerRoutes(app);
 
   const server = createServer(app);
   await new Promise<void>((resolve, reject) => {

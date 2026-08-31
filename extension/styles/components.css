@@ -10,6 +10,7 @@
     "header header"
     "frame  feed"
     "frame  side"
+    "web    web"
     "control catalog"
     "viewers catalog";
 }
@@ -17,11 +18,12 @@
 .dash-frame { grid-area: frame; }
 .dash-feed { grid-area: feed; max-height: 340px; display: flex; flex-direction: column; }
 .dash-side { grid-area: side; }
+.dash-web { grid-area: web; }
 .dash-control { grid-area: control; }
 .dash-catalog { grid-area: catalog; max-height: 720px; overflow-y: auto; }
 .dash-viewers { grid-area: viewers; }
 @media (max-width: 900px) {
-  .dash { grid-template-columns: 1fr; grid-template-areas: "header" "frame" "feed" "side" "control" "viewers" "catalog"; }
+  .dash { grid-template-columns: 1fr; grid-template-areas: "header" "frame" "feed" "side" "web" "control" "viewers" "catalog"; }
 }
 
 /* ---------- Frame viewer ---------- */
@@ -119,3 +121,20 @@
 body.popup { width: 300px; height: auto; }
 .pop { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .pop img.thumb { width: 100%; border-radius: 10px; border: 1px solid var(--border); display: block; }
+
+/* ---------- Web access switch ---------- */
+.switch { position: relative; display: inline-block; width: 46px; height: 26px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--border); border-radius: 26px;
+  transition: background .18s ease;
+}
+.switch .slider::before {
+  content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px;
+  background: #fff; border-radius: 50%;
+  transition: transform .18s ease;
+}
+.switch input:checked + .slider { background: linear-gradient(90deg, var(--primary), var(--magenta)); }
+.switch input:checked + .slider::before { transform: translateX(20px); }
+.switch input:focus-visible + .slider { outline: 2px solid var(--primary); outline-offset: 2px; }
