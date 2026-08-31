@@ -1,4 +1,5 @@
 import { parsePairing } from '../lib/pairing.js';
+import { buildAgentSetupPrompt } from '../lib/connect-kit.js';
 import { PROBE_URLS, DEFAULT_TOKEN } from '../lib/constants.js';
 
 const $ = (id) => document.getElementById(id);
@@ -144,6 +145,14 @@ async function loadGuide() {
     body.appendChild(note);
   }
 }
+
+$('btn-copy-prompt').onclick = async () => {
+  const { settings } = await send({ type: 'get-status' });
+  await navigator.clipboard.writeText(buildAgentSetupPrompt(settings));
+  const b = $('btn-copy-prompt');
+  b.textContent = 'Copied ✓ — paste it into your agent';
+  setTimeout(() => (b.textContent = 'Copy AI setup prompt'), 2500);
+};
 
 $('btn-done').onclick = () => show('done');
 $('btn-dash').onclick = () => {

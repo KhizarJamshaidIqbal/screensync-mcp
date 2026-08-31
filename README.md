@@ -86,4 +86,4 @@ private repo; the site zips always match this source.
   `/api/patches/latest`, `/api/control/:action`, `/api/web/register`,
   `/api/web/result`, `/api/web/status`, `/api/web/tool`, `/pair`.
 
-<!-- synced from main@0b89deb -->
+<!-- synced from main@00dba59 -->
