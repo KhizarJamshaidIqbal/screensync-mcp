@@ -87,5 +87,5 @@ export function mountWebAccess(el, send) {
   });
 
   refresh();
-  setInterval(refresh, 30000);
+  setInterval(() => { if (!busy) refresh(); }, 30000);
 }
