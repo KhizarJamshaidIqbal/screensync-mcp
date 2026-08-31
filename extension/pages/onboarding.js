@@ -72,7 +72,7 @@ $('btn-connect').onclick = async () => {
   } catch (e) {
     err.textContent = e.status === 401
       ? '401 — the token doesn’t match the hub’s SCREEN_SYNC_TOKEN.'
-      : `Hub not reachable at ${url} — is \`npm start\` running? (${e.message})`;
+      : `Hub not reachable at ${url} — is start-hub.bat / start-hub.sh running? (${e.message})`;
     err.hidden = false;
   }
 };

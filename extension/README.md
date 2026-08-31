@@ -6,6 +6,21 @@ this extension hands the agent your **web** — it can see, read, click and
 type on your live browser tabs through the ScreenSync hub. It also doubles as
 the live Android-screen dashboard + remote control for your phone.
 
+Product site, downloads and guide: https://screensyncmcp.epsoldev.com
+
+## Quick start (sideload)
+
+1. Grab the latest zip from https://screensyncmcp.epsoldev.com/extension.html
+   (or clone this repo — the repo root **is** the extension folder).
+2. Unzip it anywhere.
+3. Open `chrome://extensions` (or `edge://extensions`) → enable **Developer mode**.
+4. **Load unpacked** → select the unzipped folder (or this clone's root).
+5. The onboarding tab opens automatically; connect to your hub.
+
+The hub is a separate small local server — download it from the same page,
+unzip, double-click `start-hub.bat` (or `sh start-hub.sh`). It prints a
+pairing link + QR that the extension and the Android app both accept.
+
 ## Features
 
 - **Web access for AI agents** — with one toggle, the hub relays `web_*` tool
@@ -34,38 +49,15 @@ the live Android-screen dashboard + remote control for your phone.
 ## Requirements
 
 - Chrome / Edge 110+
-- A computer running the hub: `cd mcp-server && npm install && npm run build && npm start`
+- The ScreenSync hub running on your computer (download from the site; needs Node 18+)
 - The Android app on your phone for captures (control tools need ADB reachable by the hub)
 
-## Load unpacked (sideload)
+## Source code
 
-1. Open `chrome://extensions` → enable **Developer mode**.
-2. **Load unpacked** → select this `extension/` folder.
-3. The onboarding tab opens automatically; connect to your hub.
-4. Toolbar icon → popup status; **Open Dashboard** for the full view.
-
-## Package for store / sharing
-
-```powershell
-pwsh -File scripts/package.ps1
-```
-
-Produces `extension.zip` (excludes README/scripts) ready for sideload
-distribution or Chrome Web Store upload.
-
-## Chrome Web Store submission (manual)
-
-1. Zip via `scripts/package.ps1`.
-2. https://chrome.google.com/webstore/devconsole → New item → upload zip.
-3. Store listing: category Developer Tools; describe LAN-only operation and
-   the opt-in web bridge. `<all_urls>` + `scripting` are requested so the
-   agent can act on the user's own open tabs — justify it in the
-   permission-justification notes: "Lets the user's own AI agent see and
-   operate their live browser tabs through their local ScreenSync hub; the
-   capability is off by default and gated by an explicit dashboard toggle."
-4. Privacy practices: no remote data collection; settings stay in local
-   extension storage; the only required host is the product website for the
-   setup guide.
+This repository is the complete extension source — no build step, no
+dependencies. Load unpacked on the clone root and you're running the exact
+code shipped in the site zip. The hub and Android app source live in a
+private repo; the site zips always match this source.
 
 ## Permissions rationale
 
@@ -93,10 +85,3 @@ distribution or Chrome Web Store upload.
   `/api/device/status`, `/api/mcp/catalog`, `/api/inspections/latest`,
   `/api/patches/latest`, `/api/control/:action`, `/api/web/register`,
   `/api/web/result`, `/api/web/status`, `/api/web/tool`, `/pair`.
-
-## v1 deferrals (stdio-only MCP tools, not exposed over HTTP)
-
-`get_ui_hierarchy`, `control_tap_text`, `control_swipe_until`,
-`control_open_url`, `compare_frames`, `get_logcat`, `record_screen`,
-`wait_for_frame` — shown in the catalog as "via MCP stdio"; configure an AI
-agent with the Connect Kit to use them.

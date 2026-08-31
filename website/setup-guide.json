@@ -1,14 +1,15 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "product": "ScreenSync MCP",
   "site": "https://screensyncmcp.epsoldev.com",
   "hubInstall": {
-    "prerequisites": ["Node.js 18+", "npm", "Android phone with the ScreenSync MCP app (or ADB for control tools)"],
+    "prerequisites": ["Node.js 18+", "Android phone with the ScreenSync MCP app (or ADB for control tools)"],
     "steps": [
-      "Get the repo: git clone https://github.com/KhizarJamshaidIqbal/screensync-mcp",
-      "cd mcp-server && npm install && npm run build",
-      "npm start — the hub listens on port 3000 and prints a pairing QR + link.",
-      "Keep the hub running; the phone app and this extension both connect to it over your LAN."
+      "Download the hub zip from https://screensyncmcp.epsoldev.com/extension.html and unzip it anywhere on your computer.",
+      "Windows: double-click start-hub.bat · macOS/Linux: sh start-hub.sh (or node screensync-hub.js). Needs free Node 18+.",
+      "The terminal prints a pairing link + QR and serves on http://localhost:3000 — keep it running.",
+      "Scan the QR with the ScreenSync Android app; install the browser extension from the same page.",
+      "Developers: the extension source is public — git clone https://github.com/KhizarJamshaidIqbal/screensync-extension.git (the clone root IS the extension folder; Load unpacked on it). Hub + app source stay private."
     ],
     "envVars": {
       "SCREEN_SYNC_TOKEN": "Bearer pairing token shared by app, extension and agents (default: screensync-local-dev)",
@@ -22,13 +23,16 @@
   "mcpConfig": {
     "claudeCode": {
       "file": ".mcp.json (project root)",
-      "template": "{\n  \"mcpServers\": {\n    \"screensync\": {\n      \"command\": \"node\",\n      \"args\": [\"<SCREENSYNC_MCP_DIR>/mcp-server/dist/index.js\"],\n      \"env\": { \"SCREEN_SYNC_TOKEN\": \"<TOKEN>\" }\n    }\n  }\n}"
+      "template": "{\n  \"mcpServers\": {\n    \"screensync\": {\n      \"command\": \"node\",\n      \"args\": [\"<HUB_DIR>/screensync-hub.js\"],\n      \"env\": { \"SCREEN_SYNC_TOKEN\": \"<TOKEN>\" }\n    }\n  }\n}"
     },
     "claudeDesktop": {
       "file": "claude_desktop_config.json (Settings → Developer)",
-      "template": "{\n  \"mcpServers\": {\n    \"screensync\": {\n      \"command\": \"node\",\n      \"args\": [\"<SCREENSYNC_MCP_DIR>/mcp-server/dist/index.js\"],\n      \"env\": { \"SCREEN_SYNC_TOKEN\": \"<TOKEN>\" }\n    }\n  }\n}"
+      "template": "{\n  \"mcpServers\": {\n    \"screensync\": {\n      \"command\": \"node\",\n      \"args\": [\"<HUB_DIR>/screensync-hub.js\"],\n      \"env\": { \"SCREEN_SYNC_TOKEN\": \"<TOKEN>\" }\n    }\n  }\n}"
     },
-    "cli": "claude mcp add screensync node \"<ABSOLUTE-PATH-TO>/mcp-server/dist/index.js\"",
+    "cli": {
+      "file": "CLI (one-liner)",
+      "template": "claude mcp add screensync node \"<HUB_DIR>/screensync-hub.js\""
+    },
     "httpOnly": {
       "baseUrl": "http://<HUB-IP>:3000",
       "header": "Authorization: Bearer <TOKEN>",
@@ -58,7 +62,7 @@
     "note": "The phone app auto-discovers via mDNS. Browsers cannot use mDNS — the extension probes localhost and accepts manual URLs / pairing links."
   },
   "troubleshooting": [
-    "Hub not reachable — ensure `npm start` is running and your firewall allows port 3000 on the LAN.",
+    "Hub not reachable — ensure start-hub.bat / start-hub.sh (or node screensync-hub.js) is running and your firewall allows port 3000 on the LAN.",
     "401 Unauthorized — the token must match SCREEN_SYNC_TOKEN on the hub (default: screensync-local-dev).",
     "429 Too many live connections — /api/events allows 10 concurrent clients; close another dashboard.",
     "Extension shows offline on another machine — grant the LAN origin permission in the extension's setup step."

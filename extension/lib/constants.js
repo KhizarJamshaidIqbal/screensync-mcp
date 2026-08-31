@@ -23,14 +23,16 @@ export const SSE_LIVENESS_MS = 60000;
 export const EVENT_LOG_CAP = 50;
 
 // Bundled fallback if the live setup guide cannot be fetched.
+// KEEP IN SYNC WITH website/setup-guide.json version.
 export const FALLBACK_GUIDE = {
-  version: '1.0.0',
+  version: '2.0.0',
   hubInstall: {
-    prerequisites: ['Node.js 18+', 'npm'],
+    prerequisites: ['Node.js 18+'],
     steps: [
-      'Get the repo (github.com/KhizarJamshaidIqbal/screensync-mcp) or copy the mcp-server folder from your install.',
-      'cd mcp-server && npm install && npm run build',
-      'npm start  —  hub listens on port 3000 and prints a pairing QR.',
+      'Download the hub zip from screensyncmcp.epsoldev.com/extension.html and unzip it anywhere.',
+      'Windows: double-click start-hub.bat · macOS/Linux: sh start-hub.sh (or node screensync-hub.js).',
+      'The terminal prints a pairing link + QR and serves on http://localhost:3000 — keep it running.',
+      'Scan the QR with the ScreenSync Android app; install the browser extension from the same page.',
     ],
     envVars: {
       SCREEN_SYNC_TOKEN: 'Bearer pairing token (default: screensync-local-dev)',
@@ -42,12 +44,12 @@ export const FALLBACK_GUIDE = {
     claudeCode: {
       file: '.mcp.json (project root)',
       template:
-        '{\n  "mcpServers": {\n    "screensync": {\n      "command": "node",\n      "args": ["<SCREENSYNC_MCP_DIR>/dist/index.js"],\n      "env": { "SCREEN_SYNC_TOKEN": "<TOKEN>" }\n    }\n  }\n}',
+        '{\n  "mcpServers": {\n    "screensync": {\n      "command": "node",\n      "args": ["<HUB_DIR>/screensync-hub.js"],\n      "env": { "SCREEN_SYNC_TOKEN": "<TOKEN>" }\n    }\n  }\n}',
     },
     claudeDesktop: {
       file: 'claude_desktop_config.json',
       template:
-        '{\n  "mcpServers": {\n    "screensync": {\n      "command": "node",\n      "args": ["<SCREENSYNC_MCP_DIR>/dist/index.js"],\n      "env": { "SCREEN_SYNC_TOKEN": "<TOKEN>" }\n    }\n  }\n}',
+        '{\n  "mcpServers": {\n    "screensync": {\n      "command": "node",\n      "args": ["<HUB_DIR>/screensync-hub.js"],\n      "env": { "SCREEN_SYNC_TOKEN": "<TOKEN>" }\n    }\n  }\n}',
     },
     httpOnly: {
       baseUrl: 'http://<HUB-IP>:3000',
@@ -60,10 +62,8 @@ export const FALLBACK_GUIDE = {
     'http://<IP>:3000#<TOKEN>',
   ],
   troubleshooting: [
-    'Hub not reachable — ensure `npm start` is running and the firewall allows port 3000 on the LAN.',
+    'Hub not reachable — ensure start-hub.bat / start-hub.sh (or node screensync-hub.js) is running and the firewall allows port 3000 on the LAN.',
     '401 Unauthorized — the token must match SCREEN_SYNC_TOKEN on the hub.',
-    '429 Too many live connections — max 10 concurrent /api/events clients; close another dashboard.',
-    'web_* tools say "not connected" — open this dashboard and confirm the heartbeat pill is green.',
     'web_* tools say "Web access is disabled" — turn on the "Web access for AI agents" toggle in this dashboard.',
     'web_* tools say "cannot access that page" — the active tab is a restricted page (chrome://, store, PDF); switch to a normal web page.',
   ],

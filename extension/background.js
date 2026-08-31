@@ -177,8 +177,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
         case 'get-guide': {
           const s = await getSettings();
-          if (s.setupGuideCache) {
-            sendResponse({ ok: true, guide: s.setupGuideCache, cached: true });
+          const GUIDE_TTL_MS = 24 * 60 * 60 * 1000;
+          const cached = s.setupGuideCache;
+          const ts = s.setupGuideFetchedAt ? new Date(s.setupGuideFetchedAt).getTime() : 0;
+          const stale =
+            !cached || !ts || Date.now() - ts > GUIDE_TTL_MS || cached.version !== FALLBACK_GUIDE.version;
+          if (cached && !stale) {
+            sendResponse({ ok: true, guide: cached, cached: true });
             break;
           }
           try {
@@ -188,7 +193,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             saveSettings({ setupGuideCache: guide, setupGuideFetchedAt: new Date().toISOString() });
             sendResponse({ ok: true, guide, cached: false });
           } catch {
-            sendResponse({ ok: true, guide: FALLBACK_GUIDE, cached: true, fallback: true });
+            sendResponse({ ok: true, guide: cached || FALLBACK_GUIDE, cached: true, fallback: !cached });
           }
           break;
         }

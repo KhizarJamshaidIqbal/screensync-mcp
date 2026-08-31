@@ -160,7 +160,7 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
       emit(state.copyWith(
         errorMessage:
             'No ScreenSync hub found (mDNS + LAN scan). Start the desktop '
-            'server: cd mcp-server && npm start',
+            'hub: start-hub.bat / start-hub.sh from screensyncmcp.epsoldev.com',
       ));
     }
   }

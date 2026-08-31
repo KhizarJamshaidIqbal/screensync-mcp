@@ -81,7 +81,7 @@ String buildConnectKitText({
   "mcpServers": {
     "screensync": {
       "command": "node",
-      "args": ["<SCREENSYNC_MCP_DIR>/dist/index.js"],
+      "args": ["<HUB_DIR>/screensync-hub.js"],
       "env": { "SCREEN_SYNC_TOKEN": "$token" }
     }
   }
