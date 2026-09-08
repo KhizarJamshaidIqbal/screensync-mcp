@@ -90,4 +90,4 @@ body { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; }
 
 /* mobile menu */
 #mobileMenu { transition: max-height .4s ease, opacity .3s ease; max-height: 0; opacity: 0; overflow: hidden; }
-#mobileMenu.open { max-height: 420px; opacity: 1; }
+#mobileMenu.open { max-height: 520px; opacity: 1; }
