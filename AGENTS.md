@@ -70,9 +70,15 @@ After making modifications to any file in the primary workspace, always execute 
 ## 7. MCP-First Testing & Verification + EXCLUSIVE TOOLING (MANDATORY)
 **All testing and verification of browser/web features MUST run through the ScreenSync MCP tools — static checks alone are never sufficient.**
 
-**EXCLUSIVE TOOLING — dogfooding rule (no exceptions):**
+**EXCLUSIVE TOOLING — dogfooding rule (NO EXCEPTIONS — user-ordered 2026-09-13):**
 - When working in this project, agents MUST use **ScreenSync MCP tools and MCP skills for ALL browser and computer interaction** — including testing, live verification, page inspection, screenshots, and any browser/computer control.
+- **⛔ ABSOLUTE BAN on ZCode computer-use / UI automation** — do NOT click, type into, or observe UI elements (chrome://extensions reload buttons, error "Clear all" buttons, popups, dialogs — anything). This applies EVEN when the extension service worker is dead and even for extension reload/error-clearing. The in-tooling paths below cover those cases.
 - **NEVER** fall back to ZCode computer-use, other agents' browser plugins, chrome-devtools MCP, browser-use MCP, or Playwright/Puppeteer scripts. ScreenSync IS the browser-automation layer of this project.
+- **In-tooling recovery paths (use these INSTEAD of UI):**
+  - Reload the extension → **`web_extension_reload`** MCP tool, or hub-side **`POST /api/dev/reload`** (Bearer), or edit any `extension/` file so Zero-Click HMR broadcasts `dev_hot_reload`.
+  - Verify SW health → `web_status` (fresh `lastSeenAt`) and `web_extension_diagnostics` — never the chrome://extensions UI.
+  - Error state is checked from code (`web_extension_diagnostics`) and runtime (`web_events`), not from the error page UI. Stale UI error entries after a crash are cosmetic; the fix is never crashing again — prove it with the verification ladder below.
+- **Prevent dead-SW incidents instead of UI-rescuing them**: BEFORE mirroring/reloading, run the full import-graph link test (stubbed `chrome` + `import('./lib/web-tools.js')` + `import('./background.js')` in Node) so a broken module graph can never reach the browser.
 - **Any gap, limitation, or missing capability discovered while using ScreenSync = upgrade ScreenSync itself** (fix the tool, extend it, or add the missing tool), then verify the upgrade through ScreenSync. Falling back to foreign tooling is a rule violation — it hides the gap instead of closing it.
 - This is the self-improving loop: use ScreenSync → find a gap → upgrade ScreenSync → re-verify with ScreenSync.
 
