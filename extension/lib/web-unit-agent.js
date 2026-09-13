@@ -10,8 +10,7 @@ export async function ssWebUnitAgent(args) {
 
   function visible(el) {
     try {
-      const r = el.getBoundingClientRect();
-      const s = window.getComputedStyle(el);
+      const r = el.getBoundingClientRect(), s = window.getComputedStyle(el);
       return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
     } catch { return false; }
   }
@@ -28,10 +27,7 @@ export async function ssWebUnitAgent(args) {
   }
 
   function findDeep(selector, root = document) {
-    try {
-      const found = root.querySelector(selector);
-      if (found) return found;
-    } catch {}
+    try { const found = root.querySelector(selector); if (found) return found; } catch {}
     try {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null);
       while (walker.nextNode()) {
@@ -56,19 +52,13 @@ export async function ssWebUnitAgent(args) {
     if (tag === 'input' || tag === 'textarea' || el.isContentEditable) return type === 'checkbox' ? 'checkbox' : type === 'radio' ? 'radio' : (type === 'file' ? 'button' : 'textbox');
     if (tag === 'select') return 'combobox';
     if (/^h[1-6]$/.test(tag)) return 'heading';
-    if (tag === 'img') return 'img';
-    if (tag === 'nav') return 'navigation';
-    if (tag === 'main') return 'main';
-    if (tag === 'header') return 'banner';
-    if (tag === 'footer') return 'contentinfo';
+    if (['img', 'nav', 'main', 'header', 'footer', 'table', 'form', 'dialog'].includes(tag)) return tag === 'header' ? 'banner' : tag === 'footer' ? 'contentinfo' : tag === 'nav' ? 'navigation' : tag;
     if (tag === 'ul' || tag === 'ol') return 'list';
     if (tag === 'li') return 'listitem';
-    if (tag === 'table') return 'table';
-    if (tag === 'form') return 'form';
-    if (tag === 'dialog' || (el.getAttribute && el.getAttribute('aria-modal') === 'true')) return 'dialog';
     if (['div', 'span', 'p', 'section', 'article', 'aside', 'address', 'figure', 'figcaption'].includes(tag)) return 'generic';
     return tag;
   }
+
 
   function nameOf(el) {
     return (el.getAttribute('aria-label') || el.innerText || el.value || el.getAttribute('placeholder') || el.getAttribute('alt') || el.title || '').trim().replace(/\s+/g, ' ').slice(0, 120);
@@ -79,34 +69,47 @@ export async function ssWebUnitAgent(args) {
   }
 
   // Compact Playwright locator resolver: css=, >>>, pierce/, :has-text(), xpath=,
-  // role=[name="..."], placeholder=, label=, text=, testid=, bare CSS/text.
+  // role=[name="..."], placeholder=, label=, text=, testid=, bare CSS/text, and >> chaining.
   function pwFind(sel, root = document) {
     if (!sel || typeof sel !== 'string') return null;
     sel = sel.trim();
+    if (sel.includes(' >> ')) {
+      const parts = sel.split(/\s*>>\s*/);
+      let cur = root;
+      for (const part of parts) {
+        if (!part) continue;
+        cur = pwFind(part, cur);
+        if (!cur) return null;
+      }
+      return cur;
+    }
     if (sel.startsWith('css=')) sel = sel.slice(4).trim();
     if (sel.includes('>>>')) {
       let cur = root, hit = null;
       for (const part of sel.split(/\s*>>>\s*/)) {
         if (!part) continue;
-        hit = cur.querySelector(part) || findDeep(part, cur);
+        hit = (cur.querySelector ? cur.querySelector(part) : null) || findDeep(part, cur);
         if (!hit) return null;
         cur = hit.shadowRoot || hit;
       }
       if (hit) return hit;
     }
-    if (sel.startsWith('pierce/')) { const el = findDeep(sel.slice(7).trim(), document); if (el) return el; }
+    if (sel.startsWith('pierce/')) { const el = findDeep(sel.slice(7).trim(), root); if (el) return el; }
     if (sel.includes(':has-text(')) {
       const m = sel.match(/^([^:]+):has-text\(["']?([^"')]+)["']?\)$/);
       if (m) {
-        for (const c of document.querySelectorAll(m[1].trim())) {
+        const pool = root.querySelectorAll ? root.querySelectorAll(m[1].trim()) : [];
+        for (const c of pool) {
           if ((c.innerText || '').toLowerCase().includes(m[2].trim().toLowerCase())) return c;
         }
       }
     }
     if (sel.startsWith('xpath=')) sel = sel.slice(6);
-    if (sel.startsWith('//') || sel.startsWith('(//')) {
+    if (sel.startsWith('//') || sel.startsWith('(//') || sel.startsWith('.//')) {
       try {
-        const r = document.evaluate(sel, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        const ctx = (root && root.nodeType) ? root : document;
+        const expr = (ctx !== document && sel.startsWith('//')) ? '.' + sel : sel;
+        const r = document.evaluate(expr, ctx, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
         if (r.singleNodeValue) return r.singleNodeValue;
       } catch {}
       return null;
@@ -116,7 +119,8 @@ export async function ssWebUnitAgent(args) {
       if (m) {
         const role = m[1].toLowerCase();
         const want = m[2] ? m[2].toLowerCase() : null;
-        for (const el of document.querySelectorAll('*')) {
+        const pool = root.querySelectorAll ? root.querySelectorAll('*') : [];
+        for (const el of pool) {
           if (roleOf(el) !== role) continue;
           if (!want || nameOf(el).toLowerCase().includes(want)) return el;
         }
@@ -125,15 +129,19 @@ export async function ssWebUnitAgent(args) {
     }
     if (sel.startsWith('placeholder=')) {
       const ph = sel.slice(12).replace(/^["']|["']$/g, '');
-      return document.querySelector(`[placeholder="${ph}"], [placeholder*="${ph}" i]`);
+      return root.querySelector ? root.querySelector(`[placeholder="${ph}"], [placeholder*="${ph}" i]`) : null;
     }
     if (sel.startsWith('label=')) {
       const lbl = sel.slice(6).replace(/^["']|["']$/g, '').toLowerCase();
-      const aria = document.querySelector(`[aria-label="${lbl}" i], [aria-label*="${lbl}" i]`);
+      const aria = root.querySelector ? root.querySelector(`[aria-label="${lbl}" i], [aria-label*="${lbl}" i]`) : null;
       if (aria) return aria;
-      for (const l of document.querySelectorAll('label')) {
+      const labels = root.querySelectorAll ? root.querySelectorAll('label') : [];
+      for (const l of labels) {
         if ((l.innerText || '').toLowerCase().includes(lbl)) {
-          if (l.htmlFor && document.getElementById(l.htmlFor)) return document.getElementById(l.htmlFor);
+          if (l.htmlFor) {
+            const input = document.getElementById(l.htmlFor);
+            if (input && (!root.contains || root.contains(input))) return input;
+          }
           const nested = l.querySelector('input, textarea, select');
           if (nested) return nested;
         }
@@ -142,31 +150,86 @@ export async function ssWebUnitAgent(args) {
     }
     if (sel.startsWith('text=')) {
       const txt = sel.slice(5).replace(/^["']|["']$/g, '').toLowerCase();
-      for (const el of document.querySelectorAll('button, a, span, p, div, label, li, td, th, h1, h2, h3')) {
+      const pool = root.querySelectorAll ? root.querySelectorAll('button, a, span, p, div, label, li, td, th, h1, h2, h3') : [];
+      for (const el of pool) {
         if ((el.innerText || '').toLowerCase().trim() === txt) return el;
       }
-      for (const el of document.querySelectorAll('button, a, span, p, div, label, li, td, th, h1, h2, h3')) {
+      for (const el of pool) {
         if ((el.innerText || '').toLowerCase().includes(txt)) return el;
       }
       return null;
     }
     if (sel.startsWith('testid=')) {
       const v = sel.slice(7).replace(/^["']|["']$/g, '');
-      return document.querySelector(`[data-testid="${v}"], [data-test="${v}"], [data-cy="${v}"]`);
+      return root.querySelector ? root.querySelector(`[data-testid="${v}"], [data-test="${v}"], [data-cy="${v}"]`) : null;
     }
-    try { return root.querySelector(sel) || findDeep(sel, document); } catch { return null; }
+    try { return (root.querySelector ? root.querySelector(sel) : null) || findDeep(sel, root); } catch { return null; }
+  }
+
+  function countPwMatches(sel, root = document) {
+    if (!sel || typeof sel !== 'string') return 0;
+    try {
+      if (sel.includes(' >> ')) {
+        const parts = sel.split(/\s*>>\s*/);
+        let cur = root;
+        for (let i = 0; i < parts.length - 1; i++) {
+          const hit = pwFind(parts[i], cur);
+          if (!hit) return 0;
+          cur = hit;
+        }
+        return countPwMatches(parts[parts.length - 1], cur);
+      }
+      let raw = sel.trim();
+      if (raw.startsWith('css=')) raw = raw.slice(4).trim();
+      if (raw.startsWith('testid=')) {
+        const v = raw.slice(7).replace(/^["']|["']$/g, '');
+        return (root.querySelectorAll ? root.querySelectorAll(`[data-testid="${v}"], [data-test="${v}"], [data-cy="${v}"]`) : []).length;
+      }
+      if (raw.startsWith('text=')) {
+        const txt = raw.slice(5).replace(/^["']|["']$/g, '').toLowerCase();
+        let c = 0;
+        for (const el of (root.querySelectorAll ? root.querySelectorAll('*') : [])) {
+          if ((el.innerText || '').toLowerCase().trim() === txt) c++;
+        }
+        return c;
+      }
+      if (!raw.includes('>>>') && !raw.startsWith('pierce/') && !raw.startsWith('xpath=') && !raw.startsWith('role=')) {
+        return (root.querySelectorAll ? root.querySelectorAll(raw) : []).length;
+      }
+    } catch {}
+    return 1;
+  }
+
+  function checkActionable(el) {
+    if (!el || !el.isConnected) return { ok: false, reason: 'Element is not attached to DOM' };
+    const r = el.getBoundingClientRect(), s = window.getComputedStyle(el);
+    if (r.width <= 0 || r.height <= 0 || s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') return { ok: false, reason: 'Element is hidden or has zero dimensions' };
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true') return { ok: false, reason: 'Element is disabled' };
+    const cx = Math.max(0, r.x + r.width / 2), cy = Math.max(0, r.y + r.height / 2);
+    try {
+      const top = document.elementFromPoint(cx, cy);
+      if (top && top !== el && !el.contains(top) && !top.contains(el)) return { ok: false, reason: 'Element is covered by ' + (top.tagName ? top.tagName.toLowerCase() : 'overlay') };
+    } catch {}
+    return { ok: true, rect: r, cx, cy };
+  }
+
+  function isDestructiveAction(el) {
+    const text = (el.innerText || el.value || el.getAttribute('aria-label') || '').toLowerCase();
+    return /delete|remove|destroy|terminate|cancel\s*subscription|drop|pay|purchase|buy|charge/i.test(text);
   }
 
   async function findWithRetry(a, maxWaitMs = 2500) {
+    if (a.strict === true && a.selector) {
+      const c = countPwMatches(a.selector);
+      if (c > 1) return { strictViolation: true, error: `Strict mode violation: selector "${a.selector}" resolved to ${c} elements. Pass strict: false or use a more specific locator or :nth().` };
+    }
     const start = Date.now();
     while (Date.now() - start < maxWaitMs) {
       let el = null;
       if (a.selector) el = pwFind(a.selector);
-      if (!el && (typeof a.ref === 'number' || typeof a.index === 'number')) {
-        el = document.querySelector(`[data-ss-id="${a.ref !== undefined ? a.ref : a.index}"]`);
-      }
+      if (!el && (typeof a.ref === 'number' || typeof a.index === 'number')) el = document.querySelector(`[data-ss-id="${a.ref !== undefined ? a.ref : a.index}"]`);
       if (el) return el;
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 100));
     }
     return null;
   }
@@ -180,11 +243,36 @@ export async function ssWebUnitAgent(args) {
     };
   }
 
+  // ── web_actionable: Playwright auto-waiting & actionability inspector ────────
+  if (args.__tool === 'web_actionable') {
+    const timeoutMs = Math.min(Number(args.timeoutMs) || 3000, 15000);
+    const start = Date.now();
+    let el = null;
+    while (Date.now() - start < timeoutMs) {
+      el = await findWithRetry(args, 200);
+      if (el && el.strictViolation) return { ok: false, code: 'STRICT_MODE_VIOLATION', error: el.error };
+      if (el && (checkActionable(el).ok || args.waitForActionable === false)) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    if (!el) return { ok: false, code: 'ELEMENT_NOT_FOUND', error: 'Element not found for actionability check: ' + (args.selector || args.ref) };
+
+    const attached = el.isConnected === true, isVis = visible(el), isEnabled = !el.disabled && el.getAttribute('aria-disabled') !== 'true';
+    const r = el.getBoundingClientRect(), cx = Math.max(0, r.x + r.width / 2), cy = Math.max(0, r.y + r.height / 2);
+    let receivesEvents = false;
+    try {
+      const topEl = document.elementFromPoint(cx, cy);
+      receivesEvents = topEl === el || el.contains(topEl) || (topEl && topEl.contains(el));
+    } catch {}
+
+    const actionable = attached && isVis && isEnabled && receivesEvents;
+    return { ok: true, data: { actionable, checks: { attached, visible: isVis, enabled: isEnabled, receivesEvents }, target: targetDesc(el) } };
+  }
+
   // ── web_expect: Playwright expect() — auto-retrying assertion with polling ──
   if (args.__tool === 'web_expect') {
     const condition = String(args.condition || 'visible').toLowerCase();
     const timeoutMs = Math.min(Number(args.timeoutMs) || 5000, 30000);
-    const pollMs = Math.max(Number(args.pollMs) || 250, 50);
+    const pollMs = Math.max(Number(args.pollMs) || 200, 50);
     const expectedText = args.text !== undefined ? String(args.text).toLowerCase() : null;
     const start = Date.now();
     let attempts = 0, actual = null, passed = false;
@@ -210,6 +298,10 @@ export async function ssWebUnitAgent(args) {
       } else if (condition === 'url') { actual = location.href; passed = expectedText ? actual.toLowerCase().includes(expectedText) : false; }
       else if (condition === 'title') { actual = document.title; passed = expectedText ? actual.toLowerCase().includes(expectedText) : false; }
       else if (condition === 'checked') { passed = !!el && el.checked === true; actual = el ? String(el.checked) : 'not_found'; }
+      else if (condition === 'enabled') { passed = !!el && !el.disabled && el.getAttribute('aria-disabled') !== 'true'; actual = el ? (passed ? 'enabled' : 'disabled') : 'not_found'; }
+      else if (condition === 'disabled') { passed = !!el && (el.disabled || el.getAttribute('aria-disabled') === 'true'); actual = el ? (passed ? 'disabled' : 'enabled') : 'not_found'; }
+      else if (condition === 'focused') { passed = !!el && document.activeElement === el; actual = el ? (passed ? 'focused' : 'not_focused') : 'not_found'; }
+      else if (condition === 'empty') { const val = el ? (el.value || el.innerText || '').trim() : ''; passed = !!el && val.length === 0; actual = val.slice(0, 20); }
       else if (condition === 'accessible_name') {
         actual = el ? nameOf(el) : null;
         const want = args.name !== undefined ? String(args.name).toLowerCase() : null;
@@ -229,7 +321,7 @@ export async function ssWebUnitAgent(args) {
       }
       else if (condition === 'attached') { passed = !!el; actual = el ? 'attached' : 'not_in_dom'; }
       else if (condition === 'detached') { passed = !el; actual = el ? 'attached' : 'detached'; }
-      else return { ok: false, error: 'Unknown expect condition: ' + condition + '. Supported: visible, hidden, text, value, count, url, title, checked, accessible_name, attribute, has_class, attached, detached.' };
+      else return { ok: false, error: 'Unknown expect condition: ' + condition + '. Supported: visible, hidden, text, value, count, url, title, checked, enabled, disabled, focused, empty, accessible_name, attribute, has_class, attached, detached.' };
       // Playwright not() parity: poll until the NEGATED assertion holds.
       if (args.not === true) { if (!passed) break; } else if (passed) break;
       await new Promise((r) => setTimeout(r, pollMs));
@@ -342,6 +434,9 @@ export async function ssWebUnitAgent(args) {
     } else if (by === 'css') {
       try { scan(document.querySelectorAll(args.value), () => true); } catch { return { ok: false, error: 'Invalid CSS selector: ' + args.value }; }
     } else return { ok: false, error: 'Unknown get_by strategy: ' + by + '. Supported: role, text, label, placeholder, testid, alt, title, css.' };
+    if (args.strict === true && matches.length > 1) {
+      return { ok: false, code: 'STRICT_MODE_VIOLATION', error: `Strict mode violation: get_by strategy "${by}" value "${args.value}" resolved to ${matches.length} elements. Pass strict: false or use :nth().` };
+    }
     let selected = null;
     if (typeof args.nth === 'number' && matches[args.nth < 0 ? matches.length + args.nth : args.nth]) selected = matches[args.nth < 0 ? matches.length + args.nth : args.nth];
     else if (matches.length) selected = matches[0];
@@ -358,10 +453,25 @@ export async function ssWebUnitAgent(args) {
 
   // ── web_fill: Playwright fill() — instant value set with input/change events ──
   if (args.__tool === 'web_fill') {
-    const el = await findWithRetry(args);
-    if (!el) return { ok: false, error: 'Element not found for fill: ' + (args.selector ?? args.ref ?? args.index) };
-    el.scrollIntoView({ block: 'center' });
+    const el = await findWithRetry(args, Number(args.timeoutMs) || 2500);
+    if (!el) return { ok: false, code: 'ELEMENT_NOT_FOUND', error: 'Element not found for fill: ' + (args.selector ?? args.ref ?? args.index) };
+    if (el.strictViolation) return { ok: false, code: 'STRICT_MODE_VIOLATION', error: el.error };
+
+    if (args.confirmDestructive === true && isDestructiveAction(el) && !args.force) {
+      return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: 'Action involves destructive keyword. User confirmation required.' };
+    }
+
+    const actionCheck = checkActionable(el);
+    if (!actionCheck.ok && args.skipActionability !== true) {
+      return { ok: false, code: 'NOT_ACTIONABLE', error: 'Element not actionable: ' + actionCheck.reason, retryable: true };
+    }
+
     const value = String(args.value ?? '');
+    if (args.dryRun === true) {
+      return { ok: true, data: { dryRun: true, plannedAction: 'fill', value: args.mask === true ? '••••••' : value, actionable: true, ...targetDesc(el) } };
+    }
+
+    el.scrollIntoView({ block: 'center' });
     try { el.focus(); } catch {}
     if (el.isContentEditable) {
       el.textContent = value;
@@ -380,10 +490,21 @@ export async function ssWebUnitAgent(args) {
 
   // ── web_check: Playwright check()/uncheck() for native and ARIA toggles ──
   if (args.__tool === 'web_check') {
-    const el = await findWithRetry(args);
-    if (!el) return { ok: false, error: 'Element not found for check: ' + (args.selector ?? args.ref ?? args.index) };
-    el.scrollIntoView({ block: 'center' });
+    const el = await findWithRetry(args, Number(args.timeoutMs) || 2500);
+    if (!el) return { ok: false, code: 'ELEMENT_NOT_FOUND', error: 'Element not found for check: ' + (args.selector ?? args.ref ?? args.index) };
+    if (el.strictViolation) return { ok: false, code: 'STRICT_MODE_VIOLATION', error: el.error };
+
+    const actionCheck = checkActionable(el);
+    if (!actionCheck.ok && args.skipActionability !== true) {
+      return { ok: false, code: 'NOT_ACTIONABLE', error: 'Element not actionable: ' + actionCheck.reason, retryable: true };
+    }
+
     const want = args.checked !== false;
+    if (args.dryRun === true) {
+      return { ok: true, data: { dryRun: true, plannedAction: 'check', wantChecked: want, actionable: true, ...targetDesc(el) } };
+    }
+
+    el.scrollIntoView({ block: 'center' });
     if (el.tagName === 'INPUT' && el.type === 'radio') { if (!el.checked) el.click(); }
     else if (el.tagName === 'INPUT') { if (el.checked !== want) el.click(); }
     else {
@@ -395,6 +516,7 @@ export async function ssWebUnitAgent(args) {
     ripple(r.x + r.width / 2, r.y + r.height / 2, '#F59E0B');
     return { ok: true, data: { checked: el.checked === true || el.getAttribute('aria-checked') === 'true', ...targetDesc(el) } };
   }
+
 
   // ── web_focus: Playwright focus()/blur() ──
   if (args.__tool === 'web_focus') {
@@ -448,14 +570,12 @@ export async function ssWebUnitAgent(args) {
     try {
       const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
       const fn = new AsyncFunction('ctx', '"use strict";\n' + code);
-      const result = await Promise.race([
-        Promise.resolve(fn(ctx)),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('run_code timed out after ' + timeoutMs + 'ms')), timeoutMs)),
-      ]);
+      const result = await Promise.race([Promise.resolve(fn(ctx)), new Promise((_, reject) => setTimeout(() => reject(new Error('run_code timed out after ' + timeoutMs + 'ms')), timeoutMs))]);
       return { ok: true, data: { result: result === undefined ? null : safeJson(result) } };
     } catch (e) {
       return { ok: false, error: 'run_code failed: ' + String((e && e.message) || e) };
     }
+
   }
 
   // ── web_media_extract: enumerate images / videos / audios / links ──
@@ -467,13 +587,11 @@ export async function ssWebUnitAgent(args) {
       .filter((i) => i.src && !i.src.startsWith('data:'));
     const videos = Array.from(document.querySelectorAll('video')).slice(0, 30)
       .map((el) => ({ src: abs(el.currentSrc || el.src || ''), poster: el.poster ? abs(el.poster) : undefined, durationSec: el.duration && isFinite(el.duration) ? Math.round(el.duration) : undefined }));
-    const audios = Array.from(document.querySelectorAll('audio')).slice(0, 30)
-      .map((el) => ({ src: abs(el.currentSrc || el.src || '') })).filter((a) => a.src);
-    const links = Array.from(document.querySelectorAll('a[href]')).slice(0, limit)
-      .map((el) => ({ href: abs(el.getAttribute('href') || ''), text: (el.innerText || '').trim().slice(0, 120) || undefined }))
-      .filter((l) => l.href.startsWith('http'));
+    const audios = Array.from(document.querySelectorAll('audio')).slice(0, 30).map((el) => ({ src: abs(el.currentSrc || el.src || '') })).filter((a) => a.src);
+    const links = Array.from(document.querySelectorAll('a[href]')).slice(0, limit).map((el) => ({ href: abs(el.getAttribute('href') || ''), text: (el.innerText || '').trim().slice(0, 120) || undefined })).filter((l) => l.href.startsWith('http'));
     for (const l of links) { try { l.external = new URL(l.href).origin !== location.origin; } catch {} }
     return { ok: true, data: { url: location.href, counts: { images: images.length, videos: videos.length, audios: audios.length, links: links.length }, images, videos, audios, links } };
+
   }
 
   return { ok: false, error: 'Unknown agent tool: ' + args.__tool };

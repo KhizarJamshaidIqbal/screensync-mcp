@@ -249,16 +249,18 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
+chrome.tabs.onRemoved.addListener((tabId) => {
+  console.info('[ss] tab closed:', tabId);
+});
+
+chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
+  console.info('[ss] tab replaced:', removedTabId, '->', addedTabId);
+});
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     try {
       switch (msg.type) {
-        case 'offscreen-ping': {
-          await ensureSse();
-          registerWebBridge();
-          sendResponse({ ok: true });
-          break;
-        }
         case 'get-status': {
           const settings = await getSettings();
           sendResponse({ ok: true, cache, settings });

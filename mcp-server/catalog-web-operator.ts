@@ -270,5 +270,85 @@ export function operatorWebToolDefinitions(): WebToolDef[] {
         additionalProperties: false,
       },
     },
+    {
+      name: "web_page_digest",
+      description:
+        "AI-browser parity (Claude/ChatGPT/Comet mode): compact, token-bounded accessibility-first representation of the page with interactive elements, headings, landmarks, forms, and open tab summary.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          maxNodes: { type: "integer", minimum: 20, maximum: 300, default: 80, description: "Maximum interactive elements to return." },
+          includeForms: { type: "boolean", default: true, description: "Include forms breakdown with field names and values." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_actionable",
+      description:
+        "Playwright auto-waiting & actionability inspector: checks if an element is attached, visible, stable, enabled, and receives pointer events before acting.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          selector: { type: "string", description: locatorNote },
+          ref: { type: "integer", description: "data-ss-id ref." },
+          timeoutMs: { type: "integer", minimum: 500, maximum: 15000, default: 3000, description: "Max wait timeout in ms." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_audit_log",
+      description:
+        "Queries or exports the bounded privacy-preserving audit ring of web tool invocations in the user's browser.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["get", "clear", "export"], default: "get", description: "Audit log action." },
+          limit: { type: "integer", minimum: 1, maximum: 500, default: 50, description: "Max entries to return." },
+          tool: { type: "string", description: "Filter by tool name." },
+          origin: { type: "string", description: "Filter by target origin." },
+          since: { type: "string", description: "Filter by ISO timestamp since." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_real_data_sync",
+      description:
+        "Real-browser authenticated data synchronization and extraction: extracts live data from user's logged-in web applications/social platforms across single or multiple tabs with zero credential leakage, auto-waiting, and structured formatting.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          targets: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                url: { type: "string" },
+                platform: { type: "string" },
+                limit: { type: "integer" },
+                customSelector: { type: "string" },
+              },
+            },
+            description: "Array of targets for multi-tab sync.",
+          },
+          url: { type: "string", description: "Target URL to sync." },
+          platform: { type: "string", description: "Platform name (e.g. 'x', 'github', 'linkedin', 'reddit')." },
+          limit: { type: "integer", minimum: 1, maximum: 100, default: 15, description: "Max items to extract." },
+          customSelector: { type: "string", description: "Optional CSS/Playwright selector to extract structured cards from." },
+          multiTab: { type: "boolean", default: false, description: "Run sync concurrently across tabs." },
+          closeOnFinish: { type: "boolean", default: false, description: "Close created tabs after sync completes." },
+          timeoutMs: { type: "integer", minimum: 3000, maximum: 60000, default: 25000, description: "Timeout in ms." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
   ];
 }

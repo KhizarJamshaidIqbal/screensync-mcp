@@ -121,6 +121,14 @@ function cannedResult(tool: string, args: Record<string, unknown> = {}): { ok: b
       return { ok: true, data: { injected: true, type: "script", loaded: true } };
     case "web_add_style_tag":
       return { ok: true, data: { injected: true, type: "style", contentLength: 25 } };
+    case "web_page_digest":
+      return { ok: true, data: { url: "https://example.test/", title: "Example", headings: [{ level: 1, text: "Hello" }], landmarks: [{ role: "main", tag: "main" }], interactives: [{ ref: 0, role: "button", name: "Submit" }], forms: [], interactiveCount: 1, truncated: false } };
+    case "web_actionable":
+      return { ok: true, data: { actionable: true, checks: { attached: true, visible: true, stable: true, enabled: true, receivesEvents: true }, target: { tag: "button", role: "button" } } };
+    case "web_audit_log":
+      return { ok: true, data: { count: 1, entries: [{ tool: "web_click", ok: true, durationMs: 45 }] } };
+    case "web_real_data_sync":
+      return { ok: true, data: { syncedAt: "2026-09-13T22:00:00.000Z", targetCount: 1, totalItems: 2, results: [{ target: "https://example.test", count: 2, items: [{ title: "Item 1" }, { title: "Item 2" }] }] } };
     default:
       return { ok: true, data: { echo: tool, via: "simulated-extension" } };
   }
@@ -617,6 +625,35 @@ try {
     isError?: boolean; content: Array<{ text: string }>;
   };
   assert.ok(!styleResTag.isError, "web_add_style_tag round trip must succeed");
+
+  const digestRes = await client.callTool({ name: "web_page_digest", arguments: { maxNodes: 50 } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!digestRes.isError, "web_page_digest round trip must succeed");
+  const digestData = JSON.parse(digestRes.content[0].text) as { interactiveCount: number; headings: Array<unknown> };
+  assert.equal(digestData.interactiveCount, 1);
+  assert.equal(digestData.headings.length, 1);
+
+  const actionableRes = await client.callTool({ name: "web_actionable", arguments: { selector: "button" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!actionableRes.isError, "web_actionable round trip must succeed");
+  const actData = JSON.parse(actionableRes.content[0].text) as { actionable: boolean };
+  assert.equal(actData.actionable, true);
+
+  const auditRes = await client.callTool({ name: "web_audit_log", arguments: { action: "get" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!auditRes.isError, "web_audit_log round trip must succeed");
+  const auditData = JSON.parse(auditRes.content[0].text) as { count: number };
+  assert.equal(auditData.count, 1);
+
+  const realSyncRes = await client.callTool({ name: "web_real_data_sync", arguments: { url: "https://example.test" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!realSyncRes.isError, "web_real_data_sync round trip must succeed");
+  const realSyncData = JSON.parse(realSyncRes.content[0].text) as { totalItems: number };
+  assert.equal(realSyncData.totalItems, 2);
 
   // 8. Real-time SSE observability: ambient browser events land in the ring.
   for (const url of ["https://a.test/page-1", "https://b.test/page-2"]) {

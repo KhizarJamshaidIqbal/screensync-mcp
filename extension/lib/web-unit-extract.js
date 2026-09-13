@@ -65,16 +65,28 @@ export async function ssWebUnitExtract(args) {
     return target ? { el: target, via: 'playwright_pierce_shadow' } : null;
   }
 
-  function resolvePlaywrightLocator(sel) {
+  function resolvePlaywrightLocator(sel, root = document) {
     if (!sel || typeof sel !== 'string') return null;
     sel = sel.trim();
+    if (sel.includes(' >> ')) {
+      const parts = sel.split(/\s*>>\s*/);
+      let cur = root;
+      let lastHit = null;
+      for (const part of parts) {
+        if (!part) continue;
+        lastHit = resolvePlaywrightLocator(part, cur);
+        if (!lastHit || !lastHit.el) return null;
+        cur = lastHit.el;
+      }
+      return lastHit;
+    }
     if (sel.startsWith('css=')) sel = sel.slice(4).trim();
     if (sel.includes('>>>')) {
-      const pierced = resolvePiercingSelector(sel);
+      const pierced = resolvePiercingSelector(sel, root);
       if (pierced) return pierced;
     }
     if (sel.startsWith('pierce/')) {
-      const el = findDeep(sel.slice(7).trim(), document);
+      const el = findDeep(sel.slice(7).trim(), root);
       if (el) return { el, via: 'playwright_pierce' };
     }
     if (sel.includes(':has-text(')) {
@@ -82,15 +94,18 @@ export async function ssWebUnitExtract(args) {
       if (match) {
         const baseSel = match[1].trim();
         const textTarget = match[2].trim().toLowerCase();
-        for (const c of document.querySelectorAll(baseSel)) {
+        const pool = root.querySelectorAll ? root.querySelectorAll(baseSel) : [];
+        for (const c of pool) {
           if ((c.innerText || '').toLowerCase().includes(textTarget)) return { el: c, via: 'playwright_has_text' };
         }
       }
     }
     if (sel.startsWith('xpath=')) sel = sel.slice(6);
-    if (sel.startsWith('//') || sel.startsWith('(//')) {
+    if (sel.startsWith('//') || sel.startsWith('(//') || sel.startsWith('.//')) {
       try {
-        const res = document.evaluate(sel, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        const ctx = (root && root.nodeType) ? root : document;
+        const expr = (ctx !== document && sel.startsWith('//')) ? '.' + sel : sel;
+        const res = document.evaluate(expr, ctx, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
         if (res.singleNodeValue) return { el: res.singleNodeValue, via: 'playwright_xpath' };
       } catch {}
       return null;
@@ -101,8 +116,8 @@ export async function ssWebUnitExtract(args) {
       if (nameMatch) {
         const role = nameMatch[1].toLowerCase();
         const expectedName = nameMatch[2] ? nameMatch[2].toLowerCase() : null;
-        const candidates = document.querySelectorAll(`[role="${role}"], ${role === 'button' ? 'button, [type="button"], [type="submit"]' : role === 'link' ? 'a[href]' : role === 'textbox' ? 'input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]' : ''}`);
-        for (const el of candidates) {
+        const pool = root.querySelectorAll ? root.querySelectorAll(`[role="${role}"], ${role === 'button' ? 'button, [type="button"], [type="submit"]' : role === 'link' ? 'a[href]' : role === 'textbox' ? 'input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]' : ''}`) : [];
+        for (const el of pool) {
           if (!expectedName) return { el, via: 'playwright_role:' + role };
           const text = (el.innerText || el.getAttribute('aria-label') || el.value || '').toLowerCase();
           if (text.includes(expectedName)) return { el, via: 'playwright_role:' + role };
@@ -112,19 +127,20 @@ export async function ssWebUnitExtract(args) {
     }
     if (sel.startsWith('placeholder=')) {
       const ph = sel.slice(12).replace(/^["']|["']$/g, '');
-      const el = document.querySelector(`[placeholder="${ph}"], [placeholder*="${ph}" i]`);
+      const el = root.querySelector ? root.querySelector(`[placeholder="${ph}"], [placeholder*="${ph}" i]`) : null;
       if (el) return { el, via: 'playwright_placeholder' };
       return null;
     }
     if (sel.startsWith('label=')) {
       const lbl = sel.slice(6).replace(/^["']|["']$/g, '').toLowerCase();
-      const ariaEl = document.querySelector(`[aria-label="${lbl}" i], [aria-label*="${lbl}" i]`);
+      const ariaEl = root.querySelector ? root.querySelector(`[aria-label="${lbl}" i], [aria-label*="${lbl}" i]`) : null;
       if (ariaEl) return { el: ariaEl, via: 'playwright_aria_label' };
-      for (const l of document.querySelectorAll('label')) {
+      const labels = root.querySelectorAll ? root.querySelectorAll('label') : [];
+      for (const l of labels) {
         if ((l.innerText || '').toLowerCase().includes(lbl)) {
           if (l.htmlFor) {
             const input = document.getElementById(l.htmlFor);
-            if (input) return { el: input, via: 'playwright_label' };
+            if (input && (!root.contains || root.contains(input))) return { el: input, via: 'playwright_label' };
           }
           const nested = l.querySelector('input, textarea, select');
           if (nested) return { el: nested, via: 'playwright_label' };
@@ -134,20 +150,28 @@ export async function ssWebUnitExtract(args) {
     }
     if (sel.startsWith('text=')) {
       const txt = sel.slice(5).replace(/^["']|["']$/g, '').toLowerCase();
-      for (const el of document.querySelectorAll('button, a, span, p, div, label, li, td, th, h1, h2, h3')) {
+      const pool = root.querySelectorAll ? root.querySelectorAll('button, a, span, p, div, label, li, td, th, h1, h2, h3') : [];
+      for (const el of pool) {
         if ((el.innerText || '').toLowerCase().trim() === txt) return { el, via: 'playwright_text_exact' };
       }
-      for (const el of document.querySelectorAll('button, a, span, p, div, label, li, td, th, h1, h2, h3')) {
+      for (const el of pool) {
         if ((el.innerText || '').toLowerCase().includes(txt)) return { el, via: 'playwright_text_contains' };
       }
       return null;
     }
+    if (sel.startsWith('testid=')) {
+      const v = sel.slice(7).replace(/^["']|["']$/g, '');
+      const el = root.querySelector ? root.querySelector(`[data-testid="${v}"], [data-test="${v}"], [data-cy="${v}"]`) : null;
+      if (el) return { el, via: 'playwright_testid' };
+      return null;
+    }
     try {
-      const bare = document.querySelector(sel) || findDeep(sel, document);
+      const bare = (root.querySelector ? root.querySelector(sel) : null) || findDeep(sel, root);
       if (bare) return { el: bare, via: 'css' };
     } catch {}
     return null;
   }
+
 
   function collect() {
     const list = Array.from(document.querySelectorAll(SEL));
@@ -224,8 +248,12 @@ export async function ssWebUnitExtract(args) {
     }
     if (textFilter) all = all.filter((el) => (el.innerText || el.textContent || '').toLowerCase().includes(textFilter));
     if (hasTextFilter) all = all.filter((el) => (el.innerText || el.textContent || '').toLowerCase().includes(hasTextFilter));
+    if (args.strict === true && all.length > 1) {
+      return { ok: false, code: 'STRICT_MODE_VIOLATION', error: `Strict mode violation: selector "${sel}" resolved to ${all.length} elements. Pass strict: false or use a more specific selector, :nth(), or first/last.` };
+    }
 
     let target = null;
+
     let selectedIdx = null;
     if (typeof args.nth === 'number') {
       const idx = args.nth < 0 ? all.length + args.nth : args.nth;

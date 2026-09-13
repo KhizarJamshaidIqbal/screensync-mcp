@@ -85,6 +85,10 @@ The user's real browser is already authenticated, fingerprinted, and trusted.
 | Live mutation stream sync | `web_live_stream_sync` {action: start/poll/stop, selector} — real-time feed update watcher |
 | Clutter-free reader mode | `web_reader_mode` — clean markdown extraction of articles/pages |
 | Smart form auto-fill | `web_smart_fill` {fields: {email, name, ...}} — human-cadence input dispatch |
+| Token-bounded page digest | `web_page_digest` {maxTokens?, includeTabs?} — accessibility-first digest with stable refs for AI reasoning |
+| Auto-wait actionability check | `web_actionable` {selector, timeoutMs?} — verifies visible, enabled, stable rect, and unoccluded before act |
+| Audit ring & privacy trail | `web_audit_log` {action: 'get'|'clear'|'export'} — local privacy-safe activity log with redaction |
+| Real session data sync | `web_real_data_sync` {url, platforms?, useActiveTab?} — real-browser multi-tab/browser data extraction without credential exfiltration |
 | Trusted OS-level input | `web_cdp_click`, `web_cdp_type`, `web_mouse`, `web_touch` |
 
 **Locator language everywhere:** `css=`, `>>>` (shadow piercing), `pierce/`,

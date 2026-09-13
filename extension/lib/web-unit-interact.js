@@ -91,17 +91,29 @@ export async function ssWebUnitInteract(args) {
     return target ? { el: target, via: 'playwright_pierce_shadow' } : null;
   }
 
-  function resolvePlaywrightLocator(sel) {
+  function resolvePlaywrightLocator(sel, root = document) {
     if (!sel || typeof sel !== 'string') return null;
     sel = sel.trim();
+    if (sel.includes(' >> ')) {
+      const parts = sel.split(/\s*>>\s*/);
+      let cur = root;
+      let lastHit = null;
+      for (const part of parts) {
+        if (!part) continue;
+        lastHit = resolvePlaywrightLocator(part, cur);
+        if (!lastHit || !lastHit.el) return null;
+        cur = lastHit.el;
+      }
+      return lastHit;
+    }
     if (sel.startsWith('css=')) sel = sel.slice(4).trim();
     if (sel.includes('>>>')) {
-      const pierced = resolvePiercingSelector(sel);
+      const pierced = resolvePiercingSelector(sel, root);
       if (pierced) return pierced;
     }
     if (sel.startsWith('pierce/')) {
       const raw = sel.slice(7).trim();
-      const el = findDeep(raw, document);
+      const el = findDeep(raw, root);
       if (el) return { el, via: 'playwright_pierce' };
     }
     if (sel.includes(':has-text(')) {
@@ -109,7 +121,8 @@ export async function ssWebUnitInteract(args) {
       if (match) {
         const baseSel = match[1].trim();
         const textTarget = match[2].trim().toLowerCase();
-        for (const c of document.querySelectorAll(baseSel)) {
+        const pool = root.querySelectorAll ? root.querySelectorAll(baseSel) : [];
+        for (const c of pool) {
           if ((c.innerText || '').toLowerCase().includes(textTarget)) {
             return { el: c, via: 'playwright_has_text' };
           }
@@ -117,9 +130,11 @@ export async function ssWebUnitInteract(args) {
       }
     }
     if (sel.startsWith('xpath=')) sel = sel.slice(6);
-    if (sel.startsWith('//') || sel.startsWith('(//')) {
+    if (sel.startsWith('//') || sel.startsWith('(//') || sel.startsWith('.//')) {
       try {
-        const res = document.evaluate(sel, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        const ctx = (root && root.nodeType) ? root : document;
+        const expr = (ctx !== document && sel.startsWith('//')) ? '.' + sel : sel;
+        const res = document.evaluate(expr, ctx, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
         if (res.singleNodeValue) return { el: res.singleNodeValue, via: 'playwright_xpath' };
       } catch {}
       return null;
@@ -130,7 +145,8 @@ export async function ssWebUnitInteract(args) {
       if (nameMatch) {
         const role = nameMatch[1].toLowerCase();
         const expectedName = nameMatch[2] ? nameMatch[2].toLowerCase() : null;
-        const candidates = document.querySelectorAll(`[role="${role}"], ${role === 'button' ? 'button, [type="button"], [type="submit"]' : role === 'link' ? 'a[href]' : role === 'textbox' ? 'input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]' : ''}`);
+        const q = `[role="${role}"], ${role === 'button' ? 'button, [type="button"], [type="submit"]' : role === 'link' ? 'a[href]' : role === 'textbox' ? 'input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]' : ''}`;
+        const candidates = root.querySelectorAll ? root.querySelectorAll(q) : [];
         for (const el of candidates) {
           if (!expectedName) return { el, via: 'playwright_role:' + role };
           const text = (el.innerText || el.getAttribute('aria-label') || el.value || '').toLowerCase();
@@ -141,19 +157,20 @@ export async function ssWebUnitInteract(args) {
     }
     if (sel.startsWith('placeholder=')) {
       const ph = sel.slice(12).replace(/^["']|["']$/g, '');
-      const el = document.querySelector(`[placeholder="${ph}"], [placeholder*="${ph}" i]`);
+      const el = root.querySelector ? root.querySelector(`[placeholder="${ph}"], [placeholder*="${ph}" i]`) : null;
       if (el) return { el, via: 'playwright_placeholder' };
       return null;
     }
     if (sel.startsWith('label=')) {
       const lbl = sel.slice(6).replace(/^["']|["']$/g, '').toLowerCase();
-      const ariaEl = document.querySelector(`[aria-label="${lbl}" i], [aria-label*="${lbl}" i]`);
+      const ariaEl = root.querySelector ? root.querySelector(`[aria-label="${lbl}" i], [aria-label*="${lbl}" i]`) : null;
       if (ariaEl) return { el: ariaEl, via: 'playwright_aria_label' };
-      for (const l of document.querySelectorAll('label')) {
+      const labels = root.querySelectorAll ? root.querySelectorAll('label') : [];
+      for (const l of labels) {
         if ((l.innerText || '').toLowerCase().includes(lbl)) {
           if (l.htmlFor) {
             const input = document.getElementById(l.htmlFor);
-            if (input) return { el: input, via: 'playwright_label' };
+            if (input && (!root.contains || root.contains(input))) return { el: input, via: 'playwright_label' };
           }
           const nested = l.querySelector('input, textarea, select');
           if (nested) return { el: nested, via: 'playwright_label' };
@@ -163,22 +180,95 @@ export async function ssWebUnitInteract(args) {
     }
     if (sel.startsWith('text=')) {
       const txt = sel.slice(5).replace(/^["']|["']$/g, '').toLowerCase();
-      for (const el of document.querySelectorAll('button, a, span, p, div, label, li, td, th, h1, h2, h3')) {
+      const pool = root.querySelectorAll ? root.querySelectorAll('button, a, span, p, div, label, li, td, th, h1, h2, h3') : [];
+      for (const el of pool) {
         if ((el.innerText || '').toLowerCase().trim() === txt) return { el, via: 'playwright_text_exact' };
       }
-      for (const el of document.querySelectorAll('button, a, span, p, div, label, li, td, th, h1, h2, h3')) {
+      for (const el of pool) {
         if ((el.innerText || '').toLowerCase().includes(txt)) return { el, via: 'playwright_text_contains' };
       }
       return null;
     }
+    if (sel.startsWith('testid=')) {
+      const v = sel.slice(7).replace(/^["']|["']$/g, '');
+      const el = root.querySelector ? root.querySelector(`[data-testid="${v}"], [data-test="${v}"], [data-cy="${v}"]`) : null;
+      if (el) return { el, via: 'playwright_testid' };
+      return null;
+    }
     try {
-      const bare = document.querySelector(sel) || findDeep(sel, document);
+      const bare = (root.querySelector ? root.querySelector(sel) : null) || findDeep(sel, root);
       if (bare) return { el: bare, via: 'css' };
     } catch {}
     return null;
   }
 
+  function countMatches(sel, root = document) {
+    if (!sel || typeof sel !== 'string') return 0;
+    try {
+      if (sel.includes(' >> ')) {
+        const parts = sel.split(/\s*>>\s*/);
+        let cur = root;
+        for (let i = 0; i < parts.length - 1; i++) {
+          const hit = resolvePlaywrightLocator(parts[i], cur);
+          if (!hit || !hit.el) return 0;
+          cur = hit.el;
+        }
+        return countMatches(parts[parts.length - 1], cur);
+      }
+      let raw = sel.trim();
+      if (raw.startsWith('css=')) raw = raw.slice(4).trim();
+      if (raw.startsWith('testid=')) {
+        const v = raw.slice(7).replace(/^["']|["']$/g, '');
+        return (root.querySelectorAll ? root.querySelectorAll(`[data-testid="${v}"], [data-test="${v}"], [data-cy="${v}"]`) : []).length;
+      }
+      if (raw.startsWith('text=')) {
+        const txt = raw.slice(5).replace(/^["']|["']$/g, '').toLowerCase();
+        let c = 0;
+        for (const el of (root.querySelectorAll ? root.querySelectorAll('*') : [])) {
+          if ((el.innerText || '').toLowerCase().trim() === txt) c++;
+        }
+        return c;
+      }
+      if (!raw.includes('>>>') && !raw.startsWith('pierce/') && !raw.startsWith('xpath=') && !raw.startsWith('role=')) {
+        return (root.querySelectorAll ? root.querySelectorAll(raw) : []).length;
+      }
+    } catch {}
+    return 1;
+  }
+
+  function checkActionable(el) {
+    if (!el || !el.isConnected) return { ok: false, reason: 'Element is not attached to DOM' };
+    const r = el.getBoundingClientRect();
+    const s = window.getComputedStyle(el);
+    if (r.width <= 0 || r.height <= 0 || s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') {
+      return { ok: false, reason: 'Element is hidden or has zero dimensions' };
+    }
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true') {
+      return { ok: false, reason: 'Element is disabled' };
+    }
+    const cx = Math.max(0, r.x + r.width / 2);
+    const cy = Math.max(0, r.y + r.height / 2);
+    try {
+      const top = document.elementFromPoint(cx, cy);
+      if (top && top !== el && !el.contains(top) && !top.contains(el)) {
+        return { ok: false, reason: 'Element is covered by ' + (top.tagName ? top.tagName.toLowerCase() : 'overlay') };
+      }
+    } catch {}
+    return { ok: true, rect: r, cx, cy };
+  }
+
+  function isDestructiveAction(el) {
+    const text = (el.innerText || el.value || el.getAttribute('aria-label') || '').toLowerCase();
+    return /delete|remove|destroy|terminate|cancel\s*subscription|drop|pay|purchase|buy|charge/i.test(text);
+  }
+
   function findBy(a) {
+    if (a.strict === true && typeof a.selector === 'string' && a.selector) {
+      const c = countMatches(a.selector);
+      if (c > 1) {
+        return { code: 'STRICT_MODE_VIOLATION', error: `Strict mode violation: selector "${a.selector}" resolved to ${c} elements. Pass strict: false or use a more specific locator or :nth().` };
+      }
+    }
     if (typeof a.x === 'number' && typeof a.y === 'number') {
       const el = document.elementFromPoint(a.x, a.y);
       if (el) return { el, via: 'coordinates' };
@@ -225,14 +315,33 @@ export async function ssWebUnitInteract(args) {
     return null;
   }
 
+
   // Action Dispatches
   if (args.__tool === 'web_click') {
-    const hit = await findByWithRetry(args);
-    if (!hit) return { ok: false, error: 'Element not found to click.' };
+    const hit = await findByWithRetry(args, Number(args.timeoutMs) || 2500);
+    if (!hit) return { ok: false, code: 'ELEMENT_NOT_FOUND', error: 'Element not found to click.' };
+    if (hit.code === 'STRICT_MODE_VIOLATION') return { ok: false, code: 'STRICT_MODE_VIOLATION', error: hit.error };
     const target = hit.el.closest('button, a, [role="button"], [tabindex="0"], div.share-box-feed-entry__trigger, .artdeco-button')
       || hit.el.querySelector('button, a, [role="button"], [tabindex="0"]')
       || hit.el;
+
+    if (args.confirmDestructive === true && isDestructiveAction(target) && !args.force) {
+      return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: 'Action involves destructive keyword. User confirmation required.' };
+    }
+
     try { target.scrollIntoView({ block: 'center', inline: 'center' }); } catch {}
+
+    const actionCheck = checkActionable(target);
+    if (!actionCheck.ok && args.skipActionability !== true) {
+      return { ok: false, code: 'NOT_ACTIONABLE', error: 'Element not actionable: ' + actionCheck.reason, retryable: true };
+    }
+
+    const label = (target.innerText || target.value || target.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+
+    if (args.dryRun === true) {
+      return { ok: true, data: { dryRun: true, plannedAction: 'click', target: label || target.tagName.toLowerCase(), actionable: true, risk: isDestructiveAction(target) ? 'destructive' : 'normal' } };
+    }
+
     try { target.focus(); } catch {}
     const rect = target.getBoundingClientRect();
     const cx = Math.max(0, rect.x + rect.width / 2);
@@ -244,18 +353,33 @@ export async function ssWebUnitInteract(args) {
     target.dispatchEvent(new PointerEvent('pointerup', mouseOpts));
     target.dispatchEvent(new MouseEvent('mouseup', mouseOpts));
     try { target.click(); } catch {}
-    const label = (target.innerText || target.value || target.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim().slice(0, 80);
     return { ok: true, data: { clicked: label || target.tagName.toLowerCase(), via: hit.via, url: location.href } };
   }
 
   if (args.__tool === 'web_type' || args.__tool === 'web_paste') {
-    const hit = await findByWithRetry(args);
-    if (!hit) return { ok: false, error: 'Target input or contenteditable not found.' };
+    const hit = await findByWithRetry(args, Number(args.timeoutMs) || 2500);
+    if (!hit) return { ok: false, code: 'ELEMENT_NOT_FOUND', error: 'Target input or contenteditable not found.' };
+    if (hit.code === 'STRICT_MODE_VIOLATION') return { ok: false, code: 'STRICT_MODE_VIOLATION', error: hit.error };
     let el = hit.el;
     const editable = (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el
       : (el.closest('[contenteditable="true"], [role="textbox"], .ql-editor, textarea, input')
       || el.querySelector('[contenteditable="true"], [role="textbox"], .ql-editor, textarea, input')
       || el);
+    el = editable;
+
+    if (args.confirmDestructive === true && isDestructiveAction(el) && !args.force) {
+      return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: 'Action involves destructive keyword. User confirmation required.' };
+    }
+
+    const actionCheck = checkActionable(el);
+    if (!actionCheck.ok && args.skipActionability !== true) {
+      return { ok: false, code: 'NOT_ACTIONABLE', error: 'Element not actionable: ' + actionCheck.reason, retryable: true };
+    }
+
+    if (args.dryRun === true) {
+      return { ok: true, data: { dryRun: true, plannedAction: args.__tool, text: args.mask === true ? '••••••' : String(args.text ?? ''), target: (el.innerText || el.value || el.tagName).slice(0, 50), actionable: true } };
+    }
+
     el = editable;
     try { el.scrollIntoView({ block: 'center' }); } catch {}
     try { el.focus(); } catch {}
