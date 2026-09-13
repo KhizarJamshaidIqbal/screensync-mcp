@@ -40,6 +40,12 @@ export async function cdpHarRecord(tab, args) {
       log: {
         version: '1.2',
         creator: { name: 'ScreenSync MCP Extension', version: (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.2.0' },
+        pages: [{
+          startedDateTime: new Date(rec.startedAt).toISOString(),
+          id: 'page_1',
+          title: 'ScreenSync HAR recording',
+          pageTimings: { onContentLoad: -1, onLoad: -1 },
+        }],
         entries: rec.entries,
       },
     };
