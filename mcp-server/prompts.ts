@@ -13,6 +13,27 @@ const userMsg = (text: string, description: string): PromptResult => ({
 });
 
 export function promptMessage(name: string, args: Record<string, string>): PromptResult | null {
+  if (name === "screensync_operator") {
+    const task = args.task || "Autonomously operate ScreenSync across web browser tabs and mobile phone";
+    return userMsg(
+      [
+        `You are the ScreenSync Master Operator. Execute this mission with 100% autonomy: ${task}.`,
+        "",
+        "── THE GOLDEN RULE: COGNITIVE OODA LOOP ──",
+        "1. OBSERVE: web_hierarchy / get_ui_hierarchy + web_screenshot / get_latest_screenshot.",
+        "2. ORIENT: Detect modals, popups, cookie banners, contenteditable containers, or system permission dialogs.",
+        "3. DECIDE: Select the fastest zero-fail path (intent URL > in-page typing; hierarchy-driven text tap > coordinate guess).",
+        "4. ACT: Multi-layer input events, genuine CDP hardware clicks/keystrokes, ADB touch/type/swipe.",
+        "5. VERIFY (MANDATORY): Never ask the user to verify. Read DOM, confirm timestamp, extract permalinks, capture visual proof.",
+        "",
+        "── COMPREHENSIVE TOOL REFERENCE ──",
+        "• Browser Web Tools: web_status, web_screenshot, web_full_screenshot, web_pdf, web_hierarchy, web_click, web_type, web_paste, web_clear, web_highlight, web_hover, web_select, web_key, web_eval, web_console, web_network, web_dialog, web_storage, web_perf, web_wait_for, web_navigate, web_tabs, web_tab, web_watch, web_cdp_click, web_cdp_type, web_extension_reload.",
+        "• Android Mobile Tools: get_device_status, get_latest_screenshot, get_ui_hierarchy, control_tap, control_tap_text, control_type, control_swipe, control_swipe_until, control_launch_app, control_open_url, compare_frames, wait_for_frame, get_logcat, publish_inspection, publish_patch.",
+      ].join("\n"),
+      "ScreenSync Master Operator with full OODA loop protocol across web and mobile",
+    );
+  }
+
   if (name === "inspect_latest_mobile_screen") {
     const focus = args.focus || "layout, rendering, accessibility, and interaction defects";
     return userMsg(
@@ -214,6 +235,143 @@ export function promptMessage(name: string, args: Record<string, string>): Promp
         "Report per-tab outcomes and the final state, with screenshots as evidence.",
       ].join("\n"),
       "Multi-tab workflow in the real browser",
+    );
+  }
+
+  if (name === "web_social_publish") {
+    const platform = args.platform || "X (Twitter)";
+    const content = args.content || "(no content specified)";
+    const media = args.mediaUrl ? `Media attached: ${args.mediaUrl}` : "No media attached.";
+    return userMsg(
+      [
+        `You are the ScreenSync Autonomous Social Publisher. Publish a post to ${platform} with 100% reliability.`,
+        `Content to publish:\n${content}`,
+        media,
+        "",
+        "── CRITICAL PLATFORM RULES & PRE-FLIGHT AUDIT ──",
+        "1. Policy & Character Limit Audit:",
+        "   - X/Twitter: 280 chars max (free) or up to 25k (premium); max 4-6 hashtags; links count as 23 chars; no spam/all-caps triggers.",
+        "   - LinkedIn: 3000 chars max; top 3-5 relevant industry hashtags; professional tone; clean line spacing.",
+        "   - Facebook: 63,206 chars max; concise engaging hook + call to action; clean link preview.",
+        "   - Instagram / Threads: 2200 chars (IG) / 500 chars (Threads); 3-5 targeted hashtags at end.",
+        "   - Reddit: Max 300 chars for title; markdown supported in body; observe subreddit-specific rules.",
+        "",
+        "── EXECUTION PROTOCOL (ZERO-FAIL PATTERN) ──",
+        "2. web_status — Confirm web bridge is online and active.",
+        "3. PREFERRED PATH — Web Intent / Direct Composer URL:",
+        "   - For X/Twitter: Navigate directly to https://x.com/intent/tweet?text=<URL_ENCODED_TEXT> (pre-populates Lexical state cleanly).",
+        "   - For LinkedIn: Navigate to https://www.linkedin.com/feed/ or open share dialog.",
+        "   - For Reddit: Navigate to https://www.reddit.com/r/<subreddit>/submit.",
+        "4. FALLBACK PATH — In-Page Rich-Text Composition:",
+        "   - If navigating to in-page compose (e.g. x.com/compose/post):",
+        "     a. web_hierarchy — Find active input or dialog modal (div[role='dialog']).",
+        "     b. web_type { selector, text } — Dispatches multi-layer beforeinput + insertText + InputEvent for React/Lexical/Draft.js.",
+        "     c. If draft saved in dialog, click draft to load into active editor.",
+        "5. Submit Post:",
+        "   - Locate active 'Post' / 'Tweet' / 'Publish' button using web_hierarchy (ensure button is not disabled).",
+        "   - web_click the Post button.",
+        "",
+        "── AUTONOMOUS VERIFICATION (MANDATORY — NEVER ASK USER) ──",
+        "6. Do NOT ask the user to verify! Verify it yourself:",
+        "   - Wait 3 seconds, then web_navigate to user's profile timeline (e.g. https://x.com/<user>).",
+        "   - web_hierarchy — Read page text; confirm the post appears at the top with timestamp ('now', 'Xs', '1m') and post counter incremented.",
+        "   - Locate and extract the exact direct status permalink (e.g. /status/<id>).",
+        "   - Capture web_screenshot as immutable proof.",
+        "7. Report: Final status, exact published permalink, verified timestamp, and live confirmation snippet.",
+      ].join("\n"),
+      "Autonomous social media publisher for web platforms",
+    );
+  }
+
+  if (name === "mobile_social_publish") {
+    const appName = args.app || "Twitter / X";
+    const content = args.content || "(no content specified)";
+    return userMsg(
+      [
+        `You are the ScreenSync Mobile Social Publisher. Publish a post to ${appName} on the live Android phone.`,
+        `Content to publish:\n${content}`,
+        "",
+        "── MOBILE EXECUTION PROTOCOL ──",
+        "1. get_device_status — Verify phone is connected and awake.",
+        "2. Launch target app:",
+        "   - X/Twitter: control_launch_app { package: 'com.twitter.android' }",
+        "   - LinkedIn: control_launch_app { package: 'com.linkedin.android' }",
+        "   - Instagram: control_launch_app { package: 'com.instagram.android' }",
+        "   - Reddit: control_launch_app { package: 'com.reddit.frontpage' }",
+        "3. Observe & Locate Compose Element:",
+        "   - control_screenshot + get_ui_hierarchy — Find Floating Action Button (FAB) or compose icon ('Tweet', 'Post', '+', 'Create').",
+        "   - control_tap_text or control_tap on the compose button.",
+        "4. Input Content:",
+        "   - wait_for_frame to confirm editor screen opened.",
+        "   - get_ui_hierarchy to locate the text area node.",
+        "   - control_type { text: content } into the active editor.",
+        "5. Submit Post:",
+        "   - get_ui_hierarchy to locate the 'Post' / 'Tweet' / 'Share' top-right button.",
+        "   - control_tap_text { text: 'Post' } or control_tap on button bounds.",
+        "",
+        "── AUTONOMOUS VERIFICATION ──",
+        "6. Do NOT ask user to verify: wait 3 seconds, control_screenshot to confirm feed refresh with the new post, and compare_frames to verify published state.",
+        "Report: Target app, action sequence, verified timestamp, and final screenshot confirmation.",
+      ].join("\n"),
+      "Autonomous social media publisher for Android mobile apps",
+    );
+  }
+
+  if (name === "web_autonomous_agent") {
+    const task = args.task || "complete the requested browser task";
+    return userMsg(
+      [
+        `You are the ScreenSync Autonomous Web Agent. Execute this browser task end-to-end: ${task}.`,
+        "",
+        "── COGNITIVE OODA LOOP (Observe → Orient → Decide → Act → Verify) ──",
+        "1. OBSERVE:",
+        "   - web_status — check bridge connection and active tab.",
+        "   - web_hierarchy — read DOM structure, element tags, coordinates, text, and hrefs.",
+        "   - web_screenshot — visually inspect layout, modals, overlays, and dialogs.",
+        "2. ORIENT:",
+        "   - Check for obstacles: Cookie consent banners, login gates, CAPTCHAs, modal dialogs (div[role='dialog']), or empty states.",
+        "   - Check active framework: React/Vue/Angular/Svelte (needs synthetic input events).",
+        "3. DECIDE:",
+        "   - Choose the shortest reliable path: direct deep link / query URL over clicking 10 menu levels.",
+        "   - Select precise element selector or index from web_hierarchy.",
+        "4. ACT:",
+        "   - If input: web_type (uses multi-layer insertText + InputEvent for React/Lexical/Draft.js).",
+        "   - If button/link: web_click (scrolls into view and clicks).",
+        "   - If key shortcut: web_key (dispatches keyboard events).",
+        "5. VERIFY (MANDATORY):",
+        "   - NEVER assume an action succeeded. Always call web_hierarchy or web_screenshot after acting.",
+        "   - If the state did not change as expected, retry with alternative selector, coordinate tap, or direct navigation.",
+        "   - Stop only when objective is 100% verified.",
+      ].join("\n"),
+      "Autonomous general-purpose web browser agent with full OODA loop",
+    );
+  }
+
+  if (name === "mobile_autonomous_agent") {
+    const task = args.task || "complete the requested mobile task";
+    return userMsg(
+      [
+        `You are the ScreenSync Autonomous Mobile Agent. Execute this Android task end-to-end: ${task}.`,
+        "",
+        "── COGNITIVE OODA LOOP FOR ANDROID ──",
+        "1. OBSERVE:",
+        "   - get_device_status — check connection, battery, orientation.",
+        "   - get_ui_hierarchy — inspect accessibility node tree, resource-ids, bounds, text, and clickable attributes.",
+        "   - control_screenshot — inspect visual frame for custom canvas/Flutter UI elements.",
+        "2. ORIENT:",
+        "   - Identify current app/package and screen state.",
+        "   - Check for system dialogs (permissions, ANR, updates).",
+        "3. DECIDE:",
+        "   - Use control_launch_app or control_open_url for direct navigation.",
+        "   - Prefer control_tap_text when node text is clear; use control_tap with center bounds coordinates for custom widgets.",
+        "4. ACT:",
+        "   - control_tap, control_type, control_swipe, control_key.",
+        "5. VERIFY (MANDATORY):",
+        "   - compare_frames or wait_for_frame to confirm visual state transition.",
+        "   - Check get_logcat for runtime errors if unexpected behavior occurs.",
+        "   - Stop only when objective is 100% verified.",
+      ].join("\n"),
+      "Autonomous general-purpose mobile agent with full OODA loop",
     );
   }
 

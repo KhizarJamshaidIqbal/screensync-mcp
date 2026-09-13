@@ -16,19 +16,24 @@ try {
   await client.connect(transport);
 
   const tools = await client.listTools();
-  assert.deepEqual(
-    tools.tools.map((tool) => tool.name).sort(),
-    [
-      "get_device_status",
-      "get_latest_screenshot",
-      "get_mcp_catalog",
-      "get_recent_screenshots",
-      "get_skills",
-      "list_recent_screens",
-      "publish_inspection",
-      "publish_patch",
-    ],
-  );
+  const toolNames = tools.tools.map((tool) => tool.name);
+  const expectedCore = [
+    "get_device_status",
+    "get_latest_screenshot",
+    "get_mcp_catalog",
+    "get_recent_screenshots",
+    "get_skills",
+    "list_recent_screens",
+    "publish_inspection",
+    "publish_patch",
+  ];
+  for (const expected of expectedCore) {
+    assert(toolNames.includes(expected), `Missing core tool: ${expected}`);
+  }
+  assert(toolNames.includes("web_status"), "Missing web_status tool");
+  assert(toolNames.includes("web_hierarchy"), "Missing web_hierarchy tool");
+  assert(toolNames.includes("control_status"), "Missing control_status tool");
+  assert(toolNames.length >= 40, `Expected >= 40 tools, got ${toolNames.length}`);
 
   const prompts = await client.listPrompts();
   assert(prompts.prompts.some((prompt) => prompt.name === "inspect_latest_mobile_screen"));
@@ -67,7 +72,7 @@ try {
     resources?: Array<{ uri: string }>;
     connection?: { stdio?: { command: string }; httpHub?: { bearerToken: string } };
   };
-  assert.equal(catalogBody.tools?.length, 8);
+  assert(catalogBody.tools && catalogBody.tools.length >= 40);
   assert(catalogBody.tools?.some((t) => t.name === "get_mcp_catalog"));
   assert(catalogBody.prompts?.some((p) => p.name === "inspect_latest_mobile_screen"));
   assert.equal(catalogBody.resources?.length, 3);

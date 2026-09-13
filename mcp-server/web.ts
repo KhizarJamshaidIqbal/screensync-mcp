@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Express, Request, Response } from "express";
 import { isAuthorized, log } from "./config.js";
-import { emitHubEvent } from "./events.js";
+import { emitHubEvent, lastEventSeq, recentHubEvents } from "./events.js";
 import { createFrameStore } from "./web-frame.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
@@ -22,30 +22,57 @@ export type WebBridge = {
   status: () => Record<string, unknown>;
 };
 
-const PRESENCE_TTL_MS = 90_000;
+const PRESENCE_TTL_MS = 600_000;
 const EXTENSION_RE_REGISTER_MS = 30_000; // matches the SW health alarm
+
+type BrowserEntry = {
+  name: string;
+  webAccessEnabled: boolean;
+  lastSeenAt: string;
+  tab: { url?: string; title?: string } | null;
+  userAgent: string | null;
+};
 
 export function createWebBridge(broadcast: (payload: object, name?: string) => void): WebBridge {
   const pending = new Map<string, Pending>();
   const frameStore = createFrameStore(broadcast);
 
-  const presence = {
-    webAccessEnabled: false,
-    lastSeenAt: null as string | null,
-    tab: null as { url?: string; title?: string } | null,
-    userAgent: null as string | null,
+  // Multi-browser registry: every extension install (Chrome, Edge, Brave, ...)
+  // heartbeats under its own browserId, so agents can list and target browsers
+  // individually while the legacy single-browser status fields stay compatible.
+  const browsers = new Map<string, BrowserEntry>();
+
+  const isOnline = (b: BrowserEntry) => Date.now() - Date.parse(b.lastSeenAt) < PRESENCE_TTL_MS;
+
+  const onlineEntries = () =>
+    [...browsers.values()].filter(isOnline).sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt));
+
+  const online = () => onlineEntries().length > 0;
+
+  const status = () => {
+    const entries = onlineEntries();
+    const latest =
+      entries[0] ??
+      [...browsers.values()].sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt))[0] ??
+      null;
+    return {
+      online: online(),
+      webAccessEnabled: [...browsers.values()].some((b) => b.webAccessEnabled),
+      lastSeenAt: latest ? latest.lastSeenAt : null,
+      activeTab: latest ? latest.tab : null,
+      heartbeatMs: EXTENSION_RE_REGISTER_MS,
+      browserCount: browsers.size,
+      browsers: [...browsers.entries()].map(([id, b]) => ({
+        id,
+        name: b.name,
+        online: isOnline(b),
+        webAccessEnabled: b.webAccessEnabled,
+        lastSeenAt: b.lastSeenAt,
+        activeTab: b.tab,
+        userAgent: b.userAgent,
+      })),
+    };
   };
-
-  const online = () =>
-    presence.lastSeenAt !== null && Date.now() - Date.parse(presence.lastSeenAt) < PRESENCE_TTL_MS;
-
-  const status = () => ({
-    online: online(),
-    webAccessEnabled: presence.webAccessEnabled,
-    lastSeenAt: presence.lastSeenAt,
-    activeTab: presence.tab,
-    heartbeatMs: EXTENSION_RE_REGISTER_MS,
-  });
 
   const request = (tool: string, args: Record<string, unknown>, timeoutMs: number): Promise<WebToolResult> =>
     new Promise((resolve) => {
@@ -55,7 +82,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         resolve({ ok: false, error: `Timed out after ${timeoutMs}ms waiting for the browser extension.` });
       }, timeoutMs);
       pending.set(id, { resolve, timer });
-      broadcast({ type: "web_request", id, tool, args }, "web_request");
+      broadcast({ type: "web_request", id, tool, args });
     });
 
   const registerRoutes = (app: Express) => {
@@ -66,11 +93,42 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
       const b = (req.body ?? {}) as Record<string, unknown>;
-      presence.lastSeenAt = new Date().toISOString();
-      if (typeof b.webAccessEnabled === "boolean") presence.webAccessEnabled = b.webAccessEnabled;
-      if (b.tab && typeof b.tab === "object") presence.tab = b.tab as { url?: string; title?: string };
-      if (typeof b.userAgent === "string") presence.userAgent = b.userAgent;
+      const id =
+        typeof b.browserId === "string" && b.browserId.trim()
+          ? b.browserId.trim()
+          : typeof b.userAgent === "string" && b.userAgent
+            ? b.userAgent
+            : "default";
+      const entry: BrowserEntry = {
+        name: typeof b.browserName === "string" && b.browserName.trim() ? b.browserName.trim().toLowerCase() : "chrome",
+        webAccessEnabled: b.webAccessEnabled === true,
+        lastSeenAt: new Date().toISOString(),
+        tab: b.tab && typeof b.tab === "object" ? (b.tab as { url?: string; title?: string }) : null,
+        userAgent: typeof b.userAgent === "string" ? b.userAgent : null,
+      };
+      if (typeof b.webAccessEnabled !== "boolean" && browsers.has(id)) {
+        entry.webAccessEnabled = browsers.get(id)!.webAccessEnabled;
+      }
+      browsers.set(id, entry);
       res.json({ success: true, status: status() });
+    });
+
+    // Ambient browser events from the extension (navigations, tab switches,
+    // page loads) — recorded into the sequenced SSE ring and fanned out live.
+    app.post("/api/web/event", (req: Request, res: Response) => {
+      if (!isAuthorized(req.header("authorization"))) {
+        res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
+        return;
+      }
+      const b = (req.body ?? {}) as Record<string, unknown>;
+      const type = typeof b.type === "string" && /^web_[a-z_]+$/.test(b.type) ? b.type : "web_event";
+      broadcast({
+        type,
+        at: new Date().toISOString(),
+        source: typeof b.source === "string" ? b.source : "browser",
+        data: b.data && typeof b.data === "object" ? b.data : {},
+      });
+      res.json({ success: true });
     });
 
     app.get("/api/web/status", (req: Request, res: Response) => {
@@ -98,21 +156,60 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         res.json({ success: true, ok: true, data: status() });
         return;
       }
-      if (!online()) {
+      // web_events: hub-side real-time tail of the sequenced SSE ring — no
+      // extension round trip, answered instantly from the buffered stream.
+      if (tool === "web_events") {
+        const since = Number(args.since) || 0;
+        const limit = Math.min(Number(args.limit) || 100, 500);
+        const types = Array.isArray(args.types)
+          ? args.types.map(String)
+          : typeof args.types === "string"
+            ? String(args.types).split(",").map((s) => s.trim()).filter(Boolean)
+            : undefined;
+        const events = recentHubEvents(since, types, limit);
+        res.json({
+          success: true, ok: true,
+          data: {
+            lastSeq: lastEventSeq(),
+            count: events.length,
+            since,
+            types: types ?? null,
+            events: events.map((e) => ({ seq: e.seq, at: e.at, ...e.payload })),
+          },
+        });
+        return;
+      }
+      if (browsers.size === 0) {
         res.status(503).json({
           success: false, ok: false,
           error: "Browser extension is not connected to this hub. Open the ScreenSync extension dashboard so it can pair.",
         });
         return;
       }
-      if (!presence.webAccessEnabled) {
+      if (!onlineEntries().some((b) => b.webAccessEnabled)) {
         res.status(403).json({
           success: false, ok: false,
           error: "Web access is disabled in the extension. Enable the 'Web access for AI agents' toggle in the extension dashboard.",
         });
         return;
       }
-      const timeoutMs = Math.min(Math.max(Number(b.timeoutMs) || 25_000, 5_000), 60_000);
+      // Multi-browser targeting: args.__browser routes the call to a specific
+      // connected browser (name like 'edge'/'brave', or the install id from
+      // web_status.browsers). 'any'/omitted lets the first responder answer.
+      const hint = typeof args.__browser === "string" ? args.__browser.toLowerCase() : null;
+      if (hint && hint !== "any" && hint !== "default") {
+        const matched = onlineEntries().some(
+          (b) => b.name === hint || [...browsers.entries()].some(([id, e]) => e === b && id.toLowerCase() === hint),
+        );
+        if (!matched) {
+          res.status(400).json({
+            success: false, ok: false,
+            error: `No connected browser matches '${args.__browser}'. Connected: ${onlineEntries().map((b) => b.name).join(", ") || "none"}. Call web_status to list browsers.`,
+          });
+          return;
+        }
+      }
+      const timeoutMs = Math.min(Math.max(Number(b.timeoutMs) || 45_000, 5_000), 60_000);
       const startedAt = Date.now();
       const result = await request(tool, args, timeoutMs);
       emitHubEvent("tool", tool, result.ok);
@@ -133,7 +230,6 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       }
       clearTimeout(entry.timer);
       pending.delete(b.id as string);
-      presence.lastSeenAt = new Date().toISOString();
       entry.resolve({ ok: b.ok === true, data: b.data, error: b.error });
       res.json({ success: true });
     });

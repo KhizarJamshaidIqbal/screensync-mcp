@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { watch, existsSync, type FSWatcher } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server as HttpServer } from "node:http";
 import os from "node:os";
@@ -7,8 +8,8 @@ import { Bonjour, type Service } from "bonjour-service";
 import express from "express";
 import QRCode from "qrcode";
 import { buildCatalog } from "./catalog.js";
-import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, MAX_BODY_BYTES, agentName, isAuthorized, log } from "./config.js";
-import { hubEvents, emitHubEvent, type HubEvent } from "./events.js";
+import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, MAX_BODY_BYTES, PAIR_WINDOW_MINUTES, PROJECT_DIR, agentName, isAuthorized, log } from "./config.js";
+import { hubEvents, emitHubEvent, lastEventSeq, recentHubEvents, recordHubEvent, type HubEvent } from "./events.js";
 import {
   ensureDataDirs,
   latestFrame,
@@ -77,6 +78,14 @@ function advertiseHub(): () => void {
 
 export async function startHttpHub(): Promise<HubHandle> {
   await ensureDataDirs();
+  // ── Pairing window: /pair + /api/pair hand out the token ONLY while no
+  // device has paired yet or within the first PAIR_WINDOW_MINUTES minutes —
+  // afterwards a LAN peer can no longer bootstrap full access in one request.
+  const hubStartedAtMs = Date.now();
+  let pairedOnce = false;
+  const markPaired = () => { pairedOnce = true; };
+  const pairingWindowOpen = () =>
+    PAIR_WINDOW_MINUTES <= 0 || !pairedOnce || Date.now() - hubStartedAtMs < PAIR_WINDOW_MINUTES * 60_000;
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: MAX_BODY_BYTES }));
@@ -103,6 +112,27 @@ export async function startHttpHub(): Promise<HubHandle> {
   // can paste (or scan, when opened on another device) — kills manual IP+token
   // entry. The link itself is also printed to the terminal at startup.
   app.get("/pair", async (_req, res) => {
+    if (!pairingWindowOpen()) {
+      res.type("html").send(`<!doctype html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ScreenSync — Pairing closed</title>
+<style>
+ body{font-family:system-ui,sans-serif;background:#090D16;color:#E2E8F0;display:flex;
+      min-height:100vh;align-items:center;justify-content:center;margin:0}
+ .card{max-width:520px;padding:36px;background:#111827;border:1px solid #1E293B;
+       border-radius:18px;text-align:center}
+ h1{font-size:22px;margin:0 0 6px}
+ p{color:#94A3B8;font-size:14px;line-height:1.6}
+ code{background:#030712;border:1px solid #1E293B;border-radius:8px;padding:2px 8px;color:#67E8F9}
+</style></head><body><div class="card">
+<h1>🔒 Pairing window closed</h1>
+<p>A device already paired and the startup pairing window has passed, so the
+pairing token is no longer served.</p>
+<p>To pair a new device: <b>restart the hub</b>, or set<br>
+<code>SCREEN_SYNC_PAIR_WINDOW_MINUTES=0</code> to keep pairing always open.</p>
+</div></body></html>`);
+      return;
+    }
     const link = buildPairingLink();
     const qrDataUrl = await QRCode.toDataURL(link, { margin: 1, width: 260 });
     res.type("html").send(`<!doctype html>
@@ -127,11 +157,32 @@ export async function startHttpHub(): Promise<HubHandle> {
 <p>Or paste this pairing link in Settings → Hub:</p>
 <code id="link">${link}</code>
 <button onclick="navigator.clipboard.writeText(document.getElementById('link').textContent)">Copy link</button>
+<script>
+const EXT_IDS = ["nfdhhnbmboahhimbofhihckobhenkoij", "jemgpkfioegjjnidjbhmmpnnjdadapko"];
+if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
+  for (const id of EXT_IDS) {
+    try {
+      chrome.runtime.sendMessage(id, { type: "wake" }, (res) => {
+        if (!chrome.runtime.lastError && res && res.ok) {
+          console.log("[ScreenSync] Extension awakened:", id);
+        }
+      });
+    } catch {}
+  }
+}
+</script>
 </div></body></html>`);
   });
 
   // Machine-readable pairing payload (same info; used by tests/tools).
   app.get("/api/pair", (_req, res) => {
+    if (!pairingWindowOpen()) {
+      res.status(403).json({
+        success: false,
+        error: "Pairing window is closed (a device already paired and the startup window has passed). Restart the hub to pair a new device, or set SCREEN_SYNC_PAIR_WINDOW_MINUTES=0 to keep pairing always open.",
+      });
+      return;
+    }
     res.json({ url: primaryBaseUrl(), token: AUTH_TOKEN, link: buildPairingLink() });
   });
 
@@ -140,12 +191,17 @@ export async function startHttpHub(): Promise<HubHandle> {
   // inspection / patch events so the app reacts instantly instead of polling.
   const sseClients = new Set<express.Response>();
   const broadcast = (payload: object, name = "event") => {
-    // Keep the legacy data-only framing for regular events (the phone app's
-    // SSE parser expects it); only non-default event kinds get a named line.
-    const line = name === "event"
-      ? `data: ${JSON.stringify(payload)}\n\n`
-      : `event: ${name}\ndata: ${JSON.stringify(payload)}\n\n`;
-    for (const client of sseClients) client.write(line);
+    const seq = recordHubEvent(payload as Record<string, unknown>);
+    log("INFO", "SSE broadcast", { name, seq, clientsCount: sseClients.size });
+    const line = `id: ${seq}\ndata: ${JSON.stringify(payload)}\n\n`;
+    for (const client of sseClients) {
+      try {
+        client.write(line);
+        (client as any).flush?.();
+      } catch (err) {
+        log("WARN", "SSE write failed", { error: String(err) });
+      }
+    }
   };
   hubEvents.on("event", (event: HubEvent) => broadcast(event));
   const webBridge = createWebBridge(broadcast);
@@ -153,27 +209,92 @@ export async function startHttpHub(): Promise<HubHandle> {
     for (const client of sseClients) client.write(": keepalive\n\n");
   }, 30_000);
 
+  // ── Zero-Click HMR: File watcher on extension/ directory ──
+  let extWatcher: FSWatcher | null = null;
+  let extReloadTimer: NodeJS.Timeout | null = null;
+  const extDir = path.resolve(PROJECT_DIR, "..", "extension");
+  if (existsSync(extDir)) {
+    try {
+      extWatcher = watch(extDir, { recursive: true }, (_event, filename) => {
+        if (!filename || filename.includes(".git") || filename.includes("node_modules")) return;
+        if (!/\.(js|html|css|json)$/i.test(filename)) return;
+        if (extReloadTimer) clearTimeout(extReloadTimer);
+        extReloadTimer = setTimeout(() => {
+          log("INFO", "Extension file changed, broadcasting dev_hot_reload", { file: filename });
+          broadcast({ type: "dev_hot_reload", file: filename });
+        }, 300);
+      });
+      log("INFO", "Zero-Click HMR file watcher active", { dir: extDir });
+    } catch (err) {
+      log("WARN", "Zero-Click HMR file watcher failed to start", { error: String(err) });
+    }
+  }
+
+  app.post("/api/dev/reload", (req, res) => {
+    if (!isAuthorized(req.header("authorization"))) {
+      res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
+      return;
+    }
+    broadcast({ type: "dev_hot_reload", manual: true });
+    log("INFO", "Manual dev_hot_reload broadcast dispatched");
+    res.json({ success: true, message: "Dev hot reload broadcast sent to extension." });
+  });
+
   app.get("/api/events", (req, res) => {
     if (!isAuthorized(req.header("authorization"))) {
       res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
       return;
     }
-    if (sseClients.size >= 10) {
-      res.status(429).json({ success: false, error: "Too many live connections." });
-      return;
+    markPaired();
+    if (sseClients.size >= 50) {
+      const oldest = sseClients.values().next().value;
+      if (oldest) {
+        try { oldest.end(); } catch {}
+        sseClients.delete(oldest);
+      }
     }
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
     });
+    res.flushHeaders?.();
+    res.socket?.setNoDelay(true);
     res.write(": connected\n\n");
+    // Last-Event-ID replay: a reconnecting client tells us the last seq it saw
+    // (SSE standard header or ?lastEventId=) and we replay everything after it.
+    const lastId = Number(req.headers["last-event-id"] ?? (req.query.lastEventId as string | undefined) ?? 0) || 0;
+    if (lastId > 0) {
+      const replayed = recentHubEvents(lastId);
+      for (const e of replayed) {
+        res.write(`id: ${e.seq}\ndata: ${JSON.stringify(e.payload)}\n\n`);
+      }
+      log("INFO", "SSE replay", { fromSeq: lastId, events: replayed.length });
+    }
     // Immediately replay agent identity so the phone always sees the name
     // even if it connects after the one-time startup event was emitted.
     const welcomeEvent = JSON.stringify({ type: "agent_connect", at: new Date().toISOString(), agentName });
     res.write(`data: ${welcomeEvent}\n\n`);
     sseClients.add(res);
-    req.on("close", () => sseClients.delete(res));
+    log("INFO", "SSE client connected", { totalClients: sseClients.size });
+    req.on("close", () => {
+      sseClients.delete(res);
+      log("INFO", "SSE client disconnected", { totalClients: sseClients.size });
+    });
+  });
+
+  // HTTP tail of the sequenced event ring — agents poll this via web_events.
+  app.get("/api/events/recent", (req, res) => {
+    if (!isAuthorized(req.header("authorization"))) {
+      res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
+      return;
+    }
+    const since = Number(req.query.since) || 0;
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const types = typeof req.query.types === "string"
+      ? String(req.query.types).split(",").map((s) => s.trim()).filter(Boolean)
+      : undefined;
+    res.json({ success: true, lastSeq: lastEventSeq(), events: recentHubEvents(since, types, limit) });
   });
 
   app.post("/api/screens/upload", async (req, res) => {
@@ -181,6 +302,7 @@ export async function startHttpHub(): Promise<HubHandle> {
       res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
       return;
     }
+    markPaired();
     const parsed = uploadSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ success: false, error: "Invalid frame payload.", issues: parsed.error.issues });
@@ -364,6 +486,8 @@ export async function startHttpHub(): Promise<HubHandle> {
     server,
     stop: async () => {
       clearInterval(keepalive);
+      if (extWatcher) extWatcher.close();
+      if (extReloadTimer) clearTimeout(extReloadTimer);
       hubEvents.off("event", broadcast);
       for (const client of sseClients) client.end();
       sseClients.clear();

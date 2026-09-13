@@ -7,7 +7,7 @@ import { webSkillDefinitions, webToolDefinitions } from "./catalog-web.js";
 // always see the same catalog.
 
 export const SERVER_NAME = "screensync-mcp-server";
-export const SERVER_VERSION = "2.7.0";
+export const SERVER_VERSION = "2.8.0";
 export const MDNS_TYPE = "_screensync-hub._tcp";
 
 export function toolDefinitions() {
@@ -426,23 +426,26 @@ export function getSkillsContent() {
     about:
       "ScreenSync streams real Android screenshots from a phone to this MCP server, AND bridges your real browser tabs through the ScreenSync extension. You inspect phone screens visually, drive the phone via control_*, and see/act on the user's live browser via web_*.",
     rules: [
-      "Read get_skills (this) first, then get_device_status to confirm a fresh frame.",
+      "Read get_skills (this) first, then get_device_status (for phone) and web_status (for browser).",
+      "Master Operator Protocol: Adopt the cognitive OODA loop (Observe -> Orient -> Decide -> Act -> Verify). Never ask the user to verify manually; always verify via DOM & screenshots.",
       "To SHOW images in preview, return the MCP image content directly in your reply (do not paste file paths/links).",
       "Be FAST and concise: prefer get_recent_screenshots for 'latest N images' in ONE call.",
       "Use get_latest_screenshot for a single full-res frame + metadata.",
-      "After inspecting, call publish_inspection (bug regions) and optionally publish_patch (git fix).",
+      "After inspecting mobile screens, call publish_inspection (bug regions) and optionally publish_patch (git fix).",
       "For the user's BROWSER: call web_status first, then web_screenshot / web_hierarchy to see the live tab, and web_click / web_type / web_navigate / web_scroll to act.",
       "Web bridge safety: if web_status reports offline or disabled, STOP and ask the user to enable 'Web access for AI agents' in the extension dashboard — never loop web_* calls.",
-      "For common browser jobs prefer the skills: web_see_and_report, web_form_autofill, web_visual_qa, web_reproduce_issue, web_debug_session, web_watch_flow, web_perf_audit, web_multitab_workflow.",
-      "Advanced toolkit: web_eval/web_console/web_network/web_dialog/web_storage/web_perf/web_tabs/web_tab/web_wait_for/web_key/web_hover/web_select. web_watch returns changed frames as images — analyze them in capture order like a realtime video.",
+      "Playwright-Grade & CDP Tools: web_full_screenshot (full-page scrolling capture), web_pdf, web_cdp_click, web_cdp_type (genuine hardware clicks & keystrokes for SPAs), web_eval, web_console, web_network, web_dialog, web_storage, web_perf, web_tabs, web_tab, web_wait_for, web_key, web_hover, web_select, web_watch, web_extension_reload.",
+      "For autonomous workflows use the bundled skills: screensync_operator, web_autonomous_agent, mobile_autonomous_agent, web_social_publish, mobile_social_publish, web_visual_qa, web_debug_session, web_perf_audit, web_form_autofill, web_watch_flow, web_multitab_workflow.",
     ],
     tools: toolDefinitions().map((t) => ({ name: t.name, purpose: t.description.split(".")[0] })),
     quickRecipes: [
+      { ask: "operate browser and phone with full cognitive autonomy", use: "screensync_operator { task: '...' }" },
       { ask: "show me the latest 2 reference images", use: "get_recent_screenshots { limit: 2 }" },
-      { ask: "why is my UI broken?", use: "get_latest_screenshot -> inspect -> publish_inspection" },
-      { ask: "is the phone connected?", use: "get_device_status" },
+      { ask: "why is my mobile UI broken?", use: "get_latest_screenshot -> inspect -> publish_inspection" },
+      { ask: "capture full-page webpage screenshot", use: "web_full_screenshot" },
       { ask: "what am I looking at in my browser?", use: "web_status -> web_screenshot" },
-      { ask: "fill this web form for me", use: "web_hierarchy -> web_type -> web_click" },
+      { ask: "fill and submit this form safely", use: "web_hierarchy -> web_type -> web_click -> web_screenshot" },
+      { ask: "debug web issue with console & network logs", use: "web_debug_session" },
     ],
   };
 }

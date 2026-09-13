@@ -97,14 +97,14 @@ export function createMcpServer() {
       if (request.params.name.startsWith("web_")) {
         const r = await callHubWebTool(request.params.name, (request.params.arguments ?? {}) as Record<string, unknown>);
         if (!r.ok) return textResult({ success: false, error: r.error }, true);
-        if (request.params.name === "web_screenshot") {
-          const d = r.data as { imageDataUrl?: string; url?: string; title?: string } | undefined;
+        if (request.params.name === "web_screenshot" || request.params.name === "web_full_screenshot" || request.params.name === "web_element_screenshot") {
+          const d = r.data as { imageDataUrl?: string; url?: string; title?: string; fullPage?: boolean; selector?: string } | undefined;
           const dataUrl = d?.imageDataUrl ?? "";
           const [meta = "image/jpeg", base64 = ""] = dataUrl.includes(",") ? [dataUrl.slice(5, dataUrl.indexOf(";")), dataUrl.split(",", 2)[1]] : [];
           return {
             content: [
               { type: "image" as const, data: base64, mimeType: meta || "image/jpeg" },
-              { type: "text" as const, text: JSON.stringify({ url: d?.url ?? null, title: d?.title ?? null }, null, 2) },
+              { type: "text" as const, text: JSON.stringify({ url: d?.url ?? null, title: d?.title ?? null, fullPage: d?.fullPage ?? false, selector: d?.selector ?? null }, null, 2) },
             ],
           };
         }
@@ -124,6 +124,18 @@ export function createMcpServer() {
             type: "text",
             text: JSON.stringify({ framesReturned: Math.min(frames.length, 12), frameTimestampsMs: frames.map((f) => f.ts), ...summary }, null, 2),
           });
+          return { content };
+        }
+        if (request.params.name === "web_pixel_diff") {
+          const d = r.data as { diffImageDataUrl?: string; [k: string]: unknown } | undefined;
+          const dataUrl = d?.diffImageDataUrl ?? "";
+          const [meta = "image/jpeg", base64 = ""] = dataUrl.includes(",") ? [dataUrl.slice(5, dataUrl.indexOf(";")), dataUrl.split(",", 2)[1]] : [];
+          const { diffImageDataUrl: _omit, ...summary } = d ?? {};
+          const content: Array<{ type: "image"; data: string; mimeType: string } | { type: "text"; text: string }> = [];
+          if (base64) {
+            content.push({ type: "image" as const, data: base64, mimeType: meta || "image/jpeg" });
+          }
+          content.push({ type: "text" as const, text: JSON.stringify(summary, null, 2) });
           return { content };
         }
         return textResult({ success: true, ...((r.data ?? {}) as object) });
@@ -327,24 +339,35 @@ export function createMcpServer() {
       }
       if (request.params.name === "os_mouse_click") {
         const a = request.params.arguments as { x: number; y: number };
-        const { execSync } = require("child_process");
-        execSync(`python -c "import pyautogui; pyautogui.click(${a.x}, ${a.y})"`);
-        return textResult({ success: true, detail: `Clicked at ${a.x}, ${a.y}` });
+        const x = Math.round(Number(a.x));
+        const y = Math.round(Number(a.y));
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return textResult({ success: false, error: "os_mouse_click requires finite numeric x and y." }, true);
+        }
+        execSync(`python -c "import ctypes, pyautogui; h = ctypes.windll.user32.OpenDesktopW('Default', 0, False, 0x01FF); h and ctypes.windll.user32.SetThreadDesktop(h); pyautogui.click(${x}, ${y})"`);
+        return textResult({ success: true, detail: `Clicked at ${x}, ${y}` });
       }
       if (request.params.name === "os_type") {
         const a = request.params.arguments as { text: string };
-        const { execSync } = require("child_process");
-        // Escape quotes
-        const text = a.text.replace(/"/g, '\\"');
-        execSync(`python -c "import pyautogui; pyautogui.write(\\"${text}\\")"`);
-        return textResult({ success: true, detail: `Typed text` });
+        const text = String(a.text ?? "");
+        if (!text.length) {
+          return textResult({ success: false, error: "os_type requires text." }, true);
+        }
+        // Text travels as a base64 argv argument — no shell metacharacter can break out.
+        const b64 = Buffer.from(text, "utf8").toString("base64");
+        execSync(`python -c "import ctypes, base64, sys, pyautogui; h = ctypes.windll.user32.OpenDesktopW('Default', 0, False, 0x01FF); h and ctypes.windll.user32.SetThreadDesktop(h); pyautogui.typewrite(base64.b64decode(sys.argv[1]).decode('utf-8'))" ${b64}`);
+        return textResult({ success: true, detail: `Typed ${text.length} characters` });
       }
       if (request.params.name === "os_hotkey") {
         const a = request.params.arguments as { keys: string[] };
-        const { execSync } = require("child_process");
-        const keysStr = a.keys.map(k => `'${k}'`).join(", ");
-        execSync(`python -c "import pyautogui; pyautogui.hotkey(${keysStr})"`);
-        return textResult({ success: true, detail: `Pressed hotkey ${a.keys.join("+")}` });
+        const keys = (a.keys || []).map((k) => String(k).trim().toLowerCase());
+        const allowed = /^(f([1-9]|1\d|2[0-4])|[a-z0-9]|up|down|left|right|space|tab|enter|return|esc|escape|backspace|delete|del|home|end|pageup|pagedown|insert|win|windows|command|option|printscreen)$/;
+        if (!keys.length || !keys.every((k) => allowed.test(k))) {
+          return textResult({ success: false, error: `os_hotkey keys must be simple key names (letters, digits, f1-f24, modifiers, navigation keys). Got: ${(a.keys || []).join(", ")}` }, true);
+        }
+        const keysStr = keys.map((k) => `'${k}'`).join(", ");
+        execSync(`python -c "import ctypes, pyautogui; h = ctypes.windll.user32.OpenDesktopW('Default', 0, False, 0x01FF); h and ctypes.windll.user32.SetThreadDesktop(h); pyautogui.hotkey(${keysStr})"`);
+        return textResult({ success: true, detail: `Pressed hotkey ${keys.join("+")}` });
       }
 
       return textResult({ success: false, error: `Unknown tool: ${request.params.name}` }, true);

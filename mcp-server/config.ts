@@ -19,6 +19,13 @@ export const MAX_FRAMES = 20;
 export const MAX_ARCHIVE = 100; // prune archive when it exceeds this many frames
 export const MAX_BODY_BYTES = "18mb";
 
+/**
+ * Pairing window for the unauthenticated /pair + /api/pair endpoints, in
+ * minutes. The token is served while no device has paired yet OR within this
+ * window after hub start; afterwards a restart (or 0 = always open) is needed.
+ */
+export const PAIR_WINDOW_MINUTES = Number(process.env.SCREEN_SYNC_PAIR_WINDOW_MINUTES ?? "10");
+
 /** Default AI agent label surfaced on the phone. Override via env SCREEN_SYNC_AGENT_NAME. */
 export const agentName = process.env.SCREEN_SYNC_AGENT_NAME || "Claude";
 
