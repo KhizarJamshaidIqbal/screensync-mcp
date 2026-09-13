@@ -5,6 +5,7 @@ import type { Express, Request, Response } from "express";
 import { DATA_DIR, isAuthorized, log } from "./config.js";
 import { emitHubEvent, lastEventSeq, recentHubEvents } from "./events.js";
 import { createFrameStore } from "./web-frame.js";
+import { executeParallelHarvest, executeSessionVault, type HarvestTarget } from "./web-harvest-hub.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -56,6 +57,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
   const RECORD_SKIP = new Set([
     "web_record", "web_replay", "web_status", "web_events", "web_extension_diagnostics",
     "web_fanout", "web_tab_fanout", "web_session_transfer", "web_route_for",
+    "web_parallel_harvest", "web_session_vault",
   ]);
 
   // Multi-browser registry: every extension install (Chrome, Edge, Brave, ...)
@@ -296,7 +298,14 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         status: status(),
         // HTTP-channel reload (armed by POST /api/dev/reload): reaches
         // extensions whose SSE stream is dead, unlike the SSE broadcast.
-        ...(Date.now() - reloadRequestedAtMs < 60_000 ? { reloadRequested: true } : {}),
+        // Consume immediately so the extension only reloads once, not repeatedly.
+        ...(() => {
+          if (Date.now() - reloadRequestedAtMs < 60_000) {
+            reloadRequestedAtMs = 0;
+            return { reloadRequested: true };
+          }
+          return {};
+        })(),
       });
     });
 
@@ -708,6 +717,27 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
             summary: live.map((a) => `${String(a.platform)} @ ${String(a.browser)}`),
           },
         });
+        return;
+      }
+
+      if (tool === "web_session_vault") {
+        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
+        const action = String(args.action || "list");
+        const vaultRes = await executeSessionVault(action, args, request, broadcast, timeoutMs);
+        res.json({ success: vaultRes.ok, ok: vaultRes.ok, data: vaultRes.data, error: vaultRes.error });
+        return;
+      }
+
+      if (tool === "web_parallel_harvest") {
+        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 60_000, 10_000), 120_000);
+        const concurrency = Number(args.concurrency) || 3;
+        const targets = Array.isArray(args.targets) ? (args.targets as HarvestTarget[]) : [];
+        if (targets.length === 0) {
+          res.status(400).json({ success: false, ok: false, error: "web_parallel_harvest requires a non-empty 'targets' array." });
+          return;
+        }
+        const harvestRes = await executeParallelHarvest(targets, request, broadcast, timeoutMs, concurrency);
+        res.json({ success: harvestRes.success, ok: harvestRes.success, data: harvestRes });
         return;
       }
 

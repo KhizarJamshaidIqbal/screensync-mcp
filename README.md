@@ -17,7 +17,7 @@ unless you choose Google Drive BYOS as a fallback.
 │  BLoC pipeline → SQLite cache → sync      │ ◀────── │   • /pair + terminal QR   (pairing) │
 │  Drive BYOS fallback (hybrid mode)        │   SSE   │   • mDNS _screensync-hub._tcp       │
 └───────────────────────────────────────────┘  push   │  MCP stdio server                   │
-        ▲                                             │   167 tools · 26 prompts · 3 resources│
+        ▲                                             │   181 tools · 26 prompts · 3 resources│
         │  inspections / patches / live events        └──────────────┬──────────────────────┘
         ────────────────────────────────────────────────────────────┘
                               Claude Desktop · Claude Code · any MCP agent

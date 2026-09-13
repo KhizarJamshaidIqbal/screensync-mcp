@@ -71,6 +71,20 @@ The user's real browser is already authenticated, fingerprinted, and trusted.
 | Save full page as MHTML | `web_mhtml` — captures full DOM + embedded resources as RFC 2557 archive (DevTools Save-as-MHTML parity) |
 | Control & clear browser cache | `web_cache_control` {action: 'disable'\|'enable'\|'clear'} (CDP / Playwright cache control) |
 | Visual regression baselines | `web_visual_baseline` {action: 'save'\|'compare'\|'list'\|'clear', name, threshold, updateBaseline} (Playwright toHaveScreenshot parity + heatmaps) |
+| Full document HTML | `web_content` {selector?, clean: true/false} (Playwright page.content parity) |
+| Precise bounding box | `web_bounding_box` {selector|ref} (Playwright locator.boundingBox parity: x, y, w, h, inViewport) |
+| Computed CSS styles | `web_computed_style` {selector|ref, properties?} (DevTools computed styles) |
+| Inject script tag | `web_add_script_tag` {url|content} (Playwright page.addScriptTag parity) |
+| Inject style tag | `web_add_style_tag` {url|content} (Playwright page.addStyleTag parity) |
+| Organize tabs in groups | `web_tab_group` {action: create/add/remove/update/list, title, color} |
+| Modern SPA IndexedDB | `web_indexeddb` {action: databases/schema/dump/query, database, store} |
+| CacheStorage API | `web_cache_storage` {action: list/keys/match} |
+| **Real User Social Harvester** | `web_authenticated_harvest` {platform: 'x'\|'linkedin'\|'github'\|'reddit'\|'facebook'\|'instagram'\|'youtube'\|'threads', task: 'feed'\|'profile'\|'notifications'\|'search', scrollPages: N, useExistingTab: true} — actual user accounts scraping without bot flags |
+| Multi-target parallel harvest | `web_parallel_harvest` {targets: [...], concurrency: 3} — multi-tab parallel scraping |
+| Hub-side session vault & sync | `web_session_vault` {action: save/restore/list/delete/sync, domain} — cross-browser persistent session cloning |
+| Live mutation stream sync | `web_live_stream_sync` {action: start/poll/stop, selector} — real-time feed update watcher |
+| Clutter-free reader mode | `web_reader_mode` — clean markdown extraction of articles/pages |
+| Smart form auto-fill | `web_smart_fill` {fields: {email, name, ...}} — human-cadence input dispatch |
 | Trusted OS-level input | `web_cdp_click`, `web_cdp_type`, `web_mouse`, `web_touch` |
 
 **Locator language everywhere:** `css=`, `>>>` (shadow piercing), `pierce/`,
@@ -90,10 +104,32 @@ visual flows use `web_watch` (live frame stream) or `web_screencast`.
 - Tables → **`web_table_extract`** (json/markdown/csv in one call).
 - Structured lists → `web_scrape_schema` {itemSelector, schema}.
 - Articles → `web_markdown_extract`; assets → `web_media_extract`.
+- Clutter-free articles & reader view → **`web_reader_mode`** (title, byline, markdown, reading time).
+- Modern web apps & offline data → **`web_indexeddb`** / **`web_cache_storage`**.
 - Multi-page → `web_batch_crawl` / `web_tab_pool` (concurrent, bounded).
 - Sync results: `publish_inspection` (findings → phone heatmap),
   `publish_patch` (code fixes), or return the data inline. Session replay:
   `web_session_save` / `web_storage_state` **only when the user asks**.
+
+## 4b · Authenticated Real-Web Data Sync (The User's Logged-in Operator Advantage)
+
+The user's real browser already has active logins for Twitter/X, LinkedIn, GitHub, Reddit, Facebook, Instagram, YouTube, etc. **Never ask the user to log in again, and never use headless scrapers that trigger bot blocks.**
+
+1. **One-Call Harvest (`web_authenticated_harvest`)**:
+   - Call with `platform` (e.g. `'x'`, `'linkedin'`, `'github'`) and `task` (`'feed'`, `'profile'`, `'notifications'`, `'search'`).
+   - By default `useExistingTab: true` reuses open tabs, eliminating popup noise and bot detection.
+   - `scrollPages: 2` automatically triggers natural inertia scrolling to load lazy-loaded feeds.
+2. **Parallel Multi-Platform Sweeps (`web_parallel_harvest`)**:
+   - Provide `targets: [{ platform: 'x', task: 'feed' }, { platform: 'github', task: 'notifications' }]`.
+   - Concurrently scrapes across tabs organized into a "ScreenSync Harvest" tab group, saves datasets to hub `data/harvest/`, and returns aggregated intelligence.
+3. **Session Vault (`web_session_vault`)**:
+   - `action: 'save'` saves full login state (cookies + localStorage + sessionStorage) to hub disk `data/vault/<domain>.json`.
+   - `action: 'sync'` clones an active login from Chrome to Edge or secondary browser in one step.
+   - `action: 'restore'` restores the saved vault session into any browser without re-entering credentials.
+4. **Live Stream Watcher (`web_live_stream_sync`)**:
+   - Starts a real-time mutation observer on a live page; poll with `action: 'poll'` to receive incoming tweets, chat messages, or alerts without reloading.
+5. **Smart Form Filler (`web_smart_fill`)**:
+   - Matches form inputs and types with human cadence, triggering native React/Vue/Angular events.
 
 ## 5 · Multi-tab & multi-browser
 

@@ -9,6 +9,12 @@ import { execInFrame } from './web-frames.js';
 import { sessionExport, sessionImport } from './web-session-sync.js';
 import { apiFetch } from './web-api-fetch.js';
 import { historySearch, bookmarksSearch } from './web-browser-data.js';
+import { ssWebUnitDom } from './web-unit-dom.js';
+import { ssWebUnitStorageAdv } from './web-storage-adv.js';
+import { execTabGroup } from './web-tab-groups.js';
+import { authenticatedHarvest } from './web-harvest.js';
+import { execLiveStreamSync, smartFormFill } from './web-stream-fill.js';
+import { sessionVaultExport, sessionVaultImport } from './web-vault-sync.js';
 
 // Browser-side executor for the hub's web bridge. The hub pushes
 // {type:'web_request', id, tool, args} over SSE; we run the tool against the
@@ -45,6 +51,20 @@ const DEVICE_TOOLS = new Set([
   'web_device_emulate',
   'web_resize',
   'web_set_user_agent',
+]);
+
+const DOM_TOOLS = new Set([
+  'web_content',
+  'web_bounding_box',
+  'web_computed_style',
+  'web_add_script_tag',
+  'web_add_style_tag',
+  'web_reader_mode',
+]);
+
+const STORAGE_ADV_TOOLS = new Set([
+  'web_indexeddb',
+  'web_cache_storage',
 ]);
 
 // ── Multi-browser identity: each extension install registers a stable id and
@@ -106,7 +126,9 @@ async function inject(tab, args) {
     const toolName = (args && args.__tool) || '';
     const fn = INTERACT_TOOLS.has(toolName) ? ssWebUnitInteract
       : AGENT_UNIT_TOOLS.has(toolName) ? ssWebUnitAgent
-        : ssWebUnitExtract;
+      : DOM_TOOLS.has(toolName) ? ssWebUnitDom
+      : STORAGE_ADV_TOOLS.has(toolName) ? ssWebUnitStorageAdv
+      : ssWebUnitExtract;
     const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: fn, args: [args] });
     return (results && results[0] && results[0].result) || { ok: false, error: 'Injection returned no result.' };
   } catch (e) {
@@ -227,7 +249,15 @@ async function executeWebTool(tool, args) {
     case 'web_check':
     case 'web_focus':
     case 'web_scroll_to':
-    case 'web_media_extract': {
+    case 'web_media_extract':
+    case 'web_content':
+    case 'web_bounding_box':
+    case 'web_computed_style':
+    case 'web_add_script_tag':
+    case 'web_add_style_tag':
+    case 'web_reader_mode':
+    case 'web_indexeddb':
+    case 'web_cache_storage': {
       const tab = await pickActiveTab(args);
       return inject(tab, { ...args, __tool: tool });
     }
@@ -370,6 +400,24 @@ async function executeWebTool(tool, args) {
     }
     case 'web_batch_crawl': {
       return batchCrawl(args);
+    }
+    case 'web_tab_group': {
+      return execTabGroup(args);
+    }
+    case 'web_authenticated_harvest': {
+      return authenticatedHarvest(args);
+    }
+    case 'web_live_stream_sync': {
+      return execLiveStreamSync(args);
+    }
+    case 'web_smart_fill': {
+      return smartFormFill(args);
+    }
+    case 'web_session_vault_export': {
+      return sessionVaultExport(args);
+    }
+    case 'web_session_vault_import': {
+      return sessionVaultImport(args);
     }
     case 'web_frame_tree': {
       const tab = await pickActiveTab(args);

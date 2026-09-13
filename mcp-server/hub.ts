@@ -243,8 +243,27 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
     // restarted while the SW was kept alive): the next /api/web/register
     // heartbeat carries reloadRequested and the extension reloads itself.
     webBridge.armReloadRequested();
-    log("INFO", "Manual dev_hot_reload broadcast dispatched (heartbeat reload armed)");
     res.json({ success: true, message: "Dev hot reload broadcast sent + heartbeat reload armed." });
+  });
+
+  app.get("/wake", (_req, res) => {
+    res.type("html").send(`<!doctype html>
+<html><head><meta charset="utf-8"><title>ScreenSync Wake</title></head>
+<body style="font-family:sans-serif;background:#111;color:#eee;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+<div style="text-align:center"><p>Waking ScreenSync extension...</p><p id="s"></p></div>
+<script>
+const extId = "nfdhhnbmboahhimbofhihckobhenkoij";
+if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
+  chrome.runtime.sendMessage(extId, { type: "ping" }, (r) => {
+    const s = document.getElementById("s");
+    if (s) s.textContent = r ? "Connected: " + JSON.stringify(r) : "Pinged";
+    setTimeout(() => window.close(), 1200);
+  });
+} else {
+  const s = document.getElementById("s");
+  if (s) s.textContent = "chrome.runtime unavailable";
+}
+</script></body></html>`);
   });
 
   app.get("/api/events", (req, res) => {

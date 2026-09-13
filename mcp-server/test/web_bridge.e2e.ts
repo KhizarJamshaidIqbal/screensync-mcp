@@ -93,6 +93,34 @@ function cannedResult(tool: string, args: Record<string, unknown> = {}): { ok: b
       return { ok: true, data: { compared: true, name: "e2e-page", passed: true, diffPercent: 0, identical: true } };
     case "web_wait_download":
       return { ok: true, data: { state: "complete", filename: "e2e-file.zip", fileSize: 1234, mime: "application/zip", finalUrl: "https://example.test/file.zip" } };
+    case "web_content":
+      return { ok: true, data: { url: "https://example.test/", title: "T", length: 120, html: "<!DOCTYPE html><html><body><h1>Hello</h1></body></html>" } };
+    case "web_bounding_box":
+      return { ok: true, data: { x: 10, y: 20, width: 100, height: 40, inViewport: true, tagName: "h1" } };
+    case "web_computed_style":
+      return { ok: true, data: { tagName: "h1", styles: { display: "block", color: "rgb(0, 0, 0)" } } };
+    case "web_session_vault_export":
+      return { ok: true, data: { domain: args.domain || "example.test", cookieCount: 2, cookies: [{ name: "sid", value: "abc", domain: ".example.test" }], localStorage: { token: "xyz" }, sessionStorage: {} } };
+    case "web_session_vault_import":
+      return { ok: true, data: { domain: "example.test", cookiesSet: 2, storageRestored: true } };
+    case "web_authenticated_harvest":
+      return { ok: true, data: { platform: args.platform || "x", task: args.task || "feed", authenticated: true, itemCount: 2, items: [{ text: "Harvest 1" }, { text: "Harvest 2" }] } };
+    case "web_reader_mode":
+      return { ok: true, data: { title: "Article", wordCount: 150, readingTimeMinutes: 1, markdown: "# Article\n\nContent" } };
+    case "web_tab_group":
+      return { ok: true, data: { groupId: 101, title: args.title || "ScreenSync Harvest", color: args.color || "purple", tabIds: [1, 2] } };
+    case "web_indexeddb":
+      return { ok: true, data: { database: args.database || "e2e-db", version: 1, storeCount: 0, stores: [] } };
+    case "web_cache_storage":
+      return { ok: true, data: { origin: "https://example.test", count: 1, caches: ["v1"] } };
+    case "web_live_stream_sync":
+      return { ok: true, data: { streaming: true, tabId: 1, initialItems: 0 } };
+    case "web_smart_fill":
+      return { ok: true, data: { totalFields: 2, filledCount: 2, filled: [{ field: "email", value: "test@test.com" }, { field: "role", value: "admin" }] } };
+    case "web_add_script_tag":
+      return { ok: true, data: { injected: true, type: "script", loaded: true } };
+    case "web_add_style_tag":
+      return { ok: true, data: { injected: true, type: "style", contentLength: 25 } };
     default:
       return { ok: true, data: { echo: tool, via: "simulated-extension" } };
   }
@@ -182,6 +210,10 @@ try {
     "web_flow_save", "web_flow_list", "web_flow_run", "web_flow_delete", "web_account_report",
     "web_flow_schedule", "web_flow_schedules", "web_flow_unschedule",
     "web_emulate_media", "web_mhtml", "web_cache_control", "web_visual_baseline",
+    "web_content", "web_bounding_box", "web_computed_style", "web_add_script_tag",
+    "web_add_style_tag", "web_tab_group", "web_indexeddb", "web_cache_storage",
+    "web_authenticated_harvest", "web_parallel_harvest", "web_session_vault",
+    "web_live_stream_sync", "web_reader_mode", "web_smart_fill",
   ];
   for (const t of expectedNew) assert.ok(names.includes(t), `tools/list must include ${t}`);
   assert.equal(new Set(names).size, names.length, "tools/list must not contain duplicate names");
@@ -490,6 +522,101 @@ try {
   assert.equal(chainData.okAll, true);
   assert.equal(chainData.results[1].data?.result, "echo:chain-proof-42", "{{step.1.data.result}} must resolve to step1's output");
   await client.callTool({ name: "web_flow_delete", arguments: { name: "e2e-chain" } });
+
+  // 7k. Round-10: Playwright parity + Authenticated Harvester + Session Vault ──
+  const contentRes = await client.callTool({ name: "web_content", arguments: { clean: true } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!contentRes.isError, "web_content round trip must succeed");
+  const contentData = JSON.parse(contentRes.content[0].text) as { length: number; html: string };
+  assert.equal(contentData.length, 120);
+
+  const boxRes = await client.callTool({ name: "web_bounding_box", arguments: { selector: "h1" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!boxRes.isError, "web_bounding_box round trip must succeed");
+  const boxData = JSON.parse(boxRes.content[0].text) as { width: number; height: number; inViewport: boolean };
+  assert.equal(boxData.width, 100);
+  assert.equal(boxData.height, 40);
+  assert.equal(boxData.inViewport, true);
+
+  const styleRes = await client.callTool({ name: "web_computed_style", arguments: { selector: "h1" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!styleRes.isError, "web_computed_style round trip must succeed");
+
+  const harvestRes = await client.callTool({ name: "web_authenticated_harvest", arguments: { platform: "x", task: "feed" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!harvestRes.isError, "web_authenticated_harvest round trip must succeed");
+  const harvestData = JSON.parse(harvestRes.content[0].text) as { platform: string; authenticated: boolean; itemCount: number };
+  assert.equal(harvestData.platform, "x");
+  assert.equal(harvestData.authenticated, true);
+  assert.equal(harvestData.itemCount, 2);
+
+  const parallelHarvest = await client.callTool({ name: "web_parallel_harvest", arguments: { targets: [{ platform: "x", task: "feed" }] } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!parallelHarvest.isError, "web_parallel_harvest round trip must succeed");
+
+  const vaultSave = await client.callTool({ name: "web_session_vault", arguments: { action: "save", domain: "example.test" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!vaultSave.isError, "web_session_vault save must succeed");
+  const vaultList = await client.callTool({ name: "web_session_vault", arguments: { action: "list" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!vaultList.isError, "web_session_vault list must succeed");
+  const vaultRestore = await client.callTool({ name: "web_session_vault", arguments: { action: "restore", domain: "example.test" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!vaultRestore.isError, "web_session_vault restore must succeed");
+
+  const readerRes = await client.callTool({ name: "web_reader_mode", arguments: {} }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!readerRes.isError, "web_reader_mode round trip must succeed");
+
+  const tabGrpRes = await client.callTool({ name: "web_tab_group", arguments: { action: "create", title: "Harvest", color: "purple" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!tabGrpRes.isError, "web_tab_group round trip must succeed");
+  const tabGrpData = JSON.parse(tabGrpRes.content[0].text) as { groupId: number };
+  assert.equal(tabGrpData.groupId, 101);
+
+  const idbRes = await client.callTool({ name: "web_indexeddb", arguments: { action: "schema", database: "e2e-db" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!idbRes.isError, "web_indexeddb round trip must succeed");
+  const idbData = JSON.parse(idbRes.content[0].text) as { storeCount: number };
+  assert.equal(idbData.storeCount, 0, "empty IDB database schema must succeed");
+
+  const cacheRes = await client.callTool({ name: "web_cache_storage", arguments: { action: "list" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!cacheRes.isError, "web_cache_storage round trip must succeed");
+
+  const streamRes = await client.callTool({ name: "web_live_stream_sync", arguments: { action: "start" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!streamRes.isError, "web_live_stream_sync round trip must succeed");
+
+  const fillRes = await client.callTool({ name: "web_smart_fill", arguments: { fields: { email: "test@test.com", role: "admin" } } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!fillRes.isError, "web_smart_fill round trip must succeed");
+  const fillData = JSON.parse(fillRes.content[0].text) as { filledCount: number };
+  assert.equal(fillData.filledCount, 2);
+
+  const scriptRes = await client.callTool({ name: "web_add_script_tag", arguments: { content: "window.__injected = true;" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!scriptRes.isError, "web_add_script_tag round trip must succeed");
+
+  const styleResTag = await client.callTool({ name: "web_add_style_tag", arguments: { content: "body { margin: 0; }" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!styleResTag.isError, "web_add_style_tag round trip must succeed");
 
   // 8. Real-time SSE observability: ambient browser events land in the ring.
   for (const url of ["https://a.test/page-1", "https://b.test/page-2"]) {
