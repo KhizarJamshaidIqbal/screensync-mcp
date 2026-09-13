@@ -11,54 +11,139 @@
 </head>
 <body>
 <div class="dash">
-  <header class="card dash-header row spread">
-    <div class="row">
-      <img src="../icons/icon32.png" alt="" width="28" height="28">
-      <strong style="font-size:16px">ScreenSync <span class="grad-text">MCP</span></strong>
-      <span class="pill" id="status-pill"></span>
-      <span class="pill" id="sse-chip"></span>
-      <span class="pill" id="device-chip" hidden></span>
-    </div>
-    <div class="row">
-      <button class="btn btn-ghost btn-sm" id="btn-pair">Pair QR</button>
-      <button class="btn btn-ghost btn-sm" id="btn-setup">Setup</button>
+  <!-- Sticky header -->
+  <header class="dash-header">
+    <div class="row spread">
+      <div class="row">
+        <img src="../icons/icon32.png" alt="" width="26" height="26">
+        <strong style="font-size:16px">ScreenSync <span class="grad-text">MCP</span></strong>
+        <span class="pill" id="status-pill"></span>
+        <span class="pill" id="sse-chip"></span>
+        <span class="pill" id="device-chip" hidden></span>
+      </div>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" id="btn-reload" title="Hot reload extension from disk">
+          <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          Reload
+        </button>
+        <button class="btn btn-ghost btn-sm" id="btn-pair">
+          <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="6" height="6" x="3" y="3" rx="1"/>
+            <rect width="6" height="6" x="15" y="3" rx="1"/>
+            <rect width="6" height="6" x="3" y="15" rx="1"/>
+            <path d="M15 15h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2zM19 15h2v2h-2z"/>
+          </svg>
+          Pair QR
+        </button>
+        <button class="btn btn-ghost btn-sm" id="btn-setup">
+          <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          Setup
+        </button>
+      </div>
     </div>
   </header>
 
-  <section class="card dash-frame">
-    <div class="row spread" style="margin-bottom:12px">
-      <strong>Live screen</strong>
-      <span class="dim" style="font-size:12px">click frame to tap the phone</span>
+  <!-- Tab bar -->
+  <div class="dash-content">
+    <nav class="tab-bar" id="tab-bar">
+      <button class="tab-btn active" data-tab="live">
+        <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="20" height="14" x="2" y="3" rx="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        Live View
+      </button>
+      <button class="tab-btn" data-tab="activity">
+        <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+        Activity
+      </button>
+      <button class="tab-btn" data-tab="tools">
+        <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+        </svg>
+        Tools & Catalog
+      </button>
+      <button class="tab-btn" data-tab="web">
+        <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+        Web Access
+      </button>
+      <button class="tab-btn" data-tab="settings">
+        <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        Settings
+      </button>
+    </nav>
+
+    <!-- Live View tab -->
+    <div class="tab-panel active" id="panel-live">
+      <div class="tab-live">
+        <section class="card live-frame">
+          <div class="row spread" style="margin-bottom:12px">
+            <strong>Live Screen</strong>
+            <span class="dim" style="font-size:11px">click to tap the phone</span>
+          </div>
+          <div id="frame"></div>
+        </section>
+        <section class="card live-feed">
+          <div id="feed"></div>
+        </section>
+        <section class="card live-side">
+          <div id="viewers-top"></div>
+        </section>
+        <section class="card live-control">
+          <div id="control"></div>
+        </section>
+      </div>
     </div>
-    <div id="frame"></div>
-  </section>
 
-  <section class="card dash-feed">
-    <strong>AI activity</strong>
-    <div id="feed"></div>
-  </section>
+    <!-- Activity tab -->
+    <div class="tab-panel" id="panel-activity">
+      <section class="card">
+        <div id="feed-full"></div>
+      </section>
+    </div>
 
-  <section class="card dash-web">
-    <div id="web-access"></div>
-  </section>
+    <!-- Tools tab -->
+    <div class="tab-panel" id="panel-tools">
+      <section class="card">
+        <div id="catalog"></div>
+      </section>
+    </div>
 
-  <section class="card dash-side">
-    <div id="viewers-top"></div>
-  </section>
+    <!-- Web Access tab -->
+    <div class="tab-panel" id="panel-web">
+      <section class="card">
+        <div id="web-access"></div>
+      </section>
+    </div>
 
-  <section class="card dash-control">
-    <div id="control"></div>
-    <div class="pad-result" id="pad-result"></div>
-  </section>
-
-  <section class="card dash-viewers">
-    <div id="viewers"></div>
-  </section>
-
-  <section class="card dash-catalog">
-    <div id="catalog"></div>
-  </section>
+    <!-- Settings tab -->
+    <div class="tab-panel" id="panel-settings">
+      <section class="card">
+        <strong>Settings</strong>
+        <div id="settings-body" class="mt"></div>
+      </section>
+    </div>
+  </div>
 </div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toasts"></div>
+
 <script type="module" src="dashboard.js"></script>
 </body>
 </html>

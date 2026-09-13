@@ -55,9 +55,9 @@ export class SseClient {
           return;
         }
         if (res.status === 429) {
-          this._status('error', '429 — too many live connections (max 10)');
-          this.stop();
-          return;
+          this._status('error', '429 — too many connections, retrying...');
+          await new Promise((r) => setTimeout(r, 3000));
+          continue;
         }
         if (!res.ok) throw new Error(`SSE ${res.status}`);
 

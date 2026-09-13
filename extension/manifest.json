@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ScreenSync MCP",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "The ScreenSync bridge for your browser: gives your AI agent supervised access to your live web tabs — see, read, click and type — just like the mobile app does for your phone.",
   "icons": {
     "16": "icons/icon16.png",
@@ -22,15 +22,55 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage", "alarms", "tabs", "scripting", "activeTab"],
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "scripting",
+    "activeTab",
+    "debugger",
+    "sidePanel",
+    "contextMenus",
+    "tabGroups",
+    "cookies",
+    "offscreen",
+    "declarativeNetRequest",
+    "unlimitedStorage",
+    "webNavigation",
+    "downloads",
+    "clipboardRead",
+    "clipboardWrite"
+  ],
+  "side_panel": {
+    "default_path": "pages/dashboard.html"
+  },
+  "commands": {
+    "toggle-web-access": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Toggle AI Web Access ON/OFF"
+    },
+    "open-side-panel": {
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      },
+      "description": "Open ScreenSync Side Panel"
+    }
+  },
   "host_permissions": [
     "https://screensyncmcp.epsoldev.com/*",
-    "http://localhost:*/*",
-    "http://127.0.0.1:*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
     "<all_urls>"
   ],
-  "optional_host_permissions": ["http://*/*"],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com;"
+  },
+  "externally_connectable": {
+    "matches": [
+      "http://localhost/*",
+      "http://127.0.0.1/*"
+    ]
   }
 }

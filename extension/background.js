@@ -1,14 +1,17 @@
-console.info('[ss] sw boot');
-self.addEventListener('error', (e) => console.error('[ss] sw error:', e.message));
-self.addEventListener('unhandledrejection', (e) => console.error('[ss] sw rejection:', String(e.reason)));
-
 import { getSettings, saveSettings } from './lib/storage.js';
 import { api, probeHub, hubFetch } from './lib/api.js';
 import { SseClient } from './lib/sse-client.js';
 import { handleWebRequest, registerWebBridge } from './lib/web-tools.js';
+import { startAmbientCollector } from './lib/web-ambient.js';
 import {
   GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, HEALTH_PERIOD_S, EVENT_LOG_CAP,
 } from './lib/constants.js';
+
+console.info('[ss] sw boot');
+self.addEventListener('error', (e) => console.error('[ss] sw error:', e.message));
+self.addEventListener('unhandledrejection', (e) => console.error('[ss] sw rejection:', String(e.reason)));
+
+startAmbientCollector();
 
 const cache = {
   healthOk: null,
@@ -33,6 +36,11 @@ function snapshot() {
 
 const sse = new SseClient({
   onEvent: (ev) => {
+    if (ev && ev.type === 'dev_hot_reload') {
+      console.info('[ss] Dev hot reload received from hub. Reloading runtime...');
+      try { chrome.runtime.reload(); } catch {}
+      return;
+    }
     // Web bridge: the hub relays an agent's web_* tool call to us. Execute it
     // against the user's browser and POST the result back — don't chart it
     // as a normal feed event.
@@ -58,8 +66,9 @@ const sse = new SseClient({
 async function ensureSse() {
   const s = await getSettings();
   if (!s.onboardingComplete) return;
-  if (sse.connected || cache.sseStatus === 'connecting') return;
-  sse.start(s.hubUrl, s.token);
+  if (sse.connected) return;
+  const hubUrl = (s.hubUrl || 'http://127.0.0.1:3000').replace('://localhost:', '://127.0.0.1:');
+  sse.start(hubUrl, s.token);
 }
 
 async function pollHealth() {
@@ -76,15 +85,131 @@ async function pollHealth() {
   broadcast({ kind: 'health', cache });
 }
 
+async function ensureOffscreenDoc() {
+  if (!chrome.offscreen || !chrome.offscreen.createDocument) return false;
+  try {
+    if (chrome.offscreen.hasDocument && (await chrome.offscreen.hasDocument())) return true;
+    await chrome.offscreen.createDocument({
+      url: 'pages/offscreen.html',
+      reasons: ['BLOBS'],
+      justification: 'Keep background service worker active and perform canvas diffing',
+    });
+    return true;
+  } catch (e) {
+    if (String(e).includes('Only a single offscreen')) return true;
+    return false;
+  }
+}
+
 chrome.alarms.create(HEALTH_ALARM, { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener(async (a) => {
   if (a.name !== HEALTH_ALARM) return;
   await pollHealth();
   await ensureSse(); // revive SSE if the SW was terminated
   await registerWebBridge(); // keeps web-bridge presence fresh on the hub
+  await ensureOffscreenDoc();
 });
 
+if (chrome.tabs && chrome.tabs.onActivated) {
+  chrome.tabs.onActivated.addListener(async () => {
+    await ensureSse();
+    await registerWebBridge();
+    await ensureOffscreenDoc();
+  });
+}
+if (chrome.tabs && chrome.tabs.onUpdated) {
+  chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo) => {
+    if (changeInfo.status === 'complete') {
+      await ensureSse();
+      await registerWebBridge();
+      await ensureOffscreenDoc();
+    }
+  });
+}
+
+ensureOffscreenDoc().catch(() => {});
+
+function setupContextMenus() {
+  if (!chrome.contextMenus) return;
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: 'screensync-root',
+      title: 'ScreenSync MCP',
+      contexts: ['all'],
+    });
+    chrome.contextMenus.create({
+      id: 'screensync-send-phone',
+      parentId: 'screensync-root',
+      title: 'Send text to Phone (Type)',
+      contexts: ['selection'],
+    });
+    chrome.contextMenus.create({
+      id: 'screensync-open-phone',
+      parentId: 'screensync-root',
+      title: 'Open link on Phone',
+      contexts: ['link'],
+    });
+    chrome.contextMenus.create({
+      id: 'screensync-sidepanel',
+      parentId: 'screensync-root',
+      title: 'Open ScreenSync Side Panel',
+      contexts: ['page', 'action'],
+    });
+  });
+}
+
+if (chrome.contextMenus && chrome.contextMenus.onClicked) {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    try {
+      if (info.menuItemId === 'screensync-send-phone' && info.selectionText) {
+        await api.control('type', { text: info.selectionText });
+      } else if (info.menuItemId === 'screensync-open-phone' && info.linkUrl) {
+        await api.control('open_url', { url: info.linkUrl });
+      } else if (info.menuItemId === 'screensync-sidepanel') {
+        if (chrome.sidePanel && chrome.sidePanel.open && tab) {
+          chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {});
+        } else {
+          chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
+        }
+      }
+    } catch (e) {
+      console.warn('[ss] contextMenu action failed:', e);
+    }
+  });
+}
+
+if (chrome.commands && chrome.commands.onCommand) {
+  chrome.commands.onCommand.addListener(async (cmd) => {
+    if (cmd === 'toggle-web-access') {
+      const s = await getSettings();
+      const next = !s.webAccessEnabled;
+      const updated = await saveSettings({ webAccessEnabled: next });
+      await registerWebBridge();
+      broadcast({ kind: 'settings', settings: updated });
+    } else if (cmd === 'open-side-panel') {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        if (tab && chrome.sidePanel && chrome.sidePanel.open) {
+          chrome.sidePanel.open({ windowId: tab.windowId });
+        } else {
+          chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
+        }
+      } catch (e) {
+        console.warn('[ss] open sidepanel command failed:', e);
+      }
+    }
+  });
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
+  setupContextMenus();
+  if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
+  }
+  await pollHealth();
+  await ensureSse();
+  await registerWebBridge();
+  await ensureOffscreenDoc();
   const s = await getSettings();
   if (!s.onboardingComplete) {
     chrome.tabs.create({ url: chrome.runtime.getURL('pages/onboarding.html') });
@@ -92,10 +217,18 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  setupContextMenus();
   pollHealth();
   ensureSse();
   registerWebBridge();
+  ensureOffscreenDoc();
 });
+
+// Immediate boot connection whenever SW initializes
+pollHealth().catch(() => {});
+ensureSse().catch(() => {});
+registerWebBridge().catch(() => {});
+ensureOffscreenDoc().catch(() => {});
 
 chrome.runtime.onConnect.addListener((port) => {
   ports.add(port);
@@ -109,6 +242,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     try {
       switch (msg.type) {
+        case 'offscreen-ping': {
+          await ensureSse();
+          registerWebBridge();
+          sendResponse({ ok: true });
+          break;
+        }
         case 'get-status': {
           const settings = await getSettings();
           sendResponse({ ok: true, cache, settings });
@@ -197,9 +336,31 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           }
           break;
         }
+        case 'reload-extension':
+          sendResponse({ ok: true, reloading: true });
+          setTimeout(() => {
+            try { chrome.runtime.reload(); } catch {}
+          }, 150);
+          break;
         case 'open-dashboard':
           chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
           sendResponse({ ok: true });
+          break;
+        case 'open-side-panel': {
+          const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+          if (tab && chrome.sidePanel && chrome.sidePanel.open) {
+            await chrome.sidePanel.open({ windowId: tab.windowId });
+            sendResponse({ ok: true });
+          } else {
+            chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
+            sendResponse({ ok: true, fallback: true });
+          }
+          break;
+        }
+        case 'offscreen-ping':
+          await ensureSse();
+          await registerWebBridge();
+          sendResponse({ ok: true, pong: Date.now() });
           break;
         default:
           sendResponse({ ok: false, error: `unknown message ${msg.type}` });
@@ -211,7 +372,47 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true; // async response
 });
 
+if (chrome.runtime.onMessageExternal) {
+  chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
+    (async () => {
+      try {
+        console.info('[ss] external message received:', msg, 'from:', sender?.url);
+        await pollHealth();
+        await ensureSse();
+        await registerWebBridge();
+        await ensureOffscreen();
+        if (msg && msg.type === 'reload') {
+          sendResponse({ ok: true, reloading: true });
+          setTimeout(() => {
+            try { chrome.runtime.reload(); } catch {}
+          }, 150);
+          return;
+        }
+        sendResponse({ ok: true, pong: Date.now() });
+      } catch (e) {
+        sendResponse({ ok: false, error: e.message });
+      }
+    })();
+    return true;
+  });
+}
+
+async function ensureOffscreen() {
+  if (!chrome.offscreen || !chrome.offscreen.createDocument) return;
+  try {
+    const hasDoc = await chrome.offscreen.hasDocument();
+    if (!hasDoc) {
+      await chrome.offscreen.createDocument({
+        url: 'pages/offscreen.html',
+        reasons: ['BLOBS'],
+        justification: 'Keep background service worker active for agent sessions',
+      });
+    }
+  } catch {}
+}
+
 // Boot.
 pollHealth();
 ensureSse();
 registerWebBridge();
+ensureOffscreen();

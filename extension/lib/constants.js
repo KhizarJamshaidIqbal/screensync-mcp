@@ -12,7 +12,7 @@ export const BRAND = {
 };
 
 export const DEFAULT_TOKEN = 'screensync-local-dev';
-export const PROBE_URLS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+export const PROBE_URLS = ['http://127.0.0.1:3000', 'http://localhost:3000'];
 export const GUIDE_URL = 'https://screensyncmcp.epsoldev.com/setup-guide.json';
 export const SITE_URL = 'https://screensyncmcp.epsoldev.com';
 export const MDNS_TYPE = '_screensync-hub._tcp';

@@ -12,48 +12,270 @@
 <body>
 <div class="onb">
   <div class="card onb-card">
-    <div class="onb-steps"><span id="s1" class="on"></span><span id="s2"></span><span id="s3"></span></div>
+    <!-- Modern Interactive Stepper -->
+    <div class="onb-stepper">
+      <div class="onb-stepper-track-bg"></div>
+      <div class="onb-stepper-track-fill" id="stepper-fill" style="width: 0%;"></div>
 
-    <section id="step-welcome">
-      <div class="onb-hero-icon"><img src="../icons/icon48.png" alt="" width="40" height="40"></div>
-      <h1 style="font-size:26px">Your AI, <span class="grad-text">watching over</span><br>your shoulder.</h1>
-      <p class="dim mt">ScreenSync MCP turns your Android phone into a live window for any AI agent — right inside your browser. Connect to your hub to stream frames, watch AI activity and control the device.</p>
-      <button class="btn btn-primary mt-lg" id="btn-start">Get started</button>
+      <!-- Step 1 Node -->
+      <button class="stepper-item active" data-step="welcome" id="step-node-1">
+        <div class="stepper-node">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+        </div>
+        <div class="stepper-label">
+          <span class="stepper-name">1. Welcome</span>
+          <span class="stepper-sub">Overview</span>
+        </div>
+      </button>
+
+      <!-- Step 2 Node -->
+      <button class="stepper-item" data-step="connect" id="step-node-2">
+        <div class="stepper-node">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7"/>
+            <path d="M18 9h4v4a2 2 0 0 1-2 2h-2"/>
+            <circle cx="8" cy="18" r="2"/>
+            <path d="M10 18h8"/>
+          </svg>
+        </div>
+        <div class="stepper-label">
+          <span class="stepper-name">2. Connect</span>
+          <span class="stepper-sub">Hub Pairing</span>
+        </div>
+      </button>
+
+      <!-- Step 3 Node -->
+      <button class="stepper-item" data-step="guide" id="step-node-3">
+        <div class="stepper-node">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"/>
+            <path d="M9 9h6"/>
+            <path d="M9 13h6"/>
+            <path d="M9 17h2"/>
+            <circle cx="16" cy="16" r="2"/>
+          </svg>
+        </div>
+        <div class="stepper-label">
+          <span class="stepper-name">3. Agents</span>
+          <span class="stepper-sub">MCP Setup</span>
+        </div>
+      </button>
+
+      <!-- Step 4 Node -->
+      <button class="stepper-item" data-step="done" id="step-node-4">
+        <div class="stepper-node">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m5 12 5 5L20 7"/>
+          </svg>
+        </div>
+        <div class="stepper-label">
+          <span class="stepper-name">4. Ready</span>
+          <span class="stepper-sub">Live</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- Step 1: Welcome -->
+    <section id="step-welcome" class="onb-step">
+      <div class="onb-hero-badge">
+        <span class="dot ok live"></span> ScreenSync MCP v1.1.0
+      </div>
+      <div class="onb-hero-row">
+        <div class="onb-hero-icon-box">
+          <img src="../icons/icon48.png" alt="ScreenSync" width="38" height="38">
+        </div>
+        <div>
+          <h1 style="font-size:24px;line-height:1.25">Your AI, <span class="grad-text">watching over</span><br>your shoulder.</h1>
+          <p class="dim" style="font-size:13px;margin-top:6px">ScreenSync MCP turns your Android phone and browser into a live interactive workspace for AI agents.</p>
+        </div>
+      </div>
+
+      <!-- Feature Cards with custom SVG icons -->
+      <div class="onb-features">
+        <div class="onb-feature-card">
+          <div class="feat-icon-box purple">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="14" height="20" x="5" y="2" rx="2" ry="2"/>
+              <path d="M12 18h.01"/>
+            </svg>
+          </div>
+          <div class="feat-title">Phone Mirror</div>
+          <div class="feat-desc">Stream live Android screen with real-time tap, gesture & ADB control.</div>
+          <span class="feat-tag">60 FPS · Tap Control</span>
+        </div>
+
+        <div class="onb-feature-card">
+          <div class="feat-icon-box cyan">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+          </div>
+          <div class="feat-title">Web Bridge</div>
+          <div class="feat-desc">AI agent sees live browser tabs, reads DOM hierarchy, and clicks elements.</div>
+          <span class="feat-tag">DOM & Actions</span>
+        </div>
+
+        <div class="onb-feature-card">
+          <div class="feat-icon-box magenta">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+          </div>
+          <div class="feat-title">MCP Protocol</div>
+          <div class="feat-desc">Connects seamlessly with Claude Code, Antigravity, Cursor, and Qoder.</div>
+          <span class="feat-tag">30+ MCP Tools</span>
+        </div>
+      </div>
+
+      <button class="btn btn-primary mt-lg" id="btn-start" style="width:100%">
+        Get Started
+        <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m9 18 6-6-6-6"/>
+        </svg>
+      </button>
     </section>
 
-    <section id="step-connect" hidden>
-      <h2 style="font-size:20px">Connect to your hub</h2>
-      <p class="dim mt" id="probe-msg">Probing localhost…</p>
+    <!-- Step 2: Connect Hub -->
+    <section id="step-connect" class="onb-step" hidden>
+      <div class="row spread">
+        <div>
+          <h2 style="font-size:20px">Connect to ScreenSync Hub</h2>
+          <p class="dim" style="font-size:12.5px;margin-top:4px" id="probe-msg">Probing localhost for running hub…</p>
+        </div>
+        <span class="pill" id="probe-pill"><span class="dot live ok"></span>Probing</span>
+      </div>
+
       <div class="mt-lg">
-        <label class="field"><span>Hub URL</span><input class="input" id="url" placeholder="http://192.168.1.10:3000"></label>
-        <label class="field"><span>Pairing token</span><input class="input" id="token" placeholder="screensync-local-dev"></label>
-        <label class="field"><span>Paste pairing link (optional)</span>
-          <textarea class="input" id="pair" placeholder="screensync://pair?url=…&token=…  or  {&quot;url&quot;:…}  or  http://ip:3000#token"></textarea>
+        <label class="field">
+          <span>Hub URL</span>
+          <input class="input" id="url" placeholder="http://localhost:3000">
         </label>
-        <div class="row">
-          <button class="btn btn-ghost btn-sm" id="btn-apply">Apply link</button>
-          <button class="btn btn-primary" id="btn-connect">Connect</button>
+
+        <div class="quick-chips">
+          <span class="dim" style="font-size:11px">Quick suggestions:</span>
+          <button class="quick-chip" data-url="http://localhost:3000">localhost:3000</button>
+          <button class="quick-chip" data-url="http://127.0.0.1:3000">127.0.0.1:3000</button>
+        </div>
+
+        <label class="field">
+          <span>Pairing Token</span>
+          <input class="input" id="token" placeholder="screensync-local-dev">
+        </label>
+
+        <label class="field">
+          <span>Paste Pairing Link (Optional)</span>
+          <textarea class="input" id="pair" placeholder='screensync://pair?url=…&token=…  or  {"url":…}  or  http://ip:3000#token'></textarea>
+        </label>
+
+        <div class="row spread" style="margin-top:16px">
+          <button class="btn btn-ghost btn-sm" id="btn-apply">
+            <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+            Apply Link
+          </button>
+          <button class="btn btn-primary" id="btn-connect">
+            Connect & Continue
+            <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m9 18 6-6-6-6"/>
+            </svg>
+          </button>
         </div>
         <div class="err" id="conn-err" hidden></div>
       </div>
     </section>
 
-    <section id="step-guide" hidden>
-      <h2 style="font-size:20px">Set up agents & MCP</h2>
-      <p class="dim mt">The hub is connected. Here's how to wire AI agents (fetched live from screensyncmcp.epsoldev.com).</p>
-      <div id="guide-body" class="mt"></div>
-      <div class="mt-lg">
-        <button class="btn btn-primary" id="btn-copy-prompt">Copy AI setup prompt</button>
-        <p class="dim" style="font-size:12px;line-height:1.5;margin-top:8px">Paste it into Claude Code, Antigravity, Qoder or any MCP agent — it downloads the hub, starts it and wires itself up. Your hub URL + token are included.</p>
+    <!-- Step 3: Agent Setup & Guide -->
+    <section id="step-guide" class="onb-step" hidden>
+      <div class="row spread">
+        <div>
+          <h2 style="font-size:20px">Set up AI Agents & MCP</h2>
+          <p class="dim" style="font-size:12.5px;margin-top:4px">Hub is connected. Wire up your favorite AI agent tool.</p>
+        </div>
+        <span class="pill ok"><span class="dot ok"></span>Hub Paired</span>
       </div>
-      <button class="btn btn-primary mt-lg" id="btn-done">Continue</button>
+
+      <!-- Autonomous Agent Setup Box -->
+      <div class="prompt-hero-box">
+        <div class="row spread" style="margin-bottom:8px">
+          <strong style="color:var(--text);font-size:13.5px;display:flex;align-items:center;gap:6px">
+            <svg class="icon-svg" style="color:var(--primary-3)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+            </svg>
+            1-Click Autonomous Setup Prompt
+          </strong>
+          <button class="btn btn-primary btn-sm" id="btn-copy-prompt">
+            <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+            </svg>
+            Copy AI Prompt
+          </button>
+        </div>
+        <p class="dim" style="font-size:11.5px;line-height:1.5">Paste this prompt directly into Claude Code, Antigravity, Cursor or Qoder. The agent will configure its MCP server, start the bridge, and verify connectivity automatically.</p>
+      </div>
+
+      <div id="guide-body" class="mt"></div>
+
+      <div class="row spread mt-lg">
+        <button class="btn btn-ghost btn-sm" id="btn-back-guide">← Back to Hub</button>
+        <button class="btn btn-primary" id="btn-done">
+          Continue
+          <svg class="icon-svg-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6"/>
+          </svg>
+        </button>
+      </div>
     </section>
 
-    <section id="step-done" hidden>
-      <div class="onb-hero-icon" style="background:linear-gradient(135deg,#059669,#10B981)">✓</div>
-      <h2 style="font-size:24px">You're live!</h2>
-      <p class="dim mt">Open the dashboard to watch your phone screen in real time, or use the toolbar icon any time.</p>
-      <button class="btn btn-primary mt-lg" id="btn-dash">Open Dashboard</button>
+    <!-- Step 4: Ready / Live -->
+    <section id="step-done" class="onb-step" hidden>
+      <div class="onb-hero-row">
+        <div class="onb-hero-icon-box" style="background:linear-gradient(135deg,#059669,#10B981);box-shadow:0 10px 30px rgba(16,185,129,0.35)">
+          <svg class="icon-svg-lg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5">
+            <path d="m5 12 5 5L20 7"/>
+          </svg>
+        </div>
+        <div>
+          <h2 style="font-size:24px">You're live & ready! 🎉</h2>
+          <p class="dim" style="font-size:13px;margin-top:4px">ScreenSync MCP is active and ready to stream frames & accept AI tool calls.</p>
+        </div>
+      </div>
+
+      <div class="done-checklist">
+        <div class="done-check-item">
+          <div class="done-check-icon">✓</div>
+          <div>
+            <strong>Hub Connection Active</strong>
+            <div class="dim" style="font-size:11.5px">Real-time SSE event stream and control bridge online.</div>
+          </div>
+        </div>
+        <div class="done-check-item">
+          <div class="done-check-icon">✓</div>
+          <div>
+            <strong>Live Device Screen Ready</strong>
+            <div class="dim" style="font-size:11.5px">Tap the floating bubble on your Android phone to begin streaming.</div>
+          </div>
+        </div>
+        <div class="done-check-item">
+          <div class="done-check-icon">✓</div>
+          <div>
+            <strong>Web Access Bridge Configured</strong>
+            <div class="dim" style="font-size:11.5px">AI tools can inspect browser tabs and perform web automations.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:20px">
+        <button class="btn btn-primary" id="btn-dash" style="flex:1">
+          Open Dashboard →
+        </button>
+      </div>
     </section>
   </div>
 </div>

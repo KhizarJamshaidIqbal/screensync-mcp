@@ -18,7 +18,7 @@ async function readError(res) {
 
 export async function hubFetch(path, { method = 'GET', body, url, token } = {}) {
   const s = await getSettings();
-  const base = (url ?? s.hubUrl).replace(/\/$/, '');
+  const base = (url ?? s.hubUrl).replace('://localhost:', '://127.0.0.1:').replace(/\/$/, '');
   const tk = token ?? s.token;
   const headers = { Authorization: `Bearer ${tk}` };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -35,7 +35,8 @@ export async function hubFetch(path, { method = 'GET', body, url, token } = {}) 
 // Unauthenticated liveness probe with latency measurement.
 export async function probeHub(url) {
   const t0 = Date.now();
-  const res = await fetch(url.replace(/\/$/, '') + '/health', { cache: 'no-store' });
+  const base = (url || 'http://127.0.0.1:3000').replace('://localhost:', '://127.0.0.1:').replace(/\/$/, '');
+  const res = await fetch(base + '/health', { cache: 'no-store' });
   const latencyMs = Date.now() - t0;
   if (!res.ok) throw new HubError(res.status, `Hub replied ${res.status}`);
   const j = await res.json();

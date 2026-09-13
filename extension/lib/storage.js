@@ -1,10 +1,10 @@
 import { DEFAULT_TOKEN } from './constants.js';
 
 const DEFAULTS = {
-  hubUrl: 'http://localhost:3000',
+  hubUrl: 'http://127.0.0.1:3000',
   token: DEFAULT_TOKEN,
-  onboardingComplete: false,
-  webAccessEnabled: false,
+  onboardingComplete: true,
+  webAccessEnabled: true,
   setupGuideCache: null,
   setupGuideFetchedAt: null,
 };
