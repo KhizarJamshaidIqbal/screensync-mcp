@@ -493,6 +493,7 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
     server,
     stop: async () => {
       clearInterval(keepalive);
+      webBridge.stopSchedules();
       if (extWatcher) extWatcher.close();
       if (extReloadTimer) clearTimeout(extReloadTimer);
       hubEvents.off("event", broadcast);

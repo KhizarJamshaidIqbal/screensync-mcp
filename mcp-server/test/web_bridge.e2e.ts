@@ -167,10 +167,11 @@ try {
     "web_record", "web_replay",
     "web_api_fetch", "web_history", "web_bookmarks",
     "web_flow_save", "web_flow_list", "web_flow_run", "web_flow_delete", "web_account_report",
+    "web_flow_schedule", "web_flow_schedules", "web_flow_unschedule",
   ];
   for (const t of expectedNew) assert.ok(names.includes(t), `tools/list must include ${t}`);
   assert.equal(new Set(names).size, names.length, "tools/list must not contain duplicate names");
-  assert.ok(names.length >= 160, `expected >=151 tools, got ${names.length}`);
+  assert.ok(names.length >= 163, `expected >=151 tools, got ${names.length}`);
   assert.ok(names.includes("get_latest_screenshot"), "phone tools must still be listed (parity)");
 
   // 2. get_mcp_catalog + get_skills still work with the grown catalog.
@@ -399,6 +400,35 @@ try {
     isError?: boolean; content: Array<{ text: string }>;
   };
   assert.ok(!hist.isError, "web_history round trip must succeed");
+
+  // 7h. Round-8: flow schedules — hub runs the flow automatically ──
+  await client.callTool({ name: "web_flow_save", arguments: { name: "e2e-sched-flow", steps: [{ tool: "web_run_code", args: { code: "return 'tick'" } }] } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  const sched = await client.callTool({ name: "web_flow_schedule", arguments: { flow: "e2e-sched-flow", everyMinutes: 0.05 } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!sched.isError, "web_flow_schedule must succeed");
+  const schedData = JSON.parse(sched.content[0].text) as { id: string; everyMinutes: number };
+  assert.equal(schedData.everyMinutes, 0.05);
+  // wait for at least one automatic run (interval 3s)
+  await new Promise((r) => setTimeout(r, 8000));
+  const schedList = await client.callTool({ name: "web_flow_schedules", arguments: {} }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  const schedListData = JSON.parse(schedList.content[0].text) as { schedules: Array<{ id: string; lastRunOk: boolean; lastRunExecuted: number }> };
+  const mine = schedListData.schedules.find((s) => s.id === schedData.id);
+  assert.ok(mine, "scheduled flow must be listed");
+  assert.equal(mine.lastRunOk, true, "the hub must have auto-run the flow (lastRunOk)");
+  assert.equal(mine.lastRunExecuted, 1, "auto-run executed 1 step");
+  const unsched = await client.callTool({ name: "web_flow_unschedule", arguments: { id: schedData.id } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!unsched.isError, "web_flow_unschedule must succeed");
+  const mf = await client.callTool({ name: "web_api_fetch", arguments: { url: "https://example.test/upload", method: "POST", formData: { file: { filename: "e2e.png", base64: "aGVsbG8=", contentType: "image/png" }, note: "hi" } } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!mf.isError, "web_api_fetch multipart round trip must succeed");
 
   // 8. Real-time SSE observability: ambient browser events land in the ring.
   for (const url of ["https://a.test/page-1", "https://b.test/page-2"]) {

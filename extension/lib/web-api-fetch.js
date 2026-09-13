@@ -14,7 +14,23 @@ export async function apiFetch(args = {}) {
   if (args.headers && typeof args.headers === 'object') {
     for (const [k, v] of Object.entries(args.headers)) headers[String(k)] = String(v);
   }
-  if (args.body !== undefined && !Object.keys(headers).some((h) => h.toLowerCase() === 'content-type') && method !== 'GET' && method !== 'HEAD') {
+  // Multipart/form-data parity: fields are strings or file objects
+  // {filename, base64, contentType} — real FormData so the browser sets the
+  // boundary automatically (posting images/files to APIs with the session).
+  let bodyOut2;
+  if (args.formData && typeof args.formData === 'object') {
+    const fd = new FormData();
+    for (const [field, spec] of Object.entries(args.formData)) {
+      if (spec && typeof spec === 'object' && spec.base64) {
+        const bytes = Uint8Array.from(atob(String(spec.base64)), (c) => c.charCodeAt(0));
+        fd.append(field, new Blob([bytes], { type: spec.contentType || 'application/octet-stream' }), spec.filename || 'file');
+      } else {
+        fd.append(field, typeof spec === 'object' ? JSON.stringify(spec) : String(spec));
+      }
+    }
+    bodyOut2 = fd;
+  }
+  if (args.body !== undefined && !bodyOut2 && !Object.keys(headers).some((h) => h.toLowerCase() === 'content-type') && method !== 'GET' && method !== 'HEAD') {
     headers['Content-Type'] = 'application/json';
   }
 
@@ -25,7 +41,7 @@ export async function apiFetch(args = {}) {
     const res = await fetch(url, {
       method,
       headers,
-      body: method === 'GET' || method === 'HEAD' ? undefined : (typeof args.body === 'string' ? args.body : JSON.stringify(args.body ?? {})),
+      body: method === 'GET' || method === 'HEAD' ? undefined : (bodyOut2 !== undefined ? bodyOut2 : (typeof args.body === 'string' ? args.body : JSON.stringify(args.body ?? {}))),
       // Session cookies attach automatically (host permissions cover http(s)).
       credentials: args.noCookies === true ? 'omit' : 'include',
       signal: controller.signal,

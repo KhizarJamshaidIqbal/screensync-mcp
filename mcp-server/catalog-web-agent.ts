@@ -564,6 +564,7 @@ export function agentWebToolDefinitions(): WebToolDef[] {
           method: { type: "string", enum: ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"], default: "GET" },
           headers: { type: "object", description: "Extra request headers." },
           body: { type: "object", description: "Request body (object → JSON)." },
+          formData: { type: "object", description: "Multipart/form-data fields: string values or {filename, base64, contentType} file objects (real FormData — browser sets the boundary)." },
           noCookies: { type: "boolean", default: false, description: "Send WITHOUT the session cookies." },
           timeoutMs: { type: "integer", minimum: 1000, maximum: 60000, default: 20000 },
           maxBodyChars: { type: "integer", minimum: 1000, maximum: 1000000, default: 200000, description: "Body truncation limit." },
@@ -662,6 +663,36 @@ export function agentWebToolDefinitions(): WebToolDef[] {
         properties: {
           timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 45000, description: "Per-browser probe timeout." },
         },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_flow_schedule",
+      description: "THE automation completion: schedules a saved flow to run automatically every N minutes — the hub itself executes it on the real logged-in browsers ({{var}} vars supported). Survives hub restarts (persisted). E.g. schedule a daily-posting flow at everyMinutes 1440.",
+      inputSchema: {
+        type: "object",
+        required: ["flow", "everyMinutes"],
+        properties: {
+          flow: { type: "string", description: "Saved flow name (web_flow_save)." },
+          everyMinutes: { type: "number", minimum: 0.05, description: "Run interval in minutes (0.05 = every 3s; 1440 = daily)." },
+          vars: { type: "object", description: "{{var}} values for every run." },
+          stopOnError: { type: "boolean", default: true },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_flow_schedules",
+      description: "Lists all active flow schedules with their last-run status (time, success, executed steps).",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    },
+    {
+      name: "web_flow_unschedule",
+      description: "Stops and removes a flow schedule by id (from web_flow_schedules).",
+      inputSchema: {
+        type: "object",
+        required: ["id"],
+        properties: { id: { type: "string" } },
         additionalProperties: false,
       },
     },

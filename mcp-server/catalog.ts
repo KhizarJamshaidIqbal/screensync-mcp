@@ -7,7 +7,7 @@ import { webSkillDefinitions, webToolDefinitions } from "./catalog-web.js";
 // always see the same catalog.
 
 export const SERVER_NAME = "screensync-mcp-server";
-export const SERVER_VERSION = "3.1.0";
+export const SERVER_VERSION = "3.2.0";
 export const MDNS_TYPE = "_screensync-hub._tcp";
 
 export function toolDefinitions() {

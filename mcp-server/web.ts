@@ -23,6 +23,7 @@ export type WebBridge = {
   registerRoutes: (app: Express) => void;
   status: () => Record<string, unknown>;
   armReloadRequested: () => void;
+  stopSchedules: () => void;
 };
 
 const PRESENCE_TTL_MS = 600_000;
@@ -104,6 +105,108 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       pending.set(id, { resolve, timer });
       broadcast({ type: "web_request", id, tool, args });
     });
+
+    // ── Persisted Flows Library: save / list / run / delete ──────────────
+    // Recorded steps can be saved under a name (with editable steps and
+    // {{var}} placeholders) and re-run any time — the durable half of
+    // teach-once-replay-anywhere. Flows live in DATA_DIR/flows/*.json.
+    const FLOWS_DIR = path.join(DATA_DIR, "flows");
+    const flowPath = (name: string) => path.join(FLOWS_DIR, name.replace(/[^a-z0-9_-]+/gi, "_") + ".json");
+    const loadFlow = (name: string): { name: string; steps: Array<{ tool?: string; args?: Record<string, unknown> }> } | null => {
+      const p = flowPath(name);
+      if (!existsSync(p)) return null;
+      try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
+    };
+    const substituteVars = (value: unknown, vars: Record<string, string>): unknown => {
+      if (typeof value === "string") {
+        let out = value;
+        for (const [k, v] of Object.entries(vars)) out = out.replaceAll(`{{${k}}}`, v);
+        return out;
+      }
+      if (Array.isArray(value)) return value.map((v) => substituteVars(v, vars));
+      if (value && typeof value === "object") {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value)) out[k] = substituteVars(v, vars);
+        return out;
+      }
+      return value;
+    };
+
+    type FlowStep = { tool?: string; args?: Record<string, unknown> };
+    type SavedFlow = { name: string; steps: FlowStep[] };
+    const executeFlow = async (
+      flow: SavedFlow,
+      vars: Record<string, string>,
+      stopOnError: boolean,
+      stepTimeoutMs: number,
+    ): Promise<{ results: Array<Record<string, unknown>>; okAll: boolean; executed: number }> => {
+      const results: Array<Record<string, unknown>> = [];
+      let okAll = true;
+      let executed = 0;
+      for (let i = 0; i < flow.steps.length; i++) {
+        const step = flow.steps[i];
+        const stepTool = String(step.tool || "");
+        if (!/^web_[a-z_]+$/.test(stepTool)) {
+          results.push({ step: i + 1, tool: stepTool, ok: false, error: "invalid tool name" });
+          okAll = false;
+          executed++;
+          if (stopOnError) break;
+          continue;
+        }
+        const stepArgs = substituteVars(step.args ?? {}, vars) as Record<string, unknown>;
+        broadcast({ type: "web_replay_step", at: new Date().toISOString(), flow: flow.name, step: i + 1, of: flow.steps.length, tool: stepTool });
+        const r = await request(stepTool, stepArgs, stepTimeoutMs);
+        results.push({ step: i + 1, tool: stepTool, ok: r.ok, data: r.data, error: r.error });
+        executed++;
+        if (!r.ok) {
+          okAll = false;
+          if (stopOnError) break;
+        }
+      }
+      return { results, okAll, executed };
+    };
+
+    // ── Schedules: hub-side timers that run saved flows automatically ────
+    const SCHEDULES_DIR = path.join(DATA_DIR, "schedules");
+    const scheduleTimers = new Map<string, ReturnType<typeof setInterval>>();
+    const schedulePath = (id: string) => path.join(SCHEDULES_DIR, id.replace(/[^a-z0-9_-]+/gi, "_") + ".json");
+    const loadSchedules = (): Array<Record<string, unknown>> => {
+      if (!existsSync(SCHEDULES_DIR)) return [];
+      return readdirSync(SCHEDULES_DIR).filter((f) => f.endsWith(".json")).map((f) => {
+        try { return JSON.parse(readFileSync(path.join(SCHEDULES_DIR, f), "utf8")); } catch { return null; }
+      }).filter(Boolean);
+    };
+    const runScheduled = async (id: string) => {
+      const schedules = loadSchedules();
+      const sched = schedules.find((s) => (s as { id?: string }).id === id) as
+        | { id: string; flow: string; vars: Record<string, string>; stopOnError: boolean; everyMinutes: number }
+        | undefined;
+      if (!sched) {
+        const timer = scheduleTimers.get(id);
+        if (timer) { clearInterval(timer); scheduleTimers.delete(id); }
+        return;
+      }
+      const flow = loadFlow(sched.flow);
+      if (!flow) return;
+      const startedAt = Date.now();
+      const run = await executeFlow(flow, sched.vars || {}, sched.stopOnError !== false, 45_000);
+      // persist last-run status back into the schedule file
+      try {
+        writeFileSync(schedulePath(id), JSON.stringify({ ...sched, lastRunAt: new Date().toISOString(), lastRunOk: run.okAll, lastRunExecuted: run.executed, lastRunMs: Date.now() - startedAt }, null, 2));
+      } catch { /* best effort */ }
+      broadcast({ type: "web_flow_scheduled_run", at: new Date().toISOString(), schedule: id, flow: sched.flow, okAll: run.okAll, executed: run.executed, ms: Date.now() - startedAt });
+      log("INFO", "Scheduled flow run", { schedule: id, flow: sched.flow, okAll: run.okAll, executed: run.executed });
+    };
+    const startScheduleTimer = (sched: { id: string; everyMinutes: number }) => {
+      const ms = Math.max(Math.round(sched.everyMinutes * 60_000), 3_000);
+      const timer = setInterval(() => { runScheduled(sched.id).catch(() => {}); }, ms);
+      scheduleTimers.set(sched.id, timer);
+    };
+    // Reload schedules from disk on hub boot.
+    for (const s of loadSchedules()) {
+      const sched = s as { id?: string; everyMinutes?: number };
+      if (sched.id && Number.isFinite(sched.everyMinutes)) startScheduleTimer(sched as { id: string; everyMinutes: number });
+    }
 
   const registerRoutes = (app: Express) => {
     // Heartbeat + capability registration from the extension SW.
@@ -315,32 +418,6 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
 
-      // ── Persisted Flows Library: save / list / run / delete ──────────────
-      // Recorded steps can be saved under a name (with editable steps and
-      // {{var}} placeholders) and re-run any time — the durable half of
-      // teach-once-replay-anywhere. Flows live in DATA_DIR/flows/*.json.
-      const FLOWS_DIR = path.join(DATA_DIR, "flows");
-      const flowPath = (name: string) => path.join(FLOWS_DIR, name.replace(/[^a-z0-9_-]+/gi, "_") + ".json");
-      const loadFlow = (name: string): { name: string; steps: Array<{ tool?: string; args?: Record<string, unknown> }> } | null => {
-        const p = flowPath(name);
-        if (!existsSync(p)) return null;
-        try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
-      };
-      const substituteVars = (value: unknown, vars: Record<string, string>): unknown => {
-        if (typeof value === "string") {
-          let out = value;
-          for (const [k, v] of Object.entries(vars)) out = out.replaceAll(`{{${k}}}`, v);
-          return out;
-        }
-        if (Array.isArray(value)) return value.map((v) => substituteVars(v, vars));
-        if (value && typeof value === "object") {
-          const out: Record<string, unknown> = {};
-          for (const [k, v] of Object.entries(value)) out[k] = substituteVars(v, vars);
-          return out;
-        }
-        return value;
-      };
-
       if (tool === "web_flow_save") {
         const name = String(args.name || "").trim();
         const steps = Array.isArray(args.steps) ? (args.steps as Array<{ tool?: string; args?: Record<string, unknown> }>) : [];
@@ -382,27 +459,8 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         const vars = (args.vars && typeof args.vars === "object" ? args.vars : {}) as Record<string, string>;
         const stopOnError = args.stopOnError !== false;
         const stepTimeoutMs = Math.min(Math.max(Number(args.stepTimeoutMs) || 45_000, 5_000), 60_000);
-        const results: Array<Record<string, unknown>> = [];
-        let okAll = true;
-        for (let i = 0; i < flow.steps.length; i++) {
-          const step = flow.steps[i];
-          const stepTool = String(step.tool || "");
-          if (!/^web_[a-z_]+$/.test(stepTool)) {
-            results.push({ step: i + 1, tool: stepTool, ok: false, error: "invalid tool name" });
-            okAll = false;
-            if (stopOnError) break;
-            continue;
-          }
-          const stepArgs = substituteVars(step.args ?? {}, vars) as Record<string, unknown>;
-          broadcast({ type: "web_replay_step", at: new Date().toISOString(), flow: flow.name, step: i + 1, of: flow.steps.length, tool: stepTool });
-          const r = await request(stepTool, stepArgs, stepTimeoutMs);
-          results.push({ step: i + 1, tool: stepTool, ok: r.ok, data: r.data, error: r.error });
-          if (!r.ok) {
-            okAll = false;
-            if (stopOnError) break;
-          }
-        }
-        res.json({ success: true, ok: okAll, data: { flow: flow.name, vars: Object.keys(vars), total: flow.steps.length, executed: results.length, okAll, results } });
+        const run = await executeFlow(flow, vars, stopOnError, stepTimeoutMs);
+        res.json({ success: true, ok: run.okAll, data: { flow: flow.name, vars: Object.keys(vars), total: flow.steps.length, executed: run.executed, okAll: run.okAll, results: run.results } });
         return;
       }
 
@@ -415,6 +473,59 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         }
         unlinkSync(p);
         res.json({ success: true, ok: true, data: { deleted: name } });
+        return;
+      }
+
+      // ── Flow Schedules: the hub itself runs saved flows on an interval ────
+      if (tool === "web_flow_schedule") {
+        const flowName = String(args.flow || args.name || "").trim();
+        const flow = loadFlow(flowName);
+        if (!flow || !Array.isArray(flow.steps)) {
+          res.json({ success: true, ok: false, data: { error: `Flow '${flowName}' not found. Save it first with web_flow_save.` } });
+          return;
+        }
+        const everyMinutes = Number(args.everyMinutes);
+        if (!Number.isFinite(everyMinutes) || everyMinutes < 0.05) {
+          res.status(400).json({ success: false, ok: false, error: "web_flow_schedule requires everyMinutes (minimum 0.05 = every 3 seconds; use ≥1440 for daily)." });
+          return;
+        }
+        const vars = (args.vars && typeof args.vars === "object" ? args.vars : {}) as Record<string, string>;
+        const id = flowName.replace(/[^a-z0-9_-]+/gi, "_").slice(0, 40) + "-" + randomUUID().slice(0, 8);
+        const schedule = {
+          id,
+          flow: flowName,
+          everyMinutes,
+          vars,
+          stopOnError: args.stopOnError !== false,
+          createdAt: new Date().toISOString(),
+        };
+        mkdirSync(SCHEDULES_DIR, { recursive: true });
+        writeFileSync(schedulePath(id), JSON.stringify(schedule, null, 2));
+        startScheduleTimer(schedule);
+        res.json({ success: true, ok: true, data: { scheduled: true, id, flow: flowName, everyMinutes, nextRunAt: new Date(Date.now() + Math.max(everyMinutes, 0.05) * 60_000).toISOString(), note: "The hub will run this flow automatically. web_flow_schedules lists all; web_flow_unschedule stops it." } });
+        return;
+      }
+
+      if (tool === "web_flow_schedules") {
+        const all = loadSchedules().map((s) => ({
+          id: s.id, flow: s.flow, everyMinutes: s.everyMinutes, vars: Object.keys(s.vars || {}),
+          createdAt: s.createdAt, lastRunAt: s.lastRunAt ?? null, lastRunOk: s.lastRunOk ?? null, lastRunExecuted: s.lastRunExecuted ?? null,
+        }));
+        res.json({ success: true, ok: true, data: { schedules: all, count: all.length } });
+        return;
+      }
+
+      if (tool === "web_flow_unschedule") {
+        const id = String(args.id || "").trim();
+        const p = schedulePath(id);
+        if (!existsSync(p)) {
+          res.json({ success: true, ok: false, data: { error: `Schedule '${id}' not found. web_flow_schedules lists all.` } });
+          return;
+        }
+        unlinkSync(p);
+        const timer = scheduleTimers.get(id);
+        if (timer) { clearInterval(timer); scheduleTimers.delete(id); }
+        res.json({ success: true, ok: true, data: { unscheduled: id } });
         return;
       }
 
@@ -601,5 +712,13 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
     frameStore.registerRoutes(app);
   };
 
-  return { registerRoutes, status, armReloadRequested };
+  return {
+    registerRoutes,
+    status,
+    armReloadRequested,
+    stopSchedules: () => {
+      for (const timer of scheduleTimers.values()) clearInterval(timer);
+      scheduleTimers.clear();
+    },
+  };
 }
