@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 
-export type HubEventType = "frame" | "inspection" | "patch" | "tool" | "agent_connect" | "web_event";
+export type HubEventType = "frame" | "inspection" | "patch" | "tool" | "agent_connect" | "web_event" | "web_replay_step";
 export type HubEvent = { type: HubEventType; at: string; label?: string; ok?: boolean; agentName?: string };
 
 /**

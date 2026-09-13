@@ -39,12 +39,22 @@ export function webToolDefinitions() {
     },
     {
       name: "web_pdf",
-      description: "Prints and exports the current browser tab as a PDF document using Chrome DevTools Protocol.",
+      description: "Prints and exports the current browser tab as a PDF (full Playwright pdf() parity: named paper formats, scale, page ranges, margins, header/footer templates, CSS page size, document outline).",
       inputSchema: {
         type: "object",
         properties: {
           landscape: { type: "boolean", default: false },
           printBackground: { type: "boolean", default: true },
+          format: { type: "string", enum: ["letter", "legal", "tabloid", "ledger", "a0", "a1", "a2", "a3", "a4", "a5", "a6"], description: "Named paper size (overrides paperWidth/Height)." },
+          scale: { type: "number", minimum: 0.1, maximum: 2, description: "Page scale factor." },
+          pageRanges: { type: "string", description: "Paper ranges to print, e.g. '1-5, 8, 11-13'." },
+          margin: { type: "number", description: "Uniform margin in inches (per-side marginTop/Bottom/Left/Right override)." },
+          headerTemplate: { type: "string", description: "HTML header template (enables displayHeaderFooter)." },
+          footerTemplate: { type: "string", description: "HTML footer template (enables displayHeaderFooter)." },
+          preferCSSPageSize: { type: "boolean", default: false, description: "Let @page CSS decide the paper size." },
+          generateDocumentOutline: { type: "boolean", default: false, description: "Embed a PDF outline/bookmark tree." },
+          generateTaggedPDF: { type: "boolean", default: false, description: "Generate tagged (accessible) PDF." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
         },
         additionalProperties: false,
       },

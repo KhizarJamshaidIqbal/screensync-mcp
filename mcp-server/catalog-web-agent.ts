@@ -26,7 +26,8 @@ export function agentWebToolDefinitions(): WebToolDef[] {
         type: "object",
         required: ["condition"],
         properties: {
-          condition: { type: "string", enum: ["visible", "hidden", "text", "value", "count", "url", "title", "checked", "accessible_name", "attribute", "has_class"], description: "Assertion to retry until it passes." },
+          condition: { type: "string", enum: ["visible", "hidden", "text", "value", "count", "url", "title", "checked", "accessible_name", "attribute", "has_class", "attached", "detached"], description: "Assertion to retry until it passes." },
+          not: { type: "boolean", default: false, description: "Negate the assertion (Playwright expect.not parity) — polls until it does NOT hold." },
           selector: { type: "string", description: locatorNote },
           text: { type: "string", description: "Expected substring (for text/url/title conditions)." },
           value: { type: "string", description: "Expected exact input value (for the value condition)." },
@@ -291,13 +292,116 @@ export function agentWebToolDefinitions(): WebToolDef[] {
     {
       name: "web_clock_set",
       description:
-        "Playwright clock API parity: shifts the page's Date by offsetMs or fixes it to an ISO timestamp — instantly and on every future navigation of this tab, until web_clock_clear. Essential for testing expiry states, countdowns, and date-sensitive UI.",
+        "Playwright clock API parity: shifts the page's Date by offsetMs, fixes it to an ISO timestamp (fixed:true — Date always returns that instant), or sets an absolute system time — instantly and on every future navigation of this tab, until web_clock_clear. Essential for testing expiry states, countdowns, and date-sensitive UI.",
       inputSchema: {
         type: "object",
         properties: {
           offsetMs: { type: "integer", description: "Offset from real time in ms (negative = into the past)." },
           iso: { type: "string", description: "Fix the clock to an absolute ISO timestamp instead of an offset." },
+          fixed: { type: "boolean", default: false, description: "Freeze Date at the given instant (setFixedTime parity) instead of offsetting." },
           tabId: { type: "integer", description: "Optional background tab ID." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_clock_fast_forward",
+      description:
+        "Playwright clock.fastForward parity: advances (or rewinds with negative ms) the active clock override on this tab by the given delta — perfect for jumping past an expiry or a countdown mid-test. Requires a prior web_clock_set.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ms: { type: "integer", description: "Delta in ms (e.g. 86400000 for +1 day)." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_window",
+      description:
+        "Window management for automation: restore a minimized/tiny window to normal or maximized state (screenshots, screencasts and visibility checks need a real viewport), focus it, or move/resize. Uses chrome.windows — no CDP.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          state: { type: "string", enum: ["normal", "maximized", "minimized", "fullscreen"], description: "Target window state. Default: normal." },
+          focused: { type: "boolean", description: "Bring the window to the foreground." },
+          tabId: { type: "integer", description: "Identify the window via this tab." },
+          windowId: { type: "integer", description: "Direct window id." },
+          left: { type: "integer" },
+          top: { type: "integer" },
+          width: { type: "integer" },
+          height: { type: "integer" },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_wait_download",
+      description:
+        "Playwright page.waitForDownload parity: resolves when the browser starts a NEW download (optionally filtered by url/filename substring) and it completes — returns filename, size, mime and finalUrl. Call it BEFORE (or in parallel with) the action that triggers the download.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "Only resolve for downloads whose URL contains this substring." },
+          filename: { type: "string", description: "Only resolve for downloads whose filename contains this substring." },
+          timeoutMs: { type: "integer", minimum: 1000, maximum: 120000, default: 30000, description: "How long to wait for the download." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_tab_fanout",
+      description:
+        "Multi-TAB orchestration (mirror of web_fanout): runs ONE web tool on every tab (or a filtered subset: tabIds / url substrings / activeOnly) of the connected browser and merges results keyed per tab. E.g. extract a table from 5 open tabs in one call.",
+      inputSchema: {
+        type: "object",
+        required: ["tool"],
+        properties: {
+          tool: { type: "string", description: "The web_* tool to run on each tab (must accept tabId)." },
+          args: { type: "object", description: "Arguments forwarded to the tool on every tab." },
+          tabIds: { type: "array", items: { type: "integer" }, description: "Restrict to these tab ids." },
+          urls: { oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], description: "Restrict to tabs whose URL contains a substring (or any of them)." },
+          activeOnly: { type: "boolean", default: false, description: "Only the active tab." },
+          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 45000, description: "Per-tab timeout." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_record",
+      description:
+        "Teach-once-replay-anywhere: while recording, EVERY web tool call you make is captured {tool, args}. web_record {action:'stop'} returns the step list — edit it freely — then web_replay re-executes the whole flow. Ideal for daily real-account flows (posting, scraping, checking).",
+      inputSchema: {
+        type: "object",
+        required: ["action"],
+        properties: {
+          action: { type: "string", enum: ["start", "stop", "status"], description: "Recorder lifecycle." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_replay",
+      description:
+        "Re-executes a recorded step list (from web_record {action:'stop'}, optionally edited by you) step by step on the live browser — with stopOnError control, per-step results, and web_replay_step events visible in web_events. The replay half of teach-once-replay-anywhere.",
+      inputSchema: {
+        type: "object",
+        required: ["steps"],
+        properties: {
+          steps: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                tool: { type: "string", description: "web_* tool for this step." },
+                args: { type: "object", description: "Arguments for the tool." },
+              },
+            },
+            description: "Steps to execute in order.",
+          },
+          stopOnError: { type: "boolean", default: true, description: "Abort the replay on the first failing step." },
+          stepTimeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 45000, description: "Per-step timeout." },
         },
         additionalProperties: false,
       },

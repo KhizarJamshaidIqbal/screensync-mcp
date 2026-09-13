@@ -50,6 +50,7 @@ Never remove, break, or degrade any existing capabilities:
 - **Multi-Browser Targeting**: every `web_*` tool accepts `__browser` (browser name or install id from `web_status.browsers`); never remove the per-browser routing/filtering.
 - **Multi-Browser Data Sync**: `web_session_transfer` (clone a domain login between browsers), `web_route_for` (which browser is logged into X), `web_fanout` (one tool across all browsers) — hub-side orchestration, never remove.
 - **Frame + Auth Parity**: `web_in_frame` (any tool inside an iframe, frameLocator parity) and `web_network_auth` (CDP Fetch.authRequired, page.authenticate parity).
+- **Record/Replay + Orchestration**: `web_record`/`web_replay` (teach-once-replay-anywhere, hub-side), `web_tab_fanout` (per-tab merge), `web_clock_fast_forward` + `fixed` (clock API), `web_wait_download` (waitForDownload parity), `web_window` (window management), `web_pdf` full options, `web_expect` not/attached/detached — never remove.
 
 ---
 

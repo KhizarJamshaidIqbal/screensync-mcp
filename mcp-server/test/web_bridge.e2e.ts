@@ -68,6 +68,10 @@ function cannedResult(tool: string): { ok: boolean; data?: unknown } {
       return { ok: true, data: { cookiesSet: 3, localStorageKeys: 1 } };
     case "web_profile_sync":
       return { ok: true, data: { customDomain: { domain: "example.test", cookieCount: 4, cookies: [{ name: "sessionid" }] } } };
+    case "web_tabs":
+      return { ok: true, data: { tabs: [{ tabId: 1, url: "https://a.test/page", title: "A", active: true }, { tabId: 2, url: "https://b.test/page", title: "B", active: false }] } };
+    case "web_wait_download":
+      return { ok: true, data: { state: "complete", filename: "e2e-file.zip", fileSize: 1234, mime: "application/zip", finalUrl: "https://example.test/file.zip" } };
     default:
       return { ok: true, data: { echo: tool, via: "simulated-extension" } };
   }
@@ -151,10 +155,12 @@ try {
     "web_events", "web_trace_record",
     "web_fanout", "web_session_transfer", "web_route_for", "web_in_frame",
     "web_network_auth", "web_session_export", "web_session_import",
+    "web_clock_fast_forward", "web_wait_download", "web_tab_fanout",
+    "web_record", "web_replay",
   ];
   for (const t of expectedNew) assert.ok(names.includes(t), `tools/list must include ${t}`);
   assert.equal(new Set(names).size, names.length, "tools/list must not contain duplicate names");
-  assert.ok(names.length >= 146, `expected >=146 tools, got ${names.length}`);
+  assert.ok(names.length >= 151, `expected >=151 tools, got ${names.length}`);
   assert.ok(names.includes("get_latest_screenshot"), "phone tools must still be listed (parity)");
 
   // 2. get_mcp_catalog + get_skills still work with the grown catalog.
@@ -301,6 +307,45 @@ try {
     isError?: boolean; content: Array<{ text: string }>;
   };
   assert.ok(!targetedEdge.isError, "id-targeted call must reach exactly the right browser");
+
+  // 7d. Round-6: teach-once-replay (hub-side recorder) ──
+  await client.callTool({ name: "web_record", arguments: { action: "start" } });
+  await client.callTool({ name: "web_run_code", arguments: { code: "return 'step-1'" } });
+  await client.callTool({ name: "web_aria_snapshot", arguments: {} });
+  const recStop = await client.callTool({ name: "web_record", arguments: { action: "stop" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!recStop.isError, "web_record stop must succeed");
+  const recData = JSON.parse(recStop.content[0].text) as { stepCount: number; steps: Array<{ tool: string; args: Record<string, unknown> }> };
+  assert.equal(recData.stepCount, 2, "recorder must capture exactly the 2 recorded tool calls");
+  assert.equal(recData.steps[0].tool, "web_run_code");
+  assert.equal(recData.steps[1].tool, "web_aria_snapshot");
+  const replayRun = await client.callTool({ name: "web_replay", arguments: { steps: recData.steps } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!replayRun.isError, "web_replay must succeed");
+  const replayData = JSON.parse(replayRun.content[0].text) as { total: number; executed: number; okAll: boolean; results: Array<{ ok: boolean }> };
+  assert.equal(replayData.total, 2);
+  assert.equal(replayData.executed, 2);
+  assert.equal(replayData.okAll, true, "all replay steps must succeed");
+
+  // 7e. Round-6: multi-TAB fanout ──
+  const tabFan = await client.callTool({ name: "web_tab_fanout", arguments: { tool: "web_run_code", args: { code: "return document.title" } } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!tabFan.isError, "web_tab_fanout must succeed");
+  const tabFanData = JSON.parse(tabFan.content[0].text) as { matched: number; results: Array<{ tabId: number; ok: boolean }> };
+  assert.equal(tabFanData.matched, 2, "tab_fanout must reach both tabs");
+  assert.ok(tabFanData.results.every((r) => r.ok), "both tab copies must succeed");
+
+  // 7f. Round-6: wait_download round trip.
+  const wd = await client.callTool({ name: "web_wait_download", arguments: {} }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!wd.isError, "web_wait_download round trip must succeed");
+  const wdData = JSON.parse(wd.content[0].text) as { state: string; fileSize: number };
+  assert.equal(wdData.state, "complete");
+  assert.equal(wdData.fileSize, 1234);
 
   // 8. Real-time SSE observability: ambient browser events land in the ring.
   for (const url of ["https://a.test/page-1", "https://b.test/page-2"]) {

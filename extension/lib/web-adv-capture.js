@@ -63,16 +63,41 @@ export async function cdpPdf(tab, args = {}) {
   }
   try {
     await chrome.debugger.sendCommand(target, 'Page.enable', {});
+    // Playwright pdf() option parity: named formats, scale, page ranges,
+    // per-side margins, header/footer templates, CSS page size, outline.
+    const FORMATS = {
+      letter: [8.5, 11], legal: [8.5, 14], tabloid: [11, 17], ledger: [17, 11],
+      a0: [33.1, 46.8], a1: [23.4, 33.1], a2: [16.5, 23.4], a3: [11.7, 16.5],
+      a4: [8.27, 11.7], a5: [5.83, 8.27], a6: [4.13, 5.83],
+    };
+    let paperWidth = args.paperWidth || 8.5;
+    let paperHeight = args.paperHeight || 11;
+    if (args.format && FORMATS[String(args.format).toLowerCase()]) {
+      const [w, h] = FORMATS[String(args.format).toLowerCase()];
+      paperWidth = args.landscape ? h : w;
+      paperHeight = args.landscape ? w : h;
+    }
+    const margin = Number(args.margin);
     const printOpts = {
       printBackground: args.printBackground !== false,
       landscape: !!args.landscape,
-      paperWidth: args.paperWidth || 8.5,
-      paperHeight: args.paperHeight || 11,
-      marginTop: args.marginTop || 0.4,
-      marginBottom: args.marginBottom || 0.4,
-      marginLeft: args.marginLeft || 0.4,
-      marginRight: args.marginRight || 0.4,
+      paperWidth,
+      paperHeight,
+      marginTop: args.marginTop ?? (Number.isFinite(margin) ? margin : 0.4),
+      marginBottom: args.marginBottom ?? (Number.isFinite(margin) ? margin : 0.4),
+      marginLeft: args.marginLeft ?? (Number.isFinite(margin) ? margin : 0.4),
+      marginRight: args.marginRight ?? (Number.isFinite(margin) ? margin : 0.4),
     };
+    if (args.scale !== undefined) printOpts.scale = Math.min(Math.max(Number(args.scale) || 1, 0.1), 2);
+    if (args.pageRanges) printOpts.pageRanges = String(args.pageRanges);
+    if (args.preferCSSPageSize === true) printOpts.preferCSSPageSize = true;
+    if (args.generateDocumentOutline === true) printOpts.generateDocumentOutline = true;
+    if (args.generateTaggedPDF === true) printOpts.generateTaggedPDF = true;
+    if (args.headerTemplate || args.footerTemplate) {
+      printOpts.displayHeaderFooter = true;
+      if (args.headerTemplate) printOpts.headerTemplate = String(args.headerTemplate);
+      if (args.footerTemplate) printOpts.footerTemplate = String(args.footerTemplate);
+    }
     const res = await chrome.debugger.sendCommand(target, 'Page.printToPDF', printOpts);
     const dataUrl = `data:application/pdf;base64,${res.data}`;
     return {

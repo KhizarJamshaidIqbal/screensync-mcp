@@ -266,6 +266,7 @@ async function executeWebTool(tool, args) {
     case 'web_trace_record':
     case 'web_video_record':
     case 'web_clock_set':
+    case 'web_clock_fast_forward':
     case 'web_clock_clear': {
       const tab = await pickActiveTab(args);
       if (RESTRICTED_TAB.test(tab.url || '')) {
@@ -558,6 +559,96 @@ async function executeWebTool(tool, args) {
         }).catch(() => null);
       }
       return { ok: true, data: { restoredCookies, localStorageKeys: Object.keys(session.localStorage || {}).length } };
+    }
+    case 'web_window': {
+      // Window management for automation: restore/maximize a minimized or
+      // tiny window (captureVisibleTab/screencast need a real viewport),
+      // focus it, or move/resize. Uses chrome.windows directly — no CDP.
+      try {
+        const tabs = await chrome.tabs.query({});
+        let winId = args.windowId;
+        if (!winId) {
+          const t = (args.tabId ? tabs.find((x) => x.id === args.tabId) : null) || tabs.find((x) => x.active) || tabs[0];
+          winId = t && t.windowId;
+        }
+        if (!winId) return { ok: false, error: 'No window found.' };
+        const updates = {};
+        if (args.state) updates.state = String(args.state);
+        if (args.focused === true) updates.focused = true;
+        if (args.left !== undefined) updates.left = Number(args.left);
+        if (args.top !== undefined) updates.top = Number(args.top);
+        if (args.width !== undefined) updates.width = Number(args.width);
+        if (args.height !== undefined) updates.height = Number(args.height);
+        if (!Object.keys(updates).length) updates.state = 'normal';
+        const win = await chrome.windows.update(winId, updates);
+        return { ok: true, data: { windowId: win.id, state: win.state, width: win.width, height: win.height, focused: win.focused } };
+      } catch (e) {
+        return { ok: false, error: 'web_window failed: ' + String((e && e.message) || e) };
+      }
+    }
+    case 'web_wait_download': {
+      // Playwright page.waitForDownload parity: resolve when a NEW download
+      // starts (optionally matching a url/filename substring) and completes.
+      const timeoutMs = Math.min(Number(args.timeoutMs) || 30000, 120000);
+      const urlFilter = args.url ? String(args.url).toLowerCase() : null;
+      const filenameFilter = args.filename ? String(args.filename).toLowerCase() : null;
+      const startedAt = Date.now();
+      try {
+        const existing = new Set((await chrome.downloads.search({})).map((d) => d.id));
+        const item = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => { cleanup(); reject(new Error('No download started within ' + timeoutMs + 'ms.')); }, timeoutMs);
+          const onError = (delta) => {
+            if (delta.error && delta.error.current === 'USER_CANCELED') { cleanup(); reject(new Error('Download canceled by user.')); }
+          };
+          const onDelta = async (delta) => {
+            try {
+              if (existing.has(delta.id)) return;
+              const state = delta.state && delta.state.current;
+              if (state !== 'complete' && state !== 'interrupted') {
+                // wait for this download to finish before resolving
+                const done = new Promise((res2) => {
+                  const onDone = (d2) => {
+                    if (d2.id !== delta.id) return;
+                    if (d2.state && (d2.state.current === 'complete' || d2.state.current === 'interrupted')) {
+                      chrome.downloads.onChanged.removeListener(onDone);
+                      res2(d2.state.current);
+                    }
+                  };
+                  chrome.downloads.onChanged.addListener(onDone);
+                });
+                const finalState = await done;
+                const [item] = await chrome.downloads.search({ id: delta.id });
+                const url = (item && (item.finalUrl || item.url)) || '';
+                const filename = (item && item.filename) || '';
+                if (urlFilter && !url.toLowerCase().includes(urlFilter)) return;
+                if (filenameFilter && !filename.toLowerCase().includes(filenameFilter)) return;
+                cleanup();
+                resolve({ state: finalState, item });
+              }
+            } catch { /* ignore deltas we can't inspect */ }
+          };
+          function cleanup() {
+            clearTimeout(timer);
+            chrome.downloads.onChanged.removeListener(onDelta);
+            chrome.downloads.onChanged.removeListener(onError);
+          }
+          chrome.downloads.onChanged.addListener(onDelta);
+          chrome.downloads.onChanged.addListener(onError);
+        });
+        return {
+          ok: true,
+          data: {
+            state: item.state,
+            filename: item.filename || undefined,
+            fileSize: item.fileSize || undefined,
+            mime: item.mime || undefined,
+            finalUrl: item.finalUrl || item.url || undefined,
+            waitedMs: Date.now() - startedAt,
+          },
+        };
+      } catch (e) {
+        return { ok: false, error: 'web_wait_download: ' + String((e && e.message) || e) };
+      }
     }
     case 'web_in_frame': {
       const tab = await pickActiveTab(args);

@@ -9,7 +9,7 @@ import { cdpScreenshot, cdpPdf, cdpElementScreenshot, cdpAXTree, cdpStealthCloak
 import { cdpNetworkMock, cdpRoute, cdpDialogRule, cdpWaitForResponse, cdpWaitForRequest, cdpWebSocketTraffic, cdpNetworkAuth } from './web-adv-net.js';
 import { cdpEmulate, cdpGrantPermissions, cdpSetTimezone, cdpSetGeolocation, cdpThrottleNetwork, cdpSetColorScheme } from './web-adv-emulate.js';
 import { cdpEval, cdpRunCode } from './web-adv-eval.js';
-import { cdpHarRecord, cdpVideoRecord, cdpClockSet, cdpClockClear, cdpTraceRecord } from './web-adv-record.js';
+import { cdpHarRecord, cdpVideoRecord, cdpClockSet, cdpClockClear, cdpClockFastForward, cdpTraceRecord } from './web-adv-record.js';
 
 export { attachCdp, detachCdp, cdpWaitNetworkIdle, ensureHooks };
 
@@ -68,6 +68,7 @@ export async function execAdvTool(tool, tab, args) {
     case 'web_trace_record': return cdpTraceRecord(tab, args);
     case 'web_video_record': return cdpVideoRecord(tab, args);
     case 'web_clock_set': return cdpClockSet(tab, args);
+    case 'web_clock_fast_forward': return cdpClockFastForward(tab, args);
     case 'web_clock_clear': return cdpClockClear(tab, args);
     default: return { ok: false, error: `Unknown advanced tool: ${tool}` };
   }

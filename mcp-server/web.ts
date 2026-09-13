@@ -37,6 +37,18 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
   const pending = new Map<string, Pending>();
   const frameStore = createFrameStore(broadcast);
 
+  // Teach-once-replay-anywhere recorder: while active, every default-path
+  // tool call is captured {tool, args} so web_replay can re-execute the flow.
+  const recorder = {
+    active: false,
+    startedAt: null as string | null,
+    steps: [] as Array<{ step: number; tool: string; args: Record<string, unknown> }>,
+  };
+  const RECORD_SKIP = new Set([
+    "web_record", "web_replay", "web_status", "web_events", "web_extension_diagnostics",
+    "web_fanout", "web_tab_fanout", "web_session_transfer", "web_route_for",
+  ]);
+
   // Multi-browser registry: every extension install (Chrome, Edge, Brave, ...)
   // heartbeats under its own browserId, so agents can list and target browsers
   // individually while the legacy single-browser status fields stay compatible.
@@ -207,7 +219,10 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           return;
         }
         const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
-        const { browsers: _omit, tool: _t, ...innerArgs } = args;
+        const { browsers: _omit, tool: _t, args: innerA, ...rest } = args;
+        // The agent passes tool args nested under `args`; forward them as the
+        // actual tool arguments (falling back to top-level extras).
+        const innerArgs = { ...rest, ...(innerA && typeof innerA === "object" ? (innerA as Record<string, unknown>) : {}) };
         const results: Array<Record<string, unknown>> = [];
         for (const target of targets) {
           const r = await callOn(target, innerTool, innerArgs as Record<string, unknown>, timeoutMs);
@@ -286,6 +301,99 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
 
+      // ── Teach-once-replay: record / replay ──────────────────────────────
+      if (tool === "web_record") {
+        const action = String(args.action || "start");
+        if (action === "start") {
+          recorder.active = true;
+          recorder.startedAt = new Date().toISOString();
+          recorder.steps = [];
+          res.json({ success: true, ok: true, data: { recording: true, startedAt: recorder.startedAt, note: "Every web tool call is now captured. web_record {action:'stop'} returns the steps." } });
+          return;
+        }
+        if (action === "stop") {
+          recorder.active = false;
+          res.json({ success: true, ok: true, data: { recording: false, stepCount: recorder.steps.length, startedAt: recorder.startedAt, steps: recorder.steps } });
+          return;
+        }
+        if (action === "status") {
+          res.json({ success: true, ok: true, data: { recording: recorder.active, stepCount: recorder.steps.length, startedAt: recorder.startedAt } });
+          return;
+        }
+        res.status(400).json({ success: false, ok: false, error: "Unknown web_record action: " + action + ". Supported: start, stop, status." });
+        return;
+      }
+
+      if (tool === "web_replay") {
+        const steps = Array.isArray(args.steps) ? (args.steps as Array<{ tool?: string; args?: Record<string, unknown> }>) : [];
+        if (!steps.length) {
+          res.status(400).json({ success: false, ok: false, error: "web_replay requires steps (the array returned by web_record {action:'stop'} — edit it freely first)." });
+          return;
+        }
+        const stopOnError = args.stopOnError !== false;
+        const stepTimeoutMs = Math.min(Math.max(Number(args.stepTimeoutMs) || 45_000, 5_000), 60_000);
+        const results: Array<Record<string, unknown>> = [];
+        let okAll = true;
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+          const stepTool = String(step.tool || "");
+          if (!/^web_[a-z_]+$/.test(stepTool)) {
+            results.push({ step: i + 1, tool: stepTool, ok: false, error: "invalid tool name" });
+            okAll = false;
+            if (stopOnError) break;
+            continue;
+          }
+          broadcast({ type: "web_replay_step", at: new Date().toISOString(), step: i + 1, of: steps.length, tool: stepTool });
+          const r = await request(stepTool, (step.args ?? {}) as Record<string, unknown>, stepTimeoutMs);
+          results.push({ step: i + 1, tool: stepTool, ok: r.ok, data: r.data, error: r.error });
+          if (!r.ok) {
+            okAll = false;
+            if (stopOnError) break;
+          }
+        }
+        res.json({ success: true, ok: okAll, data: { total: steps.length, executed: results.length, okAll, results } });
+        return;
+      }
+
+      // ── Multi-tab orchestration (mirror of web_fanout) ───────────────────
+      if (tool === "web_tab_fanout") {
+        const innerTool = String(args.tool || "");
+        if (!/^web_[a-z_]+$/.test(innerTool)) {
+          res.status(400).json({ success: false, ok: false, error: "web_tab_fanout requires tool (a web_* tool to run on each tab)." });
+          return;
+        }
+        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
+        const browser = onlineEntries()[0];
+        if (!browser) {
+          res.status(503).json({ success: false, ok: false, error: "No browser is online." });
+          return;
+        }
+        const targetId = [...browsers.entries()].find(([, v]) => v === browser)?.[0] ?? "default";
+        const tabsRes = await request("web_tabs", { __browser: targetId }, timeoutMs);
+        const tabsRaw = (tabsRes.data as { tabs?: Array<{ tabId: number; url?: string }> } | undefined)?.tabs ?? [];
+        const want = args.tabIds;
+        let tabs = tabsRaw;
+        if (Array.isArray(want)) tabs = tabsRaw.filter((t) => (want as unknown[]).includes(t.tabId));
+        else if (args.urls) {
+          const needles = Array.isArray(args.urls) ? args.urls.map(String) : String(args.urls).split(",").map((s) => s.trim());
+          tabs = tabsRaw.filter((t) => needles.some((n) => (t.url || "").toLowerCase().includes(n.toLowerCase())));
+        }
+        if (args.activeOnly === true) tabs = tabsRaw.filter((t) => (t as { active?: boolean }).active === true);
+        if (!tabs.length) {
+          res.json({ success: true, ok: false, data: { results: [], matched: 0, availableTabs: tabsRaw.length } });
+          return;
+        }
+        const { tool: _t, tabIds: _ti, urls: _u, activeOnly: _a, args: innerA, ...rest } = args;
+        const innerArgs = { ...rest, ...(innerA && typeof innerA === "object" ? (innerA as Record<string, unknown>) : {}) };
+        const results: Array<Record<string, unknown>> = [];
+        for (const t of tabs) {
+          const r = await request(innerTool, { ...innerArgs, tabId: t.tabId }, timeoutMs);
+          results.push({ tabId: t.tabId, url: t.url, ok: r.ok, data: r.data, error: r.error });
+        }
+        res.json({ success: true, ok: results.every((r) => r.ok), data: { tool: innerTool, matched: tabs.length, results } });
+        return;
+      }
+
       if (browsers.size === 0) {
         res.status(503).json({
           success: false, ok: false,
@@ -320,6 +428,9 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       const startedAt = Date.now();
       const result = await request(tool, args, timeoutMs);
       emitHubEvent("tool", tool, result.ok);
+      if (recorder.active && !RECORD_SKIP.has(tool)) {
+        recorder.steps.push({ step: recorder.steps.length + 1, tool, args });
+      }
       log("INFO", "Web tool round trip", { tool, ok: result.ok, durationMs: Date.now() - startedAt });
       res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error });
     });

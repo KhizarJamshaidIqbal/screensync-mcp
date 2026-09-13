@@ -227,10 +227,14 @@ export async function ssWebUnitAgent(args) {
         passed = !!el && String(args.className || '').trim() !== '' && el.classList.contains(String(args.className));
         if (!args.className) passed = false;
       }
-      else return { ok: false, error: 'Unknown expect condition: ' + condition + '. Supported: visible, hidden, text, value, count, url, title, checked, accessible_name, attribute, has_class.' };
-      if (passed) break;
+      else if (condition === 'attached') { passed = !!el; actual = el ? 'attached' : 'not_in_dom'; }
+      else if (condition === 'detached') { passed = !el; actual = el ? 'attached' : 'detached'; }
+      else return { ok: false, error: 'Unknown expect condition: ' + condition + '. Supported: visible, hidden, text, value, count, url, title, checked, accessible_name, attribute, has_class, attached, detached.' };
+      // Playwright not() parity: poll until the NEGATED assertion holds.
+      if (args.not === true) { if (!passed) break; } else if (passed) break;
       await new Promise((r) => setTimeout(r, pollMs));
     }
+    if (args.not === true) passed = !passed;
     if (passed && args.selector && (condition === 'visible' || condition === 'text')) {
       const el = pwFind(args.selector);
       if (el && visible(el)) { const r = el.getBoundingClientRect(); ripple(r.x + r.width / 2, r.y + r.height / 2); }

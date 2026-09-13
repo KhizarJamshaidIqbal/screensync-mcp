@@ -128,15 +128,24 @@ export async function cdpVideoRecord(tab, args) {
 
 // ── web_clock_set / web_clock_clear: Playwright clock parity ───────────────
 
-function clockScriptSource(offsetMs) {
-  return `(function(){const O=${Number(offsetMs) | 0};if(!window.__ssOriginalDate)window.__ssOriginalDate=window.Date;const D=window.__ssOriginalDate;function SSD(...a){return a.length===0?new D(D.now()+O):new D(...a);}SSD.now=function(){return D.now()+O;};SSD.parse=D.parse;SSD.UTC=D.UTC;SSD.prototype=D.prototype;window.Date=SSD;})();`;
+function clockScriptSource(offsetMs, fixedMs) {
+  const fixed = Number.isFinite(fixedMs) ? `const F=${Math.round(fixedMs)};` : 'const F=null;';
+  return `(function(){${fixed}const O=${Number(offsetMs) | 0};if(!window.__ssOriginalDate)window.__ssOriginalDate=window.Date;const D=window.__ssOriginalDate;function SSD(...a){if(F!==null&&a.length===0)return new D(F);return a.length===0?new D(D.now()+O):new D(...a);}SSD.now=function(){return F!==null?F:D.now()+O;};SSD.parse=D.parse;SSD.UTC=D.UTC;SSD.prototype=D.prototype;window.Date=SSD;})();`;
 }
 
 
 export async function cdpClockSet(tab, args) {
   const offsetMs = Math.round(Number(args.offsetMs) || 0);
-  const effective = args.iso ? (Date.parse(String(args.iso)) - Date.now()) : offsetMs;
-  if (!Number.isFinite(effective)) return { ok: false, error: 'web_clock_set requires a finite offsetMs or a valid ISO timestamp.' };
+  const fixed = args.fixed === true;
+  let effective = args.iso ? (Date.parse(String(args.iso)) - Date.now()) : offsetMs;
+  let fixedMs = null;
+  if (fixed) {
+    fixedMs = args.iso ? Date.parse(String(args.iso)) : (Date.now() + effective);
+    if (!Number.isFinite(fixedMs)) return { ok: false, error: 'web_clock_set requires a valid ISO timestamp when fixed:true.' };
+    effective = fixedMs - Date.now();
+  } else if (!Number.isFinite(effective)) {
+    return { ok: false, error: 'web_clock_set requires a finite offsetMs or a valid ISO timestamp.' };
+  }
   const target = { tabId: tab.id };
   let attachedHere = false;
   try {
@@ -146,17 +155,49 @@ export async function cdpClockSet(tab, args) {
     } catch (e) {
       if (!/already attached/i.test(String((e && e.message) || e))) throw e;
     }
-    const src = clockScriptSource(effective);
+    const src = clockScriptSource(effective, fixedMs);
     const res = await chrome.debugger.sendCommand(target, 'Page.addScriptToEvaluateOnNewDocument', { source: src, runImmediately: true });
     const prev = activeClocks.get(tab.id);
     if (prev && prev.scriptId) {
       try { await chrome.debugger.sendCommand(target, 'Page.removeScriptToEvaluateOnNewDocument', { identifier: prev.scriptId }); } catch {}
     }
-    activeClocks.set(tab.id, { scriptId: res.identifier, offsetMs: effective });
+    activeClocks.set(tab.id, { scriptId: res.identifier, offsetMs: effective, fixedMs });
     try { await chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: src }); } catch {}
-    return { ok: true, data: { clockShifted: true, offsetMs: effective, fixedAt: args.iso || undefined, pageNowIso: new Date(Date.now() + effective).toISOString(), persistsAcrossNavigations: true } };
+    return { ok: true, data: { clockShifted: true, offsetMs: effective, fixed: fixed || undefined, fixedAt: fixedMs ? new Date(fixedMs).toISOString() : (args.iso || undefined), pageNowIso: new Date((fixedMs !== null ? fixedMs : Date.now() + effective)).toISOString(), persistsAcrossNavigations: true } };
   } catch (e) {
     return { ok: false, error: `web_clock_set failed: ${String((e && e.message) || e)}` };
+  } finally {
+    if (attachedHere) { await rawDetach(target); }
+  }
+}
+
+
+export async function cdpClockFastForward(tab, args) {
+  const delta = Math.round(Number(args.ms) || 0);
+  if (!delta) return { ok: false, error: 'web_clock_fast_forward requires ms (positive advances, negative rewinds).' };
+  const rec = activeClocks.get(tab.id);
+  if (!rec) return { ok: false, error: 'No clock override active on this tab — call web_clock_set first.' };
+  const newOffset = rec.offsetMs + delta;
+  const newFixed = rec.fixedMs != null ? rec.fixedMs + delta : null;
+  const target = { tabId: tab.id };
+  let attachedHere = false;
+  try {
+    try {
+      await rawAttach(target);
+      attachedHere = true;
+    } catch (e) {
+      if (!/already attached/i.test(String((e && e.message) || e))) throw e;
+    }
+    const src = clockScriptSource(newOffset, newFixed);
+    const res = await chrome.debugger.sendCommand(target, 'Page.addScriptToEvaluateOnNewDocument', { source: src, runImmediately: true });
+    if (rec.scriptId) {
+      try { await chrome.debugger.sendCommand(target, 'Page.removeScriptToEvaluateOnNewDocument', { identifier: rec.scriptId }); } catch {}
+    }
+    activeClocks.set(tab.id, { scriptId: res.identifier, offsetMs: newOffset, fixedMs: newFixed });
+    try { await chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: src }); } catch {}
+    return { ok: true, data: { advancedByMs: delta, offsetMs: newOffset, fixed: newFixed != null, pageNowIso: new Date((newFixed !== null ? newFixed : Date.now() + newOffset)).toISOString(), persistsAcrossNavigations: true } };
+  } catch (e) {
+    return { ok: false, error: `web_clock_fast_forward failed: ${String((e && e.message) || e)}` };
   } finally {
     if (attachedHere) { await rawDetach(target); }
   }
