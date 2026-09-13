@@ -40,3 +40,16 @@ mcp-server/test/out/
 mcp-server/hub_web.log
 mcp-server/hub_web.err.log
 mcp-server/test/out-web/
+
+# ── Local automation debris & machine-specific artifacts (never commit) ──
+mcp-server/*.log
+mcp-server/*.png
+mcp-server/post_status*.txt
+mcp-server/task_*.xml
+mcp-server/launch.vbs
+mcp-server/auto_post*.py
+task.xml
+.claude/
+.zcode/
+.mcp.json
+.cursorrules
