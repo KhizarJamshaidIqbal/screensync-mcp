@@ -66,6 +66,17 @@ const sse = new SseClient({
 async function ensureSse() {
   const s = await getSettings();
   if (!s.onboardingComplete) return;
+  // Zombie recovery: the offscreen keep-alive prevents SW recycling, so a
+  // hub restart can leave the stream silently dead while `connected` stays
+  // true. If no bytes arrived within the keepalive window, force-restart.
+  if (sse.stale()) {
+    console.warn('[ss] SSE stale (no keepalive within 90s) — forcing reconnect');
+    sse.start(
+      (s.hubUrl || 'http://127.0.0.1:3000').replace('://localhost:', '://127.0.0.1:'),
+      s.token,
+    );
+    return;
+  }
   if (sse.connected) return;
   const hubUrl = (s.hubUrl || 'http://127.0.0.1:3000').replace('://localhost:', '://127.0.0.1:');
   sse.start(hubUrl, s.token);

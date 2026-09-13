@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import type { Express, Request, Response } from "express";
-import { isAuthorized, log } from "./config.js";
+import { DATA_DIR, isAuthorized, log } from "./config.js";
 import { emitHubEvent, lastEventSeq, recentHubEvents } from "./events.js";
 import { createFrameStore } from "./web-frame.js";
 
@@ -20,6 +22,7 @@ type Pending = {
 export type WebBridge = {
   registerRoutes: (app: Express) => void;
   status: () => Record<string, unknown>;
+  armReloadRequested: () => void;
 };
 
 const PRESENCE_TTL_MS = 600_000;
@@ -36,6 +39,11 @@ type BrowserEntry = {
 export function createWebBridge(broadcast: (payload: object, name?: string) => void): WebBridge {
   const pending = new Map<string, Pending>();
   const frameStore = createFrameStore(broadcast);
+
+  // HTTP-channel reload: armed by the hub's POST /api/dev/reload, served on
+  // the register heartbeat — reaches extensions whose SSE stream is dead.
+  let reloadRequestedAtMs = 0;
+  const armReloadRequested = () => { reloadRequestedAtMs = Date.now(); };
 
   // Teach-once-replay-anywhere recorder: while active, every default-path
   // tool call is captured {tool, args} so web_replay can re-execute the flow.
@@ -122,7 +130,13 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         entry.webAccessEnabled = browsers.get(id)!.webAccessEnabled;
       }
       browsers.set(id, entry);
-      res.json({ success: true, status: status() });
+      res.json({
+        success: true,
+        status: status(),
+        // HTTP-channel reload (armed by POST /api/dev/reload): reaches
+        // extensions whose SSE stream is dead, unlike the SSE broadcast.
+        ...(Date.now() - reloadRequestedAtMs < 60_000 ? { reloadRequested: true } : {}),
+      });
     });
 
     // Ambient browser events from the extension (navigations, tab switches,
@@ -301,6 +315,138 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
 
+      // ── Persisted Flows Library: save / list / run / delete ──────────────
+      // Recorded steps can be saved under a name (with editable steps and
+      // {{var}} placeholders) and re-run any time — the durable half of
+      // teach-once-replay-anywhere. Flows live in DATA_DIR/flows/*.json.
+      const FLOWS_DIR = path.join(DATA_DIR, "flows");
+      const flowPath = (name: string) => path.join(FLOWS_DIR, name.replace(/[^a-z0-9_-]+/gi, "_") + ".json");
+      const loadFlow = (name: string): { name: string; steps: Array<{ tool?: string; args?: Record<string, unknown> }> } | null => {
+        const p = flowPath(name);
+        if (!existsSync(p)) return null;
+        try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
+      };
+      const substituteVars = (value: unknown, vars: Record<string, string>): unknown => {
+        if (typeof value === "string") {
+          let out = value;
+          for (const [k, v] of Object.entries(vars)) out = out.replaceAll(`{{${k}}}`, v);
+          return out;
+        }
+        if (Array.isArray(value)) return value.map((v) => substituteVars(v, vars));
+        if (value && typeof value === "object") {
+          const out: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(value)) out[k] = substituteVars(v, vars);
+          return out;
+        }
+        return value;
+      };
+
+      if (tool === "web_flow_save") {
+        const name = String(args.name || "").trim();
+        const steps = Array.isArray(args.steps) ? (args.steps as Array<{ tool?: string; args?: Record<string, unknown> }>) : [];
+        if (!name || !steps.length) {
+          res.status(400).json({ success: false, ok: false, error: "web_flow_save requires name and steps (from web_record {action:'stop'} — edit freely, use {{var}} placeholders)." });
+          return;
+        }
+        mkdirSync(FLOWS_DIR, { recursive: true });
+        const flow = { name, savedAt: new Date().toISOString(), stepCount: steps.length, steps };
+        writeFileSync(flowPath(name), JSON.stringify(flow, null, 2));
+        log("INFO", "Flow saved", { name, stepCount: steps.length });
+        res.json({ success: true, ok: true, data: { saved: true, name, stepCount: steps.length, file: flowPath(name) } });
+        return;
+      }
+
+      if (tool === "web_flow_list") {
+        if (!existsSync(FLOWS_DIR)) {
+          res.json({ success: true, ok: true, data: { flows: [], note: "No flows saved yet — record with web_record, then web_flow_save." } });
+          return;
+        }
+        const files = readdirSync(FLOWS_DIR).filter((f) => f.endsWith(".json"));
+        const flows = files.map((f) => {
+          try {
+            const parsed = JSON.parse(readFileSync(path.join(FLOWS_DIR, f), "utf8"));
+            return { name: parsed.name ?? f.replace(/\.json$/, ""), savedAt: parsed.savedAt, stepCount: parsed.stepCount, tools: (parsed.steps || []).map((s: { tool?: string }) => s.tool) };
+          } catch { return { name: f, corrupted: true }; }
+        });
+        res.json({ success: true, ok: true, data: { flows } });
+        return;
+      }
+
+      if (tool === "web_flow_run") {
+        const name = String(args.name || "").trim();
+        const flow = loadFlow(name);
+        if (!flow || !Array.isArray(flow.steps)) {
+          res.json({ success: true, ok: false, data: { error: `Flow '${name}' not found. web_flow_list shows saved flows.` } });
+          return;
+        }
+        const vars = (args.vars && typeof args.vars === "object" ? args.vars : {}) as Record<string, string>;
+        const stopOnError = args.stopOnError !== false;
+        const stepTimeoutMs = Math.min(Math.max(Number(args.stepTimeoutMs) || 45_000, 5_000), 60_000);
+        const results: Array<Record<string, unknown>> = [];
+        let okAll = true;
+        for (let i = 0; i < flow.steps.length; i++) {
+          const step = flow.steps[i];
+          const stepTool = String(step.tool || "");
+          if (!/^web_[a-z_]+$/.test(stepTool)) {
+            results.push({ step: i + 1, tool: stepTool, ok: false, error: "invalid tool name" });
+            okAll = false;
+            if (stopOnError) break;
+            continue;
+          }
+          const stepArgs = substituteVars(step.args ?? {}, vars) as Record<string, unknown>;
+          broadcast({ type: "web_replay_step", at: new Date().toISOString(), flow: flow.name, step: i + 1, of: flow.steps.length, tool: stepTool });
+          const r = await request(stepTool, stepArgs, stepTimeoutMs);
+          results.push({ step: i + 1, tool: stepTool, ok: r.ok, data: r.data, error: r.error });
+          if (!r.ok) {
+            okAll = false;
+            if (stopOnError) break;
+          }
+        }
+        res.json({ success: true, ok: okAll, data: { flow: flow.name, vars: Object.keys(vars), total: flow.steps.length, executed: results.length, okAll, results } });
+        return;
+      }
+
+      if (tool === "web_flow_delete") {
+        const name = String(args.name || "").trim();
+        const p = flowPath(name);
+        if (!existsSync(p)) {
+          res.json({ success: true, ok: false, data: { error: `Flow '${name}' not found.` } });
+          return;
+        }
+        unlinkSync(p);
+        res.json({ success: true, ok: true, data: { deleted: name } });
+        return;
+      }
+
+      // ── Account dashboard: which platform is live in which browser? ──────
+      if (tool === "web_account_report") {
+        const targets = onlineEntries().map((e) => {
+          const id = [...browsers.entries()].find(([, v]) => v === e)?.[0] ?? "default";
+          return { id, name: e.name };
+        });
+        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
+        const accounts: Array<Record<string, unknown>> = [];
+        for (const target of targets) {
+          const r = await request("web_social_matrix", { __browser: target.id }, timeoutMs);
+          const d = r.data as { platforms?: Array<Record<string, unknown>> } | undefined;
+          const platforms = Array.isArray(d?.platforms) ? d?.platforms : [];
+          for (const p of platforms) {
+            accounts.push({ browser: target.name, browserId: target.id, ...p });
+          }
+        }
+        const live = accounts.filter((a) => a.authenticated === true);
+        res.json({
+          success: true, ok: true,
+          data: {
+            browsersProbed: targets.length,
+            liveAccounts: live.length,
+            accounts,
+            summary: live.map((a) => `${String(a.platform)} @ ${String(a.browser)}`),
+          },
+        });
+        return;
+      }
+
       // ── Teach-once-replay: record / replay ──────────────────────────────
       if (tool === "web_record") {
         const action = String(args.action || "start");
@@ -455,5 +601,5 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
     frameStore.registerRoutes(app);
   };
 
-  return { registerRoutes, status };
+  return { registerRoutes, status, armReloadRequested };
 }

@@ -190,6 +190,9 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
   // The phone keeps one persistent connection; the hub pushes frame /
   // inspection / patch events so the app reacts instantly instead of polling.
   const sseClients = new Set<express.Response>();
+  // Armed by POST /api/dev/reload — served to extensions on the HTTP heartbeat
+  // so a dead-SSE extension can still be told to reload itself.
+  let hubReloadRequestedAtMs = 0;
   const broadcast = (payload: object, name = "event") => {
     const seq = recordHubEvent(payload as Record<string, unknown>);
     log("INFO", "SSE broadcast", { name, seq, clientsCount: sseClients.size });
@@ -236,8 +239,12 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
       return;
     }
     broadcast({ type: "dev_hot_reload", manual: true });
-    log("INFO", "Manual dev_hot_reload broadcast dispatched");
-    res.json({ success: true, message: "Dev hot reload broadcast sent to extension." });
+    // HTTP-channel reload for extensions whose SSE stream is dead (hub was
+    // restarted while the SW was kept alive): the next /api/web/register
+    // heartbeat carries reloadRequested and the extension reloads itself.
+    webBridge.armReloadRequested();
+    log("INFO", "Manual dev_hot_reload broadcast dispatched (heartbeat reload armed)");
+    res.json({ success: true, message: "Dev hot reload broadcast sent + heartbeat reload armed." });
   });
 
   app.get("/api/events", (req, res) => {

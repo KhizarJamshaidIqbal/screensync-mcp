@@ -552,5 +552,118 @@ export function agentWebToolDefinitions(): WebToolDef[] {
         additionalProperties: false,
       },
     },
+    {
+      name: "web_api_fetch",
+      description:
+        "Playwright request-context parity: makes HTTP requests WITH the browser's real logged-in session — the profile's cookies attach automatically, so the agent reads the same JSON APIs the logged-in site uses (feeds, timelines, account data) without ever handling credentials. Use noCookies:true for a clean request.",
+      inputSchema: {
+        type: "object",
+        required: ["url"],
+        properties: {
+          url: { type: "string", description: "Absolute http(s) URL to call." },
+          method: { type: "string", enum: ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"], default: "GET" },
+          headers: { type: "object", description: "Extra request headers." },
+          body: { type: "object", description: "Request body (object → JSON)." },
+          noCookies: { type: "boolean", default: false, description: "Send WITHOUT the session cookies." },
+          timeoutMs: { type: "integer", minimum: 1000, maximum: 60000, default: 20000 },
+          maxBodyChars: { type: "integer", minimum: 1000, maximum: 1000000, default: 200000, description: "Body truncation limit." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_history",
+      description:
+        "Searches the browser's recent navigation history (chrome.history) — operator context: what sites were visited recently, how often. Filter by text and time window.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "Substring filter for URL/title. Omit for all recent." },
+          hoursBack: { type: "integer", minimum: 1, maximum: 2160, default: 24, description: "Look-back window in hours." },
+          limit: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_bookmarks",
+      description:
+        "Lists/searches the browser's bookmarks (chrome.bookmarks) with folder paths — quick navigation targets for operator flows.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "Substring filter for title/URL/folder. Omit for all." },
+          limit: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_flow_save",
+      description:
+        "Saves a step list (from web_record {action:'stop'} — edit freely) under a name as a reusable flow. Use {{var}} placeholders in args for parameterization. Flows persist on the hub (DATA_DIR/flows).",
+      inputSchema: {
+        type: "object",
+        required: ["name", "steps"],
+        properties: {
+          name: { type: "string", description: "Flow name, e.g. 'daily-linkedin-post'." },
+          steps: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                tool: { type: "string", description: "web_* tool for this step." },
+                args: { type: "object", description: "Tool arguments — {{var}} placeholders allowed." },
+              },
+            },
+            description: "Steps in execution order.",
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_flow_list",
+      description: "Lists all saved flows with step counts and the tools they use.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    },
+    {
+      name: "web_flow_run",
+      description:
+        "Runs a saved flow by name: executes its steps sequentially with {{var}} substitution, stopOnError control, per-step results, and web_replay_step events in web_events. The daily-driver for recorded real-account flows.",
+      inputSchema: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", description: "Flow name to run." },
+          vars: { type: "object", description: "Variable values substituted into {{var}} placeholders, e.g. {message: 'Hello'}." },
+          stopOnError: { type: "boolean", default: true },
+          stepTimeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 45000 },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_flow_delete",
+      description: "Deletes a saved flow by name.",
+      inputSchema: {
+        type: "object",
+        required: ["name"],
+        properties: { name: { type: "string" } },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_account_report",
+      description:
+        "ONE-call account dashboard: probes every connected browser's social/platform logins (social matrix fanout) and merges into a single map — 'kaunsa account kis browser mein live hai'. The starting point for any multi-browser operator task.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 45000, description: "Per-browser probe timeout." },
+        },
+        additionalProperties: false,
+      },
+    },
   ];
 }

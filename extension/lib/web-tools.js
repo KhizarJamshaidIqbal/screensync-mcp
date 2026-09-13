@@ -7,6 +7,8 @@ import { ssWebUnitInteract, ssWebUnitExtract } from './web-unit.js';
 import { ssWebUnitAgent } from './web-unit-agent.js';
 import { execInFrame } from './web-frames.js';
 import { sessionExport, sessionImport } from './web-session-sync.js';
+import { apiFetch } from './web-api-fetch.js';
+import { historySearch, bookmarksSearch } from './web-browser-data.js';
 
 // Browser-side executor for the hub's web bridge. The hub pushes
 // {type:'web_request', id, tool, args} over SSE; we run the tool against the
@@ -585,6 +587,15 @@ async function executeWebTool(tool, args) {
       } catch (e) {
         return { ok: false, error: 'web_window failed: ' + String((e && e.message) || e) };
       }
+    }
+    case 'web_api_fetch': {
+      return apiFetch(args);
+    }
+    case 'web_history': {
+      return historySearch(args);
+    }
+    case 'web_bookmarks': {
+      return bookmarksSearch(args);
     }
     case 'web_wait_download': {
       // Playwright page.waitForDownload parity: resolve when a NEW download
@@ -2015,7 +2026,7 @@ export async function registerWebBridge() {
   } catch { /* browser has no usable tab yet */ }
   try {
     const s = await getSettings();
-    await hubFetch('/api/web/register', {
+    const regRes = await hubFetch('/api/web/register', {
       method: 'POST',
       body: {
         webAccessEnabled: s.webAccessEnabled !== false,
@@ -2025,6 +2036,13 @@ export async function registerWebBridge() {
         browserName: SELF_BROWSER.name,
       },
     });
+    // HTTP-channel reload: the hub arms this on POST /api/dev/reload — the
+    // ONLY reload path that reaches an extension whose SSE stream is dead
+    // (e.g. after a hub restart while the keep-alive held the SW open).
+    if (regRes && regRes.reloadRequested === true) {
+      console.warn('[ss] reloadRequested via register heartbeat — reloading');
+      setTimeout(() => { try { chrome.runtime.reload(); } catch {} }, 200);
+    }
   } catch { /* hub offline — presence simply stays stale */ }
 }
 

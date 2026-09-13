@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ScreenSync MCP",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "The ScreenSync bridge for your browser: gives your AI agent supervised access to your live web tabs — see, read, click and type — just like the mobile app does for your phone.",
   "icons": {
     "16": "icons/icon16.png",

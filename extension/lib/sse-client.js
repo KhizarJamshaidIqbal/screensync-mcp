@@ -15,6 +15,7 @@ export class SseClient {
 
   start(url, token) {
     this.stop();
+    this._stoppedByUser = false;
     this.stopped = false;
     this.url = url;
     this.token = token;
@@ -23,6 +24,7 @@ export class SseClient {
 
   stop() {
     this.stopped = true;
+    this._stoppedByUser = true;
     if (this.abort) this.abort.abort();
     this.abort = null;
     clearTimeout(this.livenessTimer);
@@ -30,6 +32,13 @@ export class SseClient {
 
   get connected() {
     return !this.stopped && this.abort !== null;
+  }
+
+  // Zombie detection: the hub sends a keepalive every 30s. If we believe we
+  // are connected but no bytes arrived within 90s, the stream is dead
+  // (e.g. the hub restarted) — the caller should force a reconnect.
+  stale() {
+    return this.connected && (!this.lastDataAt || Date.now() - this.lastDataAt > 90_000);
   }
 
   _status(s, detail) {
@@ -64,6 +73,7 @@ export class SseClient {
         this.backoff = 1000;
         this._status('connected');
         this._armLiveness();
+        this.lastDataAt = Date.now();
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -72,6 +82,7 @@ export class SseClient {
           const { done, value } = await reader.read();
           if (done) break;
           this._armLiveness();
+          this.lastDataAt = Date.now();
           buffer += decoder.decode(value, { stream: true });
           const parts = buffer.split('\n\n');
           buffer = parts.pop();
@@ -84,8 +95,17 @@ export class SseClient {
           }
         }
       } catch (e) {
-        if (this.stopped || (e && e.name === 'AbortError')) break;
-        this._status('reconnecting', String(e.message || e));
+        // A liveness-timeout abort (silent TCP death, e.g. hub restart) must
+        // RECONNECT, not break — that AbortError previously killed the client
+        // permanently, leaving a zombie: heartbeat alive, events never delivered.
+        if (this.stopped) break;
+        if (e && e.name === 'AbortError' && !this._stoppedByUser) {
+          this._status('reconnecting', 'liveness timeout — forcing reconnect');
+        } else if (e && e.name === 'AbortError') {
+          break;
+        } else {
+          this._status('reconnecting', String(e.message || e));
+        }
       }
       this.abort = null;
       if (this.stopped) break;

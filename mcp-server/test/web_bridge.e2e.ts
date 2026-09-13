@@ -42,14 +42,14 @@ async function waitForHealth(timeoutMs = 8000): Promise<void> {
 }
 
 // ── Simulated extension: answers every web_request with a canned result ───
-function cannedResult(tool: string): { ok: boolean; data?: unknown } {
+function cannedResult(tool: string, args: Record<string, unknown> = {}): { ok: boolean; data?: unknown } {
   switch (tool) {
     case "web_expect":
       return { ok: true, data: { condition: "visible", passed: true, actual: "visible", waitedMs: 3, attempts: 1 } };
     case "web_aria_snapshot":
       return { ok: true, data: { url: "https://example.test/", title: "T", yaml: '- heading "Test"', nodeCount: 1 } };
     case "web_run_code":
-      return { ok: true, data: { result: 42 } };
+      return { ok: true, data: { result: typeof args.code === "string" ? args.code : 42 } };
     case "web_get_by":
       return { ok: true, data: { by: "role", value: "button", count: 2, matches: [{ ref: 0 }, { ref: 1 }], selected: { ref: 0 } } };
     case "web_har_record":
@@ -70,6 +70,14 @@ function cannedResult(tool: string): { ok: boolean; data?: unknown } {
       return { ok: true, data: { customDomain: { domain: "example.test", cookieCount: 4, cookies: [{ name: "sessionid" }] } } };
     case "web_tabs":
       return { ok: true, data: { tabs: [{ tabId: 1, url: "https://a.test/page", title: "A", active: true }, { tabId: 2, url: "https://b.test/page", title: "B", active: false }] } };
+    case "web_api_fetch":
+      return { ok: true, data: { status: 200, json: { sessionId: "live-session" }, cookiesAttached: true, url: "https://example.test/api" } };
+    case "web_history":
+      return { ok: true, data: { count: 2, items: [{ url: "https://a.test/x" }, { url: "https://b.test/y" }] } };
+    case "web_bookmarks":
+      return { ok: true, data: { count: 1, items: [{ title: "Docs", url: "https://docs.test" }] } };
+    case "web_social_matrix":
+      return { ok: true, data: { platforms: [{ platform: "x", authenticated: true, user: "@e2e" }] } };
     case "web_wait_download":
       return { ok: true, data: { state: "complete", filename: "e2e-file.zip", fileSize: 1234, mime: "application/zip", finalUrl: "https://example.test/file.zip" } };
     default:
@@ -116,7 +124,7 @@ async function startFakeExtension(browserId: string, browserName: string, userAg
             // respect targeting: stay silent if the request is for another browser
             const hint = (ev.args?.__browser || "").toLowerCase();
             if (hint && hint !== "any" && hint !== "default" && hint !== browserName && hint !== browserId) continue;
-            const result = cannedResult(ev.tool);
+            const result = cannedResult(ev.tool, ev.args ?? {});
             await fetch(`${BASE}/api/web/result`, {
               method: "POST",
               headers: authHeaders,
@@ -157,10 +165,12 @@ try {
     "web_network_auth", "web_session_export", "web_session_import",
     "web_clock_fast_forward", "web_wait_download", "web_tab_fanout",
     "web_record", "web_replay",
+    "web_api_fetch", "web_history", "web_bookmarks",
+    "web_flow_save", "web_flow_list", "web_flow_run", "web_flow_delete", "web_account_report",
   ];
   for (const t of expectedNew) assert.ok(names.includes(t), `tools/list must include ${t}`);
   assert.equal(new Set(names).size, names.length, "tools/list must not contain duplicate names");
-  assert.ok(names.length >= 151, `expected >=151 tools, got ${names.length}`);
+  assert.ok(names.length >= 160, `expected >=151 tools, got ${names.length}`);
   assert.ok(names.includes("get_latest_screenshot"), "phone tools must still be listed (parity)");
 
   // 2. get_mcp_catalog + get_skills still work with the grown catalog.
@@ -192,8 +202,9 @@ try {
   const codeRes = await client.callTool({ name: "web_run_code", arguments: { code: "return 40 + 2" } }) as {
     content: Array<{ text: string }>;
   };
-  const codeData = JSON.parse(codeRes.content[0].text) as { result: number };
-  assert.equal(codeData.result, 42, "web_run_code must return the simulated page result");
+  const codeData = JSON.parse(codeRes.content[0].text) as { result: string };
+  // canned extension echoes the code arg — proves args reach the browser round trip
+  assert.equal(codeData.result, "return 40 + 2", "web_run_code must carry args through the round trip");
 
   const getByRes = await client.callTool({ name: "web_get_by", arguments: { by: "role", value: "button" } }) as {
     content: Array<{ text: string }>;
@@ -346,6 +357,48 @@ try {
   const wdData = JSON.parse(wd.content[0].text) as { state: string; fileSize: number };
   assert.equal(wdData.state, "complete");
   assert.equal(wdData.fileSize, 1234);
+
+  // 7g. Round-7: flows library + api_fetch + account_report ──
+  const flowSave = await client.callTool({ name: "web_flow_save", arguments: { name: "e2e-flow", steps: [{ tool: "web_run_code", args: { code: "return '{{who}}'" } }, { tool: "web_aria_snapshot", args: {} }] } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!flowSave.isError, "web_flow_save must succeed");
+  const flowList = await client.callTool({ name: "web_flow_list", arguments: {} }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  const flowListData = JSON.parse(flowList.content[0].text) as { flows: Array<{ name: string; stepCount: number }> };
+  assert.ok(flowListData.flows.some((f) => f.name === "e2e-flow" && f.stepCount === 2), "saved flow must be listed");
+  const flowRun = await client.callTool({ name: "web_flow_run", arguments: { name: "e2e-flow", vars: { who: "operator" } } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!flowRun.isError, "web_flow_run must succeed");
+  const flowRunData = JSON.parse(flowRun.content[0].text) as { okAll: boolean; executed: number; results: Array<{ data?: { result?: string } }> };
+  assert.equal(flowRunData.okAll, true);
+  assert.equal(flowRunData.executed, 2);
+  assert.equal(flowRunData.results[0].data?.result, "return 'operator'", "{{var}} substitution must land in the executed args");
+  const flowDel = await client.callTool({ name: "web_flow_delete", arguments: { name: "e2e-flow" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!flowDel.isError, "web_flow_delete must succeed");
+  const api = await client.callTool({ name: "web_api_fetch", arguments: { url: "https://example.test/api" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!api.isError, "web_api_fetch round trip must succeed");
+  const apiData = JSON.parse(api.content[0].text) as { status: number; cookiesAttached: boolean; json: { sessionId: string } };
+  assert.equal(apiData.status, 200);
+  assert.equal(apiData.cookiesAttached, true);
+  assert.equal(apiData.json.sessionId, "live-session");
+  const report = await client.callTool({ name: "web_account_report", arguments: {} }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!report.isError, "web_account_report must succeed");
+  const reportData = JSON.parse(report.content[0].text) as { browsersProbed: number; liveAccounts: number; accounts: unknown[] };
+  assert.equal(reportData.browsersProbed, 2, "account_report must probe both browsers");
+  assert.equal(reportData.liveAccounts, 2, "both simulated browsers report a live x account");
+  const hist = await client.callTool({ name: "web_history", arguments: {} }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!hist.isError, "web_history round trip must succeed");
 
   // 8. Real-time SSE observability: ambient browser events land in the ring.
   for (const url of ["https://a.test/page-1", "https://b.test/page-2"]) {

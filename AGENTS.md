@@ -50,6 +50,7 @@ Never remove, break, or degrade any existing capabilities:
 - **Multi-Browser Targeting**: every `web_*` tool accepts `__browser` (browser name or install id from `web_status.browsers`); never remove the per-browser routing/filtering.
 - **Multi-Browser Data Sync**: `web_session_transfer` (clone a domain login between browsers), `web_route_for` (which browser is logged into X), `web_fanout` (one tool across all browsers) — hub-side orchestration, never remove.
 - **Frame + Auth Parity**: `web_in_frame` (any tool inside an iframe, frameLocator parity) and `web_network_auth` (CDP Fetch.authRequired, page.authenticate parity).
+- **Operator Data Layer**: `web_api_fetch` (authenticated request-context — session cookies auto-attach), persisted **Flows** (`web_flow_save/list/run/delete` with {{var}} substitution), `web_account_report` (one-call account map), `web_history`/`web_bookmarks` — never remove.
 - **Record/Replay + Orchestration**: `web_record`/`web_replay` (teach-once-replay-anywhere, hub-side), `web_tab_fanout` (per-tab merge), `web_clock_fast_forward` + `fixed` (clock API), `web_wait_download` (waitForDownload parity), `web_window` (window management), `web_pdf` full options, `web_expect` not/attached/detached — never remove.
 
 ---
@@ -91,6 +92,8 @@ After making modifications to any file in the primary workspace, always execute 
 3. **Live MCP verification (required for "done")**: drive the REAL browser through the `web_*` tools on the live hub (`http://127.0.0.1:3000`) — e.g. `web_status` → `web_navigate` (newTab, then always pass `tabId`) → act → `web_expect` → `web_aria_snapshot`/`web_table_extract`/`web_har_record` → `web_tab` close. Every new/changed tool must be exercised once against a real page.
 - Never test by modifying the user's existing tabs: always create a dedicated tab (`web_navigate {newTab: true}`) and close it afterwards (`web_tab {action:"close"}`).
 - `flutter test` for Dart changes; ADB/phone verification through `control_*` tools when touching mobile.
+
+- **Resilience (never remove)**: SSE zombie watchdog (sse-client reconnects on 90s keepalive silence), HTTP heartbeat reload (hub arms via /api/dev/reload → register response `reloadRequested` → extension self-reloads even with dead SSE).
 
 ---
 
