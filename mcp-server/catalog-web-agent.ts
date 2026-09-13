@@ -26,7 +26,7 @@ export function agentWebToolDefinitions(): WebToolDef[] {
         type: "object",
         required: ["condition"],
         properties: {
-          condition: { type: "string", enum: ["visible", "hidden", "text", "value", "count", "url", "title", "checked"], description: "Assertion to retry until it passes." },
+          condition: { type: "string", enum: ["visible", "hidden", "text", "value", "count", "url", "title", "checked", "accessible_name", "attribute", "has_class"], description: "Assertion to retry until it passes." },
           selector: { type: "string", description: locatorNote },
           text: { type: "string", description: "Expected substring (for text/url/title conditions)." },
           value: { type: "string", description: "Expected exact input value (for the value condition)." },
@@ -330,6 +330,120 @@ export function agentWebToolDefinitions(): WebToolDef[] {
             description: "Filter by event type: web_navigation, web_page_loaded, web_tab_activated, tool, frame, web_event.",
           },
           limit: { type: "integer", minimum: 1, maximum: 500, default: 100, description: "Maximum events returned." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_fanout",
+      description:
+        "Multi-browser orchestration: runs ONE web tool on every connected browser (or a chosen subset) and merges the results keyed by browser. The core of operating several real browsers at once — e.g. web_social_matrix across all browsers, or web_screenshot on each. Tool name + args pass through; each browser executes its own copy.",
+      inputSchema: {
+        type: "object",
+        required: ["tool"],
+        properties: {
+          tool: { type: "string", description: "The web_* tool to run on each browser (e.g. 'web_social_matrix')." },
+          args: { type: "object", description: "Arguments forwarded to the tool on every browser." },
+          browsers: {
+            oneOf: [
+              { type: "string", description: "'all' or comma-separated browser names/ids." },
+              { type: "array", items: { type: "string" }, description: "Browser names or install ids (from web_status.browsers)." },
+            ],
+            description: "Which browsers to target. Omit/'all' = every connected browser.",
+          },
+          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 45000, description: "Per-browser timeout." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_session_transfer",
+      description:
+        "THE multi-browser data-sync capability: copies a domain's logged-in session (cookies + optional localStorage) FROM one connected browser TO another — e.g. sync the LinkedIn login from Edge to Chrome without ever touching credentials. Requires 2+ paired browsers; identify them via web_status.browsers (use install ids when names collide).",
+      inputSchema: {
+        type: "object",
+        required: ["domain"],
+        properties: {
+          domain: { type: "string", description: "Session domain to transfer, e.g. 'linkedin.com'." },
+          from: { type: "string", description: "Source browser name or install id. Default: first connected." },
+          to: { type: "string", description: "Target browser name or install id. Default: next connected." },
+          localStorage: { type: "boolean", default: true, description: "Also transfer localStorage (opens a temporary tab on the origin in both browsers)." },
+          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 45000, description: "Per-step timeout." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_route_for",
+      description:
+        "Answers 'which connected browser is logged into this domain?': probes each browser's auth cookies for the domain and returns per-browser evidence plus a recommended browser (id) for operating that site. The routing brain for multi-browser operator flows.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          domain: { type: "string", description: "Domain to probe, e.g. 'x.com'." },
+          url: { type: "string", description: "Alternative: a full URL whose domain is probed." },
+          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 30000, description: "Per-browser probe timeout." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_in_frame",
+      description:
+        "Playwright frameLocator parity: runs any interact/agent/extract web tool INSIDE a specific iframe of the active tab (web_click, web_fill, web_expect, web_table_extract, ...). Resolve frames with web_frame_tree, then pass frameId or a frameUrl substring plus the inner tool and args.",
+      inputSchema: {
+        type: "object",
+        required: ["tool"],
+        properties: {
+          tool: { type: "string", description: "Inner page tool to run in the frame (web_click, web_fill, web_expect, web_table_extract, ...)." },
+          args: { type: "object", description: "Arguments for the inner tool (selector, value, condition, ...)." },
+          frameId: { type: "integer", description: "Target frame id from web_frame_tree." },
+          frameUrl: { type: "string", description: "Alternative: substring of the frame's URL to target." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_session_export",
+      description:
+        "Exports this browser's session for one domain (cookies via the browser-level cookie jar + optional localStorage) as a transferable payload — the building block web_session_transfer uses, exposed for manual control (backups, session inspection without values leaving the browser).",
+      inputSchema: {
+        type: "object",
+        required: ["domain"],
+        properties: {
+          domain: { type: "string", description: "Domain to export, e.g. 'github.com'." },
+          localStorage: { type: "boolean", default: true, description: "Include localStorage (opens a temporary tab on the origin if none is open)." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_session_import",
+      description:
+        "Imports a session payload (from web_session_export) into this browser: sets the cookies and restores localStorage onto the origin.",
+      inputSchema: {
+        type: "object",
+        required: ["session"],
+        properties: {
+          session: { type: "object", description: "Payload from web_session_export (domain, cookies[], localStorage)." },
+          domain: { type: "string", description: "Optional domain override." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_network_auth",
+      description:
+        "Playwright page.authenticate parity: automatically answers HTTP basic/proxy auth challenges (401 + WWW-Authenticate) with the given credentials via CDP Fetch.authRequired — the agent never sees the browser's native login dialog.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["set", "clear"], default: "set", description: "set = start answering challenges; clear = stop." },
+          username: { type: "string", description: "Auth username." },
+          password: { type: "string", description: "Auth password." },
+          urlPattern: { type: "string", default: "*", description: "Only intercept auth challenges for matching URLs." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
         },
         additionalProperties: false,
       },

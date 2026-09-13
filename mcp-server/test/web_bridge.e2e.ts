@@ -58,27 +58,38 @@ function cannedResult(tool: string): { ok: boolean; data?: unknown } {
       return { ok: true, data: { clockShifted: true, offsetMs: 60000, pageNowIso: "2099-01-01T00:01:00.000Z" } };
     case "web_trace_record":
       return { ok: true, data: { eventCount: 1234, durationMs: 900, trace: { traceEvents: [{ name: "e2e-event" }] } } };
+    case "web_in_frame":
+      return { ok: true, data: { frameId: 55, inner: "clicked-in-frame" } };
+    case "web_network_auth":
+      return { ok: true, data: { authHandling: true } };
+    case "web_session_export":
+      return { ok: true, data: { domain: "example.test", cookieCount: 3, cookies: [{ name: "sess", value: "v", domain: ".example.test", path: "/", secure: true }], localStorage: { k: "v" } } };
+    case "web_session_import":
+      return { ok: true, data: { cookiesSet: 3, localStorageKeys: 1 } };
+    case "web_profile_sync":
+      return { ok: true, data: { customDomain: { domain: "example.test", cookieCount: 4, cookies: [{ name: "sessionid" }] } } };
     default:
       return { ok: true, data: { echo: tool, via: "simulated-extension" } };
   }
 }
 
-async function startFakeExtension(): Promise<void> {
+async function startFakeExtension(browserId: string, browserName: string, userAgent: string): Promise<void> {
   // 1. Heartbeat registration with a stable browser identity.
   const reg = await fetch(`${BASE}/api/web/register`, {
     method: "POST",
     headers: authHeaders,
     body: JSON.stringify({
-      browserId: "test-chrome-1",
-      browserName: "chrome",
+      browserId,
+      browserName,
       webAccessEnabled: true,
-      userAgent: "TestChrome/1.0",
+      userAgent,
       tab: { url: "https://example.test/", title: "Example" },
     }),
   });
   assert.equal(reg.status, 200, "extension registration must succeed");
 
-  // 2. SSE subscription → answer web_request events.
+  // 2. SSE subscription → answer web_request events (each browser answers every
+  // request; the targeted one wins, the others 404 harmlessly — first-poster-wins).
   const sse = await fetch(`${BASE}/api/events`, { headers: { Authorization: `Bearer ${TOKEN}` } });
   assert.equal(sse.status, 200, "SSE subscription must be authorized");
   (async () => {
@@ -96,8 +107,11 @@ async function startFakeExtension(): Promise<void> {
         const line = chunk.split("\n").find((l) => l.startsWith("data: "));
         if (!line) continue;
         try {
-          const ev = JSON.parse(line.slice(6)) as { type?: string; id?: string; tool?: string };
+          const ev = JSON.parse(line.slice(6)) as { type?: string; id?: string; tool?: string; args?: { __browser?: string } };
           if (ev.type === "web_request" && ev.id && ev.tool) {
+            // respect targeting: stay silent if the request is for another browser
+            const hint = (ev.args?.__browser || "").toLowerCase();
+            if (hint && hint !== "any" && hint !== "default" && hint !== browserName && hint !== browserId) continue;
             const result = cannedResult(ev.tool);
             await fetch(`${BASE}/api/web/result`, {
               method: "POST",
@@ -114,7 +128,8 @@ async function startFakeExtension(): Promise<void> {
 let failed = false;
 try {
   await waitForHealth();
-  await startFakeExtension();
+  await startFakeExtension("test-chrome-1", "chrome", "TestChrome/1.0");
+  await startFakeExtension("test-edge-1", "edge", "TestEdge/1.0");
 
   // ── MCP client over stdio ────────────────────────────────────────────────
   const transport = new StdioClientTransport({
@@ -134,10 +149,12 @@ try {
     "web_device_emulate", "web_resize", "web_set_user_agent",
     "web_har_record", "web_video_record", "web_clock_set", "web_clock_clear",
     "web_events", "web_trace_record",
+    "web_fanout", "web_session_transfer", "web_route_for", "web_in_frame",
+    "web_network_auth", "web_session_export", "web_session_import",
   ];
   for (const t of expectedNew) assert.ok(names.includes(t), `tools/list must include ${t}`);
   assert.equal(new Set(names).size, names.length, "tools/list must not contain duplicate names");
-  assert.ok(names.length >= 139, `expected >=139 tools, got ${names.length}`);
+  assert.ok(names.length >= 146, `expected >=146 tools, got ${names.length}`);
   assert.ok(names.includes("get_latest_screenshot"), "phone tools must still be listed (parity)");
 
   // 2. get_mcp_catalog + get_skills still work with the grown catalog.
@@ -151,10 +168,9 @@ try {
     status: { online: boolean; browserCount: number; browsers: Array<{ id: string; name: string; online: boolean; webAccessEnabled: boolean }> };
   };
   assert.equal(statusRes.status.online, true);
-  assert.equal(statusRes.status.browserCount, 1);
-  assert.equal(statusRes.status.browsers[0].name, "chrome");
-  assert.equal(statusRes.status.browsers[0].online, true);
-  assert.equal(statusRes.status.browsers[0].webAccessEnabled, true);
+  assert.equal(statusRes.status.browserCount, 2, "both simulated browsers registered");
+  assert.ok(statusRes.status.browsers.some((b) => b.name === "chrome"), "chrome must be registered");
+  assert.ok(statusRes.status.browsers.every((b) => b.online && b.webAccessEnabled), "all browsers online with web access");
 
   // 4. FULL ROUND TRIP: MCP → hub → SSE → simulated extension → result → MCP.
   const expectRes = await client.callTool({ name: "web_expect", arguments: { condition: "visible", selector: "h1" } }) as {
@@ -207,11 +223,11 @@ try {
   assert.ok(Array.isArray(traceData.trace.traceEvents), "trace must contain traceEvents");
 
   // 5. Multi-browser targeting: wrong hint must be rejected pre-broadcast.
-  const wrong = await client.callTool({ name: "web_expect", arguments: { condition: "visible", __browser: "edge" } }) as {
+  const wrong = await client.callTool({ name: "web_expect", arguments: { condition: "visible", __browser: "firefox" } }) as {
     isError?: boolean; content: Array<{ text: string }>;
   };
   assert.equal(wrong.isError, true, "call targeted at a non-connected browser must fail");
-  assert.ok(wrong.content[0].text.includes("No connected browser matches 'edge'"), "error must list the targeting failure");
+  assert.ok(wrong.content[0].text.includes("No connected browser matches 'firefox'"), "error must list the targeting failure");
 
   // 6. Correct hint routes through.
   const right = await client.callTool({ name: "web_expect", arguments: { condition: "visible", selector: "h1", __browser: "chrome" } }) as {
@@ -219,11 +235,72 @@ try {
   };
   assert.ok(!right.isError, "call targeted at the connected browser must succeed");
 
-  // 7. web_status over MCP reports the browser list.
+  // 7. web_status over MCP reports the browser list — now TWO browsers.
   const ws = await client.callTool({ name: "web_status", arguments: {} }) as { content: Array<{ text: string }> };
-  const wsData = JSON.parse(ws.content[0].text) as { online: boolean; browsers: Array<{ name: string }> };
+  const wsData = JSON.parse(ws.content[0].text) as { online: boolean; browserCount: number; browsers: Array<{ id: string; name: string }> };
   assert.equal(wsData.online, true);
-  assert.equal(wsData.browsers[0].name, "chrome");
+  assert.equal(wsData.browserCount, 2, "both simulated browsers must be registered");
+  const chromeEntry = wsData.browsers.find((b) => b.name === "chrome");
+  const edgeEntry = wsData.browsers.find((b) => b.name === "edge");
+  assert.ok(chromeEntry && edgeEntry, "chrome and edge entries must exist");
+
+  // 7b. Round-5 multi-browser orchestration ──
+  // web_fanout across ALL browsers → one merged result per browser.
+  const fanout = await client.callTool({ name: "web_fanout", arguments: { tool: "web_aria_snapshot" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!fanout.isError, "web_fanout must succeed");
+  const fanoutData = JSON.parse(fanout.content[0].text) as { matched: number; results: Array<{ browser: string; ok: boolean }> };
+  assert.equal(fanoutData.matched, 2, "fanout must reach both browsers");
+  assert.ok(fanoutData.results.every((r) => r.ok), "both fanout copies must succeed");
+
+  // web_fanout with a subset hint → only edge executes.
+  const fanoutEdge = await client.callTool({ name: "web_fanout", arguments: { tool: "web_aria_snapshot", browsers: ["edge"] } }) as {
+    content: Array<{ text: string }>;
+  };
+  const fanoutEdgeData = JSON.parse(fanoutEdge.content[0].text) as { matched: number; results: Array<{ browser: string }> };
+  assert.equal(fanoutEdgeData.matched, 1, "subset fanout must match only edge");
+  assert.equal(fanoutEdgeData.results[0].browser, "edge");
+
+  // web_session_transfer: chrome → edge session sync (simulated payloads).
+  const transfer = await client.callTool({ name: "web_session_transfer", arguments: { domain: "example.test", from: chromeEntry.id, to: edgeEntry.id } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!transfer.isError, "web_session_transfer must succeed");
+  const transferData = JSON.parse(transfer.content[0].text) as { from: string; to: string; cookieCount: number; import: { cookiesSet: number } };
+  assert.equal(transferData.from, "chrome");
+  assert.equal(transferData.to, "edge");
+  assert.equal(transferData.cookieCount, 3, "export must report 3 cookies");
+  assert.equal(transferData.import.cookiesSet, 3, "import must set 3 cookies");
+
+  // web_route_for: both browsers probe the domain → recommendation returned.
+  const routeFor = await client.callTool({ name: "web_route_for", arguments: { domain: "example.test" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!routeFor.isError, "web_route_for must succeed");
+  const routeData = JSON.parse(routeFor.content[0].text) as { domain: string; recommended: { browser: string; cookieCount: number }; browsers: unknown[] };
+  assert.equal(routeData.domain, "example.test");
+  assert.equal(routeData.browsers.length, 2, "route_for must probe both browsers");
+  assert.ok(routeData.recommended && routeData.recommended.cookieCount === 4, "route_for must recommend a browser with auth cookies");
+
+  // web_in_frame + web_network_auth round trips (extension canned results).
+  const inFrame = await client.callTool({ name: "web_in_frame", arguments: { tool: "web_click", args: { selector: "#go" }, frameId: 55 } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!inFrame.isError, "web_in_frame round trip must succeed");
+  const inFrameData = JSON.parse(inFrame.content[0].text) as { frameId: number; inner: string };
+  assert.equal(inFrameData.frameId, 55);
+  assert.equal(inFrameData.inner, "clicked-in-frame");
+  const auth = await client.callTool({ name: "web_network_auth", arguments: { username: "u", password: "p" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!auth.isError, "web_network_auth round trip must succeed");
+
+  // Targeted single-browser call still routes correctly with both connected.
+  const targetedEdge = await client.callTool({ name: "web_expect", arguments: { condition: "visible", __browser: edgeEntry.id } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!targetedEdge.isError, "id-targeted call must reach exactly the right browser");
 
   // 8. Real-time SSE observability: ambient browser events land in the ring.
   for (const url of ["https://a.test/page-1", "https://b.test/page-2"]) {

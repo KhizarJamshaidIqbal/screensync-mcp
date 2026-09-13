@@ -210,7 +210,24 @@ export async function ssWebUnitAgent(args) {
       } else if (condition === 'url') { actual = location.href; passed = expectedText ? actual.toLowerCase().includes(expectedText) : false; }
       else if (condition === 'title') { actual = document.title; passed = expectedText ? actual.toLowerCase().includes(expectedText) : false; }
       else if (condition === 'checked') { passed = !!el && el.checked === true; actual = el ? String(el.checked) : 'not_found'; }
-      else return { ok: false, error: 'Unknown expect condition: ' + condition + '. Supported: visible, hidden, text, value, count, url, title, checked.' };
+      else if (condition === 'accessible_name') {
+        actual = el ? nameOf(el) : null;
+        const want = args.name !== undefined ? String(args.name).toLowerCase() : null;
+        passed = el !== null && want !== null && (args.exact === true ? actual.toLowerCase() === want : actual.toLowerCase().includes(want));
+        if (want === null) passed = false;
+      }
+      else if (condition === 'attribute') {
+        actual = el && args.attribute ? el.getAttribute(String(args.attribute)) : null;
+        const want = args.attrValue !== undefined ? String(args.attrValue) : null;
+        passed = actual !== null && (want === null ? true : args.exact === true ? actual === want : actual.toLowerCase().includes(want.toLowerCase()));
+        if (!args.attribute) passed = false;
+      }
+      else if (condition === 'has_class') {
+        actual = el ? el.className : null;
+        passed = !!el && String(args.className || '').trim() !== '' && el.classList.contains(String(args.className));
+        if (!args.className) passed = false;
+      }
+      else return { ok: false, error: 'Unknown expect condition: ' + condition + '. Supported: visible, hidden, text, value, count, url, title, checked, accessible_name, attribute, has_class.' };
       if (passed) break;
       await new Promise((r) => setTimeout(r, pollMs));
     }

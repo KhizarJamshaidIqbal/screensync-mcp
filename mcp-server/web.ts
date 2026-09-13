@@ -179,6 +179,113 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         });
         return;
       }
+      // ── Hub-side multi-browser orchestration ─────────────────────────────
+      // These run ONE tool on N browsers by issuing sequential per-browser
+      // requests (each extension self-filters via args.__browser) and merging.
+      const resolveTargets = (): Array<{ id: string; name: string }> => {
+        const online = onlineEntries().map((e) => {
+          const id = [...browsers.entries()].find(([, v]) => v === e)?.[0] ?? "default";
+          return { id, name: e.name };
+        });
+        const want = args.browsers;
+        if (!want || want === "all") return online;
+        const list = Array.isArray(want) ? want.map(String) : String(want).split(",").map((s) => s.trim());
+        return online.filter((t) => list.includes(t.name) || list.includes(t.id));
+      };
+      const callOn = (target: { id: string; name: string }, innerTool: string, innerArgs: Record<string, unknown>, timeoutMs: number): Promise<WebToolResult> =>
+        request(innerTool, { ...innerArgs, __browser: target.id }, timeoutMs);
+
+      if (tool === "web_fanout") {
+        const innerTool = String(args.tool || "");
+        if (!/^web_[a-z_]+$/.test(innerTool)) {
+          res.status(400).json({ success: false, ok: false, error: "web_fanout requires tool (a web_* tool to run on each browser)." });
+          return;
+        }
+        const targets = resolveTargets();
+        if (!targets.length) {
+          res.json({ success: true, ok: false, data: { results: [], matched: 0, error: "No connected browser matches the requested set." } });
+          return;
+        }
+        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
+        const { browsers: _omit, tool: _t, ...innerArgs } = args;
+        const results: Array<Record<string, unknown>> = [];
+        for (const target of targets) {
+          const r = await callOn(target, innerTool, innerArgs as Record<string, unknown>, timeoutMs);
+          results.push({ browser: target.name, browserId: target.id, ok: r.ok, data: r.data, error: r.error });
+        }
+        res.json({ success: true, ok: results.every((r) => r.ok), data: { tool: innerTool, matched: targets.length, results } });
+        return;
+      }
+
+      if (tool === "web_session_transfer") {
+        const domain = String(args.domain || "").trim();
+        if (!domain) {
+          res.status(400).json({ success: false, ok: false, error: "web_session_transfer requires domain (e.g. 'linkedin.com')." });
+          return;
+        }
+        const targets = resolveTargets();
+        if (targets.length < 2) {
+          res.json({ success: true, ok: false, data: { error: `web_session_transfer needs at least 2 connected browsers (from + to). Connected: ${targets.map((t) => t.name).join(", ") || "none"}. Pair another browser (Edge/Brave/second Chrome profile) to sync sessions.` } });
+          return;
+        }
+        const from = args.from ? targets.find((t) => t.name === String(args.from) || t.id === String(args.from)) : targets[0];
+        const to = args.to ? targets.find((t) => t.name === String(args.to) || t.id === String(args.to)) : targets.find((t) => t !== from);
+        if (!from || !to || from === to) {
+          res.json({ success: true, ok: false, data: { error: `Could not resolve from/to. Connected: ${targets.map((t) => `${t.name}(${t.id.slice(0, 8)})`).join(", ")}. Use install ids when several browsers share a name.` } });
+          return;
+        }
+        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
+        const exported = await callOn(from, "web_session_export", { domain, localStorage: args.localStorage !== false }, timeoutMs);
+        if (!exported.ok) {
+          res.json({ success: true, ok: false, data: { from: from.name, to: to.name, domain, error: `export failed on ${from.name}: ${exported.error}` } });
+          return;
+        }
+        const ed = exported.data as { cookieCount?: number; cookies?: unknown[]; localStorage?: Record<string, unknown>; note?: string } | undefined;
+        if (!ed?.cookies?.length) {
+          res.json({ success: true, ok: false, data: { from: from.name, to: to.name, domain, cookieCount: 0, error: `No session cookies for ${domain} in ${from.name} — likely not logged in there.`, note: ed?.note } });
+          return;
+        }
+        const imported = await callOn(to, "web_session_import", { session: ed }, timeoutMs);
+        res.json({
+          success: true, ok: imported.ok,
+          data: {
+            from: from.name, fromId: from.id, to: to.name, toId: to.id,
+            domain, cookieCount: ed.cookieCount, localStorageKeys: Object.keys(ed.localStorage || {}).length,
+            import: imported.data ?? imported.error,
+          },
+        });
+        return;
+      }
+
+      if (tool === "web_route_for") {
+        const domain = String(args.domain || String(args.url || "")).replace(/^https?:\/\//, "").split("/")[0].trim();
+        if (!domain) {
+          res.status(400).json({ success: false, ok: false, error: "web_route_for requires domain or url." });
+          return;
+        }
+        const targets = resolveTargets();
+        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 30_000, 5_000), 60_000);
+        const probes: Array<Record<string, unknown>> = [];
+        for (const target of targets) {
+          const r = await callOn(target, "web_profile_sync", { domain }, timeoutMs);
+          const d = r.data as { customDomain?: { cookieCount?: number; cookies?: Array<{ name?: string }> } } | undefined;
+          const cd = d?.customDomain;
+          const authish = (cd?.cookies || []).some((c) => /sess|auth|token|sid|login|jwt/i.test(String(c.name || "")));
+          probes.push({
+            browser: target.name, browserId: target.id,
+            reachable: r.ok, cookieCount: cd?.cookieCount ?? 0,
+            authLikeCookies: authish,
+            recommended: r.ok && (cd?.cookieCount ?? 0) > 0 && authish,
+          });
+        }
+        const best = probes.filter((p) => p.recommended) ?? [];
+        const recommended = best.length
+          ? (best.sort((a, b) => Number(b.cookieCount) - Number(a.cookieCount))[0])
+          : (probes.find((p) => Number(p.cookieCount) > 0) ?? probes[0] ?? null);
+        res.json({ success: true, ok: true, data: { domain, recommended: recommended ? { browser: recommended.browser, browserId: recommended.browserId, cookieCount: recommended.cookieCount, authLikeCookies: recommended.authLikeCookies } : null, browsers: probes } });
+        return;
+      }
+
       if (browsers.size === 0) {
         res.status(503).json({
           success: false, ok: false,

@@ -5,6 +5,8 @@ import { execDeviceTool } from './web-adv-device.js';
 import { execWatch } from './web-watch.js';
 import { ssWebUnitInteract, ssWebUnitExtract } from './web-unit.js';
 import { ssWebUnitAgent } from './web-unit-agent.js';
+import { execInFrame } from './web-frames.js';
+import { sessionExport, sessionImport } from './web-session-sync.js';
 
 // Browser-side executor for the hub's web bridge. The hub pushes
 // {type:'web_request', id, tool, args} over SSE; we run the tool against the
@@ -258,6 +260,7 @@ async function executeWebTool(tool, args) {
     case 'web_human_type':
     case 'web_human_scroll':
     case 'web_screencast':
+    case 'web_network_auth':
     case 'web_run_code':
     case 'web_har_record':
     case 'web_trace_record':
@@ -353,7 +356,7 @@ async function executeWebTool(tool, args) {
       return batchCrawl(args);
     }
     case 'web_frame_tree': {
-      const tab = await pickActiveTab();
+      const tab = await pickActiveTab(args);
       if (RESTRICTED_TAB.test(tab.url || '')) {
         return { ok: false, error: 'Cannot inspect frames on this tab (' + tab.url + '). Switch to a normal web page first.' };
       }
@@ -377,7 +380,7 @@ async function executeWebTool(tool, args) {
       };
     }
     case 'web_frame_exec': {
-      const tab = await pickActiveTab();
+      const tab = await pickActiveTab(args);
       if (RESTRICTED_TAB.test(tab.url || '')) {
         return { ok: false, error: 'Cannot run script on this tab (' + tab.url + '). Switch to a normal web page first.' };
       }
@@ -486,7 +489,7 @@ async function executeWebTool(tool, args) {
       return execWatch(tab, args, hubFetch);
     }
     case 'web_session_save': {
-      const tab = await pickActiveTab();
+      const tab = await pickActiveTab(args);
       if (!tab.url || RESTRICTED_TAB.test(tab.url)) {
         return { ok: false, error: 'Cannot save session on this tab (' + tab.url + '). Switch to a normal web page first.' };
       }
@@ -520,7 +523,7 @@ async function executeWebTool(tool, args) {
       };
     }
     case 'web_session_restore': {
-      const tab = await pickActiveTab();
+      const tab = await pickActiveTab(args);
       const session = args.session || args;
       if (!session || !Array.isArray(session.cookies)) {
         return { ok: false, error: 'Invalid session payload. Must include cookies array.' };
@@ -555,6 +558,19 @@ async function executeWebTool(tool, args) {
         }).catch(() => null);
       }
       return { ok: true, data: { restoredCookies, localStorageKeys: Object.keys(session.localStorage || {}).length } };
+    }
+    case 'web_in_frame': {
+      const tab = await pickActiveTab(args);
+      if (RESTRICTED_TAB.test(tab.url || '')) {
+        return { ok: false, error: 'Cannot run in-frame tools on this tab (' + tab.url + ').' };
+      }
+      return execInFrame(tab, args);
+    }
+    case 'web_session_export': {
+      return sessionExport(args);
+    }
+    case 'web_session_import': {
+      return sessionImport(args);
     }
     case 'web_extension_diagnostics': {
       const manifest = chrome.runtime.getManifest();
@@ -1179,7 +1195,34 @@ async function storageState(args = {}) {
         } catch {}
       }
     }
-    return { ok: true, data: { importedCookies } };
+    // Playwright storageState parity: restore localStorage origins too
+    // (open each origin temporarily when no tab is already on it).
+    let restoredOrigins = 0;
+    let localStorageKeys = 0;
+    const origins = Array.isArray(state.origins) ? state.origins : [];
+    for (const o of origins) {
+      if (!o || !o.origin || !Array.isArray(o.localStorage) || !o.localStorage.length) continue;
+      try {
+        let tab = null;
+        const tabs = await chrome.tabs.query({});
+        tab = (tabs || []).find((t) => { try { return t.url && t.url.startsWith(o.origin); } catch { return false; } });
+        let openedHere = false;
+        if (!tab) {
+          tab = await chrome.tabs.create({ url: o.origin + '/', active: false });
+          openedHere = true;
+          await new Promise((r) => setTimeout(r, 2500));
+        }
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (entries) => { for (const e of entries) { try { localStorage.setItem(e.name, String(e.value)); } catch {} } },
+          args: [o.localStorage],
+        });
+        restoredOrigins++;
+        localStorageKeys += o.localStorage.length;
+        if (openedHere) { try { await chrome.tabs.remove(tab.id); } catch {} }
+      } catch { /* origin unreachable — skip */ }
+    }
+    return { ok: true, data: { importedCookies, restoredOrigins, localStorageKeys } };
   }
   return { ok: false, error: `Unknown web_storage_state action: ${action}. Supported: export, import.` };
 }

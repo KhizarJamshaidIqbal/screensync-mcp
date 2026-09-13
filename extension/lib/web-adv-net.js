@@ -1,6 +1,49 @@
 // ScreenSync CDP network executors — mocks, routes, dialog rules, network
-// idle waits, websocket traffic, response/request waits.
-import { rawAttach, rawDetach, attachCdp, detachCdp, activeMocks, activeRoutes, activeDialogRules, activeWsBuffers } from './web-adv-core.js';
+// idle waits, websocket traffic, response/request waits, network auth.
+import { rawAttach, rawDetach, attachCdp, detachCdp, activeMocks, activeRoutes, activeDialogRules, activeWsBuffers, activeAuths } from './web-adv-core.js';
+
+// ── web_network_auth: Playwright page.authenticate parity — supply credentials
+// for HTTP basic/proxy auth challenges via CDP Fetch.authRequired handling ──
+export async function cdpNetworkAuth(tab, args = {}) {
+  const action = String(args.action || 'set').toLowerCase();
+  if (action === 'set') {
+    const username = String(args.username ?? '');
+    const password = String(args.password ?? '');
+    if (!username && !password) return { ok: false, error: 'web_network_auth requires username/password (or action:"clear").' };
+    const attached = await attachCdp(tab);
+    if (!attached.ok) return attached;
+    const had = activeAuths.has(tab.id);
+    try {
+      // Re-enable Fetch with auth handling; patterns default to all URLs.
+      await chrome.debugger.sendCommand({ tabId: tab.id }, 'Fetch.enable', {
+        handleAuthRequests: true,
+        patterns: [{ urlPattern: args.urlPattern || '*' }],
+      });
+      activeAuths.set(tab.id, { username, password });
+      return {
+        ok: true,
+        data: {
+          authHandling: true,
+          username,
+          urlPattern: args.urlPattern || '*',
+          persisted: had,
+          note: 'Auth challenges on this tab are answered automatically. Clear with action:"clear".',
+        },
+      };
+    } catch (e) {
+      return { ok: false, error: `Fetch.enable(handleAuthRequests) failed: ${String((e && e.message) || e)}` };
+    }
+  }
+  if (action === 'clear') {
+    const had = activeAuths.has(tab.id);
+    try { await chrome.debugger.sendCommand({ tabId: tab.id }, 'Fetch.disable'); } catch {}
+    activeAuths.delete(tab.id);
+    if (had) await detachCdp(tab);
+    return { ok: true, data: { cleared: true } };
+  }
+  return { ok: false, error: 'Unknown web_network_auth action: ' + action + '. Supported: set, clear.' };
+}
+
 export async function cdpNetworkMock(tab, args = {}) {
   const target = { tabId: tab.id };
   let attached = false;

@@ -69,7 +69,8 @@ function cdpBusy(tabId) {
   const busy = (m) => m && m.has(tabId);
   return Boolean(busy(activeMocks) || busy(activeRoutes) || busy(activeDialogRules)
     || busy(activeWsBuffers) || busy(activeScreencasts) || busy(activeCoverage)
-    || busy(activeHars) || busy(activeTraces) || busy(activeVideoRecs) || busy(activeEmulations));
+    || busy(activeHars) || busy(activeTraces) || busy(activeVideoRecs) || busy(activeEmulations)
+    || busy(activeAuths));
 }
 
 
@@ -105,6 +106,7 @@ export const activeVideoRecs = new Map(); // tabId -> { startedAt, fps, frameCou
 export const activeClocks = new Map(); // tabId -> { scriptId, offsetMs }
 
 export const activeEmulations = new Map(); // tabId -> true while device/UA emulation is live
+export const activeAuths = new Map(); // tabId -> { username, password } while network auth handling is live
 export const activeCoverage = new Map(); // tabId -> JS/CSS coverage session (cdpBusy guard + capture module)
 
 
@@ -271,6 +273,25 @@ if (chrome.debugger && chrome.debugger.onEvent) {
       }
     }
 
+    // ── Network auth: answer Fetch.authRequired with stored credentials ──
+    if (method === 'Fetch.authRequired' && source && source.tabId) {
+      const auth = activeAuths.get(source.tabId);
+      if (auth) {
+        try {
+          await chrome.debugger.sendCommand(source, 'Fetch.continueWithAuth', {
+            requestId: params.requestId,
+            authChallengeResponse: {
+              response: auth.username ? 'ProvideCredentials' : 'CancelAuth',
+              username: auth.username || undefined,
+              password: auth.password || undefined,
+            },
+          });
+        } catch {}
+      } else {
+        try { await chrome.debugger.sendCommand(source, 'Fetch.continueAuth', { requestId: params.requestId }); } catch {}
+      }
+    }
+
     if (method === 'Fetch.requestPaused' && source && source.tabId) {
       const routes = activeRoutes.get(source.tabId);
       if (routes && routes.length > 0) {
@@ -357,6 +378,7 @@ if (chrome.tabs && chrome.tabs.onRemoved) {
     activeVideoRecs.delete(tabId);
     activeClocks.delete(tabId);
     activeEmulations.delete(tabId);
+    activeAuths.delete(tabId);
   });
 }
 
