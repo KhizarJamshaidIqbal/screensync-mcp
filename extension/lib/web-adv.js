@@ -5,9 +5,9 @@ import { ssInstallHooks, ssReadBuffer, ssEval, ssStorage, ssPerf, ssWaitFor, ssK
 import { attachCdp, detachCdp } from './web-adv-core.js';
 import { cdpWaitNetworkIdle } from './web-adv-net.js';
 import { cdpInput, cdpUploadFile, cdpKeyCombo, cdpMouse, cdpTouch, cdpHumanMouse, cdpHumanType, cdpHumanScroll, cdpClipboard } from './web-adv-input.js';
-import { cdpScreenshot, cdpPdf, cdpElementScreenshot, cdpAXTree, cdpStealthCloak, cdpExportHar, cdpCoverage, cdpScreencast } from './web-adv-capture.js';
-import { cdpNetworkMock, cdpRoute, cdpDialogRule, cdpWaitForResponse, cdpWaitForRequest, cdpWebSocketTraffic, cdpNetworkAuth } from './web-adv-net.js';
-import { cdpEmulate, cdpGrantPermissions, cdpSetTimezone, cdpSetGeolocation, cdpThrottleNetwork, cdpSetColorScheme } from './web-adv-emulate.js';
+import { cdpScreenshot, cdpPdf, cdpElementScreenshot, cdpAXTree, cdpStealthCloak, cdpExportHar, cdpCoverage, cdpScreencast, cdpMhtml } from './web-adv-capture.js';
+import { cdpNetworkMock, cdpRoute, cdpDialogRule, cdpWaitForResponse, cdpWaitForRequest, cdpWebSocketTraffic, cdpNetworkAuth, cdpCacheControl } from './web-adv-net.js';
+import { cdpEmulate, cdpGrantPermissions, cdpSetTimezone, cdpSetGeolocation, cdpThrottleNetwork, cdpSetColorScheme, cdpEmulateMedia } from './web-adv-emulate.js';
 import { cdpEval, cdpRunCode } from './web-adv-eval.js';
 import { cdpHarRecord, cdpVideoRecord, cdpClockSet, cdpClockClear, cdpClockFastForward, cdpTraceRecord } from './web-adv-record.js';
 
@@ -35,6 +35,7 @@ export async function execAdvTool(tool, tab, args) {
     case 'web_cdp_type': return cdpInput(tab, 'type', args);
     case 'web_full_screenshot': return cdpScreenshot(tab, args);
     case 'web_pdf': return cdpPdf(tab, args);
+    case 'web_mhtml': return cdpMhtml(tab, args);
     case 'web_cdp_eval': return cdpEval(tab, args);
     case 'web_a11y_tree': return cdpAXTree(tab, args);
     case 'web_stealth_cloak': return cdpStealthCloak(tab, args);
@@ -42,6 +43,7 @@ export async function execAdvTool(tool, tab, args) {
     case 'web_human_mouse': return cdpHumanMouse(tab, args);
     case 'web_network_mock': return cdpNetworkMock(tab, args);
     case 'web_network_auth': return cdpNetworkAuth(tab, args);
+    case 'web_cache_control': return cdpCacheControl(tab, args);
     case 'web_element_screenshot': return cdpElementScreenshot(tab, args);
     case 'web_emulate': return cdpEmulate(tab, args);
     case 'web_upload_file': return cdpUploadFile(tab, args);
@@ -56,6 +58,7 @@ export async function execAdvTool(tool, tab, args) {
     case 'web_set_geolocation': return cdpSetGeolocation(tab, args);
     case 'web_throttle_network': return cdpThrottleNetwork(tab, args);
     case 'web_set_color_scheme': return cdpSetColorScheme(tab, args);
+    case 'web_emulate_media': return cdpEmulateMedia(tab, args);
     case 'web_clipboard': return cdpClipboard(tab, args);
     case 'web_wait_for_response': return cdpWaitForResponse(tab, args);
     case 'web_wait_for_request': return cdpWaitForRequest(tab, args);

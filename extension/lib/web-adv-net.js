@@ -44,6 +44,36 @@ export async function cdpNetworkAuth(tab, args = {}) {
   return { ok: false, error: 'Unknown web_network_auth action: ' + action + '. Supported: set, clear.' };
 }
 
+
+// ── web_cache_control: DevTools cache parity — disable/enable/clear ────────
+export async function cdpCacheControl(tab, args = {}) {
+  const action = String(args.action || 'clear').toLowerCase();
+  const attached = await attachCdp(tab);
+  if (!attached.ok) return attached;
+  try {
+    await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.enable');
+    if (action === 'disable') {
+      await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.setCacheDisabled', { cacheDisabled: true });
+      if (args.clearFirst !== false) await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.clearBrowserCache');
+      return { ok: true, data: { cacheDisabled: true, clearedFirst: args.clearFirst !== false, note: 'Cache bypassed for this tab — requests always hit the network.' } };
+    }
+    if (action === 'enable') {
+      await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.setCacheDisabled', { cacheDisabled: false });
+      return { ok: true, data: { cacheDisabled: false } };
+    }
+    if (action === 'clear') {
+      await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.clearBrowserCache');
+      return { ok: true, data: { cleared: true } };
+    }
+    return { ok: false, error: 'Unknown web_cache_control action: ' + action + '. Supported: disable, enable, clear.' };
+  } catch (e) {
+    return { ok: false, error: 'web_cache_control failed: ' + String((e && e.message) || e) };
+  } finally {
+    // cacheDisabled persists per attached session; keep registry semantics simple:
+    // this tool uses attachCdp/detachCdp like other one-shot executors.
+    await detachCdp(tab);
+  }
+}
 export async function cdpNetworkMock(tab, args = {}) {
   const target = { tabId: tab.id };
   let attached = false;

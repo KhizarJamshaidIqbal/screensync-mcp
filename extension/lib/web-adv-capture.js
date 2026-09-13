@@ -118,6 +118,63 @@ export async function cdpPdf(tab, args = {}) {
 }
 
 
+
+// ── web_mhtml: full-page MHTML archive (DevTools Page.captureSnapshot parity) ──
+export async function cdpMhtml(tab, args = {}) {
+  const target = { tabId: tab.id };
+  let attached = false;
+  try {
+    await rawAttach(target);
+    attached = true;
+  } catch (e) {
+    if (!/already attached/i.test(String((e && e.message) || e))) return { ok: false, error: 'CDP attach failed: '+ String((e && e.message) || e) };
+  }
+  try {
+    let mhtml = '';
+    try {
+      await chrome.debugger.sendCommand(target, "Page.enable", {}).catch(() => {});
+      const res = await chrome.debugger.sendCommand(target, "Page.captureSnapshot", { format: 'mhtml' });
+      mhtml = String(res.data || '');
+    } catch (_cdpErr) {
+      const domResult = await main(tab, () => document.documentElement.outerHTML);
+      const html = (domResult && typeof domResult === 'string') ? domResult : '<!DOCTYPE html><html><body></body></html>';
+      const boundary = '----=_NextPart_ScreenSync_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+      mhtml = [
+        'From: <Saved by ScreenSync MCP>',
+        'Snapshot-Content-Location: ' + (tab.url || 'about:blank'),
+        'Subject: ' + (tab.title || 'Page Snapshot'),
+        'Date: ' + new Date().toUTCString(),
+        'MIME-Version: 1.0',
+        'Content-Type: multipart/related; type="text/html"; boundary="' + boundary + '"',
+        '',
+        '--' + boundary,
+        'Content-Type: text/html; charset="utf-8"',
+        'Content-Transfer-Encoding: 8bit',
+        'Content-Location: ' + (tab.url || 'about:blank'),
+        '',
+        html,
+        '',
+        '--' + boundary + '--',
+        '',
+      ].join('\r\n');
+    }
+    const out = { bytes: mhtml.length, url: tab.url, title: tab.title };
+    if (args.download === true) {
+      try {
+        const b64 = btoa(unescape(encodeURIComponent(mhtml)));
+        await chrome.downloads.download({ url: 'data:application/mhtml;base64,' + b64, filename: args.filename || ('screensync-page-' + Date.now() + '.mhtml'), saveAs: false });
+        out.downloaded = true;
+      } catch (e2) { out.downloadError = String((e2 && e2.message) || e2); }
+    }
+    if (args.returnData === true || mhtml.length < 2000000) out.mhtml = mhtml;
+    else out.preview = mhtml.slice(0, 200) + "… (use download:true or returnData:true for the full archive)";
+    return { ok: true, data: out };
+  } catch (err) {
+    return { ok: false, error: 'web_mhtml failed: ' + String((err && err.message) || err) };
+  } finally {
+    if (attached) { await rawDetach(target); }
+  }
+}
 export async function cdpAXTree(tab, args = {}) {
   const target = { tabId: tab.id };
   let attached = false;

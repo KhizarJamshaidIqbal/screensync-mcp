@@ -78,6 +78,19 @@ function cannedResult(tool: string, args: Record<string, unknown> = {}): { ok: b
       return { ok: true, data: { count: 1, items: [{ title: "Docs", url: "https://docs.test" }] } };
     case "web_social_matrix":
       return { ok: true, data: { platforms: [{ platform: "x", authenticated: true, user: "@e2e" }] } };
+    case "web_screenshot":
+      // 1x1 white PNG — enough for the hub-side web_visual_baseline handler to parse
+      return { ok: true, data: { imageDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAA0lEQVQI12P4z8BQDwAEgAF/QualzQAAAABJRU5ErkJggg==", url: "https://example.test/", title: "Example" } };
+    case "web_pixel_diff":
+      return { ok: true, data: { identical: true, diffPercent: 0, diffImageDataUrl: "" } };
+    case "web_emulate_media":
+      return { ok: true, data: { media: "print", features: [] } };
+    case "web_mhtml":
+      return { ok: true, data: { bytes: 5000, mhtml: "MIME-Version: 1.0" } };
+    case "web_cache_control":
+      return { ok: true, data: { cleared: true } };
+    case "web_visual_baseline":
+      return { ok: true, data: { compared: true, name: "e2e-page", passed: true, diffPercent: 0, identical: true } };
     case "web_wait_download":
       return { ok: true, data: { state: "complete", filename: "e2e-file.zip", fileSize: 1234, mime: "application/zip", finalUrl: "https://example.test/file.zip" } };
     default:
@@ -168,10 +181,11 @@ try {
     "web_api_fetch", "web_history", "web_bookmarks",
     "web_flow_save", "web_flow_list", "web_flow_run", "web_flow_delete", "web_account_report",
     "web_flow_schedule", "web_flow_schedules", "web_flow_unschedule",
+    "web_emulate_media", "web_mhtml", "web_cache_control", "web_visual_baseline",
   ];
   for (const t of expectedNew) assert.ok(names.includes(t), `tools/list must include ${t}`);
   assert.equal(new Set(names).size, names.length, "tools/list must not contain duplicate names");
-  assert.ok(names.length >= 163, `expected >=151 tools, got ${names.length}`);
+  assert.ok(names.length >= 167, `expected >=151 tools, got ${names.length}`);
   assert.ok(names.includes("get_latest_screenshot"), "phone tools must still be listed (parity)");
 
   // 2. get_mcp_catalog + get_skills still work with the grown catalog.
@@ -429,6 +443,53 @@ try {
     isError?: boolean; content: Array<{ text: string }>;
   };
   assert.ok(!mf.isError, "web_api_fetch multipart round trip must succeed");
+
+  // 7i. Round-9: emulate_media / mhtml / cache / visual baseline round trips ──
+  const em = await client.callTool({ name: "web_emulate_media", arguments: { media: "print" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!em.isError, "web_emulate_media round trip must succeed");
+  const mh = await client.callTool({ name: "web_mhtml", arguments: {} }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!mh.isError, "web_mhtml round trip must succeed");
+  const cc = await client.callTool({ name: "web_cache_control", arguments: { action: "clear" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!cc.isError, "web_cache_control round trip must succeed");
+  const vbSave = await client.callTool({ name: "web_visual_baseline", arguments: { action: "save", name: "e2e-page" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!vbSave.isError, "web_visual_baseline save must succeed");
+  const vbList = await client.callTool({ name: "web_visual_baseline", arguments: { action: "list" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  const vbListData = JSON.parse(vbList.content[0].text) as { baselines: Array<{ name: string }> };
+  assert.ok(vbListData.baselines.some((b) => b.name === "e2e-page"), "saved baseline must be listed");
+  const vbCmp = await client.callTool({ name: "web_visual_baseline", arguments: { action: "compare", name: "e2e-page" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!vbCmp.isError, "web_visual_baseline compare must succeed");
+  const vbCmpData = JSON.parse(vbCmp.content[0].text) as { compared: boolean; passed: boolean; diffPercent: number };
+  assert.equal(vbCmpData.compared, true);
+  assert.equal(vbCmpData.passed, true);
+  assert.equal(vbCmpData.diffPercent, 0);
+
+  // 7j. Round-9: flow step-output chaining ──
+  // step1 extracts a value; step2's args reference {{step.1.data.result}}
+  const chainSave = await client.callTool({ name: "web_flow_save", arguments: { name: "e2e-chain", steps: [
+    { tool: "web_run_code", args: { code: "chain-proof-42" } },
+    { tool: "web_run_code", args: { code: "echo:{{step.1.data.result}}" } },
+  ] } }) as { isError?: boolean; content: Array<{ text: string }> };
+  assert.ok(!chainSave.isError, "chain flow save must succeed");
+  const chainRun = await client.callTool({ name: "web_flow_run", arguments: { name: "e2e-chain" } }) as {
+    isError?: boolean; content: Array<{ text: string }>;
+  };
+  assert.ok(!chainRun.isError, "web_flow_run with chaining must succeed");
+  const chainData = JSON.parse(chainRun.content[0].text) as { okAll: boolean; results: Array<{ data?: { result?: string } }> };
+  assert.equal(chainData.okAll, true);
+  assert.equal(chainData.results[1].data?.result, "echo:chain-proof-42", "{{step.1.data.result}} must resolve to step1's output");
+  await client.callTool({ name: "web_flow_delete", arguments: { name: "e2e-chain" } });
 
   // 8. Real-time SSE observability: ambient browser events land in the ring.
   for (const url of ["https://a.test/page-1", "https://b.test/page-2"]) {

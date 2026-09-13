@@ -696,5 +696,70 @@ export function agentWebToolDefinitions(): WebToolDef[] {
         additionalProperties: false,
       },
     },
+    {
+      name: "web_emulate_media",
+      description:
+        "Playwright page.emulateMedia() parity: emulates the media type (print/screen — test print stylesheets) and feature policies prefers-reduced-motion, forced-colors, and prefers-contrast. Reset by calling with media='' and no features.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          media: { type: "string", enum: ["screen", "print", ""], description: "Emulated media type. Empty string = no emulation." },
+          reducedMotion: { type: "string", enum: ["reduce", "no-preference"], description: "prefers-reduced-motion override." },
+          forcedColors: { type: "string", enum: ["active", "none"], description: "forced-colors override." },
+          contrast: { type: "string", enum: ["more", "less", "no-preference"], description: "prefers-contrast override." },
+          colorScheme: { type: "string", enum: ["dark", "light"], description: "prefers-color-scheme override." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_mhtml",
+      description:
+        "Captures the ENTIRE page (DOM + resources) as a single MHTML archive via CDP Page.captureSnapshot — DevTools 'Save as MHTML' parity. Perfect tamper-evident run evidence; optionally downloads the .mhtml file.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          download: { type: "boolean", default: false, description: "Save the .mhtml to Downloads." },
+          filename: { type: "string", description: "Download filename." },
+          returnData: { type: "boolean", description: "Force the full MHTML into the result even when large." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_cache_control",
+      description:
+        "Chrome cache control (DevTools parity): disable the HTTP cache for this tab (requests always hit the network), re-enable it, or clear the browser cache — essential for testing cache-sensitive flows and fresh-load behavior.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["disable", "enable", "clear"], default: "clear" },
+          clearFirst: { type: "boolean", default: true, description: "With action=disable, also clear the existing cache." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_visual_baseline",
+      description:
+        "Playwright toHaveScreenshot() parity: saves named PNG baselines of a page and compares future screenshots against them (pixel diff + heatmap evidence). Missing baselines auto-create on first compare; updateBaseline:true accepts the new look after an intentional change.",
+      inputSchema: {
+        type: "object",
+        required: ["action"],
+        properties: {
+          action: { type: "string", enum: ["save", "compare", "list", "clear"], description: "Lifecycle." },
+          name: { type: "string", description: "Baseline name, e.g. 'checkout-page'." },
+          threshold: { type: "number", minimum: 0, maximum: 1, default: 0.05, description: "compare passes when diffPercent ≤ threshold." },
+          updateBaseline: { type: "boolean", default: false, description: "On failed compare, overwrite the baseline with the current screenshot." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser (name or install id)." },
+          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 45000 },
+        },
+        additionalProperties: false,
+      },
+    },
   ];
 }

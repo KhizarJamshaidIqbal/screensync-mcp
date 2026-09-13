@@ -132,6 +132,64 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       return value;
     };
 
+    // Flow step-output chaining: {{step.N}} → step N's result data (JSON),
+    // {{step.N.path.to.field}} → dotted-path traversal into that data.
+    const getPath = (obj: unknown, dotted: string): unknown => {
+      let cur: unknown = obj;
+      for (const part of dotted.split(".")) {
+        if (cur === null || cur === undefined) return undefined;
+        cur = (cur as Record<string, unknown>)[part];
+      }
+      return cur;
+    };
+    const substituteTokens = (
+      value: unknown,
+      vars: Record<string, string>,
+      stepResults: Array<Record<string, unknown>>,
+    ): unknown => {
+      const resolve = (token: string): unknown => {
+        if (token.startsWith("step.")) {
+          const rest = token.slice(5);
+          const dot = rest.indexOf(".");
+          const n = dot === -1 ? rest : rest.slice(0, dot);
+          const idx = Number(n);
+          const entry = stepResults[idx - 1];
+          if (!entry) return undefined;
+          if (dot === -1) return entry.data;
+          const pathStr = rest.slice(dot + 1);
+          const fromEntry = getPath(entry, pathStr);
+          if (fromEntry !== undefined) return fromEntry;
+          return getPath(entry.data, pathStr);
+        }
+        return vars[token];
+      };
+      const walk = (v: unknown): unknown => {
+        if (typeof v === "string") {
+          // whole-string token returns the raw value (preserves objects/numbers)
+          const m = v.match(/^\{\{([^}]+)\}\}$/);
+          if (m) {
+            const resolved = resolve(m[1].trim());
+            return resolved !== undefined ? resolved : v;
+          }
+          let out = v;
+          for (const [k, val] of Object.entries(vars)) out = out.replaceAll(`{{${k}}}`, val);
+          out = out.replace(/\{\{(step\.[^}]+)\}\}/g, (_s, token: string) => {
+            const resolved = resolve(token.trim());
+            return resolved === undefined ? `{{${token}}}` : String(resolved);
+          });
+          return out;
+        }
+        if (Array.isArray(v)) return v.map(walk);
+        if (v && typeof v === "object") {
+          const out: Record<string, unknown> = {};
+          for (const [k, val] of Object.entries(v)) out[k] = walk(val);
+          return out;
+        }
+        return v;
+      };
+      return walk(value);
+    };
+
     type FlowStep = { tool?: string; args?: Record<string, unknown> };
     type SavedFlow = { name: string; steps: FlowStep[] };
     const executeFlow = async (
@@ -153,7 +211,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           if (stopOnError) break;
           continue;
         }
-        const stepArgs = substituteVars(step.args ?? {}, vars) as Record<string, unknown>;
+          const stepArgs = substituteTokens(step.args ?? {}, vars, results) as Record<string, unknown>;
         broadcast({ type: "web_replay_step", at: new Date().toISOString(), flow: flow.name, step: i + 1, of: flow.steps.length, tool: stepTool });
         const r = await request(stepTool, stepArgs, stepTimeoutMs);
         results.push({ step: i + 1, tool: stepTool, ok: r.ok, data: r.data, error: r.error });
@@ -530,6 +588,101 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       }
 
       // ── Account dashboard: which platform is live in which browser? ──────
+      // ── Visual baselines: Playwright toHaveScreenshot parity ─────────────
+      if (tool === "web_visual_baseline") {
+        const action = String(args.action || "save");
+        const BASELINES_DIR = path.join(DATA_DIR, "baselines");
+
+        if (action === "list") {
+          const files = existsSync(BASELINES_DIR) ? readdirSync(BASELINES_DIR).filter((f) => f.endsWith(".json")) : [];
+          const items = files.map((f) => {
+            try { return JSON.parse(readFileSync(path.join(BASELINES_DIR, f), "utf8")); } catch { return { name: f, corrupted: true }; }
+          });
+          res.json({ success: true, ok: true, data: { baselines: items, count: items.length } });
+          return;
+        }
+
+        const name = String(args.name || "").trim().replace(/[^a-z0-9_-]+/gi, "_");
+        if (!name) {
+          res.status(400).json({ success: false, ok: false, error: "web_visual_baseline requires name for " + action + "." });
+          return;
+        }
+        const basePng = path.join(BASELINES_DIR, name + ".png");
+        const baseMeta = path.join(BASELINES_DIR, name + ".json");
+        if (action === "clear") {
+          if (existsSync(basePng)) unlinkSync(basePng);
+          if (existsSync(baseMeta)) unlinkSync(baseMeta);
+          res.json({ success: true, ok: true, data: { cleared: name } });
+          return;
+        }
+        if (action !== "save" && action !== "compare") {
+          res.status(400).json({ success: false, ok: false, error: "Unknown web_visual_baseline action: " + action + ". Supported: save, compare, list, clear." });
+          return;
+        }
+
+        // Capture the CURRENT viewport as PNG via the extension.
+        const targets = onlineEntries().map((e) => {
+          const id = [...browsers.entries()].find(([, v]) => v === e)?.[0] ?? "default";
+          return { id, name: e.name };
+        });
+        const target = args.__browser
+          ? targets.find((t) => t.name === String(args.__browser) || t.id === String(args.__browser)) ?? targets[0]
+          : targets[0];
+        if (!target) {
+          res.status(503).json({ success: false, ok: false, error: "No browser is online." });
+          return;
+        }
+        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
+        const shot = await request("web_screenshot", { format: "png", ...(args.tabId ? { tabId: args.tabId } : {}), __browser: target.id }, timeoutMs);
+        const shotData = shot.data as { imageDataUrl?: string; url?: string; title?: string } | undefined;
+        const dataUrl = shotData?.imageDataUrl ?? "";
+        if (!shot.ok || !dataUrl.startsWith("data:image/")) {
+          res.json({ success: true, ok: false, data: { error: "Could not capture a PNG screenshot: " + (shot.error ?? "no image") } });
+          return;
+        }
+        const b64png = dataUrl.split(",", 2)[1];
+
+        if (action === "save") {
+          mkdirSync(BASELINES_DIR, { recursive: true });
+          writeFileSync(basePng, Buffer.from(b64png, "base64"));
+          const meta = { name, savedAt: new Date().toISOString(), url: shotData?.url ?? null, title: shotData?.title ?? null, bytes: b64png.length };
+          writeFileSync(baseMeta, JSON.stringify(meta, null, 2));
+          res.json({ success: true, ok: true, data: { saved: true, name, file: basePng, url: meta.url } });
+          return;
+        }
+
+        // compare
+        const rawThreshold = Number(args.threshold);
+        const threshold = Number.isFinite(rawThreshold) ? Math.min(Math.max(rawThreshold, 0), 1) : 0.05;
+        if (!existsSync(basePng)) {
+          // toHaveScreenshot parity: first run creates the baseline.
+          mkdirSync(BASELINES_DIR, { recursive: true });
+          writeFileSync(basePng, Buffer.from(b64png, "base64"));
+          writeFileSync(baseMeta, JSON.stringify({ name, savedAt: new Date().toISOString(), url: shotData?.url ?? null, title: shotData?.title ?? null, bytes: b64png.length, autoCreated: true }, null, 2));
+          res.json({ success: true, ok: true, data: { compared: false, created: true, name, message: "No baseline existed — the current screenshot was saved as the new baseline. Run compare again." } });
+          return;
+        }
+        const baselineDataUrl = "data:image/png;base64," + readFileSync(basePng).toString("base64");
+        const diff = await request("web_pixel_diff", { imageA: baselineDataUrl, imageB: dataUrl, threshold }, timeoutMs);
+        const dd = diff.data as { identical?: boolean; diffPercent?: number; diffImageDataUrl?: string } | undefined;
+        if (!diff.ok || !dd) {
+          res.json({ success: true, ok: false, data: { error: "pixel diff failed: " + (diff.error ?? "no data") } });
+          return;
+        }
+        const passed = (dd.diffPercent ?? 100) <= threshold * 100;
+        let updatedBaseline = false;
+        if (args.updateBaseline === true && !passed) {
+          writeFileSync(basePng, Buffer.from(b64png, "base64"));
+          writeFileSync(baseMeta, JSON.stringify({ name, savedAt: new Date().toISOString(), url: shotData?.url ?? null, title: shotData?.title ?? null, bytes: b64png.length, autoUpdated: true }, null, 2));
+          updatedBaseline = true;
+        }
+        const { diffImageDataUrl: heat, ...diffSummary } = dd;
+        res.json({
+          success: true, ok: true,
+          data: { compared: true, name, passed, threshold, ...diffSummary, heatmap: heat, updatedBaseline },
+        });
+        return;
+      }
       if (tool === "web_account_report") {
         const targets = onlineEntries().map((e) => {
           const id = [...browsers.entries()].find(([, v]) => v === e)?.[0] ?? "default";
@@ -600,8 +753,9 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
             if (stopOnError) break;
             continue;
           }
+          const stepArgs = substituteTokens(step.args ?? {}, {}, results) as Record<string, unknown>;
           broadcast({ type: "web_replay_step", at: new Date().toISOString(), step: i + 1, of: steps.length, tool: stepTool });
-          const r = await request(stepTool, (step.args ?? {}) as Record<string, unknown>, stepTimeoutMs);
+          const r = await request(stepTool, stepArgs, stepTimeoutMs);
           results.push({ step: i + 1, tool: stepTool, ok: r.ok, data: r.data, error: r.error });
           if (!r.ok) {
             okAll = false;

@@ -22,7 +22,14 @@ export function webToolDefinitions() {
       name: "web_screenshot",
       description:
         "Captures the currently active browser tab as an inline image (what the user is actually looking at). Requires the extension connected with Web access enabled.",
-      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      inputSchema: {
+        type: "object",
+        properties: {
+          format: { type: "string", enum: ["png", "jpeg"], default: "jpeg", description: "Image format — use png for deterministic visual baselines." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+        },
+        additionalProperties: false,
+      },
     },
     {
       name: "web_full_screenshot",

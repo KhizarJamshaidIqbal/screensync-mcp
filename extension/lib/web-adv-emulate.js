@@ -239,6 +239,41 @@ export async function cdpThrottleNetwork(tab, args = {}) {
 }
 
 
+// ── web_emulate_media: Playwright page.emulateMedia parity — media type +
+// prefers-reduced-motion / forced-colors / prefers-contrast feature overrides ──
+export async function cdpEmulateMedia(tab, args = {}) {
+  const target = { tabId: tab.id };
+  let attachedHere = false;
+  try {
+    await rawAttach(target);
+    attachedHere = true;
+  } catch (err) {
+    if (!/already attached/i.test(String((err && err.message) || err))) throw err;
+  }
+  try {
+    const params = { media: args.media !== undefined ? String(args.media) : '' };
+    const features = [];
+    if (args.reducedMotion) features.push({ name: 'prefers-reduced-motion', value: String(args.reducedMotion) });
+    if (args.forcedColors) features.push({ name: 'forced-colors', value: String(args.forcedColors) });
+    if (args.contrast) features.push({ name: 'prefers-contrast', value: String(args.contrast) });
+    if (args.colorScheme) features.push({ name: 'prefers-color-scheme', value: String(args.colorScheme) });
+    if (features.length) params.features = features;
+    await chrome.debugger.sendCommand(target, 'Emulation.setEmulatedMedia', params);
+    return {
+      ok: true,
+      data: {
+        media: params.media || '(none)',
+        features,
+        note: 'Media emulation active on this tab. Reset by calling again with media set to an empty string and no features.',
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: 'web_emulate_media failed: ' + String((err && err.message) || err) };
+  } finally {
+    if (attachedHere) { await rawDetach(target); }
+  }
+}
+
 export async function cdpSetColorScheme(tab, args = {}) {
   const target = { tabId: tab.id };
   const attached = await attachCdp(tab);

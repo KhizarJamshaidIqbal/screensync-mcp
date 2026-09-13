@@ -171,14 +171,24 @@ async function executeWebTool(tool, args) {
       if (RESTRICTED_TAB.test(tab.url || '')) {
         return { ok: false, error: `Cannot capture this tab (${tab.url}). Switch to a normal web page first.` };
       }
+      const format = args.format === 'png' ? 'png' : 'jpeg';
+      const opts = format === 'png' ? { format: 'png' } : { format: 'jpeg', quality: typeof args.quality === 'number' ? Math.min(100, Math.max(1, args.quality)) : 85 };
+      if (args && args.tabId && !tab.active) {
+        try {
+          const cdpRes = await execAdvTool('web_full_screenshot', tab, { format, quality: opts.quality });
+          if (cdpRes && cdpRes.ok && cdpRes.data && cdpRes.data.imageDataUrl) {
+            return { ok: true, data: { imageDataUrl: cdpRes.data.imageDataUrl, url: tab.url, title: tab.title, via: 'cdp_background', format } };
+          }
+        } catch {}
+      }
       try {
-        const imageDataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 85 });
-        return { ok: true, data: { imageDataUrl, url: tab.url, title: tab.title } };
+        const imageDataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, opts);
+        return { ok: true, data: { imageDataUrl, url: tab.url, title: tab.title, format } };
       } catch (err) {
         try {
-          const cdpRes = await execAdvTool('web_full_screenshot', tab, { format: 'jpeg', quality: 85 });
+          const cdpRes = await execAdvTool('web_full_screenshot', tab, { format, quality: opts.quality });
           if (cdpRes && cdpRes.ok && cdpRes.data && cdpRes.data.imageDataUrl) {
-            return { ok: true, data: { imageDataUrl: cdpRes.data.imageDataUrl, url: tab.url, title: tab.title, via: 'cdp_fallback' } };
+            return { ok: true, data: { imageDataUrl: cdpRes.data.imageDataUrl, url: tab.url, title: tab.title, via: 'cdp_fallback', format } };
           }
         } catch {}
         return { ok: false, error: String((err && err.message) || err) };
@@ -263,6 +273,9 @@ async function executeWebTool(tool, args) {
     case 'web_human_scroll':
     case 'web_screencast':
     case 'web_network_auth':
+    case 'web_emulate_media':
+    case 'web_cache_control':
+    case 'web_mhtml':
     case 'web_run_code':
     case 'web_har_record':
     case 'web_trace_record':
