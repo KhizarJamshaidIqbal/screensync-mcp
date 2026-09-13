@@ -4,7 +4,7 @@
 // clears Emulation.* overrides when the debugger detaches, so persistence
 // requires holding the session until web_resize/web_set_user_agent clear it.
 
-import { attachCdp, detachCdp, activeEmulations } from './web-adv.js';
+import { attachCdp, detachCdp, activeEmulations } from './web-adv-core.js';
 
 const DEVICE_PRESETS = {
   iphone_se: { width: 375, height: 667, dpr: 2, mobile: true, touch: true, ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' },

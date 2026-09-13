@@ -67,13 +67,19 @@ After making modifications to any file in the primary workspace, always execute 
 
 ---
 
-## 7. MCP-First Testing & Verification (MANDATORY)
+## 7. MCP-First Testing & Verification + EXCLUSIVE TOOLING (MANDATORY)
 **All testing and verification of browser/web features MUST run through the ScreenSync MCP tools — static checks alone are never sufficient.**
-- Attach the globally installed `screensync` MCP server (user scope: `node <project>/mcp-server/dist/index.js`, env `SCREEN_SYNC_TOKEN`). It is already registered for this user.
-- Verification ladder, in order:
-  1. **Static**: `node --check` sweep of changed extension files + `npm run build` for the server.
-  2. **Suite**: `npm test` (protocol e2e + aim-loop flow + web-bridge round trip with simulated extension) — must pass twice consecutively after behavioral changes.
-  3. **Live MCP verification (required for "done")**: drive the REAL browser through the `web_*` tools on the live hub (`http://127.0.0.1:3000`) — e.g. `web_status` → `web_navigate` (newTab, then always pass `tabId`) → act → `web_expect` → `web_aria_snapshot`/`web_table_extract`/`web_har_record` → `web_tab` close. Every new/changed tool must be exercised once against a real page.
+
+**EXCLUSIVE TOOLING — dogfooding rule (no exceptions):**
+- When working in this project, agents MUST use **ScreenSync MCP tools and MCP skills for ALL browser and computer interaction** — including testing, live verification, page inspection, screenshots, and any browser/computer control.
+- **NEVER** fall back to ZCode computer-use, other agents' browser plugins, chrome-devtools MCP, browser-use MCP, or Playwright/Puppeteer scripts. ScreenSync IS the browser-automation layer of this project.
+- **Any gap, limitation, or missing capability discovered while using ScreenSync = upgrade ScreenSync itself** (fix the tool, extend it, or add the missing tool), then verify the upgrade through ScreenSync. Falling back to foreign tooling is a rule violation — it hides the gap instead of closing it.
+- This is the self-improving loop: use ScreenSync → find a gap → upgrade ScreenSync → re-verify with ScreenSync.
+
+**Verification ladder, in order:**
+1. **Static**: `node --check` sweep of changed extension files + `npm run build` for the server.
+2. **Suite**: `npm test` (protocol e2e + aim-loop flow + web-bridge round trip with simulated extension) — must pass twice consecutively after behavioral changes.
+3. **Live MCP verification (required for "done")**: drive the REAL browser through the `web_*` tools on the live hub (`http://127.0.0.1:3000`) — e.g. `web_status` → `web_navigate` (newTab, then always pass `tabId`) → act → `web_expect` → `web_aria_snapshot`/`web_table_extract`/`web_har_record` → `web_tab` close. Every new/changed tool must be exercised once against a real page.
 - Never test by modifying the user's existing tabs: always create a dedicated tab (`web_navigate {newTab: true}`) and close it afterwards (`web_tab {action:"close"}`).
 - `flutter test` for Dart changes; ADB/phone verification through `control_*` tools when touching mobile.
 
