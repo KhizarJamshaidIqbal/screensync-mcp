@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../blocs/screen_capture_bloc.dart';
 import '../../core/app_theme.dart';
-import '../../widgets/common_widgets.dart';
 import '../../widgets/ref_widgets.dart';
 import '../pair_scan_screen.dart';
 import 'step_shell.dart';
@@ -44,6 +43,19 @@ class ConnectStep extends StatelessWidget {
           title: 'Connect your desktop',
           subtitle:
               'Start the ScreenSync hub on your PC (double-click start-hub), then scan its QR — or let auto-discovery find it, or paste the pairing link.',
+          cta: Column(
+            children: [
+              GradientActionButton(
+                icon: Icons.arrow_forward_rounded,
+                label: online ? 'Continue' : 'Continue anyway',
+                onTap: onNext,
+              ),
+              const SizedBox(height: 8),
+              Text('You can connect later from Settings → Hub.',
+                  style: AppTheme.typeCaption
+                      .copyWith(color: AppTheme.darkTextDim)),
+            ],
+          ),
           children: [
             GlassPanel(
               borderColor: online
@@ -131,19 +143,6 @@ class ConnectStep extends StatelessWidget {
               ),
             ],
           ],
-          cta: Column(
-            children: [
-              GradientActionButton(
-                icon: Icons.arrow_forward_rounded,
-                label: online ? 'Continue' : 'Continue anyway',
-                onTap: onNext,
-              ),
-              const SizedBox(height: 8),
-              Text('You can connect later from Settings → Hub.',
-                  style: AppTheme.typeCaption
-                      .copyWith(color: AppTheme.darkTextDim)),
-            ],
-          ),
         );
       },
     );

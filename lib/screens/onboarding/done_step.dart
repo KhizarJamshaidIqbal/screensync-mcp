@@ -24,6 +24,12 @@ class DoneStep extends StatelessWidget {
       subtitle: simpleMode
           ? 'Simple mode is on. Start the bubble from the dashboard, tap it to capture, and find every frame in your Gallery.'
           : 'Start the bubble, capture a frame, then copy the Connect Kit into Claude — it will see your screen and publish findings back here.',
+      cta: GradientActionButton(
+        icon: Icons.auto_awesome_rounded,
+        label: 'Open ScreenSync',
+        gradient: AppTheme.gradGreen,
+        onTap: onFinish,
+      ),
       children: [
         GlassPanel(
           child: Column(
@@ -47,12 +53,6 @@ class DoneStep extends StatelessWidget {
           ),
         ),
       ],
-      cta: GradientActionButton(
-        icon: Icons.auto_awesome_rounded,
-        label: 'Open ScreenSync',
-        gradient: AppTheme.gradGreen,
-        onTap: onFinish,
-      ),
     );
   }
 

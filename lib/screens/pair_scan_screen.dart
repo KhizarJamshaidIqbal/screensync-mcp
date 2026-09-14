@@ -133,7 +133,7 @@ class _PairScanScreenState extends State<PairScanScreen> {
                 child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.videocam_off_rounded,
+                      const Icon(Icons.videocam_off_rounded,
                           size: 48, color: AppTheme.warning),
                       const SizedBox(height: 12),
                       const Text(
@@ -145,7 +145,7 @@ class _PairScanScreenState extends State<PairScanScreen> {
                         error.errorDetails?.message ??
                             'Use "Paste link instead" below to pair manually.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 12, color: AppTheme.darkTextDim),
                       ),
                     ]),

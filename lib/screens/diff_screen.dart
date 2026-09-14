@@ -78,7 +78,7 @@ class _DiffScreenState extends State<DiffScreen> {
                   fontWeight: FontWeight.w700, fontSize: 12)),
           Text(
             entry.capturedAt.toLocal().toString().split('.').first,
-            style: TextStyle(fontSize: 10, color: AppTheme.darkTextDim),
+            style: const TextStyle(fontSize: 10, color: AppTheme.darkTextDim),
           ),
         ],
       );
@@ -113,7 +113,7 @@ class _DiffScreenState extends State<DiffScreen> {
               child: Container(
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppTheme.accentCyan,
                   shape: BoxShape.circle,
                   boxShadow: AppTheme.elevLow,

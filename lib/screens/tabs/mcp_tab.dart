@@ -369,7 +369,7 @@ class _ToolTileState extends State<_ToolTile> {
                       color: AppTheme.danger.withValues(alpha: 0.35)),
                 ),
                 child: Text(_error!,
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontSize: 12, color: AppTheme.danger)),
               ),
             ],

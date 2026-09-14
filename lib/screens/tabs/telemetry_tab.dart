@@ -1,10 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../blocs/screen_capture_bloc.dart';
 import '../../core/app_theme.dart';
 import '../../models/telemetry_event.dart';
-import '../../widgets/common_widgets.dart';
 import '../../widgets/ref_widgets.dart';
 import '../dashboard/detail_cards.dart';
 
@@ -64,15 +63,15 @@ class TelemetryTab extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             if (state.telemetry.isEmpty)
-              GlassPanel(
+              const GlassPanel(
                 child: Column(
                   children: [
-                    const GlossyTile(
+                    GlossyTile(
                         icon: Icons.insights_rounded,
                         size: 52,
                         iconSize: 22,
                         gradient: AppTheme.gradGreen),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     Text(
                       'No telemetry yet — take a capture.',
                       style: TextStyle(

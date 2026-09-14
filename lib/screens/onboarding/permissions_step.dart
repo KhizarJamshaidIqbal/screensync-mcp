@@ -28,6 +28,16 @@ class PermissionsStep extends StatelessWidget {
       title: 'Two quick permissions',
       subtitle:
           'The floating bubble needs to sit above other apps, and a small notification keeps capture alive in the background.',
+      cta: GradientActionButton(
+        icon: Icons.arrow_forward_rounded,
+        label:
+            overlayGranted && notifGranted ? 'Continue' : 'I\'ll do this later',
+        gradient: overlayGranted && notifGranted
+            ? AppTheme.gradPrimary
+            : const LinearGradient(
+                colors: [Color(0xFF6B6485), Color(0xFF9A93B8)]),
+        onTap: onNext,
+      ),
       children: [
         _permTile(
           granted: overlayGranted,
@@ -45,16 +55,6 @@ class PermissionsStep extends StatelessWidget {
           onGrant: onNotifGrant,
         ),
       ],
-      cta: GradientActionButton(
-        icon: Icons.arrow_forward_rounded,
-        label:
-            overlayGranted && notifGranted ? 'Continue' : 'I\'ll do this later',
-        gradient: overlayGranted && notifGranted
-            ? AppTheme.gradPrimary
-            : const LinearGradient(
-                colors: [Color(0xFF6B6485), Color(0xFF9A93B8)]),
-        onTap: onNext,
-      ),
     );
   }
 

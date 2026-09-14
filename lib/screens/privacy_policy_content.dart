@@ -22,7 +22,7 @@ class PrivacyPolicyBody extends StatelessWidget {
       children: [
         // ── Hero ─
         Center(
-          child: GlossyTile(
+          child: const GlossyTile(
             icon: Icons.shield_moon_rounded,
             gradient: AppTheme.gradPrimary,
             size: 84,
@@ -38,8 +38,8 @@ class PrivacyPolicyBody extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Text.rich(
-          TextSpan(children: [
-            const TextSpan(text: 'Your data.\nYour '),
+          const TextSpan(children: [
+            TextSpan(text: 'Your data.\nYour '),
             TextSpan(
               text: 'devices',
               style: TextStyle(
@@ -47,7 +47,7 @@ class PrivacyPolicyBody extends StatelessWidget {
                 color: AppTheme.accentMagenta,
               ),
             ),
-            const TextSpan(text: '. Always.'),
+            TextSpan(text: '. Always.'),
           ]),
           textAlign: TextAlign.center,
           style: AppTheme.typeDisplay.copyWith(fontSize: 26),
@@ -71,7 +71,7 @@ class PrivacyPolicyBody extends StatelessWidget {
         const SizedBox(height: 24),
 
         // ── 1. What is this app ──
-        PolicyCard(
+        const PolicyCard(
           icon: Icons.auto_awesome_rounded,
           title: 'What ScreenSync Does',
           body:
@@ -88,12 +88,12 @@ class PrivacyPolicyBody extends StatelessWidget {
         ),
 
         // ── 2. Who it's for ──
-        PolicyCard(
+        const PolicyCard(
           icon: Icons.groups_rounded,
           title: 'Who It’s Designed For',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               PolicyBullet(
                   'Developers — inspect live UI, feed screens to an '
                   'AI, and drive the device via MCP tools.'),
@@ -109,7 +109,7 @@ class PrivacyPolicyBody extends StatelessWidget {
         ),
 
         // ── 3. Why we built it ──
-        PolicyCard(
+        const PolicyCard(
           icon: Icons.flag_rounded,
           title: 'The Goal Behind It',
           body:
@@ -208,12 +208,12 @@ class PrivacyPolicyBody extends StatelessWidget {
         const SizedBox(height: 12),
 
         // ── 5. Security ──
-        PolicyCard(
+        const PolicyCard(
           icon: Icons.lock_rounded,
           title: 'Security',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               PolicyBullet(
                   'Captures travel only over your local network to '
                   'a hub you pair with — protected by a pairing '
@@ -252,12 +252,12 @@ class PrivacyPolicyBody extends StatelessWidget {
         const SizedBox(height: 14),
 
         // ── 7. Full policy & website links ──
-        PolicyCard(
+        const PolicyCard(
           icon: Icons.link_rounded,
           title: 'Full Policy & Website',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               LinkRow(
                 icon: Icons.description_rounded,
                 label: 'Full Privacy Policy',

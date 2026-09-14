@@ -24,6 +24,12 @@ class PersonaStep extends StatelessWidget {
       title: 'Welcome to ScreenSync',
       subtitle:
           'Capture your phone screen with one tap and hand it straight to an AI on your desktop. First — how will you use it?',
+      cta: GradientActionButton(
+        icon: Icons.arrow_forward_rounded,
+        label: 'Continue',
+        enabled: devPersona != null,
+        onTap: onNext,
+      ),
       children: [
         _personaCard(
           context,
@@ -45,12 +51,6 @@ class PersonaStep extends StatelessWidget {
           onTap: () => onSelect(false),
         ),
       ],
-      cta: GradientActionButton(
-        icon: Icons.arrow_forward_rounded,
-        label: 'Continue',
-        enabled: devPersona != null,
-        onTap: onNext,
-      ),
     );
   }
 
