@@ -81,6 +81,16 @@ async function callHubWebTool(tool: string, args: Record<string, unknown>): Prom
   return { ok: body.ok === true, data: body.data, error: body.error ?? (res.ok ? undefined : `Hub replied ${res.status}`) };
 }
 
+
+/**
+ * OS-level control (os_mouse_click / os_type / os_hotkey) moves the real mouse and types
+ * real keys anywhere on the machine. It is deliberately opt-in per host rather than
+ * inherited from the browser web-access toggle, because it is not scoped to a tab.
+ */
+function osControlEnabled(): boolean {
+  return process.env.SCREENSYNC_ALLOW_OS_CONTROL === "1";
+}
+
 export function createMcpServer() {
   const server = new Server(
     { name: SERVER_NAME, version: SERVER_VERSION },
@@ -342,6 +352,25 @@ export function createMcpServer() {
           ],
         };
       }
+      // The OS plane drives the real mouse and keyboard anywhere on the machine, outside
+      // any browser tab, so it sits outside both the web-access toggle and the per-origin
+      // action grants. It is therefore OFF unless the operator opts in explicitly on the
+      // machine that runs the hub. See docs: SCREENSYNC_ALLOW_OS_CONTROL.
+      if (
+        ["os_mouse_click", "os_type", "os_hotkey"].includes(request.params.name) &&
+        !osControlEnabled()
+      ) {
+        return textResult(
+          {
+            success: false,
+            enabled: false,
+            error:
+              "OS-level control is disabled. It drives the real mouse and keyboard outside the browser, so it is off by default. Set SCREENSYNC_ALLOW_OS_CONTROL=1 on the hub host and restart the hub to enable it.",
+          },
+          true
+        );
+      }
+
       if (request.params.name === "os_mouse_click") {
         const a = request.params.arguments as { x: number; y: number };
         const x = Math.round(Number(a.x));

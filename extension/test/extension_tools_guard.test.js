@@ -66,4 +66,16 @@ assert.ok(
   'the webAccessEnabled gate must still short-circuit web tool execution'
 );
 
+// 5. The consent record is the user's, not the agent's: web_consent must be read-only.
+const cAt = tools.indexOf("case 'web_consent'");
+assert.ok(cAt > -1, 'the web_consent handler must exist');
+const cNext = tools.indexOf("case '", cAt + 10);
+const consentHandler = cNext > 0 ? tools.slice(cAt, cNext) : tools.slice(cAt, cAt + 1200);
+assert.ok(!consentHandler.includes('saveOriginGrant'),
+  'web_consent must never call saveOriginGrant - an agent must not grant itself origin access');
+assert.ok(!consentHandler.includes('revokeOriginGrant'),
+  'web_consent must never call revokeOriginGrant - an agent must not alter the user consent record');
+assert.ok(consentHandler.includes('readOnly: true'),
+  'web_consent must report itself read-only');
+
 console.log('[test] extension_tools_guard.test.js: ALL ASSERTIONS PASSED (the gate stays read-only)');
