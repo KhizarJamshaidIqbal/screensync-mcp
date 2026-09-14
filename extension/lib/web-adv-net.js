@@ -51,7 +51,7 @@ export async function cdpCacheControl(tab, args = {}) {
   const attached = await attachCdp(tab);
   if (!attached.ok) return attached;
   try {
-    await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.enable');
+    await enableNetwork({ tabId: tab.id });
     if (action === 'disable') {
       await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.setCacheDisabled', { cacheDisabled: true });
       if (args.clearFirst !== false) await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.clearBrowserCache');
@@ -71,6 +71,7 @@ export async function cdpCacheControl(tab, args = {}) {
   } finally {
     // cacheDisabled persists per attached session; keep registry semantics simple:
     // this tool uses attachCdp/detachCdp like other one-shot executors.
+    await disableNetwork({ tabId: tab.id }).catch(() => {});
     await detachCdp(tab);
   }
 }
@@ -301,6 +302,7 @@ export async function cdpWaitForResponse(tab, args = {}) {
       if (timer) clearTimeout(timer);
       requestMethods.clear();
       chrome.debugger.onEvent.removeListener(onEvent);
+      await disableNetwork(target).catch(() => {});
       await detachCdp(tab);
     };
 
@@ -363,7 +365,7 @@ export async function cdpWaitForResponse(tab, args = {}) {
     }, timeoutMs);
 
     chrome.debugger.onEvent.addListener(onEvent);
-    chrome.debugger.sendCommand(target, 'Network.enable', {}).catch(async (err) => {
+    enableNetwork(target).catch(async (err) => {
       await cleanup();
       resolve({ ok: false, error: `Failed to enable CDP Network: ${err.message}` });
     });
@@ -387,6 +389,7 @@ export async function cdpWaitForRequest(tab, args = {}) {
     const cleanup = async () => {
       if (timer) clearTimeout(timer);
       chrome.debugger.onEvent.removeListener(onEvent);
+      await disableNetwork(target).catch(() => {});
       await detachCdp(tab);
     };
 
@@ -425,7 +428,7 @@ export async function cdpWaitForRequest(tab, args = {}) {
     }, timeoutMs);
 
     chrome.debugger.onEvent.addListener(onEvent);
-    chrome.debugger.sendCommand(target, 'Network.enable', {}).catch(async (err) => {
+    enableNetwork(target).catch(async (err) => {
       await cleanup();
       resolve({ ok: false, error: `Failed to enable CDP Network: ${err.message}` });
     });

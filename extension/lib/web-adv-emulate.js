@@ -1,6 +1,6 @@
 // ScreenSync CDP emulation executors — viewport/geo/network emulation,
 // permissions, timezone, network throttling, color scheme overrides.
-import { rawAttach, attachCdp, detachCdp, activeEmulations } from './web-adv-core.js';
+import { rawAttach, attachCdp, detachCdp, activeEmulations, enableNetwork, disableNetwork } from './web-adv-core.js';
 
 export async function cdpEmulate(tab, args = {}) {
   const target = { tabId: tab.id };
@@ -46,7 +46,7 @@ export async function cdpEmulate(tab, args = {}) {
       applied.geolocation = { latitude: args.latitude, longitude: args.longitude };
     }
     if (args.offline !== undefined || args.networkType) {
-      await chrome.debugger.sendCommand(target, 'Network.enable', {});
+      await enableNetwork(target);
       let latency = 0;
       let download = -1;
       let upload = -1;
@@ -72,6 +72,7 @@ export async function cdpEmulate(tab, args = {}) {
     return { ok: true, data: { emulated: true, applied, url: tab.url, note: 'Emulation active on this tab until clear:true or tab close.' } };
   } catch (err) {
     activeEmulations.delete(tab.id);
+    await disableNetwork(target).catch(() => {});
     await detachCdp(tab);
     return { ok: false, error: `CDP emulation error: ${String((err && err.message) || err)}` };
   }
@@ -190,7 +191,7 @@ export async function cdpThrottleNetwork(tab, args = {}) {
   const attached = await attachCdp(tab);
   if (!attached.ok) return attached;
   try {
-    await chrome.debugger.sendCommand(target, 'Network.enable', {});
+    await enableNetwork(target);
     const preset = String(args.preset || args.condition || '').toLowerCase();
     let offline = !!args.offline;
     let latency = Number(args.latency ?? 0);
@@ -228,6 +229,7 @@ export async function cdpThrottleNetwork(tab, args = {}) {
     });
     if (isClear) {
       activeEmulations.delete(tab.id);
+      await disableNetwork(target).catch(() => {});
       await detachCdp(tab);
     } else {
       activeEmulations.set(tab.id, true);
@@ -245,6 +247,7 @@ export async function cdpThrottleNetwork(tab, args = {}) {
     };
   } catch (err) {
     activeEmulations.delete(tab.id);
+    await disableNetwork(target).catch(() => {});
     await detachCdp(tab);
     return { ok: false, error: `CDP throttleNetwork error: ${String((err && err.message) || err)}` };
   }
