@@ -181,6 +181,11 @@ class MainActivity : FlutterActivity() {
                 pendingSnaps.clear()
                 result.success(drained)
             }
+            "versionInfo" -> result.success(versionInfo())
+            "installApk" -> {
+                val apkPath = call.argument<String>("path")
+                if (apkPath == null) result.success(false) else result.success(installApk(apkPath))
+            }
             "postNotification" -> {
                 val title = call.argument<String>("title") ?: "ScreenSync"
                 val body = call.argument<String>("body") ?: ""
@@ -204,6 +209,41 @@ class MainActivity : FlutterActivity() {
                             Intent.FLAG_ACTIVITY_SINGLE_TOP
                     )
                 } ?: return false
+            startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /// Installed app version, read natively so no extra plugin is needed.
+    private fun versionInfo(): Map<String, Any> {
+        return try {
+            @Suppress("DEPRECATION")
+            val info = packageManager.getPackageInfo(packageName, 0)
+            val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.longVersionCode
+            } else {
+                @Suppress("DEPRECATION") info.versionCode.toLong()
+            }
+            mapOf("versionName" to (info.versionName ?: "0.0.0"), "versionCode" to code)
+        } catch (_: Exception) {
+            mapOf("versionName" to "0.0.0", "versionCode" to 0L)
+        }
+    }
+
+    /// Opens the system package installer for a downloaded APK. Needs
+    /// REQUEST_INSTALL_PACKAGES; Android always asks the owner to confirm, and a
+    /// sideloaded app cannot replace itself silently unless it is device owner.
+    private fun installApk(path: String): Boolean {
+        return try {
+            val file = File(path)
+            if (!file.exists()) return false
+            val uri: Uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
             startActivity(intent)
             true
         } catch (_: Exception) {

@@ -7,6 +7,7 @@ import '../../blocs/screen_capture_bloc.dart';
 import '../../core/app_theme.dart';
 import '../../models/mcp_catalog.dart';
 import '../../services/settings_service.dart';
+import '../../services/app_update_service.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/ref_widgets.dart';
 import '../dashboard/detail_cards.dart';
@@ -182,6 +183,16 @@ class _McpTabState extends State<McpTab> {
                 label: Text(_showKitPreview ? 'Hide preview' : 'Preview kit'),
               ),
               if (catalog != null) ...[
+                const SizedBox(height: 12),
+                // OTA: the hub broadcasts app_update when a newer APK is built;
+                // this card is where the owner turns that into an install.
+                _AppUpdateCard(
+                  hubUrl: context
+                      .read<ScreenCaptureBloc>()
+                      .screenRepository
+                      .hubUrl,
+                  token: SettingsService.instance.pairingToken,
+                ),
                 const SizedBox(height: 12),
                 // Both, as requested: the QR below carries the whole kit, and
                 // this address is what Settings > Hub accepts typed in by hand.
@@ -414,6 +425,115 @@ class _ToolTileState extends State<_ToolTile> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// OTA card: shows the newest build the hub has published and installs it.
+class _AppUpdateCard extends StatefulWidget {
+  const _AppUpdateCard({required this.hubUrl, required this.token});
+
+  final String hubUrl;
+  final String token;
+
+  @override
+  State<_AppUpdateCard> createState() => _AppUpdateCardState();
+}
+
+class _AppUpdateCardState extends State<_AppUpdateCard> {
+  AppUpdateInfo? _info;
+  bool _busy = false;
+  String? _status;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final info = await AppUpdateService.instance.check(
+      hubUrl: widget.hubUrl,
+      token: widget.token,
+    );
+    if (mounted) setState(() => _info = info);
+  }
+
+  Future<void> _install() async {
+    final info = _info;
+    if (info == null) return;
+    setState(() {
+      _busy = true;
+      _status = 'Downloading ${info.versionName}...';
+    });
+    final line = await AppUpdateService.instance.downloadAndInstall(info);
+    if (mounted) {
+      setState(() {
+        _busy = false;
+        _status = line;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final info = _info;
+    final available = info?.updateAvailable == true;
+    return GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(
+                available ? Icons.system_update_rounded : Icons.verified_rounded,
+                size: 18,
+                color: available ? AppTheme.warning : AppTheme.success,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  available
+                      ? 'Update available: ${info!.versionName}'
+                      : 'App is up to date',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            info == null
+                ? 'Could not read the update manifest from the hub.'
+                : 'Newest published build: ${info.versionName} '
+                    '(${info.versionCode}) - '
+                    '${(info.sizeBytes / 1048576).toStringAsFixed(1)} MB',
+            style: const TextStyle(fontSize: 12),
+          ),
+          if (info != null && available) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              'SHA-256 ${info.sha256.substring(0, 16)}...',
+              style: const TextStyle(fontSize: 11),
+            ),
+          ],
+          if (_status != null) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(_status!, style: const TextStyle(fontSize: 12)),
+          ],
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _busy ? null : (available ? _install : _check),
+              icon: Icon(
+                available ? Icons.download_rounded : Icons.refresh_rounded,
+                size: 16,
+              ),
+              label: Text(available ? 'Update now' : 'Check again'),
+            ),
+          ),
+        ],
       ),
     );
   }

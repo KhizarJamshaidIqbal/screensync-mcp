@@ -10,6 +10,7 @@ import express from "express";
 import QRCode from "qrcode";
 import { buildCatalog } from "./catalog.js";
 import { osControlSource, setOsControlEnabled } from "./os-control.js";
+import { appApkPath, appManifest, invalidateAppManifest } from "./app-update.js";
 import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, MAX_BODY_BYTES, PAIR_WINDOW_MINUTES, PROJECT_DIR, agentName, isAuthorized, log } from "./config.js";
 import { hubEvents, emitHubEvent, lastEventSeq, recentHubEvents, recordHubEvent, type HubEvent } from "./events.js";
 import {
@@ -272,6 +273,45 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
     });
   });
 
+  // ---- In-app update channel ----
+  app.get("/api/app/latest", async (req, res) => {
+    if (!isAuthorized(req.header("authorization")) && !isLoopbackReq(req)) {
+      res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
+      return;
+    }
+    const manifest = await appManifest();
+    if (!manifest) {
+      res.status(404).json({ success: false, error: "No release APK built yet. Run: flutter build apk --release" });
+      return;
+    }
+    const raw = Number(req.query.versionCode);
+    const installed = Number.isFinite(raw) ? raw : null;
+    res.json({
+      success: true,
+      ...manifest,
+      installedVersionCode: installed,
+      updateAvailable: installed === null ? null : manifest.versionCode > installed,
+      url: `${primaryBaseUrl()}/apk?token=${encodeURIComponent(AUTH_TOKEN)}`,
+    });
+  });
+
+  // Serves the APK itself so a phone can fetch the update over the LAN. The
+  // token travels in the query string because a browser download carries no
+  // headers; the path is fixed and no user input reaches it.
+  app.get("/apk", async (req, res) => {
+    const token = String(req.query.token ?? "");
+    if (!isAuthorized(`Bearer ${token}`)) {
+      res.status(403).type("text/plain").send("Invalid ScreenSync pairing token.");
+      return;
+    }
+    if (!existsSync(appApkPath())) {
+      res.status(404).type("text/plain").send("No APK built yet. Run: flutter build apk --release");
+      return;
+    }
+    log("INFO", "APK download", { ip: req.socket?.remoteAddress || req.ip || "" });
+    res.download(appApkPath(), "screensync.apk");
+  });
+
   // ---- Agent Connect Kit (live) ----
   // Values that cannot go stale: this hub's own LAN address, the absolute path
   // of its own stdio entry, and the current pairing token. The checked-in
@@ -323,6 +363,9 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
 
   // ── Zero-Click HMR: File watcher on extension/ directory ──
   let extWatcher: FSWatcher | null = null;
+  let apkWatcher: FSWatcher | null = null;
+  let apkBroadcastTimer: NodeJS.Timeout | null = null;
+  let lastBroadcastSha = "";
   let extReloadTimer: NodeJS.Timeout | null = null;
   const extDir = path.resolve(PROJECT_DIR, "..", "extension");
   if (existsSync(extDir)) {
@@ -339,6 +382,38 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
       log("INFO", "Zero-Click HMR file watcher active", { dir: extDir });
     } catch (err) {
       log("WARN", "Zero-Click HMR file watcher failed to start", { error: String(err) });
+    }
+  }
+
+  // ---- APK watch: a rebuilt app-release.apk IS the release event ----
+  // The hook the whole update flow hangs off. Build (or CI) writes the APK, the
+  // hub notices within a second, re-hashes it and pushes app_update to every
+  // phone holding an SSE connection - the same trick the extension already used
+  // for its zero-click reload.
+  const apkDir = path.dirname(appApkPath());
+  if (existsSync(apkDir)) {
+    try {
+      apkWatcher = watch(apkDir, (_event, filename) => {
+        if (!filename || !String(filename).startsWith("app-release.apk")) return;
+        // Gradle rewrites the APK several times per build, so debounce and then
+        // compare the hash: one release must produce exactly one event.
+        if (apkBroadcastTimer) clearTimeout(apkBroadcastTimer);
+        apkBroadcastTimer = setTimeout(() => {
+          invalidateAppManifest();
+          void appManifest().then((manifest) => {
+            if (!manifest || manifest.sha256 === lastBroadcastSha) return;
+            lastBroadcastSha = manifest.sha256;
+            log("INFO", "App release changed, broadcasting app_update", {
+              versionName: manifest.versionName,
+              versionCode: manifest.versionCode,
+            });
+            broadcast({ type: "app_update", ...manifest });
+          });
+        }, 1000);
+      });
+      log("INFO", "APK watcher active", { dir: apkDir });
+    } catch (err) {
+      log("WARN", "APK watcher failed to start", { error: String(err) });
     }
   }
 

@@ -1,7 +1,7 @@
 name: screensync_flutter_project
 description: ScreenSync MCP — Floating bubble screen capture with LAN/Google Drive sync.
 publish_to: 'none'
-version: 2.5.1+26
+version: 2.5.2+27
 environment:
   sdk: '>=3.4.0 <4.0.0'
 

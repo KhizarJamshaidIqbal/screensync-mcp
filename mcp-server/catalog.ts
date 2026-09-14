@@ -36,6 +36,17 @@ export function toolDefinitions() {
       description: "Reports ScreenSync transport status, latest frame age, device metadata, and retained frame count.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
+      {
+        name: "check_app_update",
+        description: "Reports the newest published Android build (version name and code, byte size, SHA-256, build time) and whether it is newer than the versionCode you pass in. Read-only by design: an agent can see that an update exists, but only the device owner can install it.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            versionCode: { type: "integer", minimum: 0, description: "The installed build versionCode, so the hub can say whether an update is available." },
+          },
+          additionalProperties: false,
+        },
+      },
     {
       name: "publish_inspection",
       description: "Publishes UI bug regions found by Claude's visual analysis so the Flutter app can overlay them as a heatmap. Call this after inspecting a screenshot.",

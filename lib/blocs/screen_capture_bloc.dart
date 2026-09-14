@@ -16,6 +16,7 @@ import '../repositories/screen_repository.dart';
 import '../repositories/sync_mode.dart';
 import '../services/capture_pipeline_service.dart';
 import '../services/capture_trigger_bridge.dart';
+import '../services/app_update_service.dart';
 import '../services/connection_metrics_service.dart';
 import '../services/device_intent_service.dart';
 import '../services/live_event_service.dart';
@@ -255,10 +256,36 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
     }
   }
 
+  /// Reacts to the hub's app_update broadcast: re-check the manifest, tell the
+  /// user, and leave the final install tap to them.
+  Future<void> _handleAppUpdateEvent() async {
+    final info = await AppUpdateService.instance.check(
+      hubUrl: _screenRepository.hubUrl,
+      token: _settings.pairingToken,
+    );
+    if (info == null || !info.updateAvailable) return;
+    _metrics.recordActivity(ActivityEvent(
+      kind: 'update',
+      label: 'App update available: ${info.versionName}',
+      timestamp: DateTime.now(),
+    ));
+    add(const ActivityRecordedEvent());
+    unawaited(DeviceIntentService.postNotification(
+      'ScreenSync ${info.versionName} available',
+      'Open ScreenSync > MCP tab to install the update.',
+    ));
+  }
+
   Future<void> _onLiveHubEvent(
       LiveHubEventEvent event, Emitter<ScreenCaptureState> emit) async {
     // F3: agent_connect — surface the AI agent's identity (e.g. "Claude Code")
     // so the Connection Hero shows a real label instead of "Your AI".
+    // OTA: the hub broadcasts app_update the moment a newer APK is built, so a
+    // paired phone learns about a release without polling for one.
+    if (event.type == 'app_update') {
+      unawaited(_handleAppUpdateEvent());
+      return;
+    }
     if (event.type == 'agent_connect') {
       if (event.agentName != null && event.agentName!.isNotEmpty) {
         emit(state.copyWith(agentName: event.agentName));

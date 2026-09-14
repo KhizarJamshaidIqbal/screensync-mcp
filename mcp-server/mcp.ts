@@ -1,3 +1,4 @@
+import { appManifest } from "./app-update.js";
 import { readFile } from "node:fs/promises";
 import { execSync } from "node:child_process";
 import { isOsControlEnabled } from "./os-control.js";
@@ -203,6 +204,27 @@ export function createMcpServer() {
         const limitValue = request.params.arguments?.limit;
         const limit = typeof limitValue === "number" ? Math.max(1, Math.min(20, Math.trunc(limitValue))) : 5;
         return textResult((await listFrames()).slice(0, limit));
+      }
+      if (request.params.name === "check_app_update") {
+        const manifest = await appManifest();
+        if (!manifest) {
+          return textResult({
+            available: false,
+            error: "No release APK has been built yet. Run: flutter build apk --release",
+          });
+        }
+        const updateArgs = (request.params.arguments ?? {}) as { versionCode?: number };
+        const installed = typeof updateArgs.versionCode === "number" ? updateArgs.versionCode : null;
+        return textResult({
+          available: true,
+          versionName: manifest.versionName,
+          versionCode: manifest.versionCode,
+          sha256: manifest.sha256,
+          sizeBytes: manifest.sizeBytes,
+          builtAt: manifest.builtAt,
+          installedVersionCode: installed,
+          updateAvailable: installed === null ? null : manifest.versionCode > installed,
+        });
       }
       if (request.params.name === "get_device_status") {
         const frame = await latestFrame();

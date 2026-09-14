@@ -57,6 +57,24 @@ class DeviceIntentService {
         _channel.invokeMethod<bool>('openDeveloperSettings'),
       );
 
+  /// Installed app version, read natively (no extra plugin needed).
+  static Future<({String name, int code})> appVersion() async {
+    try {
+      final v = await _channel.invokeMapMethod<String, Object?>('versionInfo');
+      return (
+        name: (v?['versionName'] as String?) ?? '0.0.0',
+        code: (v?['versionCode'] as num?)?.toInt() ?? 0,
+      );
+    } on PlatformException {
+      return (name: '0.0.0', code: 0);
+    }
+  }
+
+  /// Hands a downloaded APK to the system installer (FileProvider + ACTION_VIEW).
+  static Future<bool> installApk(String path) => _invokeBool(
+        _channel.invokeMethod<bool>('installApk', {'path': path}),
+      );
+
   /// Opens the Android share sheet for a captured frame (via FileProvider).
   static Future<bool> shareImage(String path) => _invokeBool(
         _channel.invokeMethod<bool>('shareImage', {'path': path}),
