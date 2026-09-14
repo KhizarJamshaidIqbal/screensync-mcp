@@ -1,11 +1,12 @@
 ﻿package com.screensync.mcp
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.os.Build
+import androidx.core.app.NotificationCompat
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -49,7 +50,7 @@ class UpdateCheckWorker(appContext: Context, params: WorkerParameters) :
                     ExistingPeriodicWorkPolicy.KEEP,
                     request,
                 )
-            } catch (_: Throwable) {
+            } catch (_: Exception) {
                 // WorkManager unavailable (rare) - the in-app gate still covers it.
             }
         }
@@ -69,13 +70,16 @@ class UpdateCheckWorker(appContext: Context, params: WorkerParameters) :
             }
             val openApp = PendingIntent.getActivity(
                 context, 11,
-                context.packageManager.getLaunchIntentForPackage(context.packageName),
+                context.packageManager.getLaunchIntentForPackage(context.packageName)
+                    ?: Intent(context, MainActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            val notification = Notification.Builder(context, CHANNEL_ID)
-                .setSmallIcon(context.applicationInfo.icon)
+            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_screensync)
                 .setContentTitle("ScreenSync update available")
                 .setContentText("Build $availableVersionCode is ready. Tap to update now.")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
                 .setContentIntent(openApp)
                 .build()
@@ -98,7 +102,7 @@ class UpdateCheckWorker(appContext: Context, params: WorkerParameters) :
                 pm.getInstallerPackageName(applicationContext.packageName)
             }
             installer == "com.android.vending"
-        } catch (_: Throwable) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -120,7 +124,7 @@ class UpdateCheckWorker(appContext: Context, params: WorkerParameters) :
                 notifyUpdateAvailable(applicationContext, info.availableVersionCode())
             }
             Result.success()
-        } catch (_: Throwable) {
+        } catch (_: Exception) {
             // A sideloaded build has no Play to ask - nothing to report.
             Result.success()
         }

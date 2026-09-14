@@ -63,5 +63,7 @@ dependencies {
     implementation "com.google.android.play:app-update:2.1.0"
 
     // Runs the periodic Play update check even when the app has been closed.
-    implementation "androidx.work:work-runtime-ktx:2.9.1"
+    // The inline request builders live in work-runtime itself since 2.8.0, so
+    // the -ktx artifact adds nothing for this code.
+    implementation "androidx.work:work-runtime:2.9.1"
 }

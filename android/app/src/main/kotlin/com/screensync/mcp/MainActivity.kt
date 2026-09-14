@@ -1,7 +1,6 @@
 package com.screensync.mcp
 
 import android.app.Activity
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -12,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -310,12 +310,19 @@ class MainActivity : FlutterActivity() {
                 }
                 pendingPlayUpdate = result
                 try {
-                    manager.startUpdateFlowForResult(
+                    val started = manager.startUpdateFlowForResult(
                         info,
                         updateType,
                         this,
                         PLAY_UPDATE_REQUEST,
                     )
+                    if (!started) {
+                        // Play refused to open the flow, so no activity result
+                        // will ever arrive: release the caller instead of
+                        // leaving it to time out.
+                        pendingPlayUpdate = null
+                        result.success("unavailable")
+                    }
                 } catch (e: Exception) {
                     pendingPlayUpdate = null
                     result.error("update_flow_failed", e.message, null)
@@ -401,8 +408,8 @@ class MainActivity : FlutterActivity() {
             packageManager.getLaunchIntentForPackage(packageName),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = Notification.Builder(this, ALERT_CHANNEL_ID)
-            .setSmallIcon(applicationInfo.icon)
+        val notification = NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_screensync)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)

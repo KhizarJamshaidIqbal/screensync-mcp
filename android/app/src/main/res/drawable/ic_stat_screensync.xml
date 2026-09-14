@@ -1,0 +1,11 @@
+﻿<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Notification small icon: must be a flat silhouette, not the adaptive
+         launcher icon, which renders as a solid blob here. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,3 L19,10 L15,10 L15,15 L9,15 L9,10 L5,10 Z M6,17 L18,17 L18,20 L6,20 Z" />
+</vector>
