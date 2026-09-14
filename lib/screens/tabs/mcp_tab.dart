@@ -183,6 +183,41 @@ class _McpTabState extends State<McpTab> {
               ),
               if (catalog != null) ...[
                 const SizedBox(height: 12),
+                // Both, as requested: the QR below carries the whole kit, and
+                // this address is what Settings > Hub accepts typed in by hand.
+                GlassPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Hub address (scan or type - both work)',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 6),
+                      SelectableText(
+                        context
+                            .read<ScreenCaptureBloc>()
+                            .screenRepository
+                            .hubUrl,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          icon: const Icon(Icons.copy_rounded, size: 16),
+                          label: const Text('Copy address'),
+                          onPressed: () async {
+                            final url = context
+                                .read<ScreenCaptureBloc>()
+                                .screenRepository
+                                .hubUrl;
+                            await Clipboard.setData(ClipboardData(text: url));
+                            HapticFeedback.mediumImpact();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
                 // D2: QR of the same connect-kit string that gets copied.
                 Center(
                   child: Semantics(

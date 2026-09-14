@@ -105,12 +105,25 @@ $stdioConfig
 $stdioConfig
 ${stdioNote ?? ''}
 
-▶ CURSOR / ANTIGRAVITY / CLINE / ROO CODE — JSON config:
+▶ GLOBAL INSTALL (recommended - available in every project, not just one folder)
+- Claude Code (user scope):  claude mcp add --scope user screensync -- node "<HUB_DIR>/dist/index.js"
+- Claude Desktop: merge the JSON above into claude_desktop_config.json, then restart it
+    Windows: %APPDATA%\\Claude\\claude_desktop_config.json
+    macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
+- Cursor:   ~/.cursor/mcp.json    (Windows: %USERPROFILE%\\.cursor\\mcp.json)
+- VS Code:  %APPDATA%\\Code\\User\\mcp.json
+- Cline / Roo Code / Windsurf / Antigravity: the same "mcpServers" block in the client settings
+Tip: the hub serves the fully resolved kit - GET /api/connect-kit returns the
+absolute path to its own stdio entry, so no path has to be guessed.
+
+CURSOR / ANTIGRAVITY / CLINE / ROO CODE — JSON config:
 {
-  "screensync": {
-    "command": "node",
-    "args": ["<HUB_DIR>/screensync-hub.js"],
-    "env": { "SCREEN_SYNC_TOKEN": "$token" }
+  "mcpServers": {
+    "screensync": {
+      "command": "node",
+      "args": ["<HUB_DIR>/dist/index.js"],
+      "env": { "SCREEN_SYNC_TOKEN": "$token" }
+    }
   }
 }
 

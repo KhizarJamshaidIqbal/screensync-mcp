@@ -4,6 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server as HttpServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Bonjour, type Service } from "bonjour-service";
 import express from "express";
 import QRCode from "qrcode";
@@ -46,9 +47,61 @@ function primaryBaseUrl(): string {
 }
 
 /** Deep-link the phone parses (PairingService.parse) — QR-encodable too. */
+/** Absolute path of the stdio entry an MCP client must launch. */
+function hubEntryPath(): string {
+  // This package is ESM ("type": "module"), so __dirname does not exist and a
+  // build-time-clean reference to it throws ReferenceError at runtime.
+  const beside = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "index.js");
+  return existsSync(beside) ? beside : path.resolve(PROJECT_DIR, "dist", "index.js");
+}
+
 function buildPairingLink(): string {
   return `screensync://pair?url=${encodeURIComponent(primaryBaseUrl())}&token=${encodeURIComponent(AUTH_TOKEN)}`;
 }
+/** Copy-paste bundle for the AI agent of a new user. Live values only. */
+function connectKitText(): string {
+  const base = primaryBaseUrl();
+  const entry = hubEntryPath();
+  return [
+    "ScreenSync - Agent Connect Kit (generated live by the hub)",
+    "=========================================================",
+    `Hub:   ${base}`,
+    `Token: ${AUTH_TOKEN}`,
+    "",
+    "Hand this whole block to your AI agent. Ask it to install the ScreenSync",
+    "MCP server GLOBALLY, then pair the phone.",
+    "",
+    "1. INSTALL GLOBALLY (available in every project, not just one folder)",
+    `   Claude Code (user scope):  claude mcp add --scope user screensync -- node "${entry}"`,
+    "   Claude Desktop:  merge the JSON below into the global config, then restart it",
+    '       Windows: %APPDATA%\\Claude\\claude_desktop_config.json',
+    "       macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json",
+    '   Cursor:   ~/.cursor/mcp.json   (Windows: %USERPROFILE%\\.cursor\\mcp.json)',
+    '   VS Code:  %APPDATA%\\Code\\User\\mcp.json',
+    "   Cline / Roo Code / Windsurf / Antigravity: same block in the client settings",
+    "",
+    "   JSON to merge:",
+    "   {",
+    '     "mcpServers": {',
+    '       "screensync": {',
+    '         "command": "node",',
+    `         "args": ["${entry}"],`,
+    `         "env": { "SCREEN_SYNC_TOKEN": "${AUTH_TOKEN}" }`,
+    "       }",
+    "     }",
+    "   }",
+    "",
+    "2. PAIR THE PHONE (after step 1)",
+    `   Address to type in Settings > Hub: ${base}`,
+    `   Pairing link to paste:            ${buildPairingLink()}`,
+    `   Show the QR on this PC:           open ${base}/pair in a browser`,
+    "",
+    "3. FIRST CALLS",
+    "   get_mcp_catalog -> get_device_status -> get_latest_screenshot",
+    "",
+  ].join("\n");
+}
+
 
 /**
  * Advertises the hub as `_screensync-hub._tcp` so the Flutter app's
@@ -171,6 +224,8 @@ pairing token is no longer served.</p>
 <img class="qr" src="${qrDataUrl}" alt="Pairing QR code">
 <p>Or paste this pairing link in Settings → Hub:</p>
 <code id="link">${link}</code>
+<p>Or type this hub address (Settings &gt; Hub):</p>
+<code id="addr">${primaryBaseUrl()}</code>
 <button onclick="navigator.clipboard.writeText(document.getElementById('link').textContent)">Copy link</button>
 <script>
 const EXT_IDS = ["nfdhhnbmboahhimbofhihckobhenkoij", "jemgpkfioegjjnidjbhmmpnnjdadapko"];
@@ -205,7 +260,35 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
       });
       return;
     }
-    res.json({ url: primaryBaseUrl(), token: AUTH_TOKEN, link: buildPairingLink() });
+    res.json({
+      url: primaryBaseUrl(),
+      address: primaryBaseUrl(),
+      token: AUTH_TOKEN,
+      link: buildPairingLink(),
+    });
+  });
+
+  // ---- Agent Connect Kit (live) ----
+  // Values that cannot go stale: this hub's own LAN address, the absolute path
+  // of its own stdio entry, and the current pairing token. The checked-in
+  // CONNECT_KIT.md shipped someone else's IP and a Downloads path more than
+  // once, so the hub is the single source of truth and that file is a pointer.
+  app.get("/api/connect-kit", (req, res) => {
+    if (!allowLanPair && !isLoopbackReq(req) && !isAuthorized(req.header("authorization"))) {
+      res.status(403).json({
+        success: false,
+        error: "Connect kit is available to this machine (loopback) or with a valid pairing token.",
+      });
+      return;
+    }
+    res.json({
+      hubUrl: primaryBaseUrl(),
+      address: primaryBaseUrl(),
+      token: AUTH_TOKEN,
+      hubEntry: hubEntryPath(),
+      pairingLink: buildPairingLink(),
+      kit: connectKitText(),
+    });
   });
 
   // ── Live push (SSE) ──
