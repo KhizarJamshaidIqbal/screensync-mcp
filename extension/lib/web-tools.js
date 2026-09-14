@@ -13,23 +13,13 @@ import { ssWebUnitDom } from './web-unit-dom.js';
 import { ssWebUnitStorageAdv } from './web-storage-adv.js';
 import { ssWebUnitDigest } from './web-unit-digest.js';
 import { execInFrame } from './web-frames.js';
-import { sessionExport, sessionImport } from './web-session-sync.js';
 import { apiFetch } from './web-api-fetch.js';
 import { historySearch, bookmarksSearch } from './web-browser-data.js';
 import { execTabGroup } from './web-tab-groups.js';
-import { authenticatedHarvest } from './web-harvest.js';
-import { execLiveStreamSync, smartFormFill } from './web-stream-fill.js';
-import { sessionVaultExport, sessionVaultImport } from './web-vault-sync.js';
 import { pickActiveTab, isRestrictedTab, waitForTabComplete, groupAgentTab } from './tab-resolve.js';
 import { makeError, ERROR_CODES } from './errors.js';
 import { recordAuditEntry, getAuditLog, clearAuditLog, exportAuditLog } from './audit.js';
 import { execWebTabs, execWebTab, execWebWindow, execTabPool, execSandboxGroup } from './web-tab-mgmt.js';
-import {
-  socialScrape, socialPost, socialMatrix, socialSync, multiTabSync,
-  keepTabAlive, socialFeedCluster, socialDossier, socialSearch,
-  inspectUserProfileSync, batchCrawl,
-} from './web-social.js';
-import { execRealDataSync } from './web-sync.js';
 import { validateToolArgs } from './validate.js';
 
 const INTERACT_TOOLS = new Set([
@@ -126,9 +116,6 @@ export async function executeWebTool(tool, args = {}) {
       const res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: ssWebUnitDigest, args: [args] });
       return (res && res[0] && res[0].result) || makeError(ERROR_CODES.INTERNAL, 'Digest returned no result.');
     }
-    case 'web_real_data_sync': {
-      return execRealDataSync(args);
-    }
     case 'web_audit_log': {
       const action = String(args.action || 'get');
       if (action === 'clear') return clearAuditLog();
@@ -196,28 +183,24 @@ export async function executeWebTool(tool, args = {}) {
     case 'web_window': return execWebWindow(args);
     case 'web_tab_pool': return execTabPool(args);
     case 'web_sandbox_group': return execSandboxGroup(args);
-    case 'web_social_scrape': return socialScrape(args);
-    case 'web_social_post': return socialPost(args);
-    case 'web_social_matrix': return socialMatrix(args);
-    case 'web_social_sync': return socialSync(args);
-    case 'web_multi_tab_sync': return multiTabSync(args);
-    case 'web_keep_alive': return keepTabAlive(args);
-    case 'web_social_feed_cluster': return socialFeedCluster(args);
-    case 'web_social_dossier': return socialDossier(args);
-    case 'web_social_search': return socialSearch(args);
-    case 'web_profile_sync': return inspectUserProfileSync(args);
-    case 'web_batch_crawl': return batchCrawl(args);
     case 'web_api_fetch': return apiFetch(args);
     case 'web_history': return historySearch(args);
     case 'web_bookmarks': return bookmarksSearch(args);
     case 'web_tab_group': return execTabGroup(args);
-    case 'web_authenticated_harvest': return authenticatedHarvest(args);
-    case 'web_live_stream_sync': return execLiveStreamSync(args);
-    case 'web_smart_fill': return smartFormFill(args);
-    case 'web_session_export': return sessionExport(args);
-    case 'web_session_import': return sessionImport(args);
-    case 'web_session_vault_export': return sessionVaultExport(args);
-    case 'web_session_vault_import': return sessionVaultImport(args);
+    case 'web_profile_sync': {
+      const domain = String(args.domain || '').trim();
+      const cookies = domain ? await chrome.cookies.getAll({ domain }).catch(() => []) : [];
+      return {
+        ok: true,
+        data: {
+          customDomain: {
+            domain,
+            cookieCount: cookies.length,
+            cookies: cookies.map((c) => ({ name: c.name })),
+          },
+        },
+      };
+    }
     case 'web_in_frame': {
       const tab = await pickActiveTab(args);
       if (isRestrictedTab(tab)) return makeError(ERROR_CODES.RESTRICTED_PAGE, 'Cannot run in-frame tools on restricted tab.');
