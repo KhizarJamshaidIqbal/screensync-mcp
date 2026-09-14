@@ -14,7 +14,11 @@ import { ssWebUnitAction } from './web-unit-action.js';
 import { ssWebUnitDom } from './web-unit-dom.js';
 import { ssWebUnitStorageAdv } from './web-storage-adv.js';
 import { ssWebUnitDigest } from './web-unit-digest.js';
-import { execInFrame } from './web-frames.js';
+import { execInFrame, getFrameTree, execFrameCode } from './web-frames.js';
+import { execPixelDiff } from './web-diff.js';
+import { execDownload, execWaitDownload } from './web-download.js';
+import { execBatchCrawl, execMultiTabSync } from './web-crawl.js';
+import { execExtensionDiagnostics } from './web-diag.js';
 import { apiFetch } from './web-api-fetch.js';
 import { historySearch, bookmarksSearch } from './web-browser-data.js';
 import { execTabGroup } from './web-tab-groups.js';
@@ -207,6 +211,73 @@ export async function executeWebTool(tool, args = {}) {
       const tab = await pickActiveTab(args);
       if (isRestrictedTab(tab)) return makeError(ERROR_CODES.RESTRICTED_PAGE, 'Cannot run in-frame tools on restricted tab.');
       return execInFrame(tab, args);
+    }
+    case 'web_frame_tree': {
+      const tab = await pickActiveTab(args);
+      if (isRestrictedTab(tab)) return makeError(ERROR_CODES.RESTRICTED_PAGE, 'Cannot inspect frame tree on restricted tab.');
+      return getFrameTree(tab);
+    }
+    case 'web_frame_exec': {
+      const tab = await pickActiveTab(args);
+      if (isRestrictedTab(tab)) return makeError(ERROR_CODES.RESTRICTED_PAGE, 'Cannot run frame execution on restricted tab.');
+      return execFrameCode(tab, args);
+    }
+    case 'web_pixel_diff': {
+      const tab = await pickActiveTab(args).catch(() => null);
+      return execPixelDiff(tab, args);
+    }
+    case 'web_download': return execDownload(args);
+    case 'web_wait_download': return execWaitDownload(args);
+    case 'web_multi_tab_sync': return execMultiTabSync(args);
+    case 'web_batch_crawl': return execBatchCrawl(args);
+    case 'web_extension_diagnostics': return execExtensionDiagnostics();
+    case 'web_keep_alive': {
+      const tab = await pickActiveTab(args);
+      const action = String(args.action || 'protect').toLowerCase();
+      const autoDiscardable = action === 'release';
+      await chrome.tabs.update(tab.id, { autoDiscardable }).catch(() => {});
+      return { ok: true, data: { tabId: tab.id, action, autoDiscardable, message: action === 'protect' ? 'Tab protected from memory discard' : 'Tab discard protection released' } };
+    }
+    case 'web_wait_for_url': {
+      const tab = await pickActiveTab(args);
+      const target = String(args.url || args.pattern || '');
+      const isRegex = !!args.regex;
+      const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 10000, 500), 60000);
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        const current = await chrome.tabs.get(tab.id).catch(() => null);
+        if (current && current.url) {
+          const matched = isRegex ? new RegExp(target).test(current.url) : current.url.includes(target);
+          if (matched) return { ok: true, data: { url: current.url, matched: true, elapsedMs: Date.now() - start } };
+        }
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return makeError(ERROR_CODES.INTERNAL, `Timeout of ${timeoutMs}ms waiting for URL matching "${target}".`);
+    }
+    case 'web_wait_for_function': {
+      const tab = await pickActiveTab(args);
+      if (isRestrictedTab(tab)) return makeError(ERROR_CODES.RESTRICTED_PAGE, `Restricted tab: ${tab.url}`);
+      const expr = String(args.expression || '');
+      if (!expr) return makeError(ERROR_CODES.BAD_ARGS, 'web_wait_for_function requires expression.');
+      const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 10000, 500), 60000);
+      const pollMs = Math.min(Math.max(Number(args.pollMs) || 200, 50), 2000);
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        try {
+          const res = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: (e) => {
+              try { return Boolean((0, eval)(e)); } catch { return false; }
+            },
+            args: [expr],
+          });
+          if (res && res[0] && res[0].result) {
+            return { ok: true, data: { satisfied: true, elapsedMs: Date.now() - start } };
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, pollMs));
+      }
+      return makeError(ERROR_CODES.INTERNAL, `Timeout of ${timeoutMs}ms waiting for expression.`);
     }
     case 'web_watch': {
       const tab = await pickActiveTab(args);

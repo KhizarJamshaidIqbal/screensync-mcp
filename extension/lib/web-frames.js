@@ -57,3 +57,62 @@ export async function execInFrame(tab, args) {
     return { ok: false, error: `Cannot access frame ${frame.frameId}: ${String((e && e.message) || e)}`, frameId: frame.frameId, frameUrl: frame.url };
   }
 }
+
+export async function getFrameTree(tab) {
+  try {
+    const frames = await chrome.webNavigation.getAllFrames({ tabId: tab.id });
+    const formatted = (frames || []).map((f) => ({
+      frameId: f.frameId,
+      parentFrameId: f.parentFrameId,
+      url: f.url,
+      errorOccurred: !!f.errorOccurred,
+    }));
+    return {
+      ok: true,
+      data: {
+        tabId: tab.id,
+        url: tab.url,
+        frames: formatted,
+        frameCount: formatted.length,
+      },
+    };
+  } catch (e) {
+    return { ok: false, error: `getFrameTree failed: ${String((e && e.message) || e)}` };
+  }
+}
+
+export async function execFrameCode(tab, args = {}) {
+  const frameId = typeof args.frameId === 'number' ? args.frameId : null;
+  if (frameId === null) {
+    return { ok: false, error: 'web_frame_exec requires frameId (integer).' };
+  }
+  if (args.tool) {
+    return execInFrame(tab, args);
+  }
+  const code = args.code || args.expression;
+  if (typeof code !== 'string' || !code.trim()) {
+    return { ok: false, error: 'web_frame_exec requires code, expression, or tool.' };
+  }
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, frameIds: [frameId] },
+      func: (c) => {
+        try {
+          return { ok: true, result: (0, eval)(c) };
+        } catch (err) {
+          return { ok: false, error: String((err && err.message) || err) };
+        }
+      },
+      args: [code],
+    });
+    const res = (results && results[0] && results[0].result) || { ok: false, error: 'No result returned from frame execution.' };
+    return {
+      ok: res.ok,
+      data: { frameId, result: res.result },
+      error: res.error,
+    };
+  } catch (e) {
+    return { ok: false, error: `Frame execution failed: ${String((e && e.message) || e)}` };
+  }
+}
+

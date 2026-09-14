@@ -672,24 +672,50 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           const id = [...browsers.entries()].find(([, v]) => v === e)?.[0] ?? "default";
           return { id, name: e.name };
         });
+        if (!targets.length) {
+          res.json({ success: true, ok: false, data: { error: "No browser extension connected to inspect accounts." } });
+          return;
+        }
         const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
+        const defaultDomains = ["github.com", "google.com", "x.com", "linkedin.com", "reddit.com"];
+        const domainsToProbe = Array.isArray(args.domains) ? (args.domains as string[]) : defaultDomains;
         const accounts: Array<Record<string, unknown>> = [];
+        const errors: Array<{ browser: string; domain: string; error: string }> = [];
+
         for (const target of targets) {
-          const r = await request("web_social_matrix", { __browser: target.id }, timeoutMs);
-          const d = r.data as { platforms?: Array<Record<string, unknown>> } | undefined;
-          const platforms = Array.isArray(d?.platforms) ? d?.platforms : [];
-          for (const p of platforms) {
-            accounts.push({ browser: target.name, browserId: target.id, ...p });
+          for (const domain of domainsToProbe) {
+            const r = await callOn(target, "web_profile_sync", { domain }, timeoutMs);
+            if (!r.ok) {
+              errors.push({ browser: target.name, domain, error: r.error || "Profile sync probe failed" });
+              continue;
+            }
+            const d = r.data as { customDomain?: { cookieCount?: number; cookies?: Array<{ name?: string }> } } | undefined;
+            const cd = d?.customDomain;
+            const cookieCount = cd?.cookieCount ?? 0;
+            const authish = (cd?.cookies || []).some((c) => /sess|auth|token|sid|login|jwt|user/i.test(String(c.name || "")));
+            accounts.push({
+              browser: target.name,
+              browserId: target.id,
+              domain,
+              platform: domain.replace(/\.[a-z]+$/, ""),
+              authenticated: cookieCount > 0 && authish,
+              cookieCount,
+            });
           }
         }
+
         const live = accounts.filter((a) => a.authenticated === true);
+        const ok = errors.length < domainsToProbe.length * targets.length;
         res.json({
-          success: true, ok: true,
+          success: true,
+          ok,
           data: {
             browsersProbed: targets.length,
+            domainsProbed: domainsToProbe,
             liveAccounts: live.length,
             accounts,
-            summary: live.map((a) => `${String(a.platform)} @ ${String(a.browser)}`),
+            summary: live.map((a) => `${String(a.platform)} (${String(a.domain)}) @ ${String(a.browser)}`),
+            errors: errors.length > 0 ? errors : undefined,
           },
         });
         return;

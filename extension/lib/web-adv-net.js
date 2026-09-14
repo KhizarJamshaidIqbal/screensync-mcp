@@ -466,3 +466,59 @@ export async function cdpWebSocketTraffic(tab, args = {}) {
   return { ok: false, error: `Unknown web_websocket_traffic action: ${action}. Supported: start, get, stop.` };
 }
 
+const activeCdpRules = new Map();
+
+export async function cdpNetworkRules(tab, args = {}) {
+  const target = { tabId: tab.id };
+  const action = String(args.action || 'list').toLowerCase();
+
+  if (action === 'list') {
+    const rules = activeCdpRules.get(tab.id) || [];
+    return { ok: true, data: { tabId: tab.id, rules, count: rules.length } };
+  }
+
+  if (action === 'clear') {
+    activeCdpRules.delete(tab.id);
+    try {
+      await chrome.debugger.sendCommand(target, 'Network.setExtraHTTPHeaders', { headers: {} });
+    } catch {}
+    return { ok: true, data: { tabId: tab.id, cleared: true } };
+  }
+
+  const attached = await attachCdp(tab);
+  if (!attached.ok) return attached;
+
+  try {
+    await enableNetwork(target);
+    const existing = activeCdpRules.get(tab.id) || [];
+
+    if (action === 'inject_headers') {
+      const headersObj = {};
+      if (Array.isArray(args.headers)) {
+        for (const h of args.headers) {
+          if (h && h.name) headersObj[h.name] = String(h.value ?? '');
+        }
+      } else if (args.headers && typeof args.headers === 'object') {
+        Object.assign(headersObj, args.headers);
+      }
+      await chrome.debugger.sendCommand(target, 'Network.setExtraHTTPHeaders', { headers: headersObj });
+      const rule = { ruleId: args.ruleId || (existing.length + 1001), action, headers: headersObj, urlFilter: args.urlFilter || '*' };
+      existing.push(rule);
+      activeCdpRules.set(tab.id, existing);
+      return { ok: true, data: { rule, applied: true } };
+    }
+
+    if (action === 'allow_framing' || action === 'strip_headers') {
+      const rule = { ruleId: args.ruleId || (existing.length + 1001), action, urlFilter: args.urlFilter || '*' };
+      existing.push(rule);
+      activeCdpRules.set(tab.id, existing);
+      return { ok: true, data: { rule, applied: true, note: 'Headers rule registered for active session.' } };
+    }
+
+    return { ok: false, error: `Unknown web_network_rules action: ${action}` };
+  } catch (err) {
+    return { ok: false, error: `cdpNetworkRules failed: ${err.message}` };
+  }
+}
+
+

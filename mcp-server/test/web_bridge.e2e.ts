@@ -62,8 +62,10 @@ function cannedResult(tool: string, args: Record<string, unknown> = {}): { ok: b
       return { ok: true, data: { frameId: 55, inner: "clicked-in-frame" } };
     case "web_network_auth":
       return { ok: true, data: { authHandling: true } };
-    case "web_profile_sync":
-      return { ok: true, data: { customDomain: { domain: "example.test", cookieCount: 4, cookies: [{ name: "sessionid" }] } } };
+    case "web_profile_sync": {
+      const isAuthed = String(args.domain || "").includes("x.com") || String(args.domain || "").includes("example.test");
+      return { ok: true, data: { customDomain: { domain: String(args.domain || "example.test"), cookieCount: isAuthed ? 4 : 0, cookies: isAuthed ? [{ name: "sessionid" }] : [] } } };
+    }
     case "web_tabs":
       return { ok: true, data: { tabs: [{ tabId: 1, url: "https://a.test/page", title: "A", active: true }, { tabId: 2, url: "https://b.test/page", title: "B", active: false }] } };
     case "web_api_fetch":

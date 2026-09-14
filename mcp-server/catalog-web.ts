@@ -327,25 +327,6 @@ export function webToolDefinitions() {
       },
     },
     {
-      name: "web_session_save",
-      description:
-        "Saves all cookies and local storage items for the current tab's origin into a portable JSON session state.",
-      inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    },
-    {
-      name: "web_session_restore",
-      description:
-        "Restores cookies and local storage from a previously saved session blob into the current tab's origin.",
-      inputSchema: {
-        type: "object",
-        required: ["session"],
-        properties: {
-          session: { type: "object", description: "The session object containing cookies and localStorage." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
       name: "web_cdp_eval",
       description:
         "Evaluates a JavaScript expression via Chrome DevTools Protocol (CDP Runtime.evaluate). Completely bypasses page Content Security Policy (CSP), unsafe-eval restrictions, and sandbox limits.",
@@ -910,32 +891,6 @@ export function webToolDefinitions() {
       },
     },
     {
-      name: "web_social_scrape",
-      description: "Authenticated live social media data extractor: leverages user's existing logged-in browser session to extract handles, stats, feeds, and notifications without requiring passwords or API keys.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          platform: { type: "string", enum: ["twitter", "x", "github", "linkedin", "facebook", "reddit", "all"], default: "all", description: "Platform to scrape." },
-          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 25000, description: "Per-platform load timeout." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_social_post",
-      description: "Authenticated social media publisher: composes and publishes posts directly on Twitter/X or LinkedIn using the active logged-in browser session and human-like typing.",
-      inputSchema: {
-        type: "object",
-        required: ["platform", "text"],
-        properties: {
-          platform: { type: "string", enum: ["twitter", "x", "linkedin"], description: "Target social network." },
-          text: { type: "string", description: "Content text to publish." },
-          submit: { type: "boolean", default: false, description: "If true, clicks the final post/tweet button. If false, drafts without publishing." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
       name: "web_tab_pool",
       description: "Multi-tab background worker pool: create, list, and close parallel background tabs grouped in Chrome for concurrent AI operations.",
       inputSchema: {
@@ -946,19 +901,6 @@ export function webToolDefinitions() {
           urls: { type: "array", items: { type: "string" }, description: "List of URLs for create action." },
           tabIds: { type: "array", items: { type: "integer" }, description: "List of tab IDs for close action." },
           title: { type: "string", default: "Agent Tab Pool", description: "Tab group title." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_storage_state",
-      description: "Playwright-compatible storage export/import: exports or imports cookies and localStorage in canonical Playwright storageState JSON format.",
-      inputSchema: {
-        type: "object",
-        required: ["action"],
-        properties: {
-          action: { type: "string", enum: ["export", "import"], description: "Storage state action." },
-          storageState: { type: "object", description: "Playwright storage state object for import action." },
         },
         additionalProperties: false,
       },
@@ -987,7 +929,7 @@ export function webToolDefinitions() {
       inputSchema: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["accept", "dismiss", "prompt", "clear"], default: "accept", description: "Dialog rule action." },
+          action: { type: "string", enum: ["accept", "dismiss", "prompt", "clear"], default: "dismiss", description: "Dialog rule action (default: dismiss)." },
           promptText: { type: "string", description: "Optional text response for window.prompt dialogs." },
           tabId: { type: "integer", description: "Optional background tab ID." },
         },
@@ -1071,33 +1013,6 @@ export function webToolDefinitions() {
         type: "object",
         properties: {
           tabId: { type: "integer", description: "Optional background tab ID." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_social_matrix",
-      description: "Real-browser authenticated identity matrix: scans user's active cookies and open tabs across X/Twitter, GitHub, LinkedIn, Facebook, Instagram, Reddit, Google, and WordPress without requiring credentials.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          domain: { type: "string", description: "Optional custom domain to inspect." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_social_sync",
-      description: "Authenticated background data synchronizer: extracts structured feeds, notifications, or search results directly from the user's logged-in session without user disruption.",
-      inputSchema: {
-        type: "object",
-        required: ["platform"],
-        properties: {
-          platform: { type: "string", enum: ["x", "twitter", "github", "reddit", "linkedin"], description: "Target social network." },
-          task: { type: "string", enum: ["feed", "notifications", "bookmarks", "search", "trending"], default: "feed", description: "Data extraction task." },
-          query: { type: "string", description: "Search query for 'search' task." },
-          subreddit: { type: "string", description: "Subreddit name for Reddit platform." },
-          limit: { type: "integer", minimum: 1, maximum: 50, default: 10, description: "Maximum items to extract." },
         },
         additionalProperties: false,
       },
@@ -1225,50 +1140,6 @@ export function webToolDefinitions() {
         properties: {
           action: { type: "string", enum: ["protect", "release"], default: "protect", description: "Keepalive action." },
           tabId: { type: "integer", description: "Optional background tab ID." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_social_feed_cluster",
-      description: "One-shot multi-platform aggregated feed extraction: queries authenticated sessions (X/Twitter, GitHub, LinkedIn, Reddit) simultaneously in background tabs and returns unified chronological intelligence.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          platforms: {
-            type: "array",
-            items: { type: "string" },
-            description: "Target platforms (e.g. ['x', 'github', 'linkedin', 'reddit']). Omit to query all authenticated accounts.",
-          },
-          limit: { type: "integer", minimum: 1, maximum: 20, default: 5, description: "Max items per platform." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_social_dossier",
-      description: "Deep authenticated profile inspection: extracts follower count, following count, bio, verified status, pinned items, and recent posts without requiring API keys.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          platform: { type: "string", enum: ["github", "x", "twitter", "linkedin", "reddit"], default: "github", description: "Target social network." },
-          targetHandle: { type: "string", description: "Optional target username/handle. Omit to inspect the user's own authenticated profile." },
-          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 25000, description: "Timeout in ms." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_social_search",
-      description: "Authenticated social search: queries X/Twitter, GitHub, or Reddit using the user's logged-in browser session and extracts clean structured results.",
-      inputSchema: {
-        type: "object",
-        required: ["query"],
-        properties: {
-          platform: { type: "string", enum: ["github", "x", "twitter", "reddit"], default: "github", description: "Target network." },
-          query: { type: "string", description: "Search query string." },
-          limit: { type: "integer", minimum: 1, maximum: 30, default: 10, description: "Max search results." },
-          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 25000, description: "Timeout in ms." },
         },
         additionalProperties: false,
       },

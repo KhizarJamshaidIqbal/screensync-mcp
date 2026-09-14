@@ -221,12 +221,12 @@ export function agentWebToolDefinitions(): WebToolDef[] {
     {
       name: "web_fanout",
       description:
-        "Multi-browser orchestration: runs ONE web tool on every connected browser (or a chosen subset) and merges the results keyed by browser. The core of operating several real browsers at once — e.g. web_social_matrix across all browsers, or web_screenshot on each. Tool name + args pass through; each browser executes its own copy.",
+        "Multi-browser orchestration: runs ONE web tool on every connected browser (or a chosen subset) and merges the results keyed by browser. The core of operating several real browsers at once — e.g. web_cookies across all browsers, or web_screenshot on each. Tool name + args pass through; each browser executes its own copy.",
       inputSchema: {
         type: "object",
         required: ["tool"],
         properties: {
-          tool: { type: "string", description: "The web_* tool to run on each browser (e.g. 'web_social_matrix')." },
+          tool: { type: "string", description: "The web_* tool to run on each browser (e.g. 'web_screenshot')." },
           args: { type: "object", description: "Arguments forwarded to the tool on every browser." },
           browsers: {
             oneOf: [
