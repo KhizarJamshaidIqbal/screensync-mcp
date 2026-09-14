@@ -771,7 +771,7 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
       add(const SetLiveMirrorEvent(false));
     }
   }
-
+
   void _startLatencySampler() {
     _latencySampler?.cancel();
     _latencySampler =
