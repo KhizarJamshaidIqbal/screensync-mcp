@@ -233,6 +233,23 @@ class HubConnectionSection extends StatelessWidget {
                 value: settings.autoSync,
                 onChanged: (v) => settings.autoSync = v,
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('Live mirror (this phone to the hub)',
+                    style: TextStyle(fontSize: 13)),
+                subtitle: Text(
+                    'While on, a low-latency 480p frame is pushed every '
+                    'few seconds so the hub and any connected agent see this '
+                    'screen as it changes. Phone-only switch - no MCP tool '
+                    'can turn it on.',
+                    style: TextStyle(fontSize: 11, color: dimColor(context))),
+                value: settings.liveMirrorEnabled,
+                onChanged: (v) {
+                  settings.liveMirrorEnabled = v;
+                  context.read<ScreenCaptureBloc>().add(SetLiveMirrorEvent(v));
+                },
+              ),
               const _OsControlTile(),
             ],
           ),

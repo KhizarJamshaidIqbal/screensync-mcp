@@ -22,6 +22,8 @@ class SettingsService extends ChangeNotifier {
   static const _kSyncMode = 'sync_mode';
   static const _kAutoDiscover = 'auto_discover_hub';
   static const _kAutoSync = 'auto_sync_pending';
+  static const _kLiveMirror = 'live_mirror_enabled';
+  static const _kLiveMirrorMs = 'live_mirror_interval_ms';
   static const _kVendorConfirmed = 'vendor_bg_confirmed';
   static const _kGestureConfirmed = 'gesture_control_confirmed';
   static const _kConnectKitDismissed = 'connect_kit_dismissed';
@@ -153,6 +155,22 @@ class SettingsService extends ChangeNotifier {
   bool get autoSync => _prefs.getBool(_kAutoSync) ?? true;
   set autoSync(bool v) {
     _prefs.setBool(_kAutoSync, v);
+    notifyListeners();
+  }
+
+  /// Opt-in live mirror: while on, the app captures and pushes a low-latency
+  /// 480p frame on an interval so the hub - and any connected agent - sees the
+  /// phone screen as it changes. Device-local only; there is deliberately no
+  /// MCP tool for this, so an agent can never switch it on itself.
+  bool get liveMirrorEnabled => _prefs.getBool(_kLiveMirror) ?? false;
+  set liveMirrorEnabled(bool v) {
+    _prefs.setBool(_kLiveMirror, v);
+    notifyListeners();
+  }
+
+  int get liveMirrorIntervalMs => _prefs.getInt(_kLiveMirrorMs) ?? 4000;
+  set liveMirrorIntervalMs(int v) {
+    _prefs.setInt(_kLiveMirrorMs, v);
     notifyListeners();
   }
 

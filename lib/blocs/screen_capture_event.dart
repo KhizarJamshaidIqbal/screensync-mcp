@@ -199,3 +199,12 @@ class DeviceNameResolvedEvent extends ScreenCaptureEvent {
   @override
   List<Object?> get props => [name];
 }
+
+/// Device-owner action: start (true) or stop (false) the opt-in live mirror.
+/// Never dispatched from an MCP tool - only from the phone settings switch.
+class SetLiveMirrorEvent extends ScreenCaptureEvent {
+  final bool enabled;
+  const SetLiveMirrorEvent(this.enabled);
+  @override
+  List<Object?> get props => [enabled];
+}

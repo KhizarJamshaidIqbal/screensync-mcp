@@ -19,6 +19,7 @@ import '../services/capture_trigger_bridge.dart';
 import '../services/connection_metrics_service.dart';
 import '../services/device_intent_service.dart';
 import '../services/live_event_service.dart';
+import '../services/media_projection_service.dart';
 import '../services/session_recorder_service.dart';
 import '../services/settings_service.dart';
 import '../services/shake_trigger_service.dart';
@@ -67,6 +68,9 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
   String? _liveKey;
   DateTime _lastBubbleTrigger = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _latencySampler;
+  Timer? _liveMirror;
+  bool _mirrorBusy = false;
+  int _mirrorFailures = 0;
 
   ScreenCaptureBloc({
     ScreenRepository? screenRepository,
@@ -84,6 +88,7 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
     _seedFromSettings();
     _wireLiveEvents();
     _startLatencySampler();
+    if (_settings.liveMirrorEnabled) _startLiveMirror();
   }
 
   void _wireResolvers() {
@@ -150,6 +155,7 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
     on<SessionStatsChangedEvent>((event, emit) =>
         emit(state.copyWith(sessionStats: _metrics.sessionStats)));
     on<DeviceNameResolvedEvent>(_onDeviceNameResolved);
+    on<SetLiveMirrorEvent>(_onSetLiveMirror);
   }
 
   /// Overlay-engine taps arrive via both the plugin message bus and the
@@ -671,6 +677,7 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
     _liveConnSub?.cancel();
     _stateSub?.cancel();
     _latencySampler?.cancel();
+    _stopLiveMirror();
     LiveEventService.instance.disconnect();
     disposeHubMaintenance();
     return super.close();
@@ -682,6 +689,89 @@ class ScreenCaptureBloc extends Bloc<ScreenCaptureEvent, ScreenCaptureState>
   /// even when the user is idle. Cheaper than the 20s `_maintainHub` tick
   /// because it doesn't try mDNS or auto-discovery — just a single HTTP
   /// round-trip against the already-resolved hub URL.
+  // ---- Opt-in live mirror (phone screen -> hub) ----
+  //
+  // The device owner switches this on from Settings. It is deliberately NOT
+  // exposed as an MCP tool, so no agent can start watching the screen by
+  // itself. While on, one low-latency 480p frame is captured and pushed on an
+  // interval; the hub's SSE "frame" event then carries it to every listener,
+  // which is the path the extension panel and get_latest_screenshot already
+  // read from. Without this loop nothing ever produced those frames.
+  void _startLiveMirror() {
+    _liveMirror?.cancel();
+    final ms = _settings.liveMirrorIntervalMs.clamp(1500, 60000);
+    _mirrorFailures = 0;
+    _liveMirror =
+        Timer.periodic(Duration(milliseconds: ms), (_) => _liveMirrorTick());
+  }
+
+  void _stopLiveMirror() {
+    _liveMirror?.cancel();
+    _liveMirror = null;
+  }
+
+  void _onSetLiveMirror(
+      SetLiveMirrorEvent event, Emitter<ScreenCaptureState> emit) {
+    _settings.liveMirrorEnabled = event.enabled;
+    if (event.enabled) {
+      _startLiveMirror();
+    } else {
+      _stopLiveMirror();
+    }
+    emit(state.copyWith(
+      errorMessage: event.enabled
+          ? 'Live mirror on - a frame is pushed every '
+              '${(_settings.liveMirrorIntervalMs / 1000).toStringAsFixed(1)}s.'
+          : null,
+    ));
+  }
+
+  Future<void> _liveMirrorTick() async {
+    if (_mirrorBusy) return; // never overlap captures
+    if (state.hubOnline != true || state.hubUrl.isEmpty) return;
+    // The projection session belongs to the bubble; if it is not up yet, skip
+    // this tick rather than calling prepare() from a background timer (which on
+    // Android 14 could try to raise a consent dialog off an activity).
+    try {
+      if (!await MediaProjectionService.isReady()) return;
+    } catch (_) {
+      return;
+    }
+    _mirrorBusy = true;
+    try {
+      final frame = await _screenRepository.captureCurrentDisplay(
+        quality: CaptureQuality.stream,
+      );
+      // Deliberately not persisted to the local gallery: the hub keeps its own
+      // recent frames, and a row every few seconds would bury real captures.
+      final ok = await _screenRepository.pushToLocalMcpServer(frame);
+      if (ok) {
+        _mirrorFailures = 0;
+        _metrics.incrementHubPush();
+      } else {
+        _mirrorFailures++;
+      }
+    } catch (_) {
+      _mirrorFailures++;
+    } finally {
+      _mirrorBusy = false;
+    }
+    // Self-stop instead of hammering: three failures in a row means capture or
+    // upload is not working, and the user is told rather than left guessing.
+    if (_mirrorFailures >= 3) {
+      _stopLiveMirror();
+      _settings.liveMirrorEnabled = false;
+      _recordTelemetry(
+        kind: 'upload',
+        label: 'Live mirror stopped - capture/upload failing',
+        durationMs: 0,
+        ok: false,
+      );
+      add(const ClearTelemetryEvent.refresh());
+      add(const SetLiveMirrorEvent(false));
+    }
+  }
+
   void _startLatencySampler() {
     _latencySampler?.cancel();
     _latencySampler =
