@@ -1,6 +1,6 @@
 // ScreenSync CDP emulation executors — viewport/geo/network emulation,
 // permissions, timezone, network throttling, color scheme overrides.
-import { rawAttach, rawDetach, attachCdp, detachCdp, activeEmulations } from './web-adv-core.js';
+import { rawAttach, attachCdp, detachCdp, activeEmulations } from './web-adv-core.js';
 
 export async function cdpEmulate(tab, args = {}) {
   const target = { tabId: tab.id };

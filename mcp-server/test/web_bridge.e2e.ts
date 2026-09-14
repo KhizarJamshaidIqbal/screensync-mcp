@@ -177,7 +177,7 @@ async function startFakeExtension(browserId: string, browserName: string, userAg
             await fetch(`${BASE}/api/web/result`, {
               method: "POST",
               headers: authHeaders,
-              body: JSON.stringify({ id: ev.id, ok: result.ok, data: result.data }),
+              body: JSON.stringify({ id: ev.id, ok: result.ok, data: result.data, browserId, browserName }),
             });
           }
         } catch { /* malformed chunk — ignore */ }

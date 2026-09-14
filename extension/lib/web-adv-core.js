@@ -80,9 +80,43 @@ export async function rawDetach(target) {
 }
 
 
+export const networkRefCounts = new Map(); // tabId -> ref count for Network.enable
+
+export async function enableNetwork(target) {
+  const tabId = target && target.tabId;
+  if (!tabId) return;
+  const current = networkRefCounts.get(tabId) || 0;
+  networkRefCounts.set(tabId, current + 1);
+  if (current === 0) {
+    try {
+      await chrome.debugger.sendCommand(target, 'Network.enable', {});
+    } catch (e) {
+      networkRefCounts.set(tabId, Math.max(0, current));
+      throw e;
+    }
+  }
+}
+
+export async function disableNetwork(target) {
+  const tabId = target && target.tabId;
+  if (!tabId) return;
+  const current = networkRefCounts.get(tabId) || 0;
+  if (current <= 1) {
+    networkRefCounts.delete(tabId);
+    if (!activeHars.has(tabId) && !activeWsBuffers.has(tabId)) {
+      try {
+        await chrome.debugger.sendCommand(target, 'Network.disable', {});
+      } catch {}
+    }
+  } else {
+    networkRefCounts.set(tabId, current - 1);
+  }
+}
+
 if (chrome.tabs && chrome.tabs.onRemoved) {
   chrome.tabs.onRemoved.addListener((tabId) => {
     cdpRefCounts.delete(tabId);
+    networkRefCounts.delete(tabId);
   });
 }
 

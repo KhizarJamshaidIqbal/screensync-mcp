@@ -11,7 +11,10 @@
     "test": "tsx test/e2e.ts && tsx test/flow.e2e.ts && tsx test/web_bridge.e2e.ts",
     "test:flow": "tsx test/flow.e2e.ts",
     "test:bridge": "tsx test/web_bridge.e2e.ts",
-    "fetch:latest": "tsx test/fetch_latest.ts"
+    "fetch:latest": "tsx test/fetch_latest.ts",
+    "lint:ext": "npx eslint ../extension",
+    "typecheck:ext": "tsc --project ../extension/jsconfig.json",
+    "verify:ext": "npm run lint:ext && npm run typecheck:ext"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.5",

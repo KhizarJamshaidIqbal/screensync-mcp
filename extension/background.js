@@ -4,7 +4,7 @@ import { SseClient } from './lib/sse-client.js';
 import { handleWebRequest, registerWebBridge } from './lib/web-tools.js';
 import { startAmbientCollector } from './lib/web-ambient.js';
 import {
-  GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, HEALTH_PERIOD_S, EVENT_LOG_CAP,
+  GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, EVENT_LOG_CAP,
 } from './lib/constants.js';
 
 console.info('[ss] sw boot');
@@ -305,7 +305,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           sse.stop();
           await ensureSse();
           pollHealth();
-          registerWebBridge();
+          await registerWebBridge();
           broadcast({ kind: 'settings', settings });
           sendResponse({ ok: true, settings });
           break;

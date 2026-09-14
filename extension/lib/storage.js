@@ -1,5 +1,3 @@
-import { DEFAULT_TOKEN } from './constants.js';
-
 // ScreenSync Storage Layout (Plan §3.3 & D2)
 // Sensitive pairing secrets, tokens, origin grants, and audit trails live in
 // chrome.storage.local (machine-local only, never replicated to Google Account sync).

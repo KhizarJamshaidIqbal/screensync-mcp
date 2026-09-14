@@ -1,6 +1,6 @@
 // ScreenSync CDP input executors — trusted input, file upload, keyboard and
 // mouse combos, touch, human emulation (Bézier/Gaussian), clipboard.
-import { rawAttach, rawDetach } from './web-adv-core.js';
+import { rawAttach, rawDetach, attachCdp, detachCdp } from './web-adv-core.js';
 import { ssWebUnitInteract } from './web-unit.js';
 export async function cdpInput(tab, action, params = {}) {
   const target = { tabId: tab.id };

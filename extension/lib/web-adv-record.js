@@ -1,6 +1,6 @@
 // ScreenSync evidence recorders — real CDP HAR (optional response bodies),
 // WebM video via offscreen MediaRecorder, fake clock, CDP Tracing.
-import { attachCdp, detachCdp, rawAttach, rawDetach, activeHars, activeTraces, activeVideoRecs, activeClocks, activeWsBuffers } from './web-adv-core.js';
+import { attachCdp, detachCdp, rawAttach, rawDetach, activeHars, activeTraces, activeVideoRecs, activeClocks, enableNetwork, disableNetwork } from './web-adv-core.js';
 export async function cdpHarRecord(tab, args) {
   const action = String(args.action || 'start').toLowerCase();
   if (action === 'start') {
@@ -8,7 +8,7 @@ export async function cdpHarRecord(tab, args) {
     const attached = await attachCdp(tab);
     if (!attached.ok) return attached;
     try {
-      await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.enable');
+      await enableNetwork({ tabId: tab.id });
     } catch (e) {
       await detachCdp(tab);
       return { ok: false, error: `Network.enable failed: ${String((e && e.message) || e)}` };
@@ -33,9 +33,7 @@ export async function cdpHarRecord(tab, args) {
   if (action === 'stop') {
     const rec = activeHars.get(tab.id);
     if (!rec) return { ok: false, error: 'No HAR recording is active on this tab.' };
-    if (!activeWsBuffers.has(tab.id)) {
-      try { await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.disable'); } catch {}
-    }
+    await disableNetwork({ tabId: tab.id });
     activeHars.delete(tab.id);
     await detachCdp(tab);
     const har = {

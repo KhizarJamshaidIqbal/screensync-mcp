@@ -508,6 +508,8 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
       server.once("error", reject);
       server.listen(HTTP_PORT, HTTP_HOST, () => resolve());
     });
+    // H6 fix: Start schedule timers only after successful server.listen().
+    webBridge.startSchedules();
   } catch (listenErr) {
     clearInterval(keepalive);
     webBridge.stopSchedules();

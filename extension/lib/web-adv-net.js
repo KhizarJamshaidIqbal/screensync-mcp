@@ -1,6 +1,6 @@
 // ScreenSync CDP network executors — mocks, routes, dialog rules, network
 // idle waits, websocket traffic, response/request waits, network auth.
-import { rawAttach, rawDetach, attachCdp, detachCdp, activeMocks, activeRoutes, activeDialogRules, activeWsBuffers, activeAuths, activeHars } from './web-adv-core.js';
+import { rawAttach, rawDetach, attachCdp, detachCdp, activeMocks, activeRoutes, activeDialogRules, activeWsBuffers, activeAuths, enableNetwork, disableNetwork } from './web-adv-core.js';
 
 // ── web_network_auth: Playwright page.authenticate parity — supply credentials
 // for HTTP basic/proxy auth challenges via CDP Fetch.authRequired handling ──
@@ -156,9 +156,7 @@ export async function cdpWaitNetworkIdle(tab, timeoutMs = 15000, idleMs = 500) {
       clearTimeout(maxTimer);
       if (timer) clearTimeout(timer);
       chrome.debugger.onEvent.removeListener(onEvent);
-      if (!activeHars.has(tab.id) && !activeWsBuffers.has(tab.id)) {
-        try { await chrome.debugger.sendCommand(target, 'Network.disable', {}); } catch {}
-      }
+      await disableNetwork(target);
       if (attached) {
         await rawDetach(target);
       }
@@ -195,7 +193,7 @@ export async function cdpWaitNetworkIdle(tab, timeoutMs = 15000, idleMs = 500) {
     const maxTimer = setTimeout(() => done(false, `Timeout of ${timeoutMs}ms exceeded waiting for networkidle`), timeoutMs);
 
     chrome.debugger.onEvent.addListener(onEvent);
-    chrome.debugger.sendCommand(target, 'Network.enable', {}).then(() => {
+    enableNetwork(target).then(() => {
       checkIdle();
     }).catch((e) => {
       done(false, String(e));
@@ -443,7 +441,7 @@ export async function cdpWebSocketTraffic(tab, args = {}) {
     const attached = await attachCdp(tab);
     if (!attached.ok) return attached;
     try {
-      await chrome.debugger.sendCommand(target, 'Network.enable', {});
+      await enableNetwork(target);
       activeWsBuffers.set(tab.id, []);
       return { ok: true, data: { action: 'start', tracking: true, tabId: tab.id } };
     } catch (err) {
@@ -455,6 +453,7 @@ export async function cdpWebSocketTraffic(tab, args = {}) {
   if (action === 'get' || action === 'stop') {
     const frames = activeWsBuffers.get(tab.id) || [];
     if (action === 'stop') {
+      await disableNetwork(target);
       activeWsBuffers.delete(tab.id);
       await detachCdp(tab);
     }

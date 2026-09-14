@@ -18,12 +18,14 @@ export type WebToolResult = { ok: boolean; data?: unknown; error?: string };
 type Pending = {
   resolve: (r: WebToolResult) => void;
   timer: ReturnType<typeof setTimeout>;
+  targetBrowser?: string | null;
 };
 
 export type WebBridge = {
   registerRoutes: (app: Express) => void;
   status: () => Record<string, unknown>;
   armReloadRequested: () => void;
+  startSchedules: () => void;
   stopSchedules: () => void;
 };
 
@@ -110,10 +112,10 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         pending.delete(id);
         resolve({ ok: false, error: `Timed out after ${timeoutMs}ms waiting for the browser extension.` });
       }, timeoutMs);
-      pending.set(id, { resolve, timer });
       const targetBrowser = typeof args.__browser === "string"
         ? args.__browser
         : (onlineEntries()[0]?.name || null);
+      pending.set(id, { resolve, timer, targetBrowser });
       broadcast({ type: "web_request", id, tool, args, targetBrowser });
     });
 
@@ -271,11 +273,17 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       const timer = setInterval(() => { runScheduled(sched.id).catch(() => {}); }, ms);
       scheduleTimers.set(sched.id, timer);
     };
-    // Reload schedules from disk on hub boot.
-    for (const s of loadSchedules()) {
-      const sched = s as { id?: string; everyMinutes?: number };
-      if (sched.id && Number.isFinite(sched.everyMinutes)) startScheduleTimer(sched as { id: string; everyMinutes: number });
-    }
+    const stopSchedules = () => {
+      for (const timer of scheduleTimers.values()) clearInterval(timer);
+      scheduleTimers.clear();
+    };
+    const startSchedules = () => {
+      stopSchedules();
+      for (const s of loadSchedules()) {
+        const sched = s as { id?: string; everyMinutes?: number };
+        if (sched.id && Number.isFinite(sched.everyMinutes)) startScheduleTimer(sched as { id: string; everyMinutes: number });
+      }
+    };
 
   const registerRoutes = (app: Express) => {
     // Heartbeat + capability registration from the extension SW.
@@ -890,11 +898,36 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
         return;
       }
-      const b = (req.body ?? {}) as { id?: string; ok?: boolean; data?: unknown; error?: string };
+      const b = (req.body ?? {}) as {
+        id?: string;
+        ok?: boolean;
+        data?: unknown;
+        error?: string;
+        browserId?: string;
+        browserName?: string;
+      };
       const entry = b.id ? pending.get(b.id) : undefined;
       if (!entry) {
         res.status(404).json({ success: false, error: "Unknown or already-resolved request id." });
         return;
+      }
+      // H1 fix: Check if request was targeted to a specific browser.
+      if (entry.targetBrowser) {
+        const target = entry.targetBrowser.toLowerCase();
+        const incomingId = (b.browserId || "").toLowerCase();
+        const incomingName = (b.browserName || "").toLowerCase();
+        if (incomingId || incomingName) {
+          if (target !== "any" && target !== "default" && incomingId !== target && incomingName !== target) {
+            log("WARN", "Ignored result from non-target browser", {
+              id: b.id,
+              targetBrowser: entry.targetBrowser,
+              answeringId: b.browserId,
+              answeringName: b.browserName,
+            });
+            res.status(200).json({ success: false, ignored: true, reason: "mismatched_target_browser" });
+            return;
+          }
+        }
       }
       clearTimeout(entry.timer);
       pending.delete(b.id as string);
@@ -909,9 +942,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
     registerRoutes,
     status,
     armReloadRequested,
-    stopSchedules: () => {
-      for (const timer of scheduleTimers.values()) clearInterval(timer);
-      scheduleTimers.clear();
-    },
+    startSchedules,
+    stopSchedules,
   };
 }

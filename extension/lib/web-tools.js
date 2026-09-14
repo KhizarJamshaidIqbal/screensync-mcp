@@ -30,6 +30,7 @@ import {
   inspectUserProfileSync, batchCrawl,
 } from './web-social.js';
 import { execRealDataSync } from './web-sync.js';
+import { validateToolArgs } from './validate.js';
 
 const INTERACT_TOOLS = new Set([
   'web_click', 'web_type', 'web_paste', 'web_clear', 'web_highlight', 'web_scroll',
@@ -103,6 +104,9 @@ async function inject(tab, args) {
 }
 
 export async function executeWebTool(tool, args = {}) {
+  const validationError = validateToolArgs(tool, args);
+  if (validationError) return validationError;
+
   switch (tool) {
     case 'web_status': {
       const tab = await pickActiveTab(args);
@@ -324,6 +328,8 @@ export async function handleWebRequest(req) {
         error: out.error,
         code: out.code,
         retryable: out.retryable,
+        browserId: SELF_BROWSER.id,
+        browserName: SELF_BROWSER.name,
       },
     });
   } catch {}
