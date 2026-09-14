@@ -1,3 +1,4 @@
+import { escapeHtml } from '../lib/escape.js';
 export function mountWebAccess(el, send) {
   el.innerHTML = `
     <div class="web-card">
@@ -113,8 +114,8 @@ export function mountWebAccess(el, send) {
         row.style.borderLeft = '3px solid var(--crit)';
         row.innerHTML = `
           <div>
-            <strong>${a.tool}</strong> on <code>${a.origin}</code>
-            <div class="dim" style="font-size:11px">${a.risk} action</div>
+            <strong>${escapeHtml(a.tool)}</strong> on <code>${escapeHtml(a.origin)}</code>
+            <div class="dim" style="font-size:11px">${escapeHtml(a.risk)} action</div>
           </div>
           <div class="row" style="gap:6px">
             <button class="btn btn-sm btn-primary" data-appr="${a.id}" data-action="approve">Approve</button>
@@ -141,10 +142,10 @@ export function mountWebAccess(el, send) {
         row.style.padding = '6px 10px';
         row.innerHTML = `
           <div>
-            <code>${orig}</code>
+            <code>${escapeHtml(orig)}</code>
             <span class="dim" style="margin-left:6px">${g.read ? '✓ Read' : '✗ Read'} · ${g.act ? '✓ Act' : '✗ Act'} · ${g.cookies ? '✓ Cookies' : '✗ Cookies'}</span>
           </div>
-          <button class="btn btn-sm btn-ghost" data-revoke="${orig}">Revoke</button>`;
+          <button class="btn btn-sm btn-ghost" data-revoke="${escapeHtml(orig)}">Revoke</button>`;
         grantsList.appendChild(row);
       });
     }
@@ -161,7 +162,7 @@ export function mountWebAccess(el, send) {
         item.style.padding = '3px 0';
         item.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
         item.innerHTML = `
-          <span><code>${e.tool}</code> ${e.ok ? '<span style="color:var(--low)">✓</span>' : '<span style="color:var(--crit)">✗</span>'}</span>
+          <span><code>${escapeHtml(e.tool)}</code> ${e.ok ? '<span style="color:var(--low)">✓</span>' : '<span style="color:var(--crit)">✗</span>'}</span>
           <span class="dim">${e.durationMs || 0}ms · ${new Date(e.timestamp || Date.now()).toLocaleTimeString()}</span>`;
         auditEntries.appendChild(item);
       });

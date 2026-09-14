@@ -1,3 +1,4 @@
+import { escapeHtml } from '../lib/escape.js';
 export function updateStatusPill(el, cache) {
   const ok = cache.healthOk;
   const sse = cache.sseStatus;
@@ -20,17 +21,17 @@ export function updateStatusPill(el, cache) {
     el.style.opacity = '0';
     setTimeout(() => {
       el.className = `pill ${cls}`;
-      el.innerHTML = `<span class="dot ${cls} ${sse === 'connected' ? 'live' : ''}"></span><span>${label}</span>`;
+      el.innerHTML = `<span class="dot ${cls} ${sse === 'connected' ? 'live' : ''}"></span><span>${escapeHtml(label)}</span>`;
       el.setAttribute('data-label', label);
       el.style.opacity = '1';
     }, 150);
   } else {
     el.className = `pill ${cls}`;
-    el.innerHTML = `<span class="dot ${cls} ${sse === 'connected' ? 'live' : ''}"></span><span>${label}</span>`;
+    el.innerHTML = `<span class="dot ${cls} ${sse === 'connected' ? 'live' : ''}"></span><span>${escapeHtml(label)}</span>`;
     el.setAttribute('data-label', label);
   }
   el.style.transition = 'opacity .15s ease';
-  el.title = cache.sseDetail ? `SSE: ${cache.sseStatus} — ${cache.sseDetail}` : `SSE: ${sse}`;
+  el.title = cache.sseDetail ? `SSE: ${escapeHtml(cache.sseStatus)} — ${escapeHtml(cache.sseDetail)}` : `SSE: ${sse}`;
 }
 
 export function updateSseChip(el, cache) {

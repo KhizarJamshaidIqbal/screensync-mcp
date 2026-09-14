@@ -1,3 +1,4 @@
+import { escapeHtml } from '../lib/escape.js';
 // ScreenSync Agent Console & Task UI (Rev 4 Items D2, D4, D5)
 // Provides a natural-language command console, task progress cards,
 // and takeover / hand-off banner for human-in-the-loop interactions.
@@ -185,10 +186,6 @@ export function mountAgentConsole(container, send, toast) {
   }
 
   btnRefreshJobs.addEventListener('click', renderJobs);
-
-  function escapeHtml(str) {
-    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
 
   // Initial polls
   pollTakeover();

@@ -58,4 +58,24 @@ for (const gone of ['web_human_type', 'web_human_mouse', 'web_human_scroll', 'we
   assert.equal(declared.includes(gone), false, gone + ' must not be declared in the catalogue');
 }
 
+// 5. HTML escaping has exactly one implementation, and the sinks that render agent- or
+//    hub-derived text actually use it. Tool names, origins and page titles all reach
+//    innerHTML, so a component with its own weaker copy is a real regression.
+const components = ['agent-console.js', 'diagnostics-view.js', 'web-access.js', 'status-pill.js',
+                    'catalog-browser.js', 'frame-viewer.js', 'activity-feed.js', 'inspection-viewer.js',
+                    'control-pad.js'];
+const redefiners = components.filter((c) => {
+  const src = read('extension/components/' + c);
+  return /function escapeHtml|const escapeHtml\s*=/.test(src);
+});
+assert.equal(redefiners.length, 0,
+  'components must import escapeHtml from lib/escape.js, not redefine it: ' + redefiners.join(', '));
+
+const wa = read('extension/components/web-access.js');
+for (const sink of ['${escapeHtml(a.tool)}', '${escapeHtml(a.origin)}', '${escapeHtml(a.risk)}', '${escapeHtml(e.tool)}']) {
+  assert.ok(wa.includes(sink), 'web-access.js must escape this sink: ' + sink);
+}
+const sp = read('extension/components/status-pill.js');
+assert.ok(sp.includes('${escapeHtml(label)}'), 'status-pill.js must escape its label');
+assert.ok(sp.includes('${escapeHtml(cache.sseStatus)}'), 'status-pill.js must escape the SSE status');
 console.log('[test] tool_contract.test.js: ALL ASSERTIONS PASSED (' + declared.length + ' declared tools checked)');

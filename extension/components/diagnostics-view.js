@@ -1,3 +1,4 @@
+import { escapeHtml } from '../lib/escape.js';
 // ScreenSync Extension Diagnostics Component (Rev 4 Item D7)
 // Exposes web_extension_diagnostics: SW uptime, SSE connection health,
 // tab states, permissions, extraction budgets, and recent errors.
@@ -105,10 +106,6 @@ export function mountDiagnosticsView(container, send, toast) {
       if (toast) toast('Copied diagnostics to clipboard', 'ok');
     });
   });
-
-  function escapeHtml(str) {
-    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
 
   loadDiagnostics();
 
