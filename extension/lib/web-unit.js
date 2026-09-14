@@ -4,8 +4,7 @@
 import { ssWebUnitInteract } from './web-unit-interact.js';
 import { ssWebUnitExtract } from './web-unit-extract.js';
 
-export { ssWebUnitInteract } from './web-unit-interact.js';
-export { ssWebUnitExtract } from './web-unit-extract.js';
+export { ssWebUnitInteract, ssWebUnitExtract };
 
 const INTERACT_TOOLS = new Set([
   'web_click',

@@ -3,8 +3,10 @@
 // chrome.webNavigation.getAllFrames, then injects the chosen unit with
 // chrome.scripting target.frameIds.
 
-import { ssWebUnitInteract, ssWebUnitExtract } from './web-unit.js';
-import { ssWebUnitPerception, ssWebUnitAction } from './web-unit-agent.js';
+import { ssWebUnitInteract } from './web-unit-interact.js';
+import { ssWebUnitExtract } from './web-unit-extract.js';
+import { ssWebUnitPerception } from './web-unit-perception.js';
+import { ssWebUnitAction } from './web-unit-action.js';
 
 const RESTRICTED_TAB = /^(chrome|edge|view-source|devtools|chrome-extension):/;
 const INTERACT_TOOLS = new Set(['web_click', 'web_type', 'web_paste', 'web_clear', 'web_highlight', 'web_scroll', 'web_upload_file', 'web_drag_and_drop']);
