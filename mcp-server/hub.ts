@@ -8,6 +8,7 @@ import { Bonjour, type Service } from "bonjour-service";
 import express from "express";
 import QRCode from "qrcode";
 import { buildCatalog } from "./catalog.js";
+import { osControlSource, setOsControlEnabled } from "./os-control.js";
 import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, MAX_BODY_BYTES, PAIR_WINDOW_MINUTES, PROJECT_DIR, agentName, isAuthorized, log } from "./config.js";
 import { hubEvents, emitHubEvent, lastEventSeq, recentHubEvents, recordHubEvent, type HubEvent } from "./events.js";
 import {
@@ -280,6 +281,28 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
   if (s) s.textContent = "chrome.runtime unavailable";
 }
 </script></body></html>`);
+  });
+
+  // Host-level OS-plane switch. The gate itself lives in the MCP layer; this is how the
+  // desktop app reads and changes it. Auth-gated like every other hub route.
+  app.get("/api/os-control", (req, res) => {
+    if (!isAuthorized(req.header("authorization"))) {
+      res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
+      return;
+    }
+    const source = osControlSource();
+    res.json({ success: true, enabled: source !== "off", source });
+  });
+
+  app.post("/api/os-control", (req, res) => {
+    if (!isAuthorized(req.header("authorization"))) {
+      res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
+      return;
+    }
+    const enabled = (req.body ?? {}).enabled === true;
+    const state = setOsControlEnabled(enabled);
+    log("INFO", "OS-level control setting changed", { enabled: state.enabled, source: state.source });
+    res.json({ success: true, ...state });
   });
 
   app.get("/api/events", (req, res) => {

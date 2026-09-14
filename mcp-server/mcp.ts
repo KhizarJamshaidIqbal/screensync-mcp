@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { execSync } from "node:child_process";
+import { isOsControlEnabled } from "./os-control.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -88,7 +89,7 @@ async function callHubWebTool(tool: string, args: Record<string, unknown>): Prom
  * inherited from the browser web-access toggle, because it is not scoped to a tab.
  */
 function osControlEnabled(): boolean {
-  return process.env.SCREENSYNC_ALLOW_OS_CONTROL === "1";
+  return isOsControlEnabled();
 }
 
 export function createMcpServer() {

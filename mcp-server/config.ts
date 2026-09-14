@@ -8,6 +8,7 @@ export const PROJECT_DIR =
 export const DATA_DIR = process.env.SCREEN_SYNC_DATA_DIR || path.join(PROJECT_DIR, "data");
 export const FRAMES_DIR = path.join(DATA_DIR, "frames");
 export const ARCHIVE_DIR = path.join(DATA_DIR, "archive");
+export const OS_CONTROL_FILE = path.join(DATA_DIR, "os-control.json");
 export const INSPECTIONS_FILE = path.join(DATA_DIR, "latest_inspection.json");
 export const PATCHES_FILE = path.join(DATA_DIR, "latest_patch.json");
 
