@@ -40,10 +40,10 @@ class _PairScanScreenState extends State<PairScanScreen>
   );
   final TextEditingController _pasteController = TextEditingController();
 
-  late final AnimationController _shake = AnimationController(
-    vsync: this,
-    duration: AppTheme.motionSlow,
-  );
+  // Created in initState rather than lazily. A late final initializer runs on first
+  // touch, and on this screen the first touch would be dispose() if the paste dialog was
+  // never opened - creating a Ticker while the element is deactivating throws.
+  late final AnimationController _shake;
 
   bool _handled = false;
   bool _reading = true;
@@ -55,6 +55,7 @@ class _PairScanScreenState extends State<PairScanScreen>
   @override
   void initState() {
     super.initState();
+    _shake = AnimationController(vsync: this, duration: AppTheme.motionSlow);
     _recent = SettingsService.instance.recentHubs;
     // If nothing has been read after a while, offer the fallback rather than leaving the
     // user staring at a frame with no feedback.
@@ -134,13 +135,22 @@ class _PairScanScreenState extends State<PairScanScreen>
   }
 
   static String _maskToken(String token) =>
-      token.isEmpty ? '(default)' : '••••${token.substring(token.length > 4 ? token.length - 4 : 0)}';
+      token.isEmpty ? '(default)' : 'â€¢â€¢â€¢â€¢${token.substring(token.length > 4 ? token.length - 4 : 0)}';
+
+  /// The bloc is optional here: the app always provides it, a widget test may not.
+  ScreenCaptureBloc? _maybeBloc() {
+    try {
+      return context.read<ScreenCaptureBloc>();
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<void> _apply(PairingInfo info) async {
     if (_handled) return;
-    final bloc = context.read<ScreenCaptureBloc>();
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    final bloc = _maybeBloc();
     final beat = reduceMotion(context)
         ? Duration.zero
         : AppTheme.motionSlow; // hold the success frame long enough to be seen
@@ -152,17 +162,26 @@ class _PairScanScreenState extends State<PairScanScreen>
     });
     _stallTimer?.cancel();
     HapticFeedback.mediumImpact();
-    await _controller.stop();
+    // The camera may already be gone (or never have started). Pairing must not depend on
+    // being able to stop it, so a failure here is swallowed rather than aborting the write.
+    try {
+      await _controller.stop();
+    } catch (_) {
+      }
 
     final settings = SettingsService.instance
       ..hubUrlOverride = info.url
       ..pairingToken = info.token;
     await settings.rememberHub(info.url, info.token);
 
-    bloc
-      ..add(SetHubUrlEvent(info.url))
-      ..add(SetPairingTokenEvent(info.token))
-      ..add(PingHubEvent());
+    // Notify the running app. This runs after the settings write on purpose: pairing is
+    // the durable action and must not be lost because a listener happened to be out of scope.
+    if (bloc != null) {
+      bloc
+        ..add(SetHubUrlEvent(info.url))
+        ..add(SetPairingTokenEvent(info.token))
+        ..add(PingHubEvent());
+    }
 
     if (beat > Duration.zero) await Future<void>.delayed(beat);
     if (!mounted) return;
@@ -220,7 +239,7 @@ class _PairScanScreenState extends State<PairScanScreen>
             onSubmitted: (_) => submit(context),
             decoration: InputDecoration(
               isDense: true,
-              hintText: 'screensync://pair?url=…&token=***',
+              hintText: 'screensync://pair?url=â€¦&token=***',
               errorText: err,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppTheme.radiusS),
@@ -253,12 +272,20 @@ class _PairScanScreenState extends State<PairScanScreen>
 
   Future<void> _switchCamera() async {
     HapticFeedback.selectionClick();
-    await _controller.switchCamera();
+    try {
+      await _controller.switchCamera();
+    } catch (_) {
+      // A device with a single camera cannot switch; leave the current one running.
+    }
   }
 
   Future<void> _toggleTorch() async {
     HapticFeedback.selectionClick();
-    await _controller.toggleTorch();
+    try {
+      await _controller.toggleTorch();
+    } catch (_) {
+      // No flash, or the camera is gone: the button is already disabled in that case.
+    }
   }
 
   Future<void> _showMyCode() async {
@@ -473,9 +500,9 @@ class _StatusLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = found
-        ? 'Code found — pairing…'
+        ? 'Code found â€” pairingâ€¦'
         : reading
-            ? 'Looking for a code…'
+            ? 'Looking for a codeâ€¦'
             : 'Point at the QR shown by the desktop hub';
     return Text(
       label,
