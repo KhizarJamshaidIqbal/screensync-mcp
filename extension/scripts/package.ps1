@@ -61,6 +61,10 @@ foreach ($e in $verifyZip.Entries) {
 $verifyZip.Dispose()
 
 $hash = (Get-FileHash -Path $out -Algorithm SHA256).Hash
+$websiteDownloads = Join-Path (Split-Path -Parent $root) 'website\downloads'
+if (Test-Path $websiteDownloads) {
+  Copy-Item $out (Join-Path $websiteDownloads 'screensync-extension.zip') -Force
+}
 Write-Output "Successfully packaged ScreenSync Extension v$manifestVer"
 Write-Output "Output: $out"
 Write-Output "SHA-256: $hash"
