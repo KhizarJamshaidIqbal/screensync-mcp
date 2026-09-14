@@ -351,11 +351,12 @@ class _PairScanScreenState extends State<PairScanScreen>
           final viewSize =
               (math.min(constraints.maxWidth, constraints.maxHeight) * 0.62)
                   .clamp(140.0, 280.0);
-          final viewRect = Rect.fromCenter(
-            center: Offset(constraints.maxWidth / 2, constraints.maxHeight / 2),
-            width: viewSize,
-            height: viewSize,
-          );
+          // No scanWindow on purpose. mobile_scanner converts it to texture
+          // percentages internally (scan_window_utils.dart), and a rect in the
+          // widget own logical pixels silently never matches the analysis frame
+          // - the preview looks normal and nothing is ever decoded. Decoding the
+          // full frame is also safe here: _onDetect runs PairingService.parse on
+          // every value, so a stray QR elsewhere on screen is rejected anyway.
 
           return ValueListenableBuilder<MobileScannerState>(
             valueListenable: _controller,
@@ -367,9 +368,6 @@ class _PairScanScreenState extends State<PairScanScreen>
                   MobileScanner(
                     controller: _controller,
                     onDetect: _onDetect,
-                    // Restricting decoding to the frame keeps a stray QR elsewhere on
-                    // screen from being read.
-                    scanWindow: viewRect,
                     tapToFocus: true,
                     placeholderBuilder: (context) => const ColoredBox(
                       color: AppTheme.darkSurface,
