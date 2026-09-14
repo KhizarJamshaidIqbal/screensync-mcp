@@ -20,6 +20,24 @@ export function webToolDefinitions() {
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
     {
+      name: "web_extension_dashboard",
+      description:
+        "Opens the full ScreenSync dashboard in a new browser tab (the same page the side panel embeds). Use this when the user needs the dashboard but the side panel cannot be opened.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    },
+    {
+      name: "web_extension_side_panel",
+      description:
+        "Attempts to open the Chrome side panel. Chrome only allows this from a real user gesture, so an agent call cannot force it open; the result states that plainly and tells the caller to ask the user to click. Never reports a false success.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    },
+    {
+      name: "web_extension_settings",
+      description:
+        "Reads the extension's settings: hub URL, onboarding state, whether agent web access is enabled, theme, whether a pairing token is configured, and how many origin grants exist. Read-only by design - the web-access gate cannot be switched through MCP.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    },
+    {
       name: "web_screenshot",
       description:
         "Captures the currently active browser tab as an inline image (what the user is actually looking at). Requires the extension connected with Web access enabled.",

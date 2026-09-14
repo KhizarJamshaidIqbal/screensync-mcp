@@ -128,6 +128,63 @@ export async function executeWebTool(tool, args = {}) {
       setTimeout(() => { try { chrome.runtime.reload(); } catch {} }, 150);
       return { ok: true, data: { reloading: true, message: 'Extension is reloading from disk now.' } };
     }
+    case 'web_extension_dashboard': {
+      const tab = await chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
+      return { ok: true, data: { opened: true, tabId: tab.id, url: tab.url, message: 'Opened the ScreenSync dashboard in a new tab.' } };
+    }
+    case 'web_extension_side_panel': {
+      // chrome.sidePanel.open() is only permitted while a real user gesture is live.
+      // An agent tool call has none, so this cannot be forced open from here. Report
+      // that honestly instead of pretending, and let the caller ask the user.
+      let opened = false;
+      let reason = '';
+      try {
+        if (chrome.sidePanel && chrome.sidePanel.open) {
+          let windowId = null;
+          try {
+            const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            if (t) windowId = t.windowId;
+          } catch {}
+          if (windowId == null) {
+            try { windowId = (await chrome.windows.getCurrent()).id; } catch {}
+          }
+          await chrome.sidePanel.open(windowId != null ? { windowId } : {});
+          opened = true;
+        } else {
+          reason = 'The sidePanel API is unavailable in this Chrome version.';
+        }
+      } catch (e) {
+        reason = (e && e.message) || String(e);
+      }
+      if (!opened) {
+        return {
+          ok: true,
+          data: {
+            opened: false,
+            requiresUserGesture: true,
+            reason: reason || 'Chrome requires a user gesture to open the side panel.',
+            hint: 'Ask the user to click the extension icon and press "Side Panel", or to press Alt+Shift+D. No agent can open it, because the call must happen inside a real click.',
+          },
+        };
+      }
+      return { ok: true, data: { opened: true } };
+    }
+    case 'web_extension_settings': {
+      const s = await getSettings();
+      return {
+        ok: true,
+        data: {
+          hubUrl: s.hubUrl,
+          onboardingComplete: s.onboardingComplete === true,
+          webAccessEnabled: s.webAccessEnabled === true,
+          theme: s.theme,
+          tokenConfigured: typeof s.token === 'string' && s.token.length > 0,
+          grantsCount: s.grants && typeof s.grants === 'object' ? Object.keys(s.grants).length : 0,
+          readOnly: true,
+          note: 'webAccessEnabled is deliberately read-only over MCP: an agent must not be able to re-enable its own access after the user turns it off. The user changes it on the dashboard Web Access tab.',
+        },
+      };
+    }
     case 'web_page_digest': {
       const tab = await pickActiveTab(args);
       if (isRestrictedTab(tab)) return makeError(ERROR_CODES.RESTRICTED_PAGE, `Restricted tab: ${tab.url}`);
@@ -444,7 +501,7 @@ export async function registerWebBridge() {
     const regRes = await hubFetch('/api/web/register', {
       method: 'POST',
       body: {
-        webAccessEnabled: s.webAccessEnabled !== false,
+        webAccessEnabled: s.webAccessEnabled === true,
         tab,
         userAgent: navigator.userAgent,
         browserId: SELF_BROWSER.id,
