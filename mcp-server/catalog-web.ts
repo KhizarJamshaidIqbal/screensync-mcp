@@ -4,8 +4,7 @@
 // extension, mirroring the phone control surface. They require the extension
 // to be paired to this hub with Web access enabled.
 import { agentWebToolDefinitions } from "./catalog-web-agent.js";
-import { excludedAgentWebToolDefinitions } from "./catalog-web-agent-excluded.js";
-import { operatorWebToolDefinitions } from "./catalog-web-operator.js";
+import { inspectWebToolDefinitions } from "./catalog-web-inspect.js";
 
 export function webToolDefinitions() {
   return [
@@ -1285,8 +1284,7 @@ export function webToolDefinitions() {
       },
     },
     ...agentWebToolDefinitions(),
-    ...excludedAgentWebToolDefinitions(),
-    ...operatorWebToolDefinitions(),
+    ...inspectWebToolDefinitions(),
   ];
 }
 

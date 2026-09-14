@@ -1,5 +1,4 @@
-// Operator & Harvester tool definitions — Playwright parity, modern storage,
-// authenticated multi-browser harvesting, live mutation streaming, and session vault.
+// Inspector & Parity tool definitions — Playwright parity and modern storage.
 // Kept in a dedicated file to satisfy the 500-line budget rule.
 
 type WebToolDef = {
@@ -16,7 +15,7 @@ type WebToolDef = {
 const locatorNote =
   "Accepts the full ScreenSync locator language: css=, >>> (shadow piercing), pierce/, :has-text(), xpath=, role=[name=\"…\"], placeholder=, label=, text=, testid=, or raw CSS.";
 
-export function operatorWebToolDefinitions(): WebToolDef[] {
+export function inspectWebToolDefinitions(): WebToolDef[] {
   return [
     {
       name: "web_content",
@@ -157,113 +156,12 @@ export function operatorWebToolDefinitions(): WebToolDef[] {
       },
     },
     {
-      name: "web_authenticated_harvest",
-      description:
-        "THE real-user authenticated social & web intelligence harvester: uses the user's ALREADY LOGGED-IN browser sessions (X/Twitter, LinkedIn, GitHub, Reddit, Facebook, Instagram, YouTube, Threads, or custom) to scrape live feeds, profile metrics, notifications, and search results. Supports intelligent tab reuse, human scrolling, and structured data extraction.",
-      inputSchema: {
-        type: "object",
-        required: ["platform"],
-        properties: {
-          platform: { type: "string", enum: ["x", "twitter", "linkedin", "github", "reddit", "facebook", "instagram", "youtube", "threads", "generic"], description: "Target social or web platform." },
-          task: { type: "string", enum: ["feed", "profile", "notifications", "search", "bookmarks", "trending", "popular"], default: "feed", description: "Data to extract." },
-          url: { type: "string", description: "Custom URL override." },
-          query: { type: "string", description: "Search query when task=search." },
-          limit: { type: "integer", minimum: 1, maximum: 100, default: 20, description: "Maximum items to harvest." },
-          scrollPages: { type: "integer", minimum: 0, maximum: 10, default: 2, description: "Number of smooth scroll pages to trigger infinite feed loading." },
-          useExistingTab: { type: "boolean", default: true, description: "Reuse an already-open tab if found (avoids opening new tabs and anti-bot flags)." },
-          keepTab: { type: "boolean", default: false, description: "Leave the tab open after extraction." },
-          selectors: { type: "object", description: "Custom CSS selectors for generic platforms ({itemSelector, titleSelector, linkSelector})." },
-          __browser: { type: "string", description: "Target a specific connected browser (name or install id)." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_parallel_harvest",
-      description:
-        "Multi-target parallel authenticated harvester: executes multiple harvesting tasks concurrently across tabs or browsers, groups them in dedicated tab groups, and aggregates findings into a unified intelligence report saved on the hub.",
-      inputSchema: {
-        type: "object",
-        required: ["targets"],
-        properties: {
-          targets: {
-            type: "array",
-            items: {
-              type: "object",
-              required: ["platform"],
-              properties: {
-                platform: { type: "string" },
-                task: { type: "string" },
-                url: { type: "string" },
-                limit: { type: "integer" },
-                scrollPages: { type: "integer" },
-              },
-            },
-            description: "List of platform harvest targets to run in parallel.",
-          },
-          concurrency: { type: "integer", minimum: 1, maximum: 6, default: 3, description: "Parallel tab concurrency." },
-          timeoutMs: { type: "integer", minimum: 10000, maximum: 120000, default: 60000 },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_session_vault",
-      description:
-        "Persistent hub-side session vault & cross-browser synchronization: captures full login states (cookies + localStorage + sessionStorage) to disk (DATA_DIR/vault/<domain>.json), restores them into any browser, lists saved vaults, or syncs live sessions between browsers.",
-      inputSchema: {
-        type: "object",
-        required: ["action"],
-        properties: {
-          action: { type: "string", enum: ["save", "restore", "list", "delete", "sync"], description: "Vault lifecycle operation." },
-          domain: { type: "string", description: "Domain to vault or restore (e.g. 'linkedin.com', 'x.com')." },
-          name: { type: "string", description: "Optional descriptive name for the saved vault." },
-          from: { type: "string", description: "Source browser name/id when action=sync." },
-          to: { type: "string", description: "Target browser name/id when action=sync." },
-          includeStorage: { type: "boolean", default: true, description: "Include localStorage and sessionStorage." },
-          __browser: { type: "string", description: "Target a specific connected browser." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_live_stream_sync",
-      description:
-        "Real-time DOM mutation streaming: attaches a MutationObserver to a live tab (e.g. live tweets, chats, feed updates), captures newly appeared items without reloading, and streams them for AI consumption.",
-      inputSchema: {
-        type: "object",
-        required: ["action"],
-        properties: {
-          action: { type: "string", enum: ["start", "poll", "stop"], description: "start: begin watching; poll: get newly buffered items; stop: detach." },
-          selector: { type: "string", default: "article, [role=\"article\"], .tweet, .post, .message", description: "Selector for items to watch." },
-          tabId: { type: "integer", description: "Target tab ID." },
-          __browser: { type: "string", description: "Target a specific connected browser." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
       name: "web_reader_mode",
       description:
         "Safari/Firefox Reader Mode parity: strips ads, navigation bars, cookie banners, tracking scripts, and converts the core article/page into clean, structured Markdown with title, byline, publishDate, readingTime, and wordCount.",
       inputSchema: {
         type: "object",
         properties: {
-          tabId: { type: "integer", description: "Optional background tab ID." },
-          __browser: { type: "string", description: "Target a specific connected browser." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_smart_fill",
-      description:
-        "Real-browser intelligent form auto-filler: auto-matches form inputs by labels, placeholders, aria-labels, and names, types with human cadence, and dispatches native events so React/Vue/Angular forms properly register changes.",
-      inputSchema: {
-        type: "object",
-        required: ["fields"],
-        properties: {
-          fields: { type: "object", description: "Dictionary of fields to fill, e.g. {email: '...', name: '...', message: '...'}" },
           tabId: { type: "integer", description: "Optional background tab ID." },
           __browser: { type: "string", description: "Target a specific connected browser." },
         },
@@ -313,39 +211,6 @@ export function operatorWebToolDefinitions(): WebToolDef[] {
           tool: { type: "string", description: "Filter by tool name." },
           origin: { type: "string", description: "Filter by target origin." },
           since: { type: "string", description: "Filter by ISO timestamp since." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_real_data_sync",
-      description:
-        "Real-browser authenticated data synchronization and extraction: extracts live data from user's logged-in web applications/social platforms across single or multiple tabs with zero credential leakage, auto-waiting, and structured formatting.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          targets: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                url: { type: "string" },
-                platform: { type: "string" },
-                limit: { type: "integer" },
-                customSelector: { type: "string" },
-              },
-            },
-            description: "Array of targets for multi-tab sync.",
-          },
-          url: { type: "string", description: "Target URL to sync." },
-          platform: { type: "string", description: "Platform name (e.g. 'x', 'github', 'linkedin', 'reddit')." },
-          limit: { type: "integer", minimum: 1, maximum: 100, default: 15, description: "Max items to extract." },
-          customSelector: { type: "string", description: "Optional CSS/Playwright selector to extract structured cards from." },
-          multiTab: { type: "boolean", default: false, description: "Run sync concurrently across tabs." },
-          closeOnFinish: { type: "boolean", default: false, description: "Close created tabs after sync completes." },
-          timeoutMs: { type: "integer", minimum: 3000, maximum: 60000, default: 25000, description: "Timeout in ms." },
-          tabId: { type: "integer", description: "Optional background tab ID." },
-          __browser: { type: "string", description: "Target a specific connected browser." },
         },
         additionalProperties: false,
       },

@@ -62,10 +62,6 @@ function cannedResult(tool: string, args: Record<string, unknown> = {}): { ok: b
       return { ok: true, data: { frameId: 55, inner: "clicked-in-frame" } };
     case "web_network_auth":
       return { ok: true, data: { authHandling: true } };
-    case "web_session_export":
-      return { ok: true, data: { domain: "example.test", cookieCount: 3, cookies: [{ name: "sess", value: "v", domain: ".example.test", path: "/", secure: true }], localStorage: { k: "v" } } };
-    case "web_session_import":
-      return { ok: true, data: { cookiesSet: 3, localStorageKeys: 1 } };
     case "web_profile_sync":
       return { ok: true, data: { customDomain: { domain: "example.test", cookieCount: 4, cookies: [{ name: "sessionid" }] } } };
     case "web_tabs":
@@ -99,12 +95,6 @@ function cannedResult(tool: string, args: Record<string, unknown> = {}): { ok: b
       return { ok: true, data: { x: 10, y: 20, width: 100, height: 40, inViewport: true, tagName: "h1" } };
     case "web_computed_style":
       return { ok: true, data: { tagName: "h1", styles: { display: "block", color: "rgb(0, 0, 0)" } } };
-    case "web_session_vault_export":
-      return { ok: true, data: { domain: args.domain || "example.test", cookieCount: 2, cookies: [{ name: "sid", value: "abc", domain: ".example.test" }], localStorage: { token: "xyz" }, sessionStorage: {} } };
-    case "web_session_vault_import":
-      return { ok: true, data: { domain: "example.test", cookiesSet: 2, storageRestored: true } };
-    case "web_authenticated_harvest":
-      return { ok: true, data: { platform: args.platform || "x", task: args.task || "feed", authenticated: true, itemCount: 2, items: [{ text: "Harvest 1" }, { text: "Harvest 2" }] } };
     case "web_reader_mode":
       return { ok: true, data: { title: "Article", wordCount: 150, readingTimeMinutes: 1, markdown: "# Article\n\nContent" } };
     case "web_tab_group":
@@ -113,10 +103,6 @@ function cannedResult(tool: string, args: Record<string, unknown> = {}): { ok: b
       return { ok: true, data: { database: args.database || "e2e-db", version: 1, storeCount: 0, stores: [] } };
     case "web_cache_storage":
       return { ok: true, data: { origin: "https://example.test", count: 1, caches: ["v1"] } };
-    case "web_live_stream_sync":
-      return { ok: true, data: { streaming: true, tabId: 1, initialItems: 0 } };
-    case "web_smart_fill":
-      return { ok: true, data: { totalFields: 2, filledCount: 2, filled: [{ field: "email", value: "test@test.com" }, { field: "role", value: "admin" }] } };
     case "web_add_script_tag":
       return { ok: true, data: { injected: true, type: "script", loaded: true } };
     case "web_add_style_tag":
@@ -127,8 +113,6 @@ function cannedResult(tool: string, args: Record<string, unknown> = {}): { ok: b
       return { ok: true, data: { actionable: true, checks: { attached: true, visible: true, stable: true, enabled: true, receivesEvents: true }, target: { tag: "button", role: "button" } } };
     case "web_audit_log":
       return { ok: true, data: { count: 1, entries: [{ tool: "web_click", ok: true, durationMs: 45 }] } };
-    case "web_real_data_sync":
-      return { ok: true, data: { syncedAt: "2026-09-13T22:00:00.000Z", targetCount: 1, totalItems: 2, results: [{ target: "https://example.test", count: 2, items: [{ title: "Item 1" }, { title: "Item 2" }] }] } };
     default:
       return { ok: true, data: { echo: tool, via: "simulated-extension" } };
   }
@@ -210,8 +194,8 @@ try {
     "web_device_emulate", "web_resize", "web_set_user_agent",
     "web_har_record", "web_video_record", "web_clock_set", "web_clock_clear",
     "web_events", "web_trace_record",
-    "web_fanout", "web_session_transfer", "web_route_for", "web_in_frame",
-    "web_network_auth", "web_session_export", "web_session_import",
+    "web_fanout", "web_route_for", "web_in_frame",
+    "web_network_auth",
     "web_clock_fast_forward", "web_wait_download", "web_tab_fanout",
     "web_record", "web_replay",
     "web_api_fetch", "web_history", "web_bookmarks",
@@ -220,12 +204,11 @@ try {
     "web_emulate_media", "web_mhtml", "web_cache_control", "web_visual_baseline",
     "web_content", "web_bounding_box", "web_computed_style", "web_add_script_tag",
     "web_add_style_tag", "web_tab_group", "web_indexeddb", "web_cache_storage",
-    "web_authenticated_harvest", "web_parallel_harvest", "web_session_vault",
-    "web_live_stream_sync", "web_reader_mode", "web_smart_fill",
+    "web_reader_mode", "web_page_digest", "web_actionable", "web_audit_log",
   ];
   for (const t of expectedNew) assert.ok(names.includes(t), `tools/list must include ${t}`);
   assert.equal(new Set(names).size, names.length, "tools/list must not contain duplicate names");
-  assert.ok(names.length >= 167, `expected >=151 tools, got ${names.length}`);
+  assert.ok(names.length >= 140, `expected >=140 tools, got ${names.length}`);
   assert.ok(names.includes("get_latest_screenshot"), "phone tools must still be listed (parity)");
 
   // 2. get_mcp_catalog + get_skills still work with the grown catalog.
@@ -333,17 +316,6 @@ try {
   const fanoutEdgeData = JSON.parse(fanoutEdge.content[0].text) as { matched: number; results: Array<{ browser: string }> };
   assert.equal(fanoutEdgeData.matched, 1, "subset fanout must match only edge");
   assert.equal(fanoutEdgeData.results[0].browser, "edge");
-
-  // web_session_transfer: chrome → edge session sync (simulated payloads).
-  const transfer = await client.callTool({ name: "web_session_transfer", arguments: { domain: "example.test", from: chromeEntry.id, to: edgeEntry.id } }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!transfer.isError, "web_session_transfer must succeed");
-  const transferData = JSON.parse(transfer.content[0].text) as { from: string; to: string; cookieCount: number; import: { cookiesSet: number } };
-  assert.equal(transferData.from, "chrome");
-  assert.equal(transferData.to, "edge");
-  assert.equal(transferData.cookieCount, 3, "export must report 3 cookies");
-  assert.equal(transferData.import.cookiesSet, 3, "import must set 3 cookies");
 
   // web_route_for: both browsers probe the domain → recommendation returned.
   const routeFor = await client.callTool({ name: "web_route_for", arguments: { domain: "example.test" } }) as {
@@ -553,33 +525,6 @@ try {
   };
   assert.ok(!styleRes.isError, "web_computed_style round trip must succeed");
 
-  const harvestRes = await client.callTool({ name: "web_authenticated_harvest", arguments: { platform: "x", task: "feed" } }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!harvestRes.isError, "web_authenticated_harvest round trip must succeed");
-  const harvestData = JSON.parse(harvestRes.content[0].text) as { platform: string; authenticated: boolean; itemCount: number };
-  assert.equal(harvestData.platform, "x");
-  assert.equal(harvestData.authenticated, true);
-  assert.equal(harvestData.itemCount, 2);
-
-  const parallelHarvest = await client.callTool({ name: "web_parallel_harvest", arguments: { targets: [{ platform: "x", task: "feed" }] } }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!parallelHarvest.isError, "web_parallel_harvest round trip must succeed");
-
-  const vaultSave = await client.callTool({ name: "web_session_vault", arguments: { action: "save", domain: "example.test" } }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!vaultSave.isError, "web_session_vault save must succeed");
-  const vaultList = await client.callTool({ name: "web_session_vault", arguments: { action: "list" } }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!vaultList.isError, "web_session_vault list must succeed");
-  const vaultRestore = await client.callTool({ name: "web_session_vault", arguments: { action: "restore", domain: "example.test" } }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!vaultRestore.isError, "web_session_vault restore must succeed");
-
   const readerRes = await client.callTool({ name: "web_reader_mode", arguments: {} }) as {
     isError?: boolean; content: Array<{ text: string }>;
   };
@@ -603,18 +548,6 @@ try {
     isError?: boolean; content: Array<{ text: string }>;
   };
   assert.ok(!cacheRes.isError, "web_cache_storage round trip must succeed");
-
-  const streamRes = await client.callTool({ name: "web_live_stream_sync", arguments: { action: "start" } }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!streamRes.isError, "web_live_stream_sync round trip must succeed");
-
-  const fillRes = await client.callTool({ name: "web_smart_fill", arguments: { fields: { email: "test@test.com", role: "admin" } } }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!fillRes.isError, "web_smart_fill round trip must succeed");
-  const fillData = JSON.parse(fillRes.content[0].text) as { filledCount: number };
-  assert.equal(fillData.filledCount, 2);
 
   const scriptRes = await client.callTool({ name: "web_add_script_tag", arguments: { content: "window.__injected = true;" } }) as {
     isError?: boolean; content: Array<{ text: string }>;
@@ -647,13 +580,6 @@ try {
   assert.ok(!auditRes.isError, "web_audit_log round trip must succeed");
   const auditData = JSON.parse(auditRes.content[0].text) as { count: number };
   assert.equal(auditData.count, 1);
-
-  const realSyncRes = await client.callTool({ name: "web_real_data_sync", arguments: { url: "https://example.test" } }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!realSyncRes.isError, "web_real_data_sync round trip must succeed");
-  const realSyncData = JSON.parse(realSyncRes.content[0].text) as { totalItems: number };
-  assert.equal(realSyncData.totalItems, 2);
 
   // 8. Real-time SSE observability: ambient browser events land in the ring.
   for (const url of ["https://a.test/page-1", "https://b.test/page-2"]) {

@@ -5,7 +5,6 @@ import type { Express, Request, Response } from "express";
 import { DATA_DIR, isAuthorized, log } from "./config.js";
 import { emitHubEvent, lastEventSeq, recentHubEvents } from "./events.js";
 import { createFrameStore } from "./web-frame.js";
-import { executeParallelHarvest, executeSessionVault, type HarvestTarget } from "./web-harvest-hub.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -58,8 +57,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
   };
   const RECORD_SKIP = new Set([
     "web_record", "web_replay", "web_status", "web_events", "web_extension_diagnostics",
-    "web_fanout", "web_tab_fanout", "web_session_transfer", "web_route_for",
-    "web_parallel_harvest", "web_session_vault",
+    "web_fanout", "web_tab_fanout", "web_route_for",
   ]);
 
   // Multi-browser registry: every extension install (Chrome, Edge, Brave, ...)
@@ -433,46 +431,6 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
 
-      if (tool === "web_session_transfer") {
-        const domain = String(args.domain || "").trim();
-        if (!domain) {
-          res.status(400).json({ success: false, ok: false, error: "web_session_transfer requires domain (e.g. 'linkedin.com')." });
-          return;
-        }
-        const targets = resolveTargets();
-        if (targets.length < 2) {
-          res.json({ success: true, ok: false, data: { error: `web_session_transfer needs at least 2 connected browsers (from + to). Connected: ${targets.map((t) => t.name).join(", ") || "none"}. Pair another browser (Edge/Brave/second Chrome profile) to sync sessions.` } });
-          return;
-        }
-        const from = args.from ? targets.find((t) => t.name === String(args.from) || t.id === String(args.from)) : targets[0];
-        const to = args.to ? targets.find((t) => t.name === String(args.to) || t.id === String(args.to)) : targets.find((t) => t !== from);
-        if (!from || !to || from === to) {
-          res.json({ success: true, ok: false, data: { error: `Could not resolve from/to. Connected: ${targets.map((t) => `${t.name}(${t.id.slice(0, 8)})`).join(", ")}. Use install ids when several browsers share a name.` } });
-          return;
-        }
-        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
-        const exported = await callOn(from, "web_session_export", { domain, localStorage: args.localStorage !== false }, timeoutMs);
-        if (!exported.ok) {
-          res.json({ success: true, ok: false, data: { from: from.name, to: to.name, domain, error: `export failed on ${from.name}: ${exported.error}` } });
-          return;
-        }
-        const ed = exported.data as { cookieCount?: number; cookies?: unknown[]; localStorage?: Record<string, unknown>; note?: string } | undefined;
-        if (!ed?.cookies?.length) {
-          res.json({ success: true, ok: false, data: { from: from.name, to: to.name, domain, cookieCount: 0, error: `No session cookies for ${domain} in ${from.name} — likely not logged in there.`, note: ed?.note } });
-          return;
-        }
-        const imported = await callOn(to, "web_session_import", { session: ed }, timeoutMs);
-        res.json({
-          success: true, ok: imported.ok,
-          data: {
-            from: from.name, fromId: from.id, to: to.name, toId: to.id,
-            domain, cookieCount: ed.cookieCount, localStorageKeys: Object.keys(ed.localStorage || {}).length,
-            import: imported.data ?? imported.error,
-          },
-        });
-        return;
-      }
-
       if (tool === "web_route_for") {
         const domain = String(args.domain || String(args.url || "")).replace(/^https?:\/\//, "").split("/")[0].trim();
         if (!domain) {
@@ -734,27 +692,6 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
             summary: live.map((a) => `${String(a.platform)} @ ${String(a.browser)}`),
           },
         });
-        return;
-      }
-
-      if (tool === "web_session_vault") {
-        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
-        const action = String(args.action || "list");
-        const vaultRes = await executeSessionVault(action, args, request, broadcast, timeoutMs);
-        res.json({ success: vaultRes.ok, ok: vaultRes.ok, data: vaultRes.data, error: vaultRes.error });
-        return;
-      }
-
-      if (tool === "web_parallel_harvest") {
-        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 60_000, 10_000), 120_000);
-        const concurrency = Number(args.concurrency) || 3;
-        const targets = Array.isArray(args.targets) ? (args.targets as HarvestTarget[]) : [];
-        if (targets.length === 0) {
-          res.status(400).json({ success: false, ok: false, error: "web_parallel_harvest requires a non-empty 'targets' array." });
-          return;
-        }
-        const harvestRes = await executeParallelHarvest(targets, request, broadcast, timeoutMs, concurrency);
-        res.json({ success: harvestRes.success, ok: harvestRes.success, data: harvestRes });
         return;
       }
 
