@@ -21,13 +21,20 @@ const run = promisify(exec);
 const ADB_TARGET = process.env.SCREEN_SYNC_ADB_TARGET || "";
 const ADB_BIN = process.env.SCREEN_SYNC_ADB_BIN || "adb";
 
+// Effective target. Starts as the env pin, but controlDeviceInfo() may resolve
+// one at runtime: wireless ADB advertises the SAME phone twice (an ip:port
+// serial and an mDNS alias), and a bare `adb` call then fails with "more than
+// one device/emulator" while the device list still looks healthy.
+let resolvedTarget = "";
+
 function adbPrefix(): string {
   const bin = /\s/.test(ADB_BIN) ? `"${ADB_BIN}"` : ADB_BIN;
-  if (!ADB_TARGET) return bin;
+  const target = ADB_TARGET || resolvedTarget;
+  if (!target) return bin;
   // Numeric → transport id; otherwise treat as serial (quoted for safety —
   // wireless-ADB serials can contain spaces/parentheses).
-  if (/^\d+$/.test(ADB_TARGET)) return `${bin} -t ${ADB_TARGET}`;
-  return `${bin} -s "${ADB_TARGET}"`;
+  if (/^\d+$/.test(target)) return `${bin} -t ${target}`;
+  return `${bin} -s "${target}"`;
 }
 
 async function adb(args: string): Promise<string> {
@@ -58,11 +65,21 @@ export async function controlDeviceInfo(): Promise<DeviceInfo> {
     // `devices` is a global adb subcommand — must NOT carry -s/-t target flags.
     const bin = /\s/.test(ADB_BIN) ? `"${ADB_BIN}"` : ADB_BIN;
     const { stdout: devices } = await run(`${bin} devices`, { timeout: 15_000 });
-    const online = devices
+    const serials = devices
       .split("\n")
       .slice(1)
-      .some((l) => l.trim().endsWith("device"));
-    if (!online) return { available: false, error: "No ADB device is online." };
+      .map((l) => l.trim())
+      .filter((l) => l.endsWith("device"))
+      .map((l) => l.split(/\s+/)[0])
+      .filter(Boolean);
+    if (!serials.length) return { available: false, error: "No ADB device is online." };
+    if (!ADB_TARGET && serials.length > 1) {
+      // Prefer the explicit ip:port serial over an mDNS alias for the same
+      // phone; without this every later adb call dies on "more than one
+      // device/emulator".
+      const wireless = serials.find((s) => /^\d+\.\d+\.\d+\.\d+:\d+$/.test(s));
+      resolvedTarget = wireless || serials[0];
+    }
 
     const [model, release, sizeLine, serial] = await Promise.all([
       adb("shell getprop ro.product.model").catch(() => ""),
