@@ -1,5 +1,13 @@
 /* ── ScreenSync MCP · Design System v2 ─────────────────────── */
 
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('../fonts/plus-jakarta-sans.woff2') format('woff2');
+}
+
 :root {
   /* ── Palette ── */
   --bg:        #0F0A1A;

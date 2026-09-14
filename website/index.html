@@ -390,8 +390,9 @@
                                           ▼
                                    ╭──────────────╮
                                    │  🤖 AI AGENT  │
-                                   │  25+ tools    │
-                                   │  4 prompts    │
+                                   │  171 tools   │
+                                   │  17 prompts  │
+                                   │  3 resources │
                                    ╰──────────────╯</pre>
       </div>
     </div>
@@ -406,7 +407,7 @@
     </div>
     <div class="mt-12 space-y-4">
       <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Does my screen data leave my network?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">No — by default everything stays on your LAN. Frames go phone → hub over your own Wi-Fi with bearer-token auth. Only if you explicitly enable the Google Drive BYOS fallback do frames sync through <em>your own</em> Drive account. See our <a href="data-policy.html" class="text-[#6541D6] font-semibold underline">Data Policy</a>.</div></div></div>
-      <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Which AI agents work with ScreenSync MCP?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">Any MCP-compatible client: Claude Desktop, Claude Code, OpenClaw, custom agents — anything that speaks Model Context Protocol over stdio can use all 25+ tools and 4 built-in prompts.</div></div></div>
+      <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Which AI agents work with ScreenSync MCP?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">Any MCP-compatible client: Claude Desktop, Claude Code, OpenClaw, custom agents — anything that speaks Model Context Protocol over stdio can use all 171 tools, 17 prompts, and 3 resources.</div></div></div>
       <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Do I need root or ADB on the phone?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">No root needed. Screen capture uses Android's official MediaProjection API with your one-time consent. Device-control tools (tap/swipe/type) use ADB from the hub side — ideal with wireless debugging.</div></div></div>
       <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">What happens when I leave my Wi-Fi network?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">Hybrid mode automatically falls back to Google Drive BYOS sync (if you enabled it). Captures queue locally in SQLite and push when a route is available — the dashboard shows unsynced counts.</div></div></div>
       <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Is it free?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">ScreenSync MCP is currently free while in active development by EpsolDev. Follow the <a href="goal.html" class="text-[#6541D6] font-semibold underline">Goal page</a> for the roadmap.</div></div></div>

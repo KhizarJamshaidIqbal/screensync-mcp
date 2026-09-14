@@ -44,7 +44,7 @@ export async function execExtensionDiagnostics() {
   return {
     ok: true,
     data: {
-      version: manifest.version || '1.7.1',
+      version: manifest.version || '1.8.0',
       manifestVersion: manifest.manifest_version || 3,
       extensionId: (chrome.runtime && chrome.runtime.id) || 'unknown',
       hub: {
