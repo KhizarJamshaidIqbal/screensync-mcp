@@ -5,7 +5,7 @@ import { ssInstallHooks, ssReadBuffer, ssEval, ssStorage, ssPerf, ssWaitFor, ssK
 import { attachCdp, detachCdp } from './web-adv-core.js';
 import { cdpWaitNetworkIdle } from './web-adv-net.js';
 import { cdpInput, cdpUploadFile, cdpKeyCombo, cdpMouse, cdpTouch, cdpHumanMouse, cdpHumanType, cdpHumanScroll, cdpClipboard } from './web-adv-input.js';
-import { cdpScreenshot, cdpPdf, cdpElementScreenshot, cdpAXTree, cdpStealthCloak, cdpExportHar, cdpCoverage, cdpScreencast, cdpMhtml } from './web-adv-capture.js';
+import { cdpScreenshot, cdpPdf, cdpElementScreenshot, cdpAXTree, cdpExportHar, cdpCoverage, cdpScreencast, cdpMhtml } from './web-adv-capture.js';
 import { cdpNetworkMock, cdpRoute, cdpDialogRule, cdpWaitForResponse, cdpWaitForRequest, cdpWebSocketTraffic, cdpNetworkAuth, cdpCacheControl } from './web-adv-net.js';
 import { cdpEmulate, cdpGrantPermissions, cdpSetTimezone, cdpSetGeolocation, cdpThrottleNetwork, cdpSetColorScheme, cdpEmulateMedia } from './web-adv-emulate.js';
 import { cdpEval, cdpRunCode } from './web-adv-eval.js';
@@ -38,7 +38,6 @@ export async function execAdvTool(tool, tab, args) {
     case 'web_mhtml': return cdpMhtml(tab, args);
     case 'web_cdp_eval': return cdpEval(tab, args);
     case 'web_a11y_tree': return cdpAXTree(tab, args);
-    case 'web_stealth_cloak': return cdpStealthCloak(tab, args);
     case 'web_export_har': return cdpExportHar(tab, args);
     case 'web_human_mouse': return cdpHumanMouse(tab, args);
     case 'web_network_mock': return cdpNetworkMock(tab, args);

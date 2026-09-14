@@ -383,16 +383,6 @@ export function webToolDefinitions() {
       },
     },
     {
-      name: "web_stealth_cloak",
-      description:
-        "Injects anti-detection stealth cloak into the browser tab via CDP. Masks navigator.webdriver, spoofs standard desktop plugins/languages, mimics real chrome runtime/loadTimes, and spoofs WebGL GPU vendor strings to bypass bot detection.",
-      inputSchema: {
-        type: "object",
-        properties: {},
-        additionalProperties: false,
-      },
-    },
-    {
       name: "web_extension_diagnostics",
       description:
         "Returns comprehensive extension diagnostics: manifest permissions, local storage bytes in use, active alarms, total open tabs, tab groups, and browser platform info.",

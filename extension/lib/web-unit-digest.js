@@ -3,10 +3,6 @@
 // Self-contained page-side execution unit for chrome.scripting.executeScript.
 
 export function ssWebUnitDigest(args = {}) {
-  try {
-    if (navigator.webdriver) Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-  } catch {}
-
   const maxNodes = Math.min(Math.max(Number(args.maxNodes) || 80, 20), 300);
   const includeForms = args.includeForms !== false;
 

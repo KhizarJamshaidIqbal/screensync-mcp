@@ -3,7 +3,6 @@
 
 export async function ssWebUnitExtract(args) {
   try {
-    if (navigator.webdriver) Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
     if (!window.chrome) window.chrome = { runtime: {} };
   } catch {}
 
