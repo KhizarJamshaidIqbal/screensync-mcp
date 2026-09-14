@@ -146,6 +146,8 @@ export function agentCoreWebToolDefinitions(): WebToolDef[] {
           ref: { type: "integer", description: "data-ss-id ref from web_get_by / web_aria_snapshot." },
           position: { type: "string", enum: ["top", "middle", "bottom"], description: "Page jump when no selector is given." },
           block: { type: "string", enum: ["start", "center", "end", "nearest"], default: "center", description: "Vertical alignment for element scroll." },
+          inline: { type: "string", enum: ["start", "center", "end", "nearest"], default: "nearest", description: "Horizontal alignment for element scroll." },
+          ifNeeded: { type: "boolean", default: false, description: "Playwright scrollIntoViewIfNeeded parity: only scroll if the element is not already within viewport boundaries." },
           behavior: { type: "string", enum: ["smooth", "auto"], default: "smooth", description: "Scroll animation." },
           tabId: { type: "integer", description: "Optional background tab ID." },
         },

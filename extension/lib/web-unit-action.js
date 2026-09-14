@@ -407,17 +407,22 @@ export async function ssWebUnitAction(args = {}) {
     if (args.selector || typeof args.ref === 'number' || typeof args.index === 'number') {
       const el = await findWithRetry(args);
       if (!el) return { ok: false, error: 'Element not found for scroll_to: ' + (args.selector ?? args.ref ?? args.index) };
-      el.scrollIntoView({ behavior: args.behavior || 'smooth', block: args.block || 'center', inline: 'nearest' });
+      const r0 = el.getBoundingClientRect();
+      const inView = r0.top >= 0 && r0.left >= 0 && r0.bottom <= window.innerHeight && r0.right <= window.innerWidth;
+      if (args.ifNeeded && inView) {
+        return { ok: true, data: { scrolledTo: 'element', alreadyInView: true, inViewport: true, scrollX: window.scrollX, scrollY: window.scrollY, ...targetDesc(el) } };
+      }
+      el.scrollIntoView({ behavior: args.behavior || 'smooth', block: args.block || (args.ifNeeded ? 'nearest' : 'center'), inline: args.inline || 'nearest' });
       await new Promise((r2) => setTimeout(r2, args.behavior === 'auto' ? 80 : 450));
       const r = el.getBoundingClientRect();
-      return { ok: true, data: { scrolledTo: 'element', inViewport: r.top >= 0 && r.bottom <= window.innerHeight, ...targetDesc(el) } };
+      return { ok: true, data: { scrolledTo: 'element', inViewport: r.top >= 0 && r.bottom <= window.innerHeight, scrollX: window.scrollX, scrollY: window.scrollY, ...targetDesc(el) } };
     }
     const pos = String(args.position || 'top').toLowerCase();
     const pageH = document.documentElement.scrollHeight;
     const targets = { top: 0, bottom: pageH, middle: Math.max(0, (pageH - window.innerHeight) / 2) };
     if (!(pos in targets)) return { ok: false, error: 'Unknown position: ' + pos + '. Supported: top, middle, bottom, or pass selector.' };
     window.scrollTo({ top: targets[pos], behavior: args.behavior || 'smooth' });
-    return { ok: true, data: { scrolledTo: pos, scrollY: window.scrollY, pageHeight: pageH } };
+    return { ok: true, data: { scrolledTo: pos, scrollX: window.scrollX, scrollY: window.scrollY, pageHeight: pageH } };
   }
 
   // ── web_run_code: Playwright run_code — async snippet with a mini page API ──

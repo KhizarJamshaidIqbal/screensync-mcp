@@ -671,6 +671,8 @@ export function webToolDefinitions() {
           selector: { type: "string", maxLength: 300, description: "CSS selector of target element." },
           index: { type: "integer", minimum: 0, description: "Index from web_hierarchy interactive elements." },
           text: { type: "string", maxLength: 200, description: "Visible text to locate target element." },
+          color: { type: "string", description: "Border and glow color (defaults to #8B5CF6)." },
+          noScroll: { type: "boolean", default: false, description: "Do not auto-scroll element into view if true." },
           durationMs: { type: "integer", minimum: 500, maximum: 10000, default: 2500, description: "Duration to keep highlight visible." },
         },
         additionalProperties: false,

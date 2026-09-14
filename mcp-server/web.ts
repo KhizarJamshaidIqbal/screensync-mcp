@@ -5,6 +5,8 @@ import type { Express, Request, Response } from "express";
 import { DATA_DIR, isAuthorized, log } from "./config.js";
 import { emitHubEvent, lastEventSeq, recentHubEvents } from "./events.js";
 import { createFrameStore } from "./web-frame.js";
+import { generateFlow, generatePlaywright } from "./codegen.js";
+import { runTestSuite } from "./test-runner.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -518,6 +520,41 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
 
+      // ── Test Runner: suites, retries, JUnit XML & JSON reports (P8) ───────
+      if (tool === "web_test_run") {
+        let suiteDef: any = args.suite;
+        if (!suiteDef && Array.isArray(args.tests)) {
+          suiteDef = { name: String(args.name || "ScreenSync Test Suite"), tests: args.tests, format: args.format };
+        } else if (!suiteDef && (args.flow || args.steps)) {
+          const flowName = String(args.flow || args.name || "flow_test");
+          const flowSteps = args.steps || (args.flow ? loadFlow(String(args.flow))?.steps : []);
+          suiteDef = {
+            name: flowName,
+            format: args.format || "both",
+            tests: [{ name: flowName, steps: flowSteps, retries: Number(args.retries) || 0 }],
+          };
+        }
+        if (!suiteDef || !Array.isArray(suiteDef.tests)) {
+          res.status(400).json({ success: false, ok: false, error: "web_test_run requires suite with tests, or flow/steps." });
+          return;
+        }
+
+        for (const tc of suiteDef.tests) {
+          if (!tc.steps && tc.flow) {
+            const f = loadFlow(tc.flow);
+            if (f && Array.isArray(f.steps)) tc.steps = f.steps;
+          }
+        }
+
+        const runnerCallback = async (stepTool: string, stepArgs: Record<string, unknown>) => {
+          return await request(stepTool, stepArgs, 45_000);
+        };
+
+        const result = await runTestSuite(suiteDef, runnerCallback);
+        res.json({ success: true, ok: result.failed === 0, data: result });
+        return;
+      }
+
       // ── Flow Schedules: the hub itself runs saved flows on an interval ────
       if (tool === "web_flow_schedule") {
         const flowName = String(args.flow || args.name || "").trim();
@@ -733,14 +770,39 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         }
         if (action === "stop") {
           recorder.active = false;
-          res.json({ success: true, ok: true, data: { recording: false, stepCount: recorder.steps.length, startedAt: recorder.startedAt, steps: recorder.steps } });
+          const out: Record<string, unknown> = { recording: false, stepCount: recorder.steps.length, startedAt: recorder.startedAt, steps: recorder.steps };
+          if (args.codegen === true || args.format === "flow" || args.format === "playwright") {
+            const flow = generateFlow(recorder.steps, String(args.name || "recorded_flow"));
+            out.flow = flow;
+            out.playwright = generatePlaywright(recorder.steps, String(args.name || "recorded_flow"));
+            if (args.saveFlow === true && flow.steps.length) {
+              mkdirSync(FLOWS_DIR, { recursive: true });
+              writeFileSync(flowPath(flow.name), JSON.stringify(flow, null, 2));
+              out.saved = true;
+            }
+          }
+          res.json({ success: true, ok: true, data: out });
           return;
         }
         if (action === "status") {
           res.json({ success: true, ok: true, data: { recording: recorder.active, stepCount: recorder.steps.length, startedAt: recorder.startedAt } });
           return;
         }
-        res.status(400).json({ success: false, ok: false, error: "Unknown web_record action: " + action + ". Supported: start, stop, status." });
+        if (action === "codegen") {
+          const rawSteps = Array.isArray(args.steps) ? (args.steps as any) : recorder.steps;
+          const name = String(args.name || "recorded_flow");
+          const flow = generateFlow(rawSteps, name);
+          const playwright = generatePlaywright(rawSteps, name);
+          let saved = false;
+          if (args.saveFlow === true && flow.steps.length) {
+            mkdirSync(FLOWS_DIR, { recursive: true });
+            writeFileSync(flowPath(flow.name), JSON.stringify(flow, null, 2));
+            saved = true;
+          }
+          res.json({ success: true, ok: true, data: { name: flow.name, stepCount: flow.stepCount, flow, playwright, saved } });
+          return;
+        }
+        res.status(400).json({ success: false, ok: false, error: "Unknown web_record action: " + action + ". Supported: start, stop, status, codegen." });
         return;
       }
 

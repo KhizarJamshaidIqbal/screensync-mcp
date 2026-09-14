@@ -266,5 +266,63 @@ export function inspectWebToolDefinitions(): WebToolDef[] {
         additionalProperties: false,
       },
     },
+    {
+      name: "web_test_run",
+      description:
+        "Playwright test-runner & CI reporter parity (P8): executes named test suites or flows with configurable auto-retries, emitting structured JSON and standard JUnit XML reports for CI/CD.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          suite: { type: "object", description: "Full test suite definition object with { name, tests: [...] }." },
+          tests: { type: "array", items: { type: "object" }, description: "Array of test cases with { name, flow/steps, retries }." },
+          flow: { type: "string", description: "Shortcut: name of a saved flow to run as a single test." },
+          name: { type: "string", description: "Suite or test name." },
+          retries: { type: "integer", minimum: 0, maximum: 5, default: 0, description: "Max retry attempts per failed test case." },
+          format: { type: "string", enum: ["json", "junit", "both"], default: "both", description: "Report output format." },
+          stepTimeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 45000 },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_handle",
+      description:
+        "Playwright evaluateHandle & exposeFunction parity (P10): manages an in-memory JS/DOM handle registry across multi-step browser scripts and binds callable functions on window.",
+      inputSchema: {
+        type: "object",
+        required: ["action"],
+        properties: {
+          action: { type: "string", enum: ["create", "eval", "get", "dispose", "list", "exposeFunction"], description: "Handle lifecycle or function exposure action." },
+          selector: { type: "string", description: locatorNote },
+          code: { type: "string", description: "JavaScript expression or function to evaluate." },
+          handleId: { type: "string", description: "Opaque handle ID (handle_*) returned by create." },
+          name: { type: "string", description: "Global function name on window for action: 'exposeFunction'." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_service_worker",
+      description:
+        "Service Worker inspection & lifecycle via CDP (P12): lists registered background workers per origin, inspects worker target details, attaches, or stops worker execution.",
+      inputSchema: {
+        type: "object",
+        required: ["action"],
+        properties: {
+          action: { type: "string", enum: ["list", "attach", "stop", "unregister"], description: "Service worker operation." },
+          origin: { type: "string", description: "Filter workers by website origin (defaults to active tab origin)." },
+          targetId: { type: "string", description: "CDP target ID to attach." },
+          versionId: { type: "string", description: "Worker version ID to stop." },
+          scopeURL: { type: "string", description: "Registration scope URL to unregister." },
+          keepAttached: { type: "boolean", description: "Keep CDP session attached after operation." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
   ];
 }

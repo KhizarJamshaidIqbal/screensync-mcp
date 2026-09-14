@@ -1,7 +1,7 @@
 // ScreenSync Advanced Web Tools — facade + tool dispatch. CDP infrastructure
 // lives in web-adv-core.js; executors in web-adv-{units,input,capture,net,
 // eval,record,device}.js. Facade kept under the AGENTS.md §2 line budget.
-import { ssInstallHooks, ssReadBuffer, ssEval, ssStorage, ssPerf, ssWaitFor, ssKey, ssHover, ssSelect, ensureHooks, main, isolated } from './web-adv-units.js';
+import { ssReadBuffer, ssEval, ssStorage, ssPerf, ssWaitFor, ssKey, ssHover, ssSelect, ensureHooks, main, isolated } from './web-adv-units.js';
 import { attachCdp, detachCdp } from './web-adv-core.js';
 import { cdpWaitNetworkIdle } from './web-adv-net.js';
 import { cdpInput, cdpUploadFile, cdpKeyCombo, cdpMouse, cdpTouch, cdpHumanMouse, cdpHumanType, cdpHumanScroll, cdpClipboard } from './web-adv-input.js';
@@ -10,6 +10,8 @@ import { cdpNetworkMock, cdpRoute, cdpDialogRule, cdpWaitForResponse, cdpWaitFor
 import { cdpEmulate, cdpGrantPermissions, cdpSetTimezone, cdpSetGeolocation, cdpThrottleNetwork, cdpSetColorScheme, cdpEmulateMedia } from './web-adv-emulate.js';
 import { cdpEval, cdpRunCode } from './web-adv-eval.js';
 import { cdpHarRecord, cdpVideoRecord, cdpClockSet, cdpClockClear, cdpClockFastForward, cdpTraceRecord } from './web-adv-record.js';
+import { handleWebHandle } from './web-handles.js';
+import { cdpServiceWorker } from './web-adv-worker.js';
 
 export { attachCdp, detachCdp, cdpWaitNetworkIdle, ensureHooks };
 
@@ -73,6 +75,8 @@ export async function execAdvTool(tool, tab, args) {
     case 'web_clock_fast_forward': return cdpClockFastForward(tab, args);
     case 'web_clock_clear': return cdpClockClear(tab, args);
     case 'web_network_rules': return cdpNetworkRules(tab, args);
+    case 'web_handle': return handleWebHandle(tab, args);
+    case 'web_service_worker': return cdpServiceWorker(tab, args);
     default: return { ok: false, error: `Unknown advanced tool: ${tool}` };
   }
 }

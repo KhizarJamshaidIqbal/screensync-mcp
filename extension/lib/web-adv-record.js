@@ -1,6 +1,7 @@
 // ScreenSync evidence recorders — real CDP HAR (optional response bodies),
 // WebM video via offscreen MediaRecorder, fake clock, CDP Tracing.
 import { attachCdp, detachCdp, rawAttach, rawDetach, activeHars, activeTraces, activeVideoRecs, activeClocks, enableNetwork, disableNetwork } from './web-adv-core.js';
+import { renderTraceViewerHtml } from './web-trace-viewer.js';
 export async function cdpHarRecord(tab, args) {
   const action = String(args.action || 'start').toLowerCase();
   if (action === 'start') {
@@ -300,8 +301,32 @@ export async function cdpTraceRecord(tab, args) {
       out.trace = undefined;
       out.preview = 'trace too large to inline — use download:true (saved as Chrome trace JSON, openable in chrome://tracing / DevTools Performance)';
     }
+    if (args.format === 'html' || args.emitHtml === true) {
+      out.html = renderTraceViewerHtml(trace);
+      if (args.downloadHtml === true || (args.download === true && args.format === 'html')) {
+        try {
+          const b64 = btoa(unescape(encodeURIComponent(out.html)));
+          await chrome.downloads.download({ url: 'data:text/html;base64,' + b64, filename: args.htmlFilename || ('screensync-trace-' + Date.now() + '.html'), saveAs: false });
+          out.htmlDownloaded = true;
+        } catch (e) { out.htmlDownloadError = String((e && e.message) || e); }
+      }
+    }
     return { ok: true, data: out };
   }
-  return { ok: false, error: 'Unknown web_trace_record action: ' + action + '. Supported: start, get, stop.' };
+  if (action === 'viewer') {
+    const trace = args.trace || (activeTraces.has(tab.id) ? { traceEvents: activeTraces.get(tab.id).chunks, metadata: { tabId: tab.id } } : null);
+    if (!trace) return { ok: false, error: 'No trace provided or active. Supply trace in args or record one.' };
+    const html = renderTraceViewerHtml(trace);
+    const out = { html, eventCount: Array.isArray(trace) ? trace.length : (trace.traceEvents?.length || 0) };
+    if (args.download === true) {
+      try {
+        const b64 = btoa(unescape(encodeURIComponent(html)));
+        await chrome.downloads.download({ url: 'data:text/html;base64,' + b64, filename: args.filename || ('screensync-trace-viewer-' + Date.now() + '.html'), saveAs: false });
+        out.downloaded = true;
+      } catch (e) { out.downloadError = String((e && e.message) || e); }
+    }
+    return { ok: true, data: out };
+  }
+  return { ok: false, error: 'Unknown web_trace_record action: ' + action + '. Supported: start, get, stop, viewer.' };
 }
 

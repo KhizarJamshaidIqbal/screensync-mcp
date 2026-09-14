@@ -501,15 +501,15 @@ export async function ssWebUnitInteract(args) {
     const hit = findBy(args);
     if (!hit) return { ok: false, error: 'Element not found to highlight.' };
     const el = hit.el;
-    el.scrollIntoView({ block: 'center' });
-    const prev = el.style.outline;
-    el.style.outline = '3px solid #8B5CF6';
-    el.style.boxShadow = '0 0 16px rgba(139, 92, 246, 0.8)';
-    setTimeout(() => {
-      el.style.outline = prev;
-      el.style.boxShadow = '';
-    }, Number(args.durationMs) || 2500);
-    return { ok: true, data: { highlighted: true, via: hit.via } };
+    const color = args.color || '#8B5CF6';
+    const r0 = el.getBoundingClientRect();
+    const inView = r0.top >= 0 && r0.left >= 0 && r0.bottom <= window.innerHeight && r0.right <= window.innerWidth;
+    if (!args.noScroll && !inView) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    const prevOut = el.style.outline; const prevShadow = el.style.boxShadow;
+    el.style.outline = `3px solid ${color}`; el.style.boxShadow = `0 0 16px ${color}`;
+    setTimeout(() => { el.style.outline = prevOut; el.style.boxShadow = prevShadow; }, Number(args.durationMs) || 2500);
+    const r = el.getBoundingClientRect();
+    return { ok: true, data: { highlighted: true, via: hit.via, color, scrollX: window.scrollX, scrollY: window.scrollY, box: { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) } } };
   }
 
   if (args.__tool === 'web_scroll') {
