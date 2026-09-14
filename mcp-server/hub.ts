@@ -198,6 +198,10 @@ export async function startHttpHub(): Promise<HubHandle> {
 pairing token is no longer served.</p>
 <p>To pair a new device: <b>restart the hub</b>, or set<br>
 <code>SCREEN_SYNC_PAIR_WINDOW_MINUTES=0</code> to keep pairing always open.</p>
+<p>Your hub address (not a secret - safe for your own devices):</p>
+<code id="addr">${primaryBaseUrl()}</code>
+<p>An already-paired phone does not need a QR at all: type the address above
+in Settings &gt; Hub and it will reconnect.</p>
 </div></body></html>`);
       return;
     }
