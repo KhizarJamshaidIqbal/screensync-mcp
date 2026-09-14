@@ -929,3 +929,148 @@ body.popup {
 .patch-viewer .line-add { color: var(--success); }
 .patch-viewer .line-del { color: var(--danger); }
 .patch-viewer .line-hdr { color: var(--cyan); font-weight: 700; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Responsive & overflow hardening  (2026-09-14)
+   The dashboard is the same document in two very different containers: a
+   narrow Chrome side panel (~360-420px) and a full-width browser tab, and the
+   popup is a third. The rules below let it degrade cleanly at every width
+   instead of overflowing its own viewport.
+
+   Everything here is additive: no existing rule is edited, so the visual
+   language at desktop width is unchanged.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* 1. Nothing may push the document wider than its viewport.
+      overflow-x: clip rather than hidden on purpose - clip does not create a
+      scroll container, so the sticky header keeps working. */
+html, body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+.dash {
+  width: 100%;
+  min-width: 0;
+  padding: clamp(10px, 2.2vw, var(--sp-4));
+  min-height: 100vh;
+  min-height: 100dvh;   /* follows the real visible viewport where supported */
+}
+
+/* 2. The engine of the reported clipping: .row is a flex row that could neither
+      wrap nor let children shrink, so a wide brand block or a wide input row
+      pushed the whole document sideways. Allow wrapping. */
+.row { flex-wrap: wrap; }
+.row.spread { row-gap: var(--sp-2); }
+.dash-content, .tab-panel, .tab-live, .tab-tools-layout, .card { min-width: 0; }
+
+/* 3. Inputs and controls shrink instead of forcing their row wide. */
+input, textarea, select { min-width: 0; max-width: 100%; }
+.btn { max-width: 100%; }
+.pill { flex: 0 0 auto; }   /* pills wrap rather than squash their label */
+
+/* 4. Header: the brand block and the action block stack when they cannot share
+      a line, and the brand never breaks mid-word. */
+.dash-header {
+  margin: calc(-1 * clamp(10px, 2.2vw, var(--sp-4))) calc(-1 * clamp(10px, 2.2vw, var(--sp-4))) 0;
+  padding: var(--sp-3) clamp(10px, 2.2vw, var(--sp-5));
+}
+.dash-header .row.spread > .row { flex: 1 1 auto; }
+.dash-header .row.spread > .row:last-child { justify-content: flex-end; }
+.dash-header strong { white-space: nowrap; }
+
+/* 5. Tab strip: 7 tabs cannot fit a side panel, so make it obviously
+      scrollable instead of silently hiding tabs - visible slim scrollbar plus
+      a proper touch target for each tab. */
+.tab-bar {
+  min-width: 0;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+  /* Fade the cut edge so a partially visible tab reads as "scroll for more"
+     rather than as a clipped, broken element. */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent 100%);
+}
+.tab-bar::-webkit-scrollbar { display: block; height: 5px; }
+.tab-bar::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 5px; }
+.tab-bar::-webkit-scrollbar-track { background: transparent; }
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  scroll-snap-align: start;
+}
+
+/* 6. Long unbreakable strings (URLs, tool names, logs) wrap instead of running
+      off the edge. */
+.web-tab-info, .cat-item, .feed-item, .audit-item, pre, code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+pre, code { max-width: 100%; }
+pre { overflow-x: auto; }
+truncate, .truncate { min-width: 0; }
+
+/* ── Breakpoints ────────────────────────────────────────────────────────── */
+
+/* Wide-but-not-desktop: keep two columns but give the frame less weight. */
+@media (max-width: 1100px) {
+  .tab-live { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+}
+
+/* Tablet / small window: single column everywhere. */
+@media (max-width: 900px) {
+  .tab-live {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "frame" "feed" "side" "control";
+  }
+  .tab-tools-layout { grid-template-columns: minmax(0, 1fr); }
+  .dash-header .row.spread { gap: var(--sp-2); }
+}
+
+/* Side-panel-ish widths. */
+@media (max-width: 760px) {
+  .dash-header .row.spread > .row { width: 100%; }
+  .dash-header .row.spread > .row:last-child { justify-content: flex-start; }
+  .onb { min-width: 0; }
+  .frame-wrap { max-width: 100%; }
+  .pop-actions { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Genuinely narrow (side panel, small window). */
+@media (max-width: 560px) {
+  .tab-btn { padding: var(--sp-2) var(--sp-3); font-size: var(--text-xs); }
+  .dash-header strong { font-size: 14px; }
+  .card { padding: var(--sp-3); }
+  .onb-features { grid-template-columns: 1fr; }
+  .pop-actions { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Very narrow - a phone-width window or a snapped narrow panel. */
+@media (max-width: 400px) {
+  .dash-header .row.spread > .row:first-child { gap: 6px; }
+  .pill { font-size: 10px; padding: 2px 6px; }
+  .pop-actions { grid-template-columns: repeat(2, 1fr); }
+  .tab-bar { padding: 0; }
+}
+
+/* Respect a reduced-motion preference for the panel animations. */
+@media (prefers-reduced-motion: reduce) {
+  .tab-panel { animation: none; }
+  * { scroll-behavior: auto; }
+}
+
+/* 5b. Correction to section 5 above: wrap the tab strip instead of scrolling it.
+   A horizontally scrolling strip hides tabs and its native scrollbar read as a
+   stray grey line against the custom dark chrome. Wrapping keeps all seven tabs
+   visible and reachable at every width, and is a no-op at desktop width where
+   they already fit on one line. */
+.tab-bar {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  row-gap: 2px;
+  scrollbar-width: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
