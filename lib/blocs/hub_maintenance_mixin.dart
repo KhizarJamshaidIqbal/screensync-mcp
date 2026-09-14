@@ -51,26 +51,44 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
         discoveredHubs: event.hubs ?? state.discoveredHubs,
       ));
     });
-    _hubMaintenance?.cancel();
+    _ensureMaintenance();
+  }
+
+  /// Starts the 20 s maintenance timer when it is not already running.
+  ///
+  /// Regression guard: [_onDisconnectHub] cancels the timer and the only other
+  /// entry point, [registerHubMaintenance], runs once from the bloc
+  /// constructor. A single Disconnect - or a connect flow that never reached
+  /// [registerHubMaintenance] again - therefore killed auto-sync for the rest
+  /// of the process lifetime while the 5 s latency sampler kept the connection
+  /// badge green. Captured frames piled up unsynced and were never pushed to
+  /// the hub, so the phone looked "Connected" while delivering nothing.
+  /// Every connect/select/ping path re-arms through here, so the timer can no
+  /// longer be lost.
+  void _ensureMaintenance() {
+    if (_hubMaintenance != null) return;
     _hubMaintenance =
         Timer.periodic(const Duration(seconds: 20), (_) => _maintainHub());
   }
 
-  void disposeHubMaintenance() => _hubMaintenance?.cancel();
+  void disposeHubMaintenance() {
+    _hubMaintenance?.cancel();
+    _hubMaintenance = null;
+  }
 
-  // Every tick: if the hub is reachable and frames are pending, push them
-  // automatically; if unreachable, try mDNS auto-discovery + reconnect.
+  // Every tick: refresh hub status first so the badge and latency stay honest
+  // even while the hub reports "online" (previously the tick returned early and
+  // a hub that went away was never noticed), then push pending frames when
+  // auto-sync is on, then fall back to discovery when the hub is unreachable.
   Future<void> _maintainHub() async {
+    await _refreshHubStatus();
     if (state.hubOnline == true) {
       if (hubSettings.autoSync && state.unsyncedCount > 0) {
         add(SyncPendingEvent());
       }
       return;
     }
-    await _refreshHubStatus();
-    if (state.hubOnline != true && hubSettings.autoDiscover) {
-      await autoDiscoverHub();
-    }
+    if (hubSettings.autoDiscover) await autoDiscoverHub();
   }
 
   Future<void> _refreshHubStatus() async {
@@ -134,6 +152,10 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
 
   Future<void> _onPingHub(
       PingHubEvent event, Emitter<ScreenCaptureState> emit) async {
+    // Any ping means the app is in an active connect flow: make sure the
+    // maintenance/auto-sync timer is alive again (it may have been cancelled by
+    // a previous Disconnect).
+    _ensureMaintenance();
     final res = await hubRepo.pingHubTimed();
     emit(state.copyWith(
       hubOnline: res.ok,
@@ -153,6 +175,7 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
 
   Future<void> _onAutoConnectHub(AutoConnectHubEvent event,
       Emitter<ScreenCaptureState> emit) async {
+    _ensureMaintenance();
     emit(state.copyWith(discovering: true, errorMessage: null));
     final ok = await autoDiscoverHub();
     emit(state.copyWith(discovering: false));

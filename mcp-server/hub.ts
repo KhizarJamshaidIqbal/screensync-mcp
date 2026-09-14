@@ -98,6 +98,11 @@ export async function startHttpHub(): Promise<HubHandle> {
         path: req.path,
         status: res.statusCode,
         durationMs: Date.now() - startedAt,
+        // Client IP makes phone traffic distinguishable from extension
+        // traffic. Without it every request looks identical in the log, so a
+        // device that never reaches the hub is indistinguishable from a device
+        // that reaches it and sends nothing.
+        ip: (req.socket?.remoteAddress || req.ip || "").replace(/^::ffff:/, ""),
       });
     });
     next();
