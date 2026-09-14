@@ -31,7 +31,7 @@ pairing link + QR that the extension and the Android app both accept.
 - **Click-to-tap** — click the live frame to tap the phone; plus type / key / scroll / swipe / launch controls via the hub's ADB plane.
 - **AI activity feed** — `tool`, `agent_connect`, `inspection`, `patch` events in real time.
 - **Latency telemetry** — health pings (P50 latency) + SSE liveness chip.
-- **MCP catalog browser** — 171 tools / 17 prompts / 3 resources from `/api/mcp/catalog`, with stdio-only tools flagged.
+- **MCP catalog browser** — 174 tools / 17 prompts / 3 resources from `/api/mcp/catalog`, with stdio-only tools flagged.
 - **One-click Connect Kit** — copies the same agent config kit the phone app produces (Claude Code `.mcp.json`, Claude Desktop, HTTP-only).
 - **Onboarding** — probes localhost, accepts pairing links (`screensync://pair…`, JSON, `http://ip:port#token`), and pulls the setup guide from `https://screensyncmcp.epsoldev.com/setup-guide.json` (bundled fallback offline).
 
@@ -40,7 +40,7 @@ pairing link + QR that the extension and the Android app both accept.
 1. The hub pushes a `web_request` over SSE; the service worker executes it on
    your active tab (`lib/web-tools.js`) and POSTs the result to `/api/web/result`.
 2. Everything is gated behind the **Web access for AI agents** toggle on the
-   dashboard — it defaults to **OFF** and nothing runs while it is off.
+   dashboard — it ships **ON by default** (owner decision, 2026-09-14); turn it OFF to stop all execution. Nothing runs while it is off, and writes still require a per-origin action grant.
 3. The hub only relays while it has seen our heartbeat recently, so a closed
    browser cleanly reads as "not connected".
 4. Restricted pages (`chrome://`, extension pages, the web store, PDFs) are
@@ -86,7 +86,7 @@ Every permission declared in `manifest.json` is mapped to active tool call sites
 
 > `<all_urls>` is broad by design: the extension's purpose is to let the
 > user's own AI agent operate their live browser. It is inert until the user
-> pairs with a hub AND flips the Web access toggle on. If you would rather
+> pairs with a hub (the Web access toggle now ships ON; turn it off to disable agent access). If you would rather
 > scope it, narrow `<all_urls>` to the sites you want the agent to touch.
 
 ## Architecture notes
