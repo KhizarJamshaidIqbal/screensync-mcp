@@ -261,7 +261,7 @@ export async function cdpRoute(tab, args = {}) {
 
 export async function cdpDialogRule(tab, args = {}) {
   const target = { tabId: tab.id };
-  const action = String(args.action || args.rule || 'accept').toLowerCase();
+  const action = String(args.action || args.rule || 'dismiss').toLowerCase();
   if (action === 'clear') {
     activeDialogRules.delete(tab.id);
     await detachCdp(tab);

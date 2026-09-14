@@ -11,7 +11,7 @@ export function mountWebAccess(el, send) {
       <div class="dim" style="font-size:var(--text-xs);line-height:1.5">
         When enabled, your AI agent can see the active tab (web_screenshot), read the page
         (web_hierarchy) and act on it (web_click / web_type / web_navigate / web_scroll)
-        through the ScreenSync hub — just like it drives your phone.
+        through the ScreenSync hub — subject to per-origin grants and the destructive approval gate.
       </div>
       <div class="web-status-card">
         <div class="row spread">
@@ -21,6 +21,38 @@ export function mountWebAccess(el, send) {
         <div class="web-tab-info" id="web-tab" style="display:none"></div>
       </div>
       <div class="err" id="web-err" style="font-size:var(--text-xs)" hidden></div>
+
+      <!-- Pending Approval Queue -->
+      <div id="approvals-section" style="margin-top:16px;display:none">
+        <div class="row spread" style="margin-bottom:8px">
+          <strong style="color:var(--crit);font-size:var(--text-sm)">Pending Action Approvals</strong>
+          <span class="pill warn" id="approvals-count">0</span>
+        </div>
+        <div id="approvals-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <!-- Origin Grants Management -->
+      <div style="margin-top:20px">
+        <div class="row spread" style="margin-bottom:8px">
+          <strong>Per-Origin Access Grants</strong>
+          <span class="dim" style="font-size:var(--text-xs)">Read · Act · Cookies</span>
+        </div>
+        <div class="row" style="gap:6px;margin-bottom:8px">
+          <input type="text" id="new-origin-input" placeholder="https://example.com" class="input-sm" style="flex:1">
+          <button class="btn btn-primary btn-sm" id="btn-add-grant">Add Grant</button>
+        </div>
+        <div id="grants-list" style="font-size:var(--text-xs);display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+
+      <!-- Audit Log & Budget -->
+      <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px">
+        <div class="row spread" style="margin-bottom:8px">
+          <strong>Audit Trail & Budget</strong>
+          <button class="btn btn-ghost btn-sm" id="btn-export-audit">Export Audit Log</button>
+        </div>
+        <div id="audit-summary" class="dim" style="font-size:var(--text-xs);margin-bottom:8px"></div>
+        <div id="audit-entries" style="font-size:var(--text-xs);max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+      </div>
     </div>`;
 
   const toggle = el.querySelector('#web-toggle');
@@ -28,6 +60,16 @@ export function mountWebAccess(el, send) {
   const tabRow = el.querySelector('#web-tab');
   const errRow = el.querySelector('#web-err');
   const testBtn = el.querySelector('#web-test');
+  const approvalsSec = el.querySelector('#approvals-section');
+  const approvalsList = el.querySelector('#approvals-list');
+  const approvalsCount = el.querySelector('#approvals-count');
+  const newOriginInput = el.querySelector('#new-origin-input');
+  const addGrantBtn = el.querySelector('#btn-add-grant');
+  const grantsList = el.querySelector('#grants-list');
+  const exportAuditBtn = el.querySelector('#btn-export-audit');
+  const auditSummary = el.querySelector('#audit-summary');
+  const auditEntries = el.querySelector('#audit-entries');
+
   let busy = false;
 
   async function refresh() {
@@ -56,6 +98,74 @@ export function mountWebAccess(el, send) {
       tabRow.style.display = 'none';
     }
     errRow.hidden = true;
+
+    // Refresh approvals
+    const apprRes = await send({ type: 'get-approvals' });
+    const approvals = (apprRes && apprRes.approvals) || [];
+    if (approvals.length > 0) {
+      approvalsSec.style.display = 'block';
+      approvalsCount.textContent = String(approvals.length);
+      approvalsList.innerHTML = '';
+      approvals.forEach((a) => {
+        const row = document.createElement('div');
+        row.className = 'row spread card';
+        row.style.padding = '8px 10px';
+        row.style.borderLeft = '3px solid var(--crit)';
+        row.innerHTML = `
+          <div>
+            <strong>${a.tool}</strong> on <code>${a.origin}</code>
+            <div class="dim" style="font-size:11px">${a.risk} action</div>
+          </div>
+          <div class="row" style="gap:6px">
+            <button class="btn btn-sm btn-primary" data-appr="${a.id}" data-action="approve">Approve</button>
+            <button class="btn btn-sm btn-ghost" data-appr="${a.id}" data-action="reject">Dismiss</button>
+          </div>`;
+        approvalsList.appendChild(row);
+      });
+    } else {
+      approvalsSec.style.display = 'none';
+    }
+
+    // Refresh grants
+    const grantsRes = await send({ type: 'get-grants' });
+    const grants = (grantsRes && grantsRes.grants) || {};
+    grantsList.innerHTML = '';
+    const grantKeys = Object.keys(grants);
+    if (grantKeys.length === 0) {
+      grantsList.innerHTML = '<span class="dim">No origin grants configured. Localhost and tests are permitted by default.</span>';
+    } else {
+      grantKeys.forEach((orig) => {
+        const g = grants[orig];
+        const row = document.createElement('div');
+        row.className = 'row spread card';
+        row.style.padding = '6px 10px';
+        row.innerHTML = `
+          <div>
+            <code>${orig}</code>
+            <span class="dim" style="margin-left:6px">${g.read ? '✓ Read' : '✗ Read'} · ${g.act ? '✓ Act' : '✗ Act'} · ${g.cookies ? '✓ Cookies' : '✗ Cookies'}</span>
+          </div>
+          <button class="btn btn-sm btn-ghost" data-revoke="${orig}">Revoke</button>`;
+        grantsList.appendChild(row);
+      });
+    }
+
+    // Refresh audit
+    const auditRes = await send({ type: 'get-audit-log', args: { limit: 8 } });
+    if (auditRes && auditRes.ok && auditRes.data) {
+      const { entries, totalCount } = auditRes.data;
+      auditSummary.textContent = `Showing last ${entries ? entries.length : 0} of ${totalCount || 0} recorded tool operations.`;
+      auditEntries.innerHTML = '';
+      (entries || []).forEach((e) => {
+        const item = document.createElement('div');
+        item.className = 'row spread';
+        item.style.padding = '3px 0';
+        item.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+        item.innerHTML = `
+          <span><code>${e.tool}</code> ${e.ok ? '<span style="color:var(--low)">✓</span>' : '<span style="color:var(--crit)">✗</span>'}</span>
+          <span class="dim">${e.durationMs || 0}ms · ${new Date(e.timestamp || Date.now()).toLocaleTimeString()}</span>`;
+        auditEntries.appendChild(item);
+      });
+    }
   }
 
   toggle.addEventListener('change', async () => {
@@ -90,6 +200,50 @@ export function mountWebAccess(el, send) {
       testBtn.disabled = false;
       setTimeout(() => (testBtn.textContent = 'Test loop'), 1500);
     }
+  });
+
+  approvalsList.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button[data-appr]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-appr');
+    const approved = btn.getAttribute('data-action') === 'approve';
+    await send({ type: 'resolve-approval', id, approved });
+    await refresh();
+  });
+
+  addGrantBtn.addEventListener('click', async () => {
+    const val = (newOriginInput.value || '').trim();
+    if (!val) return;
+    addGrantBtn.disabled = true;
+    try {
+      await send({ type: 'set-grant', origin: val, grant: { read: true, act: true, cookies: false } });
+      newOriginInput.value = '';
+      await refresh();
+    } finally { addGrantBtn.disabled = false; }
+  });
+
+  grantsList.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button[data-revoke]');
+    if (!btn) return;
+    const orig = btn.getAttribute('data-revoke');
+    await send({ type: 'revoke-grant', origin: orig });
+    await refresh();
+  });
+
+  exportAuditBtn.addEventListener('click', async () => {
+    exportAuditBtn.disabled = true;
+    try {
+      const r = await send({ type: 'export-audit-log' });
+      if (r && r.ok && r.data) {
+        const blob = new Blob([JSON.stringify(r.data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `screensync-audit-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } finally { exportAuditBtn.disabled = false; }
   });
 
   refresh();

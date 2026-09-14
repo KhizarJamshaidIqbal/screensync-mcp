@@ -4,11 +4,23 @@
 // extension has host permissions for — so an agent can call the same JSON
 // APIs the logged-in site uses, without ever touching credentials.
 
+import { isLoopbackOrTestOrigin, getOriginGrant } from './consent.js';
+
 export async function apiFetch(args = {}) {
   const url = String(args.url || '');
   if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'web_api_fetch requires an http(s) url.' };
   const method = String(args.method || 'GET').toUpperCase();
   if (!/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/.test(method)) return { ok: false, error: 'Invalid method: ' + method };
+
+  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+    const origin = new URL(url).origin;
+    if (!isLoopbackOrTestOrigin(origin) && !args.confirmed && !args.force) {
+      const grant = await getOriginGrant(origin);
+      if (!grant.act) {
+        return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: `Authenticated ${method} request to ${origin} requires user confirmation or act grant.` };
+      }
+    }
+  }
 
   const headers = {};
   if (args.headers && typeof args.headers === 'object') {

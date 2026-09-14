@@ -27,6 +27,15 @@ import { makeError, ERROR_CODES } from './errors.js';
 import { recordAuditEntry, getAuditLog, clearAuditLog, exportAuditLog } from './audit.js';
 import { execWebTabs, execWebTab, execWebWindow, execTabPool, execSandboxGroup } from './web-tab-mgmt.js';
 import { validateToolArgs } from './validate.js';
+import {
+  getOriginGrant,
+  saveOriginGrant,
+  revokeOriginGrant,
+  isLoopbackOrTestOrigin,
+  recordExtraction,
+  getExtractionBudget,
+  checkOriginPermission,
+} from './consent.js';
 
 const INTERACT_TOOLS = new Set([
   'web_click', 'web_type', 'web_paste', 'web_clear', 'web_highlight', 'web_scroll',
@@ -195,6 +204,12 @@ export async function executeWebTool(tool, args = {}) {
     case 'web_tab_group': return execTabGroup(args);
     case 'web_profile_sync': {
       const domain = String(args.domain || '').trim();
+      if (domain && !isLoopbackOrTestOrigin(domain)) {
+        const g = await getOriginGrant(domain);
+        if (!g.read) {
+          return makeError(ERROR_CODES.NO_GRANT, `Profile sync requires read grant for origin ${domain}. Grant read permission in extension dashboard.`);
+        }
+      }
       const cookies = domain ? await chrome.cookies.getAll({ domain }).catch(() => []) : [];
       return {
         ok: true,
@@ -289,18 +304,75 @@ export async function executeWebTool(tool, args = {}) {
       const tab = await pickActiveTab(args);
       const urlObj = tab.url ? new URL(tab.url) : null;
       const domain = args.domain || (urlObj ? urlObj.hostname : '');
+      const isSafeOrigin = isLoopbackOrTestOrigin(domain);
+      const originGrant = isSafeOrigin ? { read: true, act: true, cookies: true } : await getOriginGrant(domain);
+
       if (action === 'get') {
         const cookies = await chrome.cookies.getAll({ domain }).catch(() => []);
-        if (args.name) return { ok: true, data: { cookie: cookies.find((c) => c.name === args.name) || null } };
-        return { ok: true, data: { cookies: cookies.map((c) => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly })), count: cookies.length } };
+        const includeValues = args.includeValues === true && originGrant.cookies === true;
+        if (args.name) {
+          const found = cookies.find((c) => c.name === args.name);
+          if (!found) return { ok: true, data: { cookie: null } };
+          return {
+            ok: true,
+            data: {
+              cookie: {
+                ...found,
+                value: includeValues ? found.value : '[REDACTED]',
+              },
+              valuesRedacted: !includeValues,
+            },
+          };
+        }
+        return {
+          ok: true,
+          data: {
+            cookies: cookies.map((c) => ({
+              name: c.name,
+              value: includeValues ? c.value : '[REDACTED]',
+              domain: c.domain,
+              path: c.path,
+              secure: c.secure,
+              httpOnly: c.httpOnly,
+            })),
+            count: cookies.length,
+            valuesRedacted: !includeValues,
+          },
+        };
       }
-      if (action === 'set') {
+      if (action === 'set' || action === 'remove') {
+        if (!isSafeOrigin && !originGrant.act) {
+          return makeError(ERROR_CODES.NO_GRANT, `Cookie modification requires act grant for origin ${domain}.`);
+        }
+        if (!isSafeOrigin && !args.confirmed && !args.force) {
+          return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: `Cookie modification on ${domain} requires user confirmation.` };
+        }
+        if (action === 'remove') {
+          if (!args.name) return makeError(ERROR_CODES.BAD_ARGS, 'name is required for cookie remove.');
+          const cookieUrl = (args.secure ? 'https://' : 'http://') + (domain.startsWith('.') ? domain.slice(1) : domain) + (args.path || '/');
+          await chrome.cookies.remove({ url: cookieUrl, name: args.name });
+          return { ok: true, data: { removed: args.name } };
+        }
         if (!args.name) return makeError(ERROR_CODES.BAD_ARGS, 'name is required for cookie set.');
         const cookieUrl = (args.secure ? 'https://' : 'http://') + (domain.startsWith('.') ? domain.slice(1) : domain) + (args.path || '/');
         await chrome.cookies.set({ url: cookieUrl, name: args.name, value: args.value || '', domain: args.domain, path: args.path || '/' });
         return { ok: true, data: { set: args.name } };
       }
       return makeError(ERROR_CODES.BAD_ARGS, `Unknown web_cookies action: ${action}`);
+    }
+    case 'web_consent': {
+      const action = String(args.action || 'list');
+      if (action === 'list') return { ok: true, data: { grants: await getOriginGrant(args.origin || 'unknown'), budget: getExtractionBudget() } };
+      if (action === 'grant') {
+        if (!args.origin) return makeError(ERROR_CODES.BAD_ARGS, 'origin is required for grant.');
+        const updated = await saveOriginGrant(args.origin, args);
+        return { ok: true, data: { origin: args.origin, grant: updated } };
+      }
+      if (action === 'revoke') {
+        if (!args.origin) return makeError(ERROR_CODES.BAD_ARGS, 'origin is required for revoke.');
+        return { ok: true, data: await revokeOriginGrant(args.origin) };
+      }
+      return makeError(ERROR_CODES.BAD_ARGS, `Unknown web_consent action: ${action}`);
     }
     default: {
       // Injected DOM / Agent / Storage tools
@@ -311,7 +383,16 @@ export async function executeWebTool(tool, args = {}) {
         tool === 'web_remove_overlay' || tool === 'web_dom_diff' || tool === 'web_scrape_schema'
       ) {
         const tab = await pickActiveTab(args);
-        return inject(tab, { ...args, __tool: tool });
+        const category = (INTERACT_TOOLS.has(tool) || AGENT_ACTION_TOOLS.has(tool)) ? 'act' : 'read';
+        const perm = await checkOriginPermission(tab.url, category, tool, args);
+        if (!perm.ok) return makeError(ERROR_CODES.NO_GRANT, perm.error);
+        const grant = perm.grant || {};
+        const res = await inject(tab, { ...args, __tool: tool, __actGranted: !!grant.act });
+        if (res && res.ok && res.data) {
+          const str = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+          recordExtraction(tab.url, str.length);
+        }
+        return res;
       }
       // Device Emulation Tools
       if (tool === 'web_device_emulate' || tool === 'web_resize' || tool === 'web_set_user_agent') {

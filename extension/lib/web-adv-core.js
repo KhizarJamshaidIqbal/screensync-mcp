@@ -148,14 +148,12 @@ if (chrome.debugger && chrome.debugger.onEvent) {
   chrome.debugger.onEvent.addListener(async (source, method, params) => {
     if (method === 'Page.javascriptDialogOpening' && source && source.tabId) {
       const rule = activeDialogRules.get(source.tabId);
-      if (rule) {
-        try {
-          await chrome.debugger.sendCommand(source, 'Page.handleJavaScriptDialog', {
-            accept: rule.rule !== 'dismiss',
-            promptText: rule.promptText || undefined,
-          });
-        } catch {}
-      }
+      try {
+        await chrome.debugger.sendCommand(source, 'Page.handleJavaScriptDialog', {
+          accept: rule ? rule.rule === 'accept' : false,
+          promptText: (rule && rule.promptText) || undefined,
+        });
+      } catch {}
     }
 
     if ((method === 'Network.webSocketFrameReceived' || method === 'Network.webSocketFrameSent') && source && source.tabId) {

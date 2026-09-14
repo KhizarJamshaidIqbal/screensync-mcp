@@ -3,6 +3,8 @@ import { api, probeHub, hubFetch } from './lib/api.js';
 import { SseClient } from './lib/sse-client.js';
 import { handleWebRequest, registerWebBridge } from './lib/web-tools.js';
 import { startAmbientCollector } from './lib/web-ambient.js';
+import { getGrants, saveOriginGrant, revokeOriginGrant, getPendingApprovals, resolveApproval } from './lib/consent.js';
+import { getAuditLog, exportAuditLog } from './lib/audit.js';
 import {
   GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, EVENT_LOG_CAP,
 } from './lib/constants.js';
@@ -353,6 +355,40 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           } catch (e) {
             sendResponse({ ok: false, error: e.message, status: e.status });
           }
+          break;
+        }
+        case 'get-grants': {
+          const grants = await getGrants();
+          sendResponse({ ok: true, grants });
+          break;
+        }
+        case 'set-grant': {
+          const grant = await saveOriginGrant(msg.origin, msg.grant || {});
+          sendResponse({ ok: true, origin: msg.origin, grant });
+          break;
+        }
+        case 'revoke-grant': {
+          const res = await revokeOriginGrant(msg.origin);
+          sendResponse({ ok: true, ...res });
+          break;
+        }
+        case 'get-approvals': {
+          sendResponse({ ok: true, approvals: getPendingApprovals() });
+          break;
+        }
+        case 'resolve-approval': {
+          const res = resolveApproval(msg.id, !!msg.approved);
+          sendResponse(res);
+          break;
+        }
+        case 'get-audit-log': {
+          const log = await getAuditLog(msg.args || {});
+          sendResponse(log);
+          break;
+        }
+        case 'export-audit-log': {
+          const exp = await exportAuditLog();
+          sendResponse(exp);
           break;
         }
         case 'get-guide': {

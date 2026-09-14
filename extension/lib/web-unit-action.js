@@ -288,7 +288,7 @@ export async function ssWebUnitAction(args = {}) {
     if (!el) return { ok: false, code: 'ELEMENT_NOT_FOUND', error: 'Element not found for fill: ' + (args.selector ?? args.ref ?? args.index) };
     if (el.strictViolation) return { ok: false, code: 'STRICT_MODE_VIOLATION', error: el.error };
 
-    if (args.confirmDestructive === true && isDestructiveAction(el) && !args.force) {
+    if (isDestructiveAction(el) && !args.confirmed && !args.force && args.dryRun !== true) {
       return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: 'Action involves destructive keyword. User confirmation required.' };
     }
 

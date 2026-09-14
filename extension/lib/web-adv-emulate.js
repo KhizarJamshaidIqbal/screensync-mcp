@@ -1,6 +1,7 @@
 // ScreenSync CDP emulation executors — viewport/geo/network emulation,
 // permissions, timezone, network throttling, color scheme overrides.
 import { rawAttach, attachCdp, detachCdp, activeEmulations, enableNetwork, disableNetwork } from './web-adv-core.js';
+import { isLoopbackOrTestOrigin, getOriginGrant } from './consent.js';
 
 export async function cdpEmulate(tab, args = {}) {
   const target = { tabId: tab.id };
@@ -82,6 +83,13 @@ export async function cdpGrantPermissions(tab, args = {}) {
   const permissions = Array.isArray(args.permissions) ? args.permissions : [args.permission || 'geolocation'];
   const origin = args.origin || (tab.url ? new URL(tab.url).origin : undefined);
 
+  if (!isLoopbackOrTestOrigin(origin) && !args.confirmed && !args.force) {
+    const grant = await getOriginGrant(origin);
+    if (!grant.act) {
+      return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: `Granting permissions on ${origin || 'active tab'} requires user confirmation or act grant.` };
+    }
+  }
+
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     world: 'MAIN',
@@ -144,6 +152,14 @@ export async function cdpSetTimezone(tab, args = {}) {
 }
 
 export async function cdpSetGeolocation(tab, args = {}) {
+  const origin = tab.url ? new URL(tab.url).origin : undefined;
+  if (!args.clear && !isLoopbackOrTestOrigin(origin) && !args.confirmed && !args.force) {
+    const grant = await getOriginGrant(origin);
+    if (!grant.act) {
+      return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: `Overriding geolocation on ${origin || 'active tab'} requires user confirmation or act grant.` };
+    }
+  }
+
   const target = { tabId: tab.id };
   const attached = await attachCdp(tab);
   if (!attached.ok) return attached;

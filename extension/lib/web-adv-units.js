@@ -77,14 +77,14 @@ export function ssInstallHooks() {
     cap(window.__ssDialogBuffer);
   };
   window.confirm = (m) => {
-    window.__ssDialogBuffer.push({ id: ++window.__ssSeq.dialog, type: 'confirm', message: String(m).slice(0, 300), result: true, ts: Date.now() });
+    window.__ssDialogBuffer.push({ id: ++window.__ssSeq.dialog, type: 'confirm', message: String(m).slice(0, 300), result: false, ts: Date.now() });
     cap(window.__ssDialogBuffer);
-    return true;
+    return false;
   };
-  window.prompt = (m, d) => {
-    window.__ssDialogBuffer.push({ id: ++window.__ssSeq.dialog, type: 'prompt', message: String(m).slice(0, 300), result: d || '', ts: Date.now() });
+  window.prompt = (m, _d) => {
+    window.__ssDialogBuffer.push({ id: ++window.__ssSeq.dialog, type: 'prompt', message: String(m).slice(0, 300), result: null, ts: Date.now() });
     cap(window.__ssDialogBuffer);
-    return d || '';
+    return null;
   };
   return { ok: true, data: { installed: true } };
 }
@@ -126,6 +126,9 @@ export function ssEval(args) {
 export function ssStorage(args) {
   const action = args.action || 'get';
   const type = args.type || 'local';
+  if (action !== 'get' && !args.__actGranted && !args.confirmed && !args.force) {
+    return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: `Modifying ${type} storage (${action}) requires action permission.` };
+  }
   if (type === 'cookie') {
     if (action === 'set') {
       if (!args.key) return { ok: false, error: 'key is required for cookie set' };
