@@ -17,6 +17,11 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import com.google.android.play.core.appupdate.AppUpdateManager
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.install.model.ActivityResult
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.UpdateAvailability
 import java.io.File
 
 class MainActivity : FlutterActivity() {
@@ -25,10 +30,12 @@ class MainActivity : FlutterActivity() {
         private const val DEVICE_CHANNEL = "com.screensync.mcp/device"
         private const val CAPTURE_PERMISSION_REQUEST = 7301
         private const val ALERT_CHANNEL_ID = "screensync_alert"
+        private const val PLAY_UPDATE_REQUEST = 7402
     }
 
     private lateinit var projectionManager: MediaProjectionManager
     private var pendingPermissionResult: MethodChannel.Result? = null
+    private var pendingPlayUpdate: MethodChannel.Result? = null
 
     // Track pending-snap bytes written by notification action receiver
     private val pendingSnaps = ArrayDeque<ByteArray>()
@@ -36,6 +43,8 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         projectionManager = getSystemService(MediaProjectionManager::class.java)
+        // Ask Play for new builds periodically, even when the app is closed.
+        UpdateCheckWorker.schedule(this)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -53,6 +62,19 @@ class MainActivity : FlutterActivity() {
     @Deprecated("Retained for FlutterActivity compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == PLAY_UPDATE_REQUEST) {
+            val pending = pendingPlayUpdate
+            pendingPlayUpdate = null
+            pending?.success(
+                when (resultCode) {
+                    Activity.RESULT_OK -> "installed"
+                    Activity.RESULT_CANCELED -> "canceled"
+                    ActivityResult.RESULT_IN_APP_UPDATE_FAILED -> "failed"
+                    else -> "failed"
+                }
+            )
+            return
+        }
         if (requestCode != CAPTURE_PERMISSION_REQUEST) return
 
         val pending = pendingPermissionResult
@@ -74,6 +96,12 @@ class MainActivity : FlutterActivity() {
             null,
         )
         pendingPermissionResult = null
+        pendingPlayUpdate?.error(
+            "activity_destroyed",
+            "The Play update flow was interrupted.",
+            null,
+        )
+        pendingPlayUpdate = null
         super.onDestroy()
     }
 
@@ -182,6 +210,11 @@ class MainActivity : FlutterActivity() {
                 result.success(drained)
             }
             "installerPackage" -> result.success(installerPackage())
+            "playUpdateInfo" -> playUpdateInfo(result)
+            "startPlayUpdate" -> startPlayUpdate(
+                call.argument<String>("type") ?: "immediate",
+                result,
+            )
             "versionInfo" -> result.success(versionInfo())
             "installApk" -> {
                 val apkPath = call.argument<String>("path")
@@ -215,6 +248,88 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {
             false
         }
+    }
+
+    /// Asks Play whether a newer build exists for this install.
+    ///
+    /// An empty result (null) means Play could not be asked - a sideloaded build
+    /// has no store to talk to - and must never be read as "up to date".
+    private fun playUpdateInfo(result: MethodChannel.Result) {
+        val manager = playUpdateManager()
+        if (manager == null) {
+            result.success(null)
+            return
+        }
+        manager.appUpdateInfo
+            .addOnSuccessListener { info ->
+                result.success(
+                    mapOf(
+                        "availableVersionCode" to info.availableVersionCode(),
+                        "updateAvailability" to info.updateAvailability(),
+                        "immediateAllowed" to
+                            info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE),
+                        "flexibleAllowed" to
+                            info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE),
+                        "installStatus" to info.installStatus(),
+                        "packageName" to info.packageName(),
+                    )
+                )
+            }
+            .addOnFailureListener { result.success(null) }
+    }
+
+    /// Opens Play's own update UI. IMMEDIATE is the full-screen flow the owner
+    /// asked for: it cannot be dismissed and only ends by installing. Play does
+    /// the download, the signature check and the install, so this app never
+    /// handles the package itself - which is also why it is the only legal route
+    /// for a store-installed build.
+    private fun startPlayUpdate(type: String, result: MethodChannel.Result) {
+        val manager = playUpdateManager()
+        if (manager == null) {
+            result.success("unavailable")
+            return
+        }
+        if (pendingPlayUpdate != null) {
+            result.error(
+                "update_flow_active",
+                "An update flow is already open.",
+                null,
+            )
+            return
+        }
+        val updateType =
+            if (type == "flexible") AppUpdateType.FLEXIBLE else AppUpdateType.IMMEDIATE
+        manager.appUpdateInfo
+            .addOnSuccessListener { info ->
+                val offerable =
+                    info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
+                        info.isUpdateTypeAllowed(updateType)
+                if (!offerable) {
+                    result.success("unavailable")
+                    return@addOnSuccessListener
+                }
+                pendingPlayUpdate = result
+                try {
+                    manager.startUpdateFlowForResult(
+                        info,
+                        updateType,
+                        this,
+                        PLAY_UPDATE_REQUEST,
+                    )
+                } catch (e: Exception) {
+                    pendingPlayUpdate = null
+                    result.error("update_flow_failed", e.message, null)
+                }
+            }
+            .addOnFailureListener { result.success("unavailable") }
+    }
+
+    /// Play Core needs Play services and a store install; on a sideloaded build
+    /// every call must degrade to a no-op rather than crash.
+    private fun playUpdateManager(): AppUpdateManager? = try {
+        AppUpdateManagerFactory.create(this)
+    } catch (_: Exception) {
+        null
     }
 
     /// Who installed this build. "com.android.vending" means the Play Store

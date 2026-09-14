@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'dart:async';
 
 /// Native helpers for the Permission Doctor and keep-alive notification snaps.
 class DeviceIntentService {
@@ -66,7 +67,38 @@ class DeviceIntentService {
     }
   }
 
-  /// Installed app version, read natively (no extra plugin needed).
+  /// What Google Play says about a newer build for this install.
+  ///
+  /// Null means Play could not be asked (a sideloaded build has no Play), never
+  /// a guess: the caller must treat null as "unknown", not "up to date".
+  static Future<Map<String, Object?>?> playUpdateInfo() async {
+    try {
+      return await _channel.invokeMapMethod<String, Object?>('playUpdateInfo');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  /// Starts Play's own in-app update flow (immediate = full-screen, blocking).
+  /// Returns "installed", "canceled", "failed" or "unavailable".
+  static Future<String> startPlayUpdate() async {
+    try {
+      return await _channel
+              .invokeMethod<String>('startPlayUpdate', {'type': 'immediate'})
+              .timeout(const Duration(minutes: 10)) ??
+          'failed';
+    } on TimeoutException {
+      return 'failed';
+    } on PlatformException {
+      return 'failed';
+    } on MissingPluginException {
+      return 'unavailable';
+    }
+  }
+
+
   static Future<({String name, int code})> appVersion() async {
     try {
       final v = await _channel.invokeMapMethod<String, Object?>('versionInfo');

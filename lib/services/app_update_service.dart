@@ -1,12 +1,18 @@
 ﻿import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
 import 'device_intent_service.dart';
 
-/// What the hub reports about the newest published Android build.
+/// What is known about a newer build, whichever channel owns this install.
+///
+/// Two channels exist and they must never be mixed: a Play-installed app is
+/// updated by Play (policy forbids anything else, and the signing keys differ),
+/// while a sideloaded build is updated over the hub. [playManaged] says which
+/// one applies, and the UI routes on it.
 class AppUpdateInfo {
   final String versionName;
   final int versionCode;
@@ -15,6 +21,9 @@ class AppUpdateInfo {
   final String url;
   final bool updateAvailable;
 
+  /// True when Google Play owns this install, so Play performs the update.
+  final bool playManaged;
+
   const AppUpdateInfo({
     required this.versionName,
     required this.versionCode,
@@ -22,20 +31,23 @@ class AppUpdateInfo {
     required this.sizeBytes,
     required this.url,
     required this.updateAvailable,
+    this.playManaged = false,
   });
 }
 
 /// In-app update channel (OTA).
 ///
-/// The hub publishes the APK it just built, plus its SHA-256, on
-/// `GET /api/app/latest`; this service asks whether that build is newer than the
-/// one installed, downloads it into the app cache, sanity-checks the byte count
-/// and hands the file to the system package installer.
+/// Sideloaded installs: the hub publishes the APK it just built, plus its
+/// SHA-256, on `GET /api/app/latest`; this service asks whether that build is
+/// newer than the one installed, downloads it into the app cache, checks the
+/// byte count and hands the file to the system package installer.
 ///
-/// Android will always show its own confirmation sheet: a sideloaded app cannot
-/// replace itself silently unless it is the device owner. So "automatic update"
-/// here means the phone learns about the release, fetches it and pre-verifies it
-/// - the final tap belongs to the device owner.
+/// Play installs: none of the above is legal or possible, so the question is
+/// put to Play instead (`playUpdateInfo`) and the update itself is run by Play's
+/// own full-screen flow (`startPlayUpdate`).
+///
+/// Either way the final confirmation belongs to the device owner: an app cannot
+/// replace itself silently unless it is the device owner.
 class AppUpdateService {
   AppUpdateService._();
   static final AppUpdateService instance = AppUpdateService._();
@@ -44,6 +56,11 @@ class AppUpdateService {
 
   bool? _playOwned;
 
+  /// The install source cannot change while the app is running, so the answer is
+  /// cached. Test seam, because the cache would otherwise leak between tests.
+  @visibleForTesting
+  void debugResetPlayOwned() => _playOwned = null;
+
   /// True when Google Play installed this build, so Play owns its updates.
   Future<bool> isPlayOwned() async {
     _playOwned ??= (await DeviceIntentService.installerPackage()) ==
@@ -51,16 +68,15 @@ class AppUpdateService {
     return _playOwned!;
   }
 
-  /// Asks the hub what the latest build is, comparing against the installed
-  /// versionCode read from the package manager. Returns null when the hub is
-  /// unreachable, unpaired, or has no APK built yet.
+  /// Asks the owning channel what the latest build is, comparing against the
+  /// installed versionCode. Returns null when nothing newer is known, or when
+  /// the relevant service cannot be reached.
   Future<AppUpdateInfo?> check({
     required String hubUrl,
     required String token,
   }) async {
+    if (await isPlayOwned()) return _checkPlay();
     final base = hubUrl.trim().replaceAll(RegExp(r'/+$'), '');
-    // Play-owned installs must update through Play, not through us.
-    if (await isPlayOwned()) return null;
     if (base.isEmpty) return null;
     final version = await DeviceIntentService.appVersion();
     try {
@@ -84,6 +100,34 @@ class AppUpdateService {
       return null;
     }
   }
+
+  /// The Play half: Play reports only a versionCode, and answers from the store
+  /// even when the desktop hub is unreachable.
+  Future<AppUpdateInfo?> _checkPlay() async {
+    final raw = await DeviceIntentService.playUpdateInfo();
+    if (raw == null) return null;
+    // 2 == UpdateAvailability.UPDATE_AVAILABLE
+    if (raw['updateAvailability'] != 2) return null;
+    final code = (raw['availableVersionCode'] as num?)?.toInt() ?? 0;
+    final info = AppUpdateInfo(
+      versionName: '$code',
+      versionCode: code,
+      sha256: '',
+      sizeBytes: 0,
+      url: '',
+      updateAvailable: true,
+      playManaged: true,
+    );
+    lastSeen = info;
+    return info;
+  }
+
+  /// Starts Play's own update flow. Immediate is the full-screen one the owner
+  /// cannot dismiss and which only ends by installing; Play runs the download,
+  /// the signature check and the install, so nothing here touches the APK.
+  ///
+  /// Returns "installed", "canceled", "failed" or "unavailable".
+  Future<String> startPlayUpdate() => DeviceIntentService.startPlayUpdate();
 
   /// Downloads the published APK and opens the installer. Returns a short
   /// human-readable line for the UI / activity feed either way.
