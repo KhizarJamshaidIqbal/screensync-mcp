@@ -34,8 +34,6 @@
     "tabGroups",
     "cookies",
     "offscreen",
-    "declarativeNetRequest",
-    "unlimitedStorage",
     "history",
     "bookmarks",
     "webNavigation",
