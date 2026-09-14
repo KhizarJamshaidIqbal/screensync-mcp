@@ -57,6 +57,15 @@ class DeviceIntentService {
         _channel.invokeMethod<bool>('openDeveloperSettings'),
       );
 
+  /// Who installed this build ("com.android.vending" = Google Play).
+  static Future<String> installerPackage() async {
+    try {
+      return await _channel.invokeMethod<String>('installerPackage') ?? '';
+    } on PlatformException {
+      return '';
+    }
+  }
+
   /// Installed app version, read natively (no extra plugin needed).
   static Future<({String name, int code})> appVersion() async {
     try {

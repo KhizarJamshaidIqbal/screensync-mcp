@@ -181,6 +181,7 @@ class MainActivity : FlutterActivity() {
                 pendingSnaps.clear()
                 result.success(drained)
             }
+            "installerPackage" -> result.success(installerPackage())
             "versionInfo" -> result.success(versionInfo())
             "installApk" -> {
                 val apkPath = call.argument<String>("path")
@@ -213,6 +214,22 @@ class MainActivity : FlutterActivity() {
             true
         } catch (_: Exception) {
             false
+        }
+    }
+
+    /// Who installed this build. "com.android.vending" means the Play Store
+    /// owns updates for it: a self-downloaded APK can never replace a Play build
+    /// (different signing key) and Play policy forbids the attempt.
+    private fun installerPackage(): String {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                packageManager.getInstallSourceInfo(packageName).installingPackageName ?: ""
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getInstallerPackageName(packageName) ?: ""
+            }
+        } catch (_: Exception) {
+            ""
         }
     }
 

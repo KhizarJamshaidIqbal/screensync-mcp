@@ -11,6 +11,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/privacy_policy_screen.dart';
 import 'services/capture_trigger_bridge.dart';
 import 'services/device_intent_service.dart';
+import 'widgets/update_gate.dart';
 import 'services/settings_service.dart';
 
 @pragma('vm:entry-point')
@@ -89,7 +90,10 @@ class _ScreenSyncAppState extends State<ScreenSyncApp> {
               textScaler: mq.textScaler
                   .clamp(minScaleFactor: 0.8, maxScaleFactor: 1.3),
             );
-            return MediaQuery(data: clamped, child: child!);
+            return MediaQuery(
+              data: clamped,
+              child: AppUpdateGate(child: child!),
+            );
           },
           // First-run flow: splash → Privacy Policy → Onboarding → Home.
           home: !settings.privacyAccepted

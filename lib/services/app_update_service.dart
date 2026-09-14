@@ -42,6 +42,15 @@ class AppUpdateService {
 
   AppUpdateInfo? lastSeen;
 
+  bool? _playOwned;
+
+  /// True when Google Play installed this build, so Play owns its updates.
+  Future<bool> isPlayOwned() async {
+    _playOwned ??= (await DeviceIntentService.installerPackage()) ==
+        'com.android.vending';
+    return _playOwned!;
+  }
+
   /// Asks the hub what the latest build is, comparing against the installed
   /// versionCode read from the package manager. Returns null when the hub is
   /// unreachable, unpaired, or has no APK built yet.
@@ -50,6 +59,8 @@ class AppUpdateService {
     required String token,
   }) async {
     final base = hubUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    // Play-owned installs must update through Play, not through us.
+    if (await isPlayOwned()) return null;
     if (base.isEmpty) return null;
     final version = await DeviceIntentService.appVersion();
     try {
