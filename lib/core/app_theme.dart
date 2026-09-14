@@ -26,6 +26,15 @@ class AppTheme {
   AppTheme._();
 
   static const radiusL = 24.0;
+
+  // Motion tokens. One place for durations and curves so every animation in the app reads
+  // as the same product instead of each screen picking its own numbers. Added alongside the
+  // scanner rework; deliberately plain constants so they can be used in const trees.
+  static const Duration motionFast = Duration(milliseconds: 160);
+  static const Duration motionBase = Duration(milliseconds: 280);
+  static const Duration motionSlow = Duration(milliseconds: 480);
+  static const Curve motionStandard = Curves.easeOutCubic;
+  static const Curve motionEmphasis = Curves.easeInOutCubic;
   static const radiusM = 16.0;
   static const radiusS = 10.0;
 

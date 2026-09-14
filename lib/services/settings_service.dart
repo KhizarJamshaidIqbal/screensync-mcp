@@ -35,6 +35,8 @@ class SettingsService extends ChangeNotifier {
   static const _kCustomPresets = 'custom_presets';
   static const _kActivePreset = 'active_preset_id';
   static const _kRegionFavorites = 'region_favorites';
+  static const _kRecentHubs = 'recent_hubs';
+  static const _kRecentHubsMax = 5;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -57,6 +59,32 @@ class SettingsService extends ChangeNotifier {
       _prefs.getString(_kToken) ?? 'screensync-local-dev';
   set pairingToken(String token) {
     _prefs.setString(_kToken, token.trim());
+    notifyListeners();
+  }
+
+  /// Recently paired hubs, newest first, stored as "url\ntoken".
+  ///
+  /// Kept so the scanner can offer a one-tap reconnect instead of making the user find the
+  /// QR again. Capped at [_kRecentHubsMax] and de-duplicated by URL.
+  List<({String url, String token})> get recentHubs {
+    final stored = _prefs.getStringList(_kRecentHubs) ?? const <String>[];
+    final out = <({String url, String token})>[];
+    for (final entry in stored) {
+      final split = entry.indexOf('\n');
+      if (split <= 0) continue;
+      out.add((url: entry.substring(0, split), token: entry.substring(split + 1)));
+    }
+    return out;
+  }
+
+  Future<void> rememberHub(String url, String token) async {
+    final trimmedUrl = url.trim();
+    if (trimmedUrl.isEmpty) return;
+    final entry = '$trimmedUrl\n${token.trim()}';
+    final kept = (_prefs.getStringList(_kRecentHubs) ?? const <String>[])
+        .where((e) => !e.startsWith('$trimmedUrl\n'));
+    final next = <String>[entry, ...kept].take(_kRecentHubsMax).toList(growable: false);
+    await _prefs.setStringList(_kRecentHubs, next);
     notifyListeners();
   }
 
