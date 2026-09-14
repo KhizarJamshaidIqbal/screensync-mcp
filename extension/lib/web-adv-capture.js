@@ -1,5 +1,4 @@
-// ScreenSync CDP capture executors — screenshots, PDF, a11y tree, stealth
-// cloak, hook-based HAR export, coverage, screencast.
+// ScreenSync CDP capture executors — screenshots, PDF, a11y tree, hook-based HAR export, coverage, screencast.
 import { rawAttach, rawDetach, attachCdp, detachCdp, main, activeScreencasts, activeCoverage } from './web-adv-core.js';
 import { ensureHooks, ssReadBuffer } from './web-adv-units.js';
 import { ssWebUnitExtract } from './web-unit.js';

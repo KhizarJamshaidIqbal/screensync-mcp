@@ -59,7 +59,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
   };
   const RECORD_SKIP = new Set([
     "web_record", "web_replay", "web_status", "web_events", "web_extension_diagnostics",
-    "web_fanout", "web_tab_fanout", "web_route_for",
+    "web_fanout", "web_tab_fanout",
   ]);
 
   // Multi-browser registry: every extension install (Chrome, Edge, Brave, ...)
@@ -433,34 +433,6 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
 
-      if (tool === "web_route_for") {
-        const domain = String(args.domain || String(args.url || "")).replace(/^https?:\/\//, "").split("/")[0].trim();
-        if (!domain) {
-          res.status(400).json({ success: false, ok: false, error: "web_route_for requires domain or url." });
-          return;
-        }
-        const targets = resolveTargets();
-        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 30_000, 5_000), 60_000);
-        const probes: Array<Record<string, unknown>> = [];
-        for (const target of targets) {
-          const r = await callOn(target, "web_profile_sync", { domain }, timeoutMs);
-          const d = r.data as { customDomain?: { cookieCount?: number; cookies?: Array<{ name?: string }> } } | undefined;
-          const cd = d?.customDomain;
-          const authish = (cd?.cookies || []).some((c) => /sess|auth|token|sid|login|jwt/i.test(String(c.name || "")));
-          probes.push({
-            browser: target.name, browserId: target.id,
-            reachable: r.ok, cookieCount: cd?.cookieCount ?? 0,
-            authLikeCookies: authish,
-            recommended: r.ok && (cd?.cookieCount ?? 0) > 0 && authish,
-          });
-        }
-        const best = probes.filter((p) => p.recommended) ?? [];
-        const recommended = best.length
-          ? (best.sort((a, b) => Number(b.cookieCount) - Number(a.cookieCount))[0])
-          : (probes.find((p) => Number(p.cookieCount) > 0) ?? probes[0] ?? null);
-        res.json({ success: true, ok: true, data: { domain, recommended: recommended ? { browser: recommended.browser, browserId: recommended.browserId, cookieCount: recommended.cookieCount, authLikeCookies: recommended.authLikeCookies } : null, browsers: probes } });
-        return;
-      }
 
       if (tool === "web_flow_save") {
         const name = String(args.name || "").trim();
@@ -701,59 +673,6 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         res.json({
           success: true, ok: true,
           data: { compared: true, name, passed, threshold, ...diffSummary, heatmap: heat, updatedBaseline },
-        });
-        return;
-      }
-      if (tool === "web_account_report") {
-        const targets = onlineEntries().map((e) => {
-          const id = [...browsers.entries()].find(([, v]) => v === e)?.[0] ?? "default";
-          return { id, name: e.name };
-        });
-        if (!targets.length) {
-          res.json({ success: true, ok: false, data: { error: "No browser extension connected to inspect accounts." } });
-          return;
-        }
-        const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
-        const defaultDomains = ["github.com", "google.com", "x.com", "linkedin.com", "reddit.com"];
-        const domainsToProbe = Array.isArray(args.domains) ? (args.domains as string[]) : defaultDomains;
-        const accounts: Array<Record<string, unknown>> = [];
-        const errors: Array<{ browser: string; domain: string; error: string }> = [];
-
-        for (const target of targets) {
-          for (const domain of domainsToProbe) {
-            const r = await callOn(target, "web_profile_sync", { domain }, timeoutMs);
-            if (!r.ok) {
-              errors.push({ browser: target.name, domain, error: r.error || "Profile sync probe failed" });
-              continue;
-            }
-            const d = r.data as { customDomain?: { cookieCount?: number; cookies?: Array<{ name?: string }> } } | undefined;
-            const cd = d?.customDomain;
-            const cookieCount = cd?.cookieCount ?? 0;
-            const authish = (cd?.cookies || []).some((c) => /sess|auth|token|sid|login|jwt|user/i.test(String(c.name || "")));
-            accounts.push({
-              browser: target.name,
-              browserId: target.id,
-              domain,
-              platform: domain.replace(/\.[a-z]+$/, ""),
-              authenticated: cookieCount > 0 && authish,
-              cookieCount,
-            });
-          }
-        }
-
-        const live = accounts.filter((a) => a.authenticated === true);
-        const ok = errors.length < domainsToProbe.length * targets.length;
-        res.json({
-          success: true,
-          ok,
-          data: {
-            browsersProbed: targets.length,
-            domainsProbed: domainsToProbe,
-            liveAccounts: live.length,
-            accounts,
-            summary: live.map((a) => `${String(a.platform)} (${String(a.domain)}) @ ${String(a.browser)}`),
-            errors: errors.length > 0 ? errors : undefined,
-          },
         });
         return;
       }

@@ -91,7 +91,7 @@ export function agentCoreWebToolDefinitions(): WebToolDef[] {
     {
       name: "web_fill",
       description:
-        "Playwright fill(): instantly sets an input/textarea/contenteditable value with proper input+change events (no keystroke emulation). Faster and more reliable than web_type for long text; use web_human_type instead when anti-bot cadence matters.",
+        "Playwright fill(): instantly sets an input/textarea/contenteditable value with proper input+change events (no keystroke emulation). Faster and more reliable than web_type for long text.",
       inputSchema: {
         type: "object",
         properties: {

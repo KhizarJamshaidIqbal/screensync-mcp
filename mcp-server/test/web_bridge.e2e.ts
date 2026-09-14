@@ -62,10 +62,6 @@ function cannedResult(tool: string, args: Record<string, unknown> = {}): { ok: b
       return { ok: true, data: { frameId: 55, inner: "clicked-in-frame" } };
     case "web_network_auth":
       return { ok: true, data: { authHandling: true } };
-    case "web_profile_sync": {
-      const isAuthed = String(args.domain || "").includes("x.com") || String(args.domain || "").includes("example.test");
-      return { ok: true, data: { customDomain: { domain: String(args.domain || "example.test"), cookieCount: isAuthed ? 4 : 0, cookies: isAuthed ? [{ name: "sessionid" }] : [] } } };
-    }
     case "web_tabs":
       return { ok: true, data: { tabs: [{ tabId: 1, url: "https://a.test/page", title: "A", active: true }, { tabId: 2, url: "https://b.test/page", title: "B", active: false }] } };
     case "web_api_fetch":
@@ -196,12 +192,12 @@ try {
     "web_device_emulate", "web_resize", "web_set_user_agent",
     "web_har_record", "web_video_record", "web_clock_set", "web_clock_clear",
     "web_events", "web_trace_record",
-    "web_fanout", "web_route_for", "web_in_frame",
+    "web_fanout", "web_in_frame",
     "web_network_auth",
     "web_clock_fast_forward", "web_wait_download", "web_tab_fanout",
     "web_record", "web_replay",
     "web_api_fetch", "web_history", "web_bookmarks",
-    "web_flow_save", "web_flow_list", "web_flow_run", "web_flow_delete", "web_account_report",
+    "web_flow_save", "web_flow_list", "web_flow_run", "web_flow_delete",
     "web_flow_schedule", "web_flow_schedules", "web_flow_unschedule",
     "web_emulate_media", "web_mhtml", "web_cache_control", "web_visual_baseline",
     "web_content", "web_bounding_box", "web_computed_style", "web_add_script_tag",
@@ -319,15 +315,6 @@ try {
   assert.equal(fanoutEdgeData.matched, 1, "subset fanout must match only edge");
   assert.equal(fanoutEdgeData.results[0].browser, "edge");
 
-  // web_route_for: both browsers probe the domain → recommendation returned.
-  const routeFor = await client.callTool({ name: "web_route_for", arguments: { domain: "example.test" } }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!routeFor.isError, "web_route_for must succeed");
-  const routeData = JSON.parse(routeFor.content[0].text) as { domain: string; recommended: { browser: string; cookieCount: number }; browsers: unknown[] };
-  assert.equal(routeData.domain, "example.test");
-  assert.equal(routeData.browsers.length, 2, "route_for must probe both browsers");
-  assert.ok(routeData.recommended && routeData.recommended.cookieCount === 4, "route_for must recommend a browser with auth cookies");
 
   // web_in_frame + web_network_auth round trips (extension canned results).
   const inFrame = await client.callTool({ name: "web_in_frame", arguments: { tool: "web_click", args: { selector: "#go" }, frameId: 55 } }) as {
@@ -417,13 +404,6 @@ try {
   assert.equal(apiData.status, 200);
   assert.equal(apiData.cookiesAttached, true);
   assert.equal(apiData.json.sessionId, "live-session");
-  const report = await client.callTool({ name: "web_account_report", arguments: {} }) as {
-    isError?: boolean; content: Array<{ text: string }>;
-  };
-  assert.ok(!report.isError, "web_account_report must succeed");
-  const reportData = JSON.parse(report.content[0].text) as { browsersProbed: number; liveAccounts: number; accounts: unknown[] };
-  assert.equal(reportData.browsersProbed, 2, "account_report must probe both browsers");
-  assert.equal(reportData.liveAccounts, 2, "both simulated browsers report a live x account");
   const hist = await client.callTool({ name: "web_history", arguments: {} }) as {
     isError?: boolean; content: Array<{ text: string }>;
   };
@@ -505,7 +485,7 @@ try {
   assert.equal(chainData.results[1].data?.result, "echo:chain-proof-42", "{{step.1.data.result}} must resolve to step1's output");
   await client.callTool({ name: "web_flow_delete", arguments: { name: "e2e-chain" } });
 
-  // 7k. Round-10: Playwright parity + Authenticated Harvester + Session Vault ──
+  // 7k. Round-10: Playwright parity.
   const contentRes = await client.callTool({ name: "web_content", arguments: { clean: true } }) as {
     isError?: boolean; content: Array<{ text: string }>;
   };

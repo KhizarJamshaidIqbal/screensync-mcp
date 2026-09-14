@@ -31,7 +31,7 @@ pairing link + QR that the extension and the Android app both accept.
 - **Click-to-tap** — click the live frame to tap the phone; plus type / key / scroll / swipe / launch controls via the hub's ADB plane.
 - **AI activity feed** — `tool`, `agent_connect`, `inspection`, `patch` events in real time.
 - **Latency telemetry** — health pings (P50 latency) + SSE liveness chip.
-- **MCP catalog browser** — 174 tools / 17 prompts / 3 resources from `/api/mcp/catalog`, with stdio-only tools flagged.
+- **MCP catalog browser** — 169 tools / 17 prompts / 3 resources from `/api/mcp/catalog`, with stdio-only tools flagged.
 - **One-click Connect Kit** — copies the same agent config kit the phone app produces (Claude Code `.mcp.json`, Claude Desktop, HTTP-only).
 - **Onboarding** — probes localhost, accepts pairing links (`screensync://pair…`, JSON, `http://ip:port#token`), and pulls the setup guide from `https://screensyncmcp.epsoldev.com/setup-guide.json` (bundled fallback offline).
 
@@ -74,7 +74,7 @@ Every permission declared in `manifest.json` is mapped to active tool call sites
 | `sidePanel` | Embedded ScreenSync companion dashboard | `background.js:186,210,223`, `pages/dashboard.html` | Opens the extension dashboard in Chrome's side panel for side-by-side agent supervision. |
 | `contextMenus` | Right-click shortcuts to inspect element or launch agent | `background.js:150-163` | Adds context menu entries to hand off specific DOM elements or pages to the agent. |
 | `tabGroups` | Visual tab grouping for agent-controlled tabs (`web_tab_group`) | `lib/tab-resolve.js:131`, `lib/web-tab-groups.js:5` | Groups automated tabs into a distinct color-coded group to isolate them from user tabs. |
-| `cookies` | Supervised cookie inspection and sync (`web_cookies`, `web_profile_sync`) | `lib/web-tools.js:216,314,356,361` | Allows agent session diagnosis under origin consent; sensitive values are automatically redacted. |
+| `cookies` | Supervised cookie inspection and sync (`web_cookies`) | `lib/web-tools.js:216,314,356,361` | Allows agent session diagnosis under origin consent; sensitive values are automatically redacted. |
 | `offscreen` | Tab audio/video capture (`web_video_record`), pixel diffs, clipboard | `background.js:109`, `lib/web-adv-record.js:105`, `lib/web-diff.js:5` | Provides DOM context for MediaRecorder, Canvas pixel diffing, and reliable clipboard I/O. |
 | `history` | Browsing history search (`web_history`) | `lib/web-browser-data.js:12` | Allows read-only search of user navigation history under explicit origin consent. |
 | `bookmarks` | Bookmark hierarchy search (`web_bookmarks`) | `lib/web-browser-data.js:32` | Allows read-only search of user bookmarks under explicit origin consent. |

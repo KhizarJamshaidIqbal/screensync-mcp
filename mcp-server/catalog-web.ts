@@ -38,6 +38,19 @@ export function webToolDefinitions() {
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
     {
+      name: "web_consent",
+      description:
+        "Reports the origin consent record the user has granted (per-origin read/act/cookie flags) plus the extraction budget. Read-only: grants are managed by the user on the dashboard's Web Access tab and cannot be changed through MCP.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list"], default: "list", description: "Only 'list' is supported." },
+          origin: { type: "string", description: "Origin whose grant should be reported." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
       name: "web_screenshot",
       description:
         "Captures the currently active browser tab as an inline image (what the user is actually looking at). Requires the extension connected with Web access enabled.",
@@ -439,24 +452,6 @@ export function webToolDefinitions() {
       },
     },
     {
-      name: "web_human_mouse",
-      description:
-        "Executes a human-like, anti-bot mouse movement and click using cubic Bézier curves, randomized micro-jitter, and natural dwell timing via CDP. Bypasses Cloudflare Turnstile, Datadome, and bot detection heuristics.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          x: { type: "number", description: "Target X coordinate (viewport px)." },
-          y: { type: "number", description: "Target Y coordinate (viewport px)." },
-          selector: { type: "string", description: "CSS selector of element to click with human trajectory." },
-          text: { type: "string", description: "Visible text of element to click with human trajectory." },
-          click: { type: "boolean", default: true, description: "Whether to click upon reaching destination." },
-          steps: { type: "integer", minimum: 5, maximum: 100, default: 25, description: "Interpolation steps along the curve." },
-          dwellMs: { type: "integer", minimum: 10, maximum: 2000, default: 120, description: "Dwell time before clicking in ms." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
       name: "web_frame_tree",
       description:
         "Discovers all frames and nested sandboxed iframes (cross-origin or same-origin) on the active tab using webNavigation. Returns frame IDs, URLs, and parent-child hierarchy.",
@@ -609,23 +604,6 @@ export function webToolDefinitions() {
           state: { type: "string", enum: ["load", "domcontentloaded", "networkidle"], default: "load", description: "Target load state." },
           timeoutMs: { type: "integer", minimum: 500, maximum: 60000, default: 15000, description: "Maximum wait time in ms." },
           idleMs: { type: "integer", minimum: 100, maximum: 5000, default: 500, description: "Idle silence period for networkidle in ms." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_profile_sync",
-      description:
-        "Discovers authenticated user accounts and real logged-in sessions across social and web platforms in the user's live Chrome browser (X/Twitter, LinkedIn, Facebook, Instagram, Reddit, GitHub, or custom domains) without exposing credentials.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          platforms: {
-            type: "array",
-            items: { type: "string" },
-            description: "List of platforms to check (defaults to twitter, github, facebook, linkedin, instagram, reddit).",
-          },
-          domain: { type: "string", description: "Optional custom domain to inspect session cookies for (e.g. 'cutomsofaprices.com')." },
         },
         additionalProperties: false,
       },
@@ -1102,37 +1080,6 @@ export function webToolDefinitions() {
         type: "object",
         properties: {
           action: { type: "string", enum: ["start", "get", "stop"], default: "get", description: "WebSocket tracking action." },
-          tabId: { type: "integer", description: "Optional background tab ID." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_human_type",
-      description: "Bypasses anti-bot typing detection (Akamai, DataDome, Cloudflare, reCAPTCHA v3) using Gaussian-distributed human keystroke intervals, realistic dwell times, and natural hesitation pauses.",
-      inputSchema: {
-        type: "object",
-        required: ["text"],
-        properties: {
-          text: { type: "string", description: "Text to type into focused element." },
-          selector: { type: "string", description: "Optional selector to focus before typing." },
-          wpm: { type: "integer", minimum: 20, maximum: 140, default: 75, description: "Target typing speed in Words Per Minute." },
-          tabId: { type: "integer", description: "Optional background tab ID." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_human_scroll",
-      description: "Smooth inertia trackpad/wheel scrolling using cubic Bézier ease-out deceleration across realistic micro-steps to evade bot detection.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          deltaY: { type: "number", default: 400, description: "Vertical scroll distance in pixels." },
-          deltaX: { type: "number", default: 0, description: "Horizontal scroll distance in pixels." },
-          durationMs: { type: "integer", minimum: 100, maximum: 3000, default: 500, description: "Duration of the inertial scroll." },
-          x: { type: "number", default: 400, description: "Mouse cursor X coordinate." },
-          y: { type: "number", default: 400, description: "Mouse cursor Y coordinate." },
           tabId: { type: "integer", description: "Optional background tab ID." },
         },
         additionalProperties: false,

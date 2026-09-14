@@ -4,7 +4,7 @@
 import { ssReadBuffer, ssEval, ssStorage, ssPerf, ssWaitFor, ssKey, ssHover, ssSelect, ensureHooks, main, isolated } from './web-adv-units.js';
 import { attachCdp, detachCdp } from './web-adv-core.js';
 import { cdpWaitNetworkIdle } from './web-adv-net.js';
-import { cdpInput, cdpUploadFile, cdpKeyCombo, cdpMouse, cdpTouch, cdpHumanMouse, cdpHumanType, cdpHumanScroll, cdpClipboard } from './web-adv-input.js';
+import { cdpInput, cdpUploadFile, cdpKeyCombo, cdpMouse, cdpTouch, cdpClipboard } from './web-adv-input.js';
 import { cdpScreenshot, cdpPdf, cdpElementScreenshot, cdpAXTree, cdpExportHar, cdpCoverage, cdpScreencast, cdpMhtml } from './web-adv-capture.js';
 import { cdpNetworkMock, cdpRoute, cdpDialogRule, cdpWaitForResponse, cdpWaitForRequest, cdpWebSocketTraffic, cdpNetworkAuth, cdpCacheControl, cdpNetworkRules } from './web-adv-net.js';
 import { cdpEmulate, cdpGrantPermissions, cdpSetTimezone, cdpSetGeolocation, cdpThrottleNetwork, cdpSetColorScheme, cdpEmulateMedia } from './web-adv-emulate.js';
@@ -40,8 +40,7 @@ export async function execAdvTool(tool, tab, args) {
     case 'web_mhtml': return cdpMhtml(tab, args);
     case 'web_cdp_eval': return cdpEval(tab, args);
     case 'web_a11y_tree': return cdpAXTree(tab, args);
-    case 'web_export_har': return cdpExportHar(tab, args);
-    case 'web_human_mouse': return cdpHumanMouse(tab, args);
+    case 'web_export_har': return cdpExportHar(tab, args);
     case 'web_network_mock': return cdpNetworkMock(tab, args);
     case 'web_network_auth': return cdpNetworkAuth(tab, args);
     case 'web_cache_control': return cdpCacheControl(tab, args);
@@ -63,9 +62,7 @@ export async function execAdvTool(tool, tab, args) {
     case 'web_clipboard': return cdpClipboard(tab, args);
     case 'web_wait_for_response': return cdpWaitForResponse(tab, args);
     case 'web_wait_for_request': return cdpWaitForRequest(tab, args);
-    case 'web_websocket_traffic': return cdpWebSocketTraffic(tab, args);
-    case 'web_human_type': return cdpHumanType(tab, args);
-    case 'web_human_scroll': return cdpHumanScroll(tab, args);
+    case 'web_websocket_traffic': return cdpWebSocketTraffic(tab, args);
     case 'web_screencast': return cdpScreencast(tab, args);
     case 'web_run_code': return cdpRunCode(tab, args);
     case 'web_har_record': return cdpHarRecord(tab, args);

@@ -249,20 +249,6 @@ export function agentWebToolDefinitions(): WebToolDef[] {
       },
     },
     {
-      name: "web_route_for",
-      description:
-        "Answers 'which connected browser is logged into this domain?': probes each browser's auth cookies for the domain and returns per-browser evidence plus a recommended browser (id) for operating that site. The routing brain for multi-browser operator flows.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          domain: { type: "string", description: "Domain to probe, e.g. 'x.com'." },
-          url: { type: "string", description: "Alternative: a full URL whose domain is probed." },
-          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 30000, description: "Per-browser probe timeout." },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
       name: "web_in_frame",
       description:
         "Playwright frameLocator parity: runs any interact/agent/extract web tool INSIDE a specific iframe of the active tab (web_click, web_fill, web_expect, web_table_extract, ...). Resolve frames with web_frame_tree, then pass frameId or a frameUrl substring plus the inner tool and args.",
@@ -394,18 +380,6 @@ export function agentWebToolDefinitions(): WebToolDef[] {
         type: "object",
         required: ["name"],
         properties: { name: { type: "string" } },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "web_account_report",
-      description:
-        "ONE-call account dashboard: probes every connected browser's social/platform logins (social matrix fanout) and merges into a single map — 'kaunsa account kis browser mein live hai'. The starting point for any multi-browser operator task.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          timeoutMs: { type: "integer", minimum: 5000, maximum: 60000, default: 45000, description: "Per-browser probe timeout." },
-        },
         additionalProperties: false,
       },
     },

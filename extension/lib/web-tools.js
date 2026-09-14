@@ -1,4 +1,4 @@
-// ScreenSync Browser Extension — Web Bridge Dispatcher (Under 500 lines)
+// ScreenSync Browser Extension — Web Bridge Dispatcher
 // Hub SSE requests arrive via handleWebRequest, resolve active tabs safely,
 // check grants & actionability, dispatch to specialized units, and log to the audit ring.
 
@@ -32,8 +32,6 @@ import { execWebTabs, execWebTab, execWebWindow, execTabPool, execSandboxGroup }
 import { validateToolArgs } from './validate.js';
 import {
   getOriginGrant,
-  saveOriginGrant,
-  revokeOriginGrant,
   isLoopbackOrTestOrigin,
   recordExtraction,
   getExtractionBudget,
@@ -261,28 +259,7 @@ export async function executeWebTool(tool, args = {}) {
     case 'web_api_fetch': return apiFetch(args);
     case 'web_history': return historySearch(args);
     case 'web_bookmarks': return bookmarksSearch(args);
-    case 'web_tab_group': return execTabGroup(args);
-    case 'web_profile_sync': {
-      const domain = String(args.domain || '').trim();
-      if (domain && !isLoopbackOrTestOrigin(domain)) {
-        const g = await getOriginGrant(domain);
-        if (!g.read) {
-          return makeError(ERROR_CODES.NO_GRANT, `Profile sync requires read grant for origin ${domain}. Grant read permission in extension dashboard.`);
-        }
-      }
-      const cookies = domain ? await chrome.cookies.getAll({ domain }).catch(() => []) : [];
-      return {
-        ok: true,
-        data: {
-          customDomain: {
-            domain,
-            cookieCount: cookies.length,
-            cookies: cookies.map((c) => ({ name: c.name })),
-          },
-        },
-      };
-    }
-    case 'web_in_frame': {
+    case 'web_tab_group': return execTabGroup(args);    case 'web_in_frame': {
       const tab = await pickActiveTab(args);
       if (isRestrictedTab(tab)) return makeError(ERROR_CODES.RESTRICTED_PAGE, 'Cannot run in-frame tools on restricted tab.');
       return execInFrame(tab, args);
@@ -421,18 +398,22 @@ export async function executeWebTool(tool, args = {}) {
       return makeError(ERROR_CODES.BAD_ARGS, `Unknown web_cookies action: ${action}`);
     }
     case 'web_consent': {
+      // Read-only by design (2026-09-14). The origin grants reported here ARE the user's
+      // consent record, so an agent must not be able to grant or revoke its own access -
+      // that would turn the user's consent UI into a suggestion. Grants are managed on
+      // the dashboard's Web Access tab only.
       const action = String(args.action || 'list');
-      if (action === 'list') return { ok: true, data: { grants: await getOriginGrant(args.origin || 'unknown'), budget: getExtractionBudget() } };
-      if (action === 'grant') {
-        if (!args.origin) return makeError(ERROR_CODES.BAD_ARGS, 'origin is required for grant.');
-        const updated = await saveOriginGrant(args.origin, args);
-        return { ok: true, data: { origin: args.origin, grant: updated } };
+      if (action !== 'list') {
+        return makeError(ERROR_CODES.BAD_ARGS, `web_consent is read-only; unsupported action: '${action}'. Manage grants in the extension dashboard.`);
       }
-      if (action === 'revoke') {
-        if (!args.origin) return makeError(ERROR_CODES.BAD_ARGS, 'origin is required for revoke.');
-        return { ok: true, data: await revokeOriginGrant(args.origin) };
-      }
-      return makeError(ERROR_CODES.BAD_ARGS, `Unknown web_consent action: ${action}`);
+      return {
+        ok: true,
+        data: {
+          grants: await getOriginGrant(args.origin || 'unknown'),
+          budget: getExtractionBudget(),
+          readOnly: true,
+        },
+      };
     }
     case 'web_popup_wait': {
       const tab = await pickActiveTab(args);

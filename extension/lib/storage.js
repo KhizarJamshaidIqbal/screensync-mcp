@@ -25,7 +25,6 @@ const LOCAL_KEYS = new Set([
   'webAccessEnabled',
   'grants',
   'ss_audit_log',
-  'vaultSessions',
   'setupGuideCache',
   'setupGuideFetchedAt',
 ]);
