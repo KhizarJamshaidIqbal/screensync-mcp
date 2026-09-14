@@ -1,6 +1,6 @@
 // ScreenSync CDP input executors — trusted input, file upload, keyboard and
 // mouse combos, touch, human emulation (Bézier/Gaussian), clipboard.
-import { rawAttach, rawDetach, attachCdp, detachCdp } from './web-adv-core.js';
+import { rawAttach, rawDetach, attachCdp, detachCdp, activeFileChoosers } from './web-adv-core.js';
 import { ssWebUnitInteract } from './web-unit.js';
 export async function cdpInput(tab, action, params = {}) {
   const target = { tabId: tab.id };
@@ -166,6 +166,19 @@ export async function cdpUploadFile(tab, args = {}) {
     else return { ok: false, error: `CDP attach failed: ${String((e && e.message) || e)}` };
   }
   try {
+    const files = Array.isArray(args.files) ? args.files : [String(args.filePath || args.file || '')];
+    const pendingChooser = activeFileChoosers.get(tab.id);
+    if (pendingChooser && pendingChooser.backendNodeId && (!args.selector || args.selector === 'input[type="file"]')) {
+      activeFileChoosers.delete(tab.id);
+      try {
+        await chrome.debugger.sendCommand(target, 'DOM.setFileInputFiles', {
+          backendNodeId: pendingChooser.backendNodeId,
+          files,
+        });
+        return { ok: true, data: { uploadedFiles: files, via: 'intercepted_file_chooser', backendNodeId: pendingChooser.backendNodeId } };
+      } catch {}
+    }
+
     await chrome.debugger.sendCommand(target, 'DOM.enable', {});
     const doc = await chrome.debugger.sendCommand(target, 'DOM.getDocument', {});
     const selector = String(args.selector || 'input[type="file"]');
@@ -176,7 +189,6 @@ export async function cdpUploadFile(tab, args = {}) {
     if (!nodeRes || !nodeRes.nodeId) {
       return { ok: false, error: `File input element matching selector "${selector}" not found in DOM.` };
     }
-    const files = Array.isArray(args.files) ? args.files : [String(args.filePath || args.file || '')];
     await chrome.debugger.sendCommand(target, 'DOM.setFileInputFiles', {
       nodeId: nodeRes.nodeId,
       files,

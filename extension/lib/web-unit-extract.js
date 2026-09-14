@@ -391,6 +391,10 @@ export async function ssWebUnitExtract(args) {
       const badge = document.createElement('div');
       badge.setAttribute('data-ss-som-badge', 'true');
       badge.textContent = String(idx + 1);
+      try {
+        el.setAttribute('data-ss-som-ref', String(idx + 1));
+        el.setAttribute('data-ss-id', String(idx + 1));
+      } catch {}
       badge.style.cssText = `
         position: fixed; left: ${Math.max(2, Math.round(r.left))}px; top: ${Math.max(2, Math.round(r.top))}px;
         background: ${badgeColor}; color: #FFFFFF; font-family: monospace; font-size: 11px; font-weight: 800;
@@ -400,6 +404,7 @@ export async function ssWebUnitExtract(args) {
       document.body.appendChild(badge);
       elements.push({
         badgeNumber: idx + 1,
+        ref: idx + 1,
         tag: el.tagName.toLowerCase(),
         text: (el.innerText || el.textContent || el.getAttribute('aria-label') || el.title || '').trim().slice(0, 80),
         center: { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) },
@@ -414,52 +419,59 @@ export async function ssWebUnitExtract(args) {
     const expectedText = args.text ? String(args.text).toLowerCase() : null;
     const expectedValue = args.value !== undefined ? String(args.value) : null;
     const expectedCount = typeof args.count === 'number' ? args.count : null;
+    const timeoutMs = Math.min(Number(args.timeoutMs) || 5000, 30000);
+    const pollMs = Math.max(Number(args.pollMs) || 100, 25);
+    const start = Date.now();
     let pass = false;
     let actualValue = null;
 
-    if (condition === 'visible') {
-      const el = sel ? document.querySelector(sel) : null;
-      if (el) {
-        const r = el.getBoundingClientRect();
-        const s = window.getComputedStyle(el);
-        pass = r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
-        actualValue = pass ? 'visible' : 'hidden/zero-dimension';
-      } else { pass = false; actualValue = 'not_in_dom'; }
-    } else if (condition === 'not_visible') {
-      const el = sel ? document.querySelector(sel) : null;
-      if (!el) { pass = true; actualValue = 'not_in_dom'; }
-      else {
-        const r = el.getBoundingClientRect();
-        const s = window.getComputedStyle(el);
-        pass = r.width === 0 || r.height === 0 || s.display === 'none' || s.visibility === 'hidden';
-        actualValue = pass ? 'hidden' : 'visible';
+    while (Date.now() - start <= timeoutMs) {
+      if (condition === 'visible') {
+        const el = sel ? (document.querySelector ? document.querySelector(sel) : null) : null;
+        if (el) {
+          const r = el.getBoundingClientRect();
+          const s = window.getComputedStyle(el);
+          pass = r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+          actualValue = pass ? 'visible' : 'hidden/zero-dimension';
+        } else { pass = false; actualValue = 'not_in_dom'; }
+      } else if (condition === 'not_visible') {
+        const el = sel ? (document.querySelector ? document.querySelector(sel) : null) : null;
+        if (!el) { pass = true; actualValue = 'not_in_dom'; }
+        else {
+          const r = el.getBoundingClientRect();
+          const s = window.getComputedStyle(el);
+          pass = r.width === 0 || r.height === 0 || s.display === 'none' || s.visibility === 'hidden';
+          actualValue = pass ? 'hidden' : 'visible';
+        }
+      } else if (condition === 'has_text') {
+        const el = sel ? (document.querySelector ? document.querySelector(sel) : null) : document.body;
+        const text = ((el && (el.innerText || el.textContent)) || '').toLowerCase();
+        actualValue = text.slice(0, 100);
+        pass = expectedText ? text.includes(expectedText) : false;
+      } else if (condition === 'has_value') {
+        const el = sel ? (document.querySelector ? document.querySelector(sel) : null) : null;
+        actualValue = el ? String(el.value ?? '') : null;
+        pass = actualValue === expectedValue;
+      } else if (condition === 'has_count') {
+        const list = sel ? (document.querySelectorAll ? document.querySelectorAll(sel) : []) : [];
+        actualValue = list.length;
+        pass = actualValue === expectedCount;
+      } else if (condition === 'matches_url') {
+        actualValue = window.location.href;
+        pass = expectedText ? actualValue.toLowerCase().includes(expectedText) : false;
+      } else if (condition === 'matches_title') {
+        actualValue = document.title;
+        pass = expectedText ? actualValue.toLowerCase().includes(expectedText) : false;
+      } else {
+        return { ok: false, error: `Unknown assertion condition: ${condition}` };
       }
-    } else if (condition === 'has_text') {
-      const el = sel ? document.querySelector(sel) : document.body;
-      const text = ((el && (el.innerText || el.textContent)) || '').toLowerCase();
-      actualValue = text.slice(0, 100);
-      pass = expectedText ? text.includes(expectedText) : false;
-    } else if (condition === 'has_value') {
-      const el = sel ? document.querySelector(sel) : null;
-      actualValue = el ? String(el.value ?? '') : null;
-      pass = actualValue === expectedValue;
-    } else if (condition === 'has_count') {
-      const list = sel ? document.querySelectorAll(sel) : [];
-      actualValue = list.length;
-      pass = actualValue === expectedCount;
-    } else if (condition === 'matches_url') {
-      actualValue = window.location.href;
-      pass = expectedText ? actualValue.toLowerCase().includes(expectedText) : false;
-    } else if (condition === 'matches_title') {
-      actualValue = document.title;
-      pass = expectedText ? actualValue.toLowerCase().includes(expectedText) : false;
-    } else {
-      return { ok: false, error: `Unknown assertion condition: ${condition}` };
+      if (pass) break;
+      await new Promise((r) => setTimeout(r, pollMs));
     }
 
     if (pass) {
       if (sel) {
-        const el = document.querySelector(sel);
+        const el = document.querySelector ? document.querySelector(sel) : null;
         if (el) { const r = el.getBoundingClientRect(); showActionRipple(r.x + r.width / 2, r.y + r.height / 2, 'Assertion Passed', '#10B981'); }
       }
       return { ok: true, data: { condition, passed: true, actual: actualValue } };
@@ -471,6 +483,8 @@ export async function ssWebUnitExtract(args) {
     const title = document.title || '';
     const metaDesc = (document.querySelector('meta[name="description"]') || {}).content || '';
     const metaAuthor = (document.querySelector('meta[name="author"]') || {}).content || '';
+    const metaDate = (document.querySelector('meta[property="article:published_time"]') || document.querySelector('meta[name="date"]') || document.querySelector('time[datetime]') || {}).content ||
+      (document.querySelector('time[datetime]') || {}).getAttribute?.('datetime') || null;
     const canonical = (document.querySelector('link[rel="canonical"]') || {}).href || window.location.href;
     const root = document.querySelector('article') || document.querySelector('main') || document.querySelector('[role="main"]') || document.querySelector('.post-content, .article-body, #content, .entry-content') || document.body;
     const clone = root.cloneNode(true);
@@ -508,7 +522,8 @@ export async function ssWebUnitExtract(args) {
     return {
       ok: true,
       data: {
-        title, description: metaDesc, author: metaAuthor, canonical, wordCount,
+        title, description: metaDesc, author: metaAuthor, publishedDate: metaDate,
+        canonical, canonicalUrl: canonical, wordCount,
         readingTimeMinutes: Math.max(1, Math.round(wordCount / 200)),
         markdown: `# ${title}\n\n${metaDesc ? `> ${metaDesc}\n\n` : ''}${markdown}`,
       },

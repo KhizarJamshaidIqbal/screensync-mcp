@@ -215,5 +215,56 @@ export function inspectWebToolDefinitions(): WebToolDef[] {
         additionalProperties: false,
       },
     },
+    {
+      name: "web_popup_wait",
+      description:
+        "Playwright expect_popup / page.waitForEvent('popup') parity: waits for a popup tab to be opened (via window.open() or target=\"_blank\") by the current tab or any tab.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          openerTabId: { type: "integer", description: "Tab ID that triggered the popup (defaults to active tab)." },
+          timeoutMs: { type: "integer", minimum: 500, maximum: 30000, default: 5000, description: "Max wait timeout in ms." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_takeover",
+      description:
+        "AI-browser takeover / hand-off engine: pauses the agent and requests user intervention for human authentication, 2FA, or CAPTCHA challenges. Resumes cleanly when the user confirms.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          reason: { type: "string", enum: ["login", "2fa", "captcha", "payment", "custom"], default: "login", description: "Reason for requesting user takeover." },
+          message: { type: "string", description: "Instructions or explanation shown to the user on the dashboard/popup." },
+          timeoutMs: { type: "integer", minimum: 5000, maximum: 600000, default: 300000, description: "Timeout in ms (up to 10 min)." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_site_memory",
+      description:
+        "Site memory and learned selectors: manages persistent origin-scoped resilient selectors with success telemetry and auto-healing fallbacks across website redesigns.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["get", "record", "heal", "clear"], default: "get", description: "Memory action." },
+          origin: { type: "string", description: "Target website origin or domain." },
+          alias: { type: "string", description: "Logical name of the element (e.g. 'search_input', 'submit_btn')." },
+          selector: { type: "string", description: "Resilient Playwright selector to remember or record." },
+          fallbackSelector: { type: "string", description: "Alternative fallback selector when healing." },
+          role: { type: "string", description: "ARIA role for semantic fallback." },
+          name: { type: "string", description: "Accessible name for semantic fallback." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
   ];
 }

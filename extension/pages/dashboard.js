@@ -5,6 +5,8 @@ import { mountControlPad } from '../components/control-pad.js';
 import { mountCatalog } from '../components/catalog-browser.js';
 import { mountWebAccess } from '../components/web-access.js';
 import { renderViewers } from '../components/inspection-viewer.js';
+import { mountAgentConsole } from '../components/agent-console.js';
+import { mountDiagnosticsView } from '../components/diagnostics-view.js';
 
 const send = (msg) => chrome.runtime.sendMessage(msg);
 
@@ -66,16 +68,16 @@ for (const btn of tabBtns) {
 
 // Restore tab from hash
 const initialTab = location.hash.replace('#', '') || 'live';
-if (['live', 'activity', 'tools', 'web', 'settings'].includes(initialTab)) {
+const ALL_TABS = ['live', 'activity', 'tools', 'web', 'agent', 'diagnostics', 'settings'];
+if (ALL_TABS.includes(initialTab)) {
   switchTab(initialTab);
 }
 
-// Keyboard: 1-5 switch tabs
+// Keyboard: 1-7 switch tabs
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-  const tabs = ['live', 'activity', 'tools', 'web', 'settings'];
   const d = parseInt(e.key);
-  if (d >= 1 && d <= 5) switchTab(tabs[d - 1]);
+  if (d >= 1 && d <= ALL_TABS.length) switchTab(ALL_TABS[d - 1]);
 });
 
 // ── Mount components ──
@@ -86,6 +88,8 @@ mountControlPad(document.getElementById('control'), send, toast);
 mountCatalog(document.getElementById('catalog'), send);
 mountWebAccess(document.getElementById('web-access'), send);
 renderViewers(document.getElementById('viewers-top'), send);
+mountAgentConsole(document.getElementById('agent-console'), send, toast);
+mountDiagnosticsView(document.getElementById('diagnostics-panel'), send, toast);
 
 // ── Header buttons ──
 const reloadBtn = document.getElementById('btn-reload');

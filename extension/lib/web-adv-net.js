@@ -93,6 +93,50 @@ export async function cdpNetworkMock(tab, args = {}) {
       return { ok: true, data: { networkMockDisabled: true } };
     }
 
+    if (action === 'har_replay' || action === 'route_from_har') {
+      let har = args.har;
+      if (typeof har === 'string') {
+        try { har = JSON.parse(har); } catch (e) { return { ok: false, error: 'Invalid JSON in har: ' + e.message }; }
+      }
+      const entries = (har && har.log && Array.isArray(har.log.entries))
+        ? har.log.entries
+        : (Array.isArray(har && har.entries) ? har.entries : []);
+      if (entries.length === 0) {
+        return { ok: false, error: 'HAR contains no entries (expected log.entries array).' };
+      }
+
+      let routes = activeRoutes.get(tab.id);
+      if (!routes) {
+        routes = [];
+        activeRoutes.set(tab.id, routes);
+      }
+
+      let replayed = 0;
+      for (const entry of entries) {
+        if (!entry || !entry.request || !entry.request.url || !entry.response) continue;
+        const entryUrl = entry.request.url;
+        const responseBody = (entry.response.content && entry.response.content.text) || '';
+        const responseHeaders = Array.isArray(entry.response.headers)
+          ? entry.response.headers.map((h) => ({ name: h.name, value: String(h.value) }))
+          : [{ name: 'Content-Type', value: entry.response.content?.mimeType || 'application/json' }];
+
+        routes.push({
+          pattern: entryUrl,
+          mode: 'fulfill',
+          response: {
+            status: entry.response.status || 200,
+            headers: responseHeaders,
+            body: responseBody,
+          },
+        });
+        replayed++;
+      }
+
+      const patterns = routes.map((r) => ({ urlPattern: r.pattern, requestStage: 'Request' }));
+      await chrome.debugger.sendCommand(target, 'Fetch.enable', { patterns });
+      return { ok: true, data: { action: 'har_replay', totalEntries: entries.length, replayedRoutes: replayed, activeRoutes: routes.length } };
+    }
+
     const patterns = Array.isArray(args.patterns) ? args.patterns : [{ urlPattern: args.urlPattern || '*' }];
     await chrome.debugger.sendCommand(target, 'Fetch.enable', { patterns });
 

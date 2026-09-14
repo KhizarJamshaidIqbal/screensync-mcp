@@ -428,12 +428,15 @@ export async function ssWebUnitDom(args = {}) {
     const wordCount = words.length;
     const readingTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
     const excerpt = words.slice(0, 50).join(' ') + (words.length > 50 ? '...' : '');
+    const canonical = (document.querySelector('link[rel="canonical"]') || {}).href || window.location.href;
 
     return {
       ok: true,
       data: {
         url: window.location.href,
+        canonicalUrl: canonical,
         title,
+        author: byline,
         byline,
         publishDate,
         leadImage,

@@ -5,6 +5,9 @@ import { handleWebRequest, registerWebBridge } from './lib/web-tools.js';
 import { startAmbientCollector } from './lib/web-ambient.js';
 import { getGrants, saveOriginGrant, revokeOriginGrant, getPendingApprovals, resolveApproval } from './lib/consent.js';
 import { getAuditLog, exportAuditLog } from './lib/audit.js';
+import { getTakeoverStatus, resumeTakeover } from './lib/takeover.js';
+import { listJobs, cancelJob } from './lib/jobs.js';
+import { execExtensionDiagnostics } from './lib/web-diag.js';
 import {
   GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, EVENT_LOG_CAP,
 } from './lib/constants.js';
@@ -438,6 +441,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           await ensureSse();
           await registerWebBridge();
           sendResponse({ ok: true, pong: Date.now() });
+          break;
+        case 'get-takeover':
+          sendResponse({ ok: true, takeover: getTakeoverStatus() });
+          break;
+        case 'resume-takeover':
+          sendResponse(resumeTakeover(msg));
+          break;
+        case 'get-jobs':
+          sendResponse({ ok: true, jobs: listJobs() });
+          break;
+        case 'cancel-job':
+          sendResponse(cancelJob(msg.id));
+          break;
+        case 'get-diagnostics':
+          sendResponse(await execExtensionDiagnostics());
           break;
         default:
           sendResponse({ ok: false, error: `unknown message ${msg.type}` });

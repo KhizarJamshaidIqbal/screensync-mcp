@@ -6,14 +6,6 @@ export async function ssWebUnitInteract(args) {
     if (!window.chrome) window.chrome = { runtime: {} };
   } catch {}
 
-  const SEL = [
-    'a[href]', 'button', 'input', 'textarea', 'select',
-    '[role="button"]', '[role="link"]', '[role="checkbox"]', '[role="tab"]', '[role="textbox"]',
-    '[onclick]', '[contenteditable="true"]', '[contenteditable=""]', '[contenteditable]',
-    '[data-testid*="tweetTextarea"]', '[data-testid*="tweetButton"]', '[aria-label*="Post text"]',
-    '[aria-label*="Tweet"]', '[aria-label*="Post"]', 'summary',
-  ].join(', ');
-
   async function findByWithRetry(a, maxWaitMs = 2500) {
     const start = Date.now();
     while (Date.now() - start < maxWaitMs) {
@@ -91,6 +83,33 @@ export async function ssWebUnitInteract(args) {
   function resolvePlaywrightLocator(sel, root = document) {
     if (!sel || typeof sel !== 'string') return null;
     sel = sel.trim();
+    if (sel.startsWith('@')) {
+      const ref = sel.slice(1).trim();
+      const el = root.querySelector ? root.querySelector(`[data-ss-som-ref="${ref}"], [data-ss-id="${ref}"]`) : null;
+      return el ? { el, via: 'playwright_som_ref' } : null;
+    }
+    if (sel.startsWith('ref=')) {
+      const ref = sel.slice(4).trim();
+      const el = root.querySelector ? root.querySelector(`[data-ss-som-ref="${ref}"], [data-ss-id="${ref}"]`) : null;
+      return el ? { el, via: 'playwright_som_ref' } : null;
+    }
+    if (sel.includes(' >> nth=')) {
+      const parts = sel.split(/\s*>>\s*nth=\s*/);
+      const all = resolveAllPlaywrightLocators(parts[0].trim(), root);
+      const n = parseInt(parts[1].trim(), 10) || 0;
+      const el = all[n < 0 ? all.length + n : n];
+      return el ? { el, via: 'playwright_nth' } : null;
+    }
+    const nthMatch = sel.match(/^(.+?)(?:\.nth\((\d+)\)|:nth\((\d+)\)|:first|\.first|:last|\.last)$/);
+    if (nthMatch) {
+      const base = nthMatch[1].trim();
+      const all = resolveAllPlaywrightLocators(base, root);
+      if (sel.endsWith(':first') || sel.endsWith('.first')) return all[0] ? { el: all[0], via: 'playwright_first' } : null;
+      if (sel.endsWith(':last') || sel.endsWith('.last')) return all[all.length - 1] ? { el: all[all.length - 1], via: 'playwright_last' } : null;
+      const n = parseInt(nthMatch[2] ?? nthMatch[3], 10) || 0;
+      const el = all[n < 0 ? all.length + n : n];
+      return el ? { el, via: 'playwright_nth' } : null;
+    }
     if (sel.includes(' >> ')) {
       const parts = sel.split(/\s*>>\s*/);
       let cur = root;
@@ -199,6 +218,26 @@ export async function ssWebUnitInteract(args) {
     return null;
   }
 
+  function resolveAllPlaywrightLocators(sel, root = document) {
+    if (!sel || typeof sel !== 'string') return [];
+    sel = sel.trim();
+    if (sel.startsWith('css=')) sel = sel.slice(4).trim();
+    if (sel.startsWith('testid=')) {
+      const v = sel.slice(7).replace(/^["']|["']$/g, '');
+      return Array.from(root.querySelectorAll ? root.querySelectorAll(`[data-testid="${v}"], [data-test="${v}"], [data-cy="${v}"]`) : []);
+    }
+    if (sel.startsWith('text=')) {
+      const txt = sel.slice(5).replace(/^["']|["']$/g, '').toLowerCase();
+      return Array.from(root.querySelectorAll ? root.querySelectorAll('*') : []).filter((el) => (el.innerText || el.textContent || '').toLowerCase().trim().includes(txt));
+    }
+    try {
+      const list = Array.from(root.querySelectorAll ? root.querySelectorAll(sel) : []);
+      if (list.length > 0) return list;
+    } catch {}
+    const single = resolvePlaywrightLocator(sel, root);
+    return single && single.el ? [single.el] : [];
+  }
+
   function countMatches(sel, root = document) {
     if (!sel || typeof sel !== 'string') return 0;
     try {
@@ -212,45 +251,27 @@ export async function ssWebUnitInteract(args) {
         }
         return countMatches(parts[parts.length - 1], cur);
       }
-      let raw = sel.trim();
-      if (raw.startsWith('css=')) raw = raw.slice(4).trim();
-      if (raw.startsWith('testid=')) {
-        const v = raw.slice(7).replace(/^["']|["']$/g, '');
-        return (root.querySelectorAll ? root.querySelectorAll(`[data-testid="${v}"], [data-test="${v}"], [data-cy="${v}"]`) : []).length;
-      }
-      if (raw.startsWith('text=')) {
-        const txt = raw.slice(5).replace(/^["']|["']$/g, '').toLowerCase();
-        let c = 0;
-        for (const el of (root.querySelectorAll ? root.querySelectorAll('*') : [])) {
-          if ((el.innerText || '').toLowerCase().trim() === txt) c++;
-        }
-        return c;
-      }
-      if (!raw.includes('>>>') && !raw.startsWith('pierce/') && !raw.startsWith('xpath=') && !raw.startsWith('role=')) {
-        return (root.querySelectorAll ? root.querySelectorAll(raw) : []).length;
-      }
+      return resolveAllPlaywrightLocators(sel, root).length;
     } catch {}
     return 1;
   }
 
-  function checkActionable(el) {
+  async function checkActionable(el) {
     if (!el || !el.isConnected) return { ok: false, reason: 'Element is not attached to DOM' };
-    const r = el.getBoundingClientRect();
-    const s = window.getComputedStyle(el);
-    if (r.width <= 0 || r.height <= 0 || s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') {
-      return { ok: false, reason: 'Element is hidden or has zero dimensions' };
-    }
-    if (el.disabled || el.getAttribute('aria-disabled') === 'true') {
-      return { ok: false, reason: 'Element is disabled' };
-    }
-    const cx = Math.max(0, r.x + r.width / 2);
-    const cy = Math.max(0, r.y + r.height / 2);
+    const r = el.getBoundingClientRect(), s = window.getComputedStyle(el);
+    if (r.width <= 0 || r.height <= 0 || s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') return { ok: false, reason: 'Element is hidden or has zero dimensions' };
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true') return { ok: false, reason: 'Element is disabled' };
+    const cx = Math.max(0, r.x + r.width / 2), cy = Math.max(0, r.y + r.height / 2);
     try {
       const top = document.elementFromPoint(cx, cy);
-      if (top && top !== el && !el.contains(top) && !top.contains(el)) {
-        return { ok: false, reason: 'Element is covered by ' + (top.tagName ? top.tagName.toLowerCase() : 'overlay') };
-      }
+      if (top && top !== el && !el.contains(top) && !top.contains(el)) return { ok: false, reason: 'Element is covered by ' + (top.tagName ? top.tagName.toLowerCase() : 'overlay') };
     } catch {}
+    if (typeof requestAnimationFrame === 'function') {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const r2 = el.getBoundingClientRect();
+      const diff = Math.abs(r.x - r2.x) + Math.abs(r.y - r2.y) + Math.abs(r.width - r2.width) + Math.abs(r.height - r2.height);
+      if (diff > 1) return { ok: false, reason: 'Element is moving or animating (not stable)' };
+    }
     return { ok: true, rect: r, cx, cy };
   }
 
@@ -287,9 +308,10 @@ export async function ssWebUnitInteract(args) {
       const xHit = resolvePlaywrightLocator(a.xpath);
       if (xHit) return xHit;
     }
-    if (typeof a.index === 'number') {
-      const el = document.querySelector('[data-ss-id="' + a.index + '"]');
-      if (el) return { el, via: 'data-ss-id' };
+    if (typeof a.ref === 'number' || typeof a.ref === 'string' || typeof a.index === 'number') {
+      const refVal = a.ref !== undefined ? a.ref : a.index;
+      const el = document.querySelector(`[data-ss-som-ref="${refVal}"], [data-ss-id="${refVal}"]`);
+      if (el) return { el, via: 'som_ref' };
       return null;
     }
     if (typeof a.text === 'string' && a.text) {
@@ -328,7 +350,7 @@ export async function ssWebUnitInteract(args) {
 
     try { target.scrollIntoView({ block: 'center', inline: 'center' }); } catch {}
 
-    const actionCheck = checkActionable(target);
+    const actionCheck = await checkActionable(target);
     if (!actionCheck.ok && args.skipActionability !== true) {
       return { ok: false, code: 'NOT_ACTIONABLE', error: 'Element not actionable: ' + actionCheck.reason, retryable: true };
     }
@@ -368,7 +390,7 @@ export async function ssWebUnitInteract(args) {
       return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: 'Action involves destructive keyword. User confirmation required.' };
     }
 
-    const actionCheck = checkActionable(el);
+    const actionCheck = await checkActionable(el);
     if (!actionCheck.ok && args.skipActionability !== true) {
       return { ok: false, code: 'NOT_ACTIONABLE', error: 'Element not actionable: ' + actionCheck.reason, retryable: true };
     }

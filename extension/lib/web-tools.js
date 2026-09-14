@@ -19,6 +19,9 @@ import { execPixelDiff } from './web-diff.js';
 import { execDownload, execWaitDownload } from './web-download.js';
 import { execBatchCrawl, execMultiTabSync } from './web-crawl.js';
 import { execExtensionDiagnostics } from './web-diag.js';
+import { execWebPopupWait, getRecentPopups } from './web-popup.js';
+import { execWebTakeover } from './takeover.js';
+import { execWebSiteMemory } from './site-memory.js';
 import { apiFetch } from './web-api-fetch.js';
 import { historySearch, bookmarksSearch } from './web-browser-data.js';
 import { execTabGroup } from './web-tab-groups.js';
@@ -374,6 +377,18 @@ export async function executeWebTool(tool, args = {}) {
       }
       return makeError(ERROR_CODES.BAD_ARGS, `Unknown web_consent action: ${action}`);
     }
+    case 'web_popup_wait': {
+      const tab = await pickActiveTab(args);
+      return execWebPopupWait(tab ? tab.id : null, args);
+    }
+    case 'web_takeover': {
+      const tab = await pickActiveTab(args);
+      return execWebTakeover(tab ? tab.id : null, args);
+    }
+    case 'web_site_memory': {
+      const tab = await pickActiveTab(args);
+      return execWebSiteMemory(tab ? tab.id : null, args);
+    }
     default: {
       // Injected DOM / Agent / Storage tools
       if (
@@ -387,7 +402,17 @@ export async function executeWebTool(tool, args = {}) {
         const perm = await checkOriginPermission(tab.url, category, tool, args);
         if (!perm.ok) return makeError(ERROR_CODES.NO_GRANT, perm.error);
         const grant = perm.grant || {};
+        const prePopups = (INTERACT_TOOLS.has(tool) || AGENT_ACTION_TOOLS.has(tool)) ? getRecentPopups(tab.id) : [];
         const res = await inject(tab, { ...args, __tool: tool, __actGranted: !!grant.act });
+        if (res && res.ok && (INTERACT_TOOLS.has(tool) || AGENT_ACTION_TOOLS.has(tool))) {
+          const postPopups = getRecentPopups(tab.id);
+          if (postPopups.length > prePopups.length) {
+            const newPopup = postPopups[postPopups.length - 1];
+            if (typeof res.data === 'object' && res.data !== null) {
+              res.data.newTabOpened = { tabId: newPopup.tabId, url: newPopup.url, title: newPopup.title };
+            }
+          }
+        }
         if (res && res.ok && res.data) {
           const str = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
           recordExtraction(tab.url, str.length);

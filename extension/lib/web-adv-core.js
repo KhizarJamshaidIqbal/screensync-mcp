@@ -62,6 +62,13 @@ export async function rawAttach(target) {
   } catch (e) {
     if (!/already attached/i.test(String((e && e.message) || e))) throw e;
   }
+  try {
+    await chrome.debugger.sendCommand(target, 'Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
+  } catch {}
+  try {
+    await chrome.debugger.sendCommand(target, 'Page.enable');
+    await chrome.debugger.sendCommand(target, 'Page.setInterceptFileChooserDialog', { enabled: true });
+  } catch {}
 }
 
 
@@ -142,10 +149,19 @@ export const activeClocks = new Map(); // tabId -> { scriptId, offsetMs }
 export const activeEmulations = new Map(); // tabId -> true while device/UA emulation is live
 export const activeAuths = new Map(); // tabId -> { username, password } while network auth handling is live
 export const activeCoverage = new Map(); // tabId -> JS/CSS coverage session (cdpBusy guard + capture module)
+export const activeFileChoosers = new Map(); // tabId -> { mode, backendNodeId, openedAt } for P5 file chooser parity
 
 
 if (chrome.debugger && chrome.debugger.onEvent) {
   chrome.debugger.onEvent.addListener(async (source, method, params) => {
+    if (method === 'Page.fileChooserOpened' && source && source.tabId) {
+      activeFileChoosers.set(source.tabId, {
+        mode: params.mode || 'selectSingle',
+        backendNodeId: params.backendNodeId,
+        openedAt: Date.now(),
+      });
+    }
+
     if (method === 'Page.javascriptDialogOpening' && source && source.tabId) {
       const rule = activeDialogRules.get(source.tabId);
       try {
@@ -416,6 +432,7 @@ if (chrome.tabs && chrome.tabs.onRemoved) {
     activeClocks.delete(tabId);
     activeEmulations.delete(tabId);
     activeAuths.delete(tabId);
+    activeFileChoosers.delete(tabId);
   });
 }
 

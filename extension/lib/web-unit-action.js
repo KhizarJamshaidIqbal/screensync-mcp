@@ -68,6 +68,29 @@ export async function ssWebUnitAction(args = {}) {
   function pwFind(sel, root = document) {
     if (!sel || typeof sel !== 'string') return null;
     sel = sel.trim();
+    if (sel.startsWith('@')) {
+      const ref = sel.slice(1).trim();
+      return (root.querySelector ? root.querySelector(`[data-ss-som-ref="${ref}"], [data-ss-id="${ref}"]`) : null);
+    }
+    if (sel.startsWith('ref=')) {
+      const ref = sel.slice(4).trim();
+      return (root.querySelector ? root.querySelector(`[data-ss-som-ref="${ref}"], [data-ss-id="${ref}"]`) : null);
+    }
+    if (sel.includes(' >> nth=')) {
+      const parts = sel.split(/\s*>>\s*nth=\s*/);
+      const all = pwFindAll(parts[0].trim(), root);
+      const n = parseInt(parts[1].trim(), 10) || 0;
+      return all[n < 0 ? all.length + n : n] || null;
+    }
+    const nthMatch = sel.match(/^(.+?)(?:\.nth\((\d+)\)|:nth\((\d+)\)|:first|\.first|:last|\.last)$/);
+    if (nthMatch) {
+      const base = nthMatch[1].trim();
+      const all = pwFindAll(base, root);
+      if (sel.endsWith(':first') || sel.endsWith('.first')) return all[0] || null;
+      if (sel.endsWith(':last') || sel.endsWith('.last')) return all[all.length - 1] || null;
+      const n = parseInt(nthMatch[2] ?? nthMatch[3], 10) || 0;
+      return all[n < 0 ? all.length + n : n] || null;
+    }
     if (sel.includes(' >> ')) {
       const parts = sel.split(/\s*>>\s*/);
       let cur = root;
@@ -161,6 +184,27 @@ export async function ssWebUnitAction(args = {}) {
     try { return (root.querySelector ? root.querySelector(sel) : null) || findDeep(sel, root); } catch { return null; }
   }
 
+  function pwFindAll(sel, root = document) {
+    if (!sel || typeof sel !== 'string') return [];
+    sel = sel.trim();
+    if (sel.startsWith('css=')) sel = sel.slice(4).trim();
+    if (sel.startsWith('testid=')) {
+      const v = sel.slice(7).replace(/^["']|["']$/g, '');
+      return Array.from(root.querySelectorAll ? root.querySelectorAll(`[data-testid="${v}"], [data-test="${v}"], [data-cy="${v}"]`) : []);
+    }
+    if (sel.startsWith('text=')) {
+      const txt = sel.slice(5).replace(/^["']|["']$/g, '').toLowerCase();
+      const pool = Array.from(root.querySelectorAll ? root.querySelectorAll('*') : []);
+      return pool.filter((el) => (el.innerText || el.textContent || '').toLowerCase().trim().includes(txt));
+    }
+    try {
+      const list = Array.from(root.querySelectorAll ? root.querySelectorAll(sel) : []);
+      if (list.length > 0) return list;
+    } catch {}
+    const single = pwFind(sel, root);
+    return single ? [single] : [];
+  }
+
   function countPwMatches(sel, root = document) {
     if (!sel || typeof sel !== 'string') return 0;
     try {
@@ -174,28 +218,12 @@ export async function ssWebUnitAction(args = {}) {
         }
         return countPwMatches(parts[parts.length - 1], cur);
       }
-      let raw = sel.trim();
-      if (raw.startsWith('css=')) raw = raw.slice(4).trim();
-      if (raw.startsWith('testid=')) {
-        const v = raw.slice(7).replace(/^["']|["']$/g, '');
-        return (root.querySelectorAll ? root.querySelectorAll(`[data-testid="${v}"], [data-test="${v}"], [data-cy="${v}"]`) : []).length;
-      }
-      if (raw.startsWith('text=')) {
-        const txt = raw.slice(5).replace(/^["']|["']$/g, '').toLowerCase();
-        let c = 0;
-        for (const el of (root.querySelectorAll ? root.querySelectorAll('*') : [])) {
-          if ((el.innerText || '').toLowerCase().trim() === txt) c++;
-        }
-        return c;
-      }
-      if (!raw.includes('>>>') && !raw.startsWith('pierce/') && !raw.startsWith('xpath=') && !raw.startsWith('role=')) {
-        return (root.querySelectorAll ? root.querySelectorAll(raw) : []).length;
-      }
+      return pwFindAll(sel, root).length;
     } catch {}
     return 1;
   }
 
-  function checkActionable(el) {
+  async function checkActionable(el) {
     if (!el || !el.isConnected) return { ok: false, reason: 'Element is not attached to DOM' };
     const r = el.getBoundingClientRect(), s = window.getComputedStyle(el);
     if (r.width <= 0 || r.height <= 0 || s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') return { ok: false, reason: 'Element is hidden or has zero dimensions' };
@@ -205,6 +233,14 @@ export async function ssWebUnitAction(args = {}) {
       const top = document.elementFromPoint(cx, cy);
       if (top && top !== el && !el.contains(top) && !top.contains(el)) return { ok: false, reason: 'Element is covered by ' + (top.tagName ? top.tagName.toLowerCase() : 'overlay') };
     } catch {}
+
+    // P2: Actionability "stable" check (two-frame comparison across animation frames)
+    if (typeof requestAnimationFrame === 'function') {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const r2 = el.getBoundingClientRect();
+      const diff = Math.abs(r.x - r2.x) + Math.abs(r.y - r2.y) + Math.abs(r.width - r2.width) + Math.abs(r.height - r2.height);
+      if (diff > 1) return { ok: false, reason: 'Element is moving or animating (not stable)' };
+    }
     return { ok: true, rect: r, cx, cy };
   }
 
@@ -222,7 +258,10 @@ export async function ssWebUnitAction(args = {}) {
     while (Date.now() - start < maxWaitMs) {
       let el = null;
       if (a.selector) el = pwFind(a.selector);
-      if (!el && (typeof a.ref === 'number' || typeof a.index === 'number')) el = document.querySelector(`[data-ss-id="${a.ref !== undefined ? a.ref : a.index}"]`);
+      if (!el && (typeof a.ref === 'number' || typeof a.index === 'number' || typeof a.ref === 'string')) {
+        const refVal = a.ref !== undefined ? a.ref : a.index;
+        el = document.querySelector(`[data-ss-som-ref="${refVal}"], [data-ss-id="${refVal}"]`);
+      }
       if (el) return el;
       await new Promise((r) => setTimeout(r, 100));
     }
@@ -292,7 +331,7 @@ export async function ssWebUnitAction(args = {}) {
       return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: 'Action involves destructive keyword. User confirmation required.' };
     }
 
-    const actionCheck = checkActionable(el);
+    const actionCheck = await checkActionable(el);
     if (!actionCheck.ok && args.skipActionability !== true) {
       return { ok: false, code: 'NOT_ACTIONABLE', error: 'Element not actionable: ' + actionCheck.reason, retryable: true };
     }
@@ -325,7 +364,7 @@ export async function ssWebUnitAction(args = {}) {
     if (!el) return { ok: false, code: 'ELEMENT_NOT_FOUND', error: 'Element not found for check: ' + (args.selector ?? args.ref ?? args.index) };
     if (el.strictViolation) return { ok: false, code: 'STRICT_MODE_VIOLATION', error: el.error };
 
-    const actionCheck = checkActionable(el);
+    const actionCheck = await checkActionable(el);
     if (!actionCheck.ok && args.skipActionability !== true) {
       return { ok: false, code: 'NOT_ACTIONABLE', error: 'Element not actionable: ' + actionCheck.reason, retryable: true };
     }
