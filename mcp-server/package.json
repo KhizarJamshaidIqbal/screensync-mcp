@@ -16,7 +16,10 @@
     "lint:ext": "npx eslint ../extension",
     "typecheck:ext": "tsc --project ../extension/jsconfig.json",
     "verify:ext": "npm run lint:ext && npm run typecheck:ext",
-    "verify:unpacked": "node ../extension/test/verify_unpacked.js"
+    "verify:unpacked": "node ../extension/test/verify_unpacked.js",
+    "package:all": "powershell -NoProfile -ExecutionPolicy Bypass -File ../extension/scripts/package.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-hub.ps1",
+    "sync:toolcount": "tsx scripts/sync-tool-count.ts",
+    "check:toolcount": "tsx scripts/sync-tool-count.ts --check"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.5",

@@ -212,8 +212,7 @@ and keeps its own public `README.md` and `.gitignore`. Commit style:
 
 **The committed zips go stale silently.** `website/downloads/screensync-extension.zip` and
 `screensync-hub.zip` are tracked binaries, not build output, while the page claims "always the
-latest build". Rebuild the extension zip with `extension/scripts/package.ps1`; the hub zip has **no
-build script** and is assembled by hand — it is the artifact most often forgotten. **Build zips on
+latest build". Rebuild both with `npm run package:all` from `mcp-server` (it runs `extension/scripts/package.ps1` for the extension zip and `mcp-server/scripts/package-hub.ps1` for the hub zip). Assembling either archive by hand is the one thing that has actually drifted. **Build zips on
 `main` and commit them there, then mirror** — rebuilding them directly on `deploy` is the one place
 this mirror has actually drifted.
 
