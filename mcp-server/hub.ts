@@ -110,8 +110,17 @@ export async function startHttpHub(): Promise<HubHandle> {
   // ── Zero-friction pairing ──
   // GET /pair renders a human-friendly page with the pairing link the phone
   // can paste (or scan, when opened on another device) — kills manual IP+token
-  // entry. The link itself is also printed to the terminal at startup.
-  app.get("/pair", async (_req, res) => {
+  const isLoopbackReq = (req: express.Request) => {
+    const ip = req.socket?.remoteAddress || req.ip || "";
+    return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+  };
+  const allowLanPair = process.env.SCREEN_SYNC_ALLOW_LAN_PAIR === "true";
+
+  app.get("/pair", async (req, res) => {
+    if (!allowLanPair && !isLoopbackReq(req)) {
+      res.status(403).type("text/plain").send("Pairing is restricted to loopback (127.0.0.1). Set SCREEN_SYNC_ALLOW_LAN_PAIR=true to allow pairing over LAN.");
+      return;
+    }
     if (!pairingWindowOpen()) {
       res.type("html").send(`<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -175,7 +184,14 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
   });
 
   // Machine-readable pairing payload (same info; used by tests/tools).
-  app.get("/api/pair", (_req, res) => {
+  app.get("/api/pair", (req, res) => {
+    if (!allowLanPair && !isLoopbackReq(req)) {
+      res.status(403).json({
+        success: false,
+        error: "Pairing endpoint is restricted to loopback (127.0.0.1). Set SCREEN_SYNC_ALLOW_LAN_PAIR=true to allow pairing over LAN.",
+      });
+      return;
+    }
     if (!pairingWindowOpen()) {
       res.status(403).json({
         success: false,
@@ -207,7 +223,7 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
     }
   };
   hubEvents.on("event", (event: HubEvent) => broadcast(event));
-  const webBridge = createWebBridge(broadcast);
+  const webBridge = createWebBridge(broadcast, () => sseClients.size);
   const keepalive = setInterval(() => {
     for (const client of sseClients) client.write(": keepalive\n\n");
   }, 30_000);
@@ -487,10 +503,21 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
   webBridge.registerRoutes(app);
 
   const server = createServer(app);
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(HTTP_PORT, HTTP_HOST, () => resolve());
-  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(HTTP_PORT, HTTP_HOST, () => resolve());
+    });
+  } catch (listenErr) {
+    clearInterval(keepalive);
+    webBridge.stopSchedules();
+    if (extWatcher) extWatcher.close();
+    if (extReloadTimer) clearTimeout(extReloadTimer);
+    hubEvents.off("event", broadcast);
+    for (const client of sseClients) client.end();
+    sseClients.clear();
+    throw listenErr;
+  }
   log("INFO", "ScreenSync HTTP hub started", { host: HTTP_HOST, port: HTTP_PORT });
   log("INFO", "Phone pairing", {
     pairingLink: buildPairingLink(),

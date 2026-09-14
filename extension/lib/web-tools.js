@@ -288,8 +288,9 @@ export async function registerWebBridge() {
 }
 
 export async function handleWebRequest(req) {
-  const { id, tool, args = {} } = req || {};
-  if (args.__browser && !selfBrowserMatches(args.__browser)) return;
+  const { id, tool, args = {}, targetBrowser } = req || {};
+  const target = (typeof args.__browser === 'string' && args.__browser) || (typeof targetBrowser === 'string' && targetBrowser) || null;
+  if (target && !selfBrowserMatches(target)) return;
   const startedAt = Date.now();
   let out;
   const s = await getSettings();

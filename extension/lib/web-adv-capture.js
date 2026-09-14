@@ -413,9 +413,12 @@ export async function cdpElementScreenshot(tab, args = {}) {
   }
 
   const padding = Number(args.padding) || 4;
+  const useFullPage = args.fullPage === true;
+  const clipX = useFullPage ? (bounds.pageX ?? bounds.x) : bounds.x;
+  const clipY = useFullPage ? (bounds.pageY ?? bounds.y) : bounds.y;
   const clip = {
-    x: Math.max(0, bounds.x - padding),
-    y: Math.max(0, bounds.y - padding),
+    x: Math.max(0, clipX - padding),
+    y: Math.max(0, clipY - padding),
     width: bounds.width + padding * 2,
     height: bounds.height + padding * 2,
     scale: 1,
@@ -434,7 +437,7 @@ export async function cdpElementScreenshot(tab, args = {}) {
     await chrome.debugger.sendCommand(target, 'Page.enable', {});
     const format = args.format === 'png' ? 'png' : 'jpeg';
     const quality = typeof args.quality === 'number' ? Math.min(100, Math.max(1, args.quality)) : 85;
-    const captureOpts = { format, clip };
+    const captureOpts = { format, clip, captureBeyondViewport: useFullPage };
     if (format === 'jpeg') captureOpts.quality = quality;
 
     const res = await chrome.debugger.sendCommand(target, 'Page.captureScreenshot', captureOpts);
@@ -474,6 +477,7 @@ export async function cdpCoverage(tab, args = {}) {
       activeCoverage.set(tab.id, true);
       return { ok: true, data: { action: 'start', tracking: true } };
     } catch (err) {
+      activeCoverage.delete(tab.id);
       await detachCdp(tab);
       return { ok: false, error: `CDP coverage start error: ${String((err && err.message) || err)}` };
     }
@@ -558,6 +562,7 @@ export async function cdpScreencast(tab, args = {}) {
 
       return { ok: true, data: { action: 'start', recording: true, format, quality, tabId: tab.id } };
     } catch (err) {
+      activeScreencasts.delete(tab.id);
       await detachCdp(tab);
       return { ok: false, error: `Failed to start screencast: ${err.message}` };
     }

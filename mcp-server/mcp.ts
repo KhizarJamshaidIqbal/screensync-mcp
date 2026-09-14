@@ -62,12 +62,17 @@ function textResult(value: unknown, isError = false) {
 async function callHubWebTool(tool: string, args: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
   const url = `http://127.0.0.1:${HTTP_PORT}/api/web/tool`;
   let res: Response;
+  const requestedTimeout = Number(args.timeoutMs);
+  const timeoutMs = Number.isFinite(requestedTimeout) && requestedTimeout > 0
+    ? Math.min(Math.max(requestedTimeout, 1000), 120_000)
+    : 45_000;
+  const abortTimeout = timeoutMs + 5_000;
   try {
     res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${AUTH_TOKEN}` },
-      body: JSON.stringify({ tool, args, timeoutMs: 45_000 }),
-      signal: AbortSignal.timeout(60_000),
+      body: JSON.stringify({ tool, args, timeoutMs }),
+      signal: AbortSignal.timeout(abortTimeout),
     });
   } catch (error) {
     return { ok: false, error: `ScreenSync hub is not reachable at ${url} (${String(error)}). Start the hub with 'npm start' and make sure the browser extension is connected.` };

@@ -1,6 +1,6 @@
 // ScreenSync evidence recorders — real CDP HAR (optional response bodies),
 // WebM video via offscreen MediaRecorder, fake clock, CDP Tracing.
-import { attachCdp, detachCdp, rawAttach, rawDetach, activeHars, activeTraces, activeVideoRecs, activeClocks } from './web-adv-core.js';
+import { attachCdp, detachCdp, rawAttach, rawDetach, activeHars, activeTraces, activeVideoRecs, activeClocks, activeWsBuffers } from './web-adv-core.js';
 export async function cdpHarRecord(tab, args) {
   const action = String(args.action || 'start').toLowerCase();
   if (action === 'start') {
@@ -33,7 +33,9 @@ export async function cdpHarRecord(tab, args) {
   if (action === 'stop') {
     const rec = activeHars.get(tab.id);
     if (!rec) return { ok: false, error: 'No HAR recording is active on this tab.' };
-    try { await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.disable'); } catch {}
+    if (!activeWsBuffers.has(tab.id)) {
+      try { await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.disable'); } catch {}
+    }
     activeHars.delete(tab.id);
     await detachCdp(tab);
     const har = {

@@ -351,11 +351,17 @@ export async function ssWebUnitExtract(args) {
     if (!hit) return { ok: false, error: 'Element not found for bounds calculation.' };
     hit.el.scrollIntoView({ block: 'center', inline: 'center' });
     const r = hit.el.getBoundingClientRect();
+    const sx = window.scrollX || window.pageXOffset || 0;
+    const sy = window.scrollY || window.pageYOffset || 0;
     return {
       ok: true,
       data: {
         x: Math.max(0, Math.round(r.x)),
         y: Math.max(0, Math.round(r.y)),
+        pageX: Math.max(0, Math.round(r.left + sx)),
+        pageY: Math.max(0, Math.round(r.top + sy)),
+        scrollX: Math.round(sx),
+        scrollY: Math.round(sy),
         width: Math.max(1, Math.round(r.width)),
         height: Math.max(1, Math.round(r.height)),
         devicePixelRatio: window.devicePixelRatio || 1,

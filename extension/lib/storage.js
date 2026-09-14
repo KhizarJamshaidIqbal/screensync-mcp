@@ -11,11 +11,11 @@ const LOCAL_DEFAULTS = {
   onboardingComplete: true,
   webAccessEnabled: true,
   grants: {},
+  setupGuideCache: null,
+  setupGuideFetchedAt: null,
 };
 
 const SYNC_DEFAULTS = {
-  setupGuideCache: null,
-  setupGuideFetchedAt: null,
   theme: 'dark',
   reduceMotion: false,
 };
@@ -28,6 +28,8 @@ const LOCAL_KEYS = new Set([
   'grants',
   'ss_audit_log',
   'vaultSessions',
+  'setupGuideCache',
+  'setupGuideFetchedAt',
 ]);
 
 export async function getSettings() {

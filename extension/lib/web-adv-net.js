@@ -1,6 +1,6 @@
 // ScreenSync CDP network executors — mocks, routes, dialog rules, network
 // idle waits, websocket traffic, response/request waits, network auth.
-import { rawAttach, rawDetach, attachCdp, detachCdp, activeMocks, activeRoutes, activeDialogRules, activeWsBuffers, activeAuths } from './web-adv-core.js';
+import { rawAttach, rawDetach, attachCdp, detachCdp, activeMocks, activeRoutes, activeDialogRules, activeWsBuffers, activeAuths, activeHars } from './web-adv-core.js';
 
 // ── web_network_auth: Playwright page.authenticate parity — supply credentials
 // for HTTP basic/proxy auth challenges via CDP Fetch.authRequired handling ──
@@ -156,7 +156,9 @@ export async function cdpWaitNetworkIdle(tab, timeoutMs = 15000, idleMs = 500) {
       clearTimeout(maxTimer);
       if (timer) clearTimeout(timer);
       chrome.debugger.onEvent.removeListener(onEvent);
-      try { await chrome.debugger.sendCommand(target, 'Network.disable', {}); } catch {}
+      if (!activeHars.has(tab.id) && !activeWsBuffers.has(tab.id)) {
+        try { await chrome.debugger.sendCommand(target, 'Network.disable', {}); } catch {}
+      }
       if (attached) {
         await rawDetach(target);
       }
@@ -224,10 +226,6 @@ export async function cdpRoute(tab, args = {}) {
   if (!attachRes.ok) return attachRes;
 
   try {
-    await chrome.debugger.sendCommand(target, 'Fetch.enable', {
-      patterns: [{ urlPattern: pattern, requestStage: 'Request' }],
-    });
-
     const routeConfig = {
       pattern,
       mode,
@@ -243,6 +241,16 @@ export async function cdpRoute(tab, args = {}) {
       activeRoutes.set(tab.id, routes);
     }
     routes.push(routeConfig);
+
+    const patterns = routes.map((r) => ({ urlPattern: r.pattern, requestStage: 'Request' }));
+    if (activeAuths.has(tab.id)) {
+      await chrome.debugger.sendCommand(target, 'Fetch.enable', {
+        handleAuthRequests: true,
+        patterns,
+      });
+    } else {
+      await chrome.debugger.sendCommand(target, 'Fetch.enable', { patterns });
+    }
 
     return { ok: true, data: { routed: pattern, mode, totalActiveRoutes: routes.length } };
   } catch (err) {
@@ -289,9 +297,11 @@ export async function cdpWaitForResponse(tab, args = {}) {
   return new Promise((resolve) => {
     let timer = null;
     let resolved = false;
+    const requestMethods = new Map();
 
     const cleanup = async () => {
       if (timer) clearTimeout(timer);
+      requestMethods.clear();
       chrome.debugger.onEvent.removeListener(onEvent);
       await detachCdp(tab);
     };
@@ -308,9 +318,12 @@ export async function cdpWaitForResponse(tab, args = {}) {
 
     const onEvent = async (source, method, params) => {
       if (source.tabId !== tab.id) return;
-      if (method === 'Network.responseReceived') {
+      if (method === 'Network.requestWillBeSent' && params.request) {
+        requestMethods.set(params.requestId, params.request.method || 'GET');
+      } else if (method === 'Network.responseReceived') {
         const resp = params.response;
-        if (resp && isMatch(resp.url, resp.requestHeaders?.[':method'] || 'GET', resp.status)) {
+        const httpMethod = requestMethods.get(params.requestId) || resp?.requestHeaders?.[':method'] || 'GET';
+        if (resp && isMatch(resp.url, httpMethod, resp.status)) {
           resolved = true;
           let body = null;
           let base64Encoded = false;

@@ -16,7 +16,7 @@ async function readError(res) {
   return new HubError(res.status, msg);
 }
 
-export async function hubFetch(path, { method = 'GET', body, url, token } = {}) {
+export async function hubFetch(path, { method = 'GET', body, url, token, timeoutMs = 10_000 } = {}) {
   const s = await getSettings();
   const base = (url ?? s.hubUrl).replace('://localhost:', '://127.0.0.1:').replace(/\/$/, '');
   const tk = token ?? s.token;
@@ -27,16 +27,20 @@ export async function hubFetch(path, { method = 'GET', body, url, token } = {}) 
     headers,
     cache: 'no-store',
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw await readError(res);
   return res.json();
 }
 
 // Unauthenticated liveness probe with latency measurement.
-export async function probeHub(url) {
+export async function probeHub(url, timeoutMs = 6_000) {
   const t0 = Date.now();
   const base = (url || 'http://127.0.0.1:3000').replace('://localhost:', '://127.0.0.1:').replace(/\/$/, '');
-  const res = await fetch(base + '/health', { cache: 'no-store' });
+  const res = await fetch(base + '/health', {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(timeoutMs),
+  });
   const latencyMs = Date.now() - t0;
   if (!res.ok) throw new HubError(res.status, `Hub replied ${res.status}`);
   const j = await res.json();

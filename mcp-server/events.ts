@@ -15,13 +15,45 @@ hubEvents.setMaxListeners(20);
 // Last-Event-ID replay on reconnect) so agents can tail or replay hub activity
 // through web_events / /api/events/recent without a persistent stream.
 const EVENT_RING_MAX = 500;
+const EVENT_RING_MAX_BYTES = 5 * 1024 * 1024; // 5MB total memory cap
 const eventRing: Array<{ seq: number; at: string; payload: Record<string, unknown> }> = [];
-let eventSeq = 0;
+let currentRingBytes = 0;
+let eventSeq = Date.now() * 1000;
+
+function sanitizePayload(obj: unknown, depth = 0): unknown {
+  if (depth > 5) return obj;
+  if (typeof obj === "string") {
+    if (obj.length > 512 && (obj.startsWith("data:image/") || /^[A-Za-z0-9+/=]{512,}$/.test(obj.slice(0, 100)))) {
+      return obj.slice(0, 96) + `... [base64 truncated, ${obj.length} bytes]`;
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => sanitizePayload(item, depth + 1));
+  }
+  if (obj && typeof obj === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = sanitizePayload(v, depth + 1);
+    }
+    return out;
+  }
+  return obj;
+}
 
 export function recordHubEvent(payload: Record<string, unknown>): number {
   eventSeq += 1;
-  eventRing.push({ seq: eventSeq, at: new Date().toISOString(), payload });
-  if (eventRing.length > EVENT_RING_MAX) eventRing.splice(0, eventRing.length - EVENT_RING_MAX);
+  const sanitized = (sanitizePayload(payload) || {}) as Record<string, unknown>;
+  const entryBytes = JSON.stringify(sanitized).length;
+  currentRingBytes += entryBytes;
+  eventRing.push({ seq: eventSeq, at: new Date().toISOString(), payload: sanitized });
+
+  while (eventRing.length > EVENT_RING_MAX || (currentRingBytes > EVENT_RING_MAX_BYTES && eventRing.length > 1)) {
+    const dropped = eventRing.shift();
+    if (dropped) {
+      currentRingBytes = Math.max(0, currentRingBytes - JSON.stringify(dropped.payload).length);
+    }
+  }
   return eventSeq;
 }
 

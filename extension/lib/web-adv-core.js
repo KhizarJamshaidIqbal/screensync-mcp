@@ -288,7 +288,12 @@ if (chrome.debugger && chrome.debugger.onEvent) {
           });
         } catch {}
       } else {
-        try { await chrome.debugger.sendCommand(source, 'Fetch.continueAuth', { requestId: params.requestId }); } catch {}
+        try {
+          await chrome.debugger.sendCommand(source, 'Fetch.continueWithAuth', {
+            requestId: params.requestId,
+            authChallengeResponse: { response: 'Default' },
+          });
+        } catch {}
       }
     }
 

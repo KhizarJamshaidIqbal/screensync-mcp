@@ -214,17 +214,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg && msg.type === 'clipboard-read') {
-    try {
-      const textarea = document.createElement('textarea');
-      document.body.appendChild(textarea);
-      textarea.focus();
-      const ok = document.execCommand('paste');
-      const text = textarea.value;
-      textarea.remove();
-      sendResponse({ ok: true, text, length: (text || '').length, execCommand: ok });
-    } catch (e) {
-      sendResponse({ ok: false, error: String((e && e.message) || e) });
-    }
+    (async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          try {
+            const text = await navigator.clipboard.readText();
+            sendResponse({ ok: true, text, length: (text || '').length, method: 'clipboard-api' });
+            return;
+          } catch {
+            // fallback to execCommand below
+          }
+        }
+        const textarea = document.createElement('textarea');
+        document.body.appendChild(textarea);
+        textarea.focus();
+        const ok = document.execCommand('paste');
+        const text = textarea.value;
+        textarea.remove();
+        sendResponse({ ok: true, text, length: (text || '').length, execCommand: ok, method: 'execCommand' });
+      } catch (e) {
+        sendResponse({ ok: false, error: String((e && e.message) || e) });
+      }
+    })();
     return true;
   }
 });

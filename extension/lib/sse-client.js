@@ -11,20 +11,28 @@ export class SseClient {
     this.livenessTimer = null;
     this.stopped = true;
     this.backoff = 1000;
+    this._generation = 0;
+    this.connectingSince = null;
+    this.unauthorized = false;
   }
 
   start(url, token) {
     this.stop();
+    this._generation += 1;
+    const gen = this._generation;
     this._stoppedByUser = false;
     this.stopped = false;
+    this.unauthorized = false;
     this.url = url;
     this.token = token;
-    this._loop();
+    this._loop(gen);
   }
 
   stop() {
+    this._generation += 1;
     this.stopped = true;
     this._stoppedByUser = true;
+    this.connectingSince = null;
     if (this.abort) this.abort.abort();
     this.abort = null;
     clearTimeout(this.livenessTimer);
@@ -34,10 +42,18 @@ export class SseClient {
     return !this.stopped && this.abort !== null;
   }
 
+  get isUnauthorized() {
+    return this.unauthorized;
+  }
+
   // Zombie detection: the hub sends a keepalive every 30s. If we believe we
   // are connected but no bytes arrived within 90s, the stream is dead
   // (e.g. the hub restarted) — the caller should force a reconnect.
+  // L2 fix: during the initial handshake, connectingSince suppresses false stale() triggers.
   stale() {
+    if (this.connectingSince && Date.now() - this.connectingSince < 45_000) {
+      return false;
+    }
     return this.connected && (!this.lastDataAt || Date.now() - this.lastDataAt > 90_000);
   }
 
@@ -45,9 +61,10 @@ export class SseClient {
     this.onStatus && this.onStatus(s, detail);
   }
 
-  async _loop() {
-    while (!this.stopped) {
+  async _loop(gen) {
+    while (!this.stopped && this._generation === gen) {
       this.abort = new AbortController();
+      this.connectingSince = Date.now();
       try {
         this._status('connecting');
         const res = await fetch(this.url.replace(/\/$/, '') + '/api/events', {
@@ -58,7 +75,9 @@ export class SseClient {
           cache: 'no-store',
           signal: this.abort.signal,
         });
+        if (this._generation !== gen) return;
         if (res.status === 401) {
+          this.unauthorized = true;
           this._status('error', '401 — wrong pairing token');
           this.stop();
           return;
@@ -98,7 +117,7 @@ export class SseClient {
         // A liveness-timeout abort (silent TCP death, e.g. hub restart) must
         // RECONNECT, not break — that AbortError previously killed the client
         // permanently, leaving a zombie: heartbeat alive, events never delivered.
-        if (this.stopped) break;
+        if (this.stopped || this._generation !== gen) break;
         if (e && e.name === 'AbortError' && !this._stoppedByUser) {
           this._status('reconnecting', 'liveness timeout — forcing reconnect');
         } else if (e && e.name === 'AbortError') {
@@ -108,11 +127,12 @@ export class SseClient {
         }
       }
       this.abort = null;
-      if (this.stopped) break;
+      if (this.stopped || this._generation !== gen) break;
       await new Promise((r) => setTimeout(r, this.backoff));
+      if (this.stopped || this._generation !== gen) break;
       this.backoff = Math.min(this.backoff * 2, 30000);
     }
-    if (this.stopped) this._status('stopped');
+    if (this.stopped && this._generation === gen) this._status('stopped');
   }
 
   _armLiveness() {

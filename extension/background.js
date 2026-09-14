@@ -66,6 +66,7 @@ const sse = new SseClient({
 async function ensureSse() {
   const s = await getSettings();
   if (!s.onboardingComplete) return;
+  if (sse.isUnauthorized) return;
   // Zombie recovery: the offscreen keep-alive prevents SW recycling, so a
   // hub restart can leave the stream silently dead while `connected` stays
   // true. If no bytes arrived within the keepalive window, force-restart.
@@ -217,29 +218,36 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
   }
-  await pollHealth();
-  await ensureSse();
-  await registerWebBridge();
-  await ensureOffscreenDoc();
+  await boot();
   const s = await getSettings();
   if (!s.onboardingComplete) {
     chrome.tabs.create({ url: chrome.runtime.getURL('pages/onboarding.html') });
   }
 });
 
+let isBooting = false;
+async function boot() {
+  if (isBooting) return;
+  isBooting = true;
+  try {
+    await pollHealth();
+    await ensureSse();
+    await registerWebBridge();
+    await ensureOffscreenDoc();
+  } catch (e) {
+    console.warn('[ss] boot error:', e.message);
+  } finally {
+    isBooting = false;
+  }
+}
+
 chrome.runtime.onStartup.addListener(() => {
   setupContextMenus();
-  pollHealth();
-  ensureSse();
-  registerWebBridge();
-  ensureOffscreenDoc();
+  boot();
 });
 
 // Immediate boot connection whenever SW initializes
-pollHealth().catch(() => {});
-ensureSse().catch(() => {});
-registerWebBridge().catch(() => {});
-ensureOffscreenDoc().catch(() => {});
+boot().catch(() => {});
 
 chrome.runtime.onConnect.addListener((port) => {
   ports.add(port);
@@ -249,13 +257,17 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => {
-  console.info('[ss] tab closed:', tabId);
-});
+if (chrome.tabs && chrome.tabs.onRemoved) {
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    console.info('[ss] tab closed:', tabId);
+  });
+}
 
-chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
-  console.info('[ss] tab replaced:', removedTabId, '->', addedTabId);
-});
+if (chrome.tabs && chrome.tabs.onReplaced) {
+  chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
+    console.info('[ss] tab replaced:', removedTabId, '->', addedTabId);
+  });
+}
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
@@ -327,6 +339,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           }
           break;
         }
+        case 'test-hub': {
+          const testUrl = msg.url || (await getSettings()).hubUrl;
+          const testToken = msg.token !== undefined ? msg.token : (await getSettings()).token;
+          try {
+            const res = await hubFetch('/api/web/status', {
+              method: 'GET',
+              url: testUrl,
+              token: testToken,
+              timeoutMs: 4000,
+            });
+            sendResponse({ ok: true, result: res });
+          } catch (e) {
+            sendResponse({ ok: false, error: e.message, status: e.status });
+          }
+          break;
+        }
         case 'get-guide': {
           const s = await getSettings();
           const GUIDE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -342,7 +370,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             const res = await fetch(GUIDE_URL, { cache: 'no-store' });
             if (!res.ok) throw new Error(`guide ${res.status}`);
             const guide = await res.json();
-            saveSettings({ setupGuideCache: guide, setupGuideFetchedAt: new Date().toISOString() });
+            await saveSettings({ setupGuideCache: guide, setupGuideFetchedAt: new Date().toISOString() });
             sendResponse({ ok: true, guide, cached: false });
           } catch {
             sendResponse({ ok: true, guide: cached || FALLBACK_GUIDE, cached: true, fallback: !cached });
@@ -393,7 +421,7 @@ if (chrome.runtime.onMessageExternal) {
         await pollHealth();
         await ensureSse();
         await registerWebBridge();
-        await ensureOffscreen();
+        await ensureOffscreenDoc();
         if (msg && msg.type === 'reload') {
           sendResponse({ ok: true, reloading: true });
           setTimeout(() => {
@@ -409,23 +437,3 @@ if (chrome.runtime.onMessageExternal) {
     return true;
   });
 }
-
-async function ensureOffscreen() {
-  if (!chrome.offscreen || !chrome.offscreen.createDocument) return;
-  try {
-    const hasDoc = await chrome.offscreen.hasDocument();
-    if (!hasDoc) {
-      await chrome.offscreen.createDocument({
-        url: 'pages/offscreen.html',
-        reasons: ['BLOBS'],
-        justification: 'Keep background service worker active for agent sessions',
-      });
-    }
-  } catch {}
-}
-
-// Boot.
-pollHealth();
-ensureSse();
-registerWebBridge();
-ensureOffscreen();

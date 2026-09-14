@@ -116,29 +116,49 @@ function applySnapshot(cache) {
   feedFull.setAll(cache.events || []);
 }
 
-const port = chrome.runtime.connect({ name: 'dashboard' });
-port.onMessage.addListener((msg) => {
+let port = null;
+function connectPort() {
+  try {
+    port = chrome.runtime.connect({ name: 'dashboard' });
+    port.onMessage.addListener(handlePortMessage);
+    port.onDisconnect.addListener(() => {
+      port = null;
+      setTimeout(connectPort, 1000);
+    });
+  } catch {
+    setTimeout(connectPort, 2000);
+  }
+}
+
+function handlePortMessage(msg) {
+  if (!msg) return;
   switch (msg.kind) {
     case 'snapshot':
-      applySnapshot(msg.cache);
+      if (msg.cache) applySnapshot(msg.cache);
       break;
     case 'sse':
-      feedCompact.push(msg.event);
-      feedFull.push(msg.event);
-      if (msg.event.type === 'frame') frame.refresh();
-      if (msg.event.type === 'inspection' || msg.event.type === 'patch') {
-        renderViewers(document.getElementById('viewers-top'), send);
+      if (msg.event) {
+        feedCompact.push(msg.event);
+        feedFull.push(msg.event);
+        if (msg.event.type === 'frame') frame.refresh();
+        if (msg.event.type === 'inspection' || msg.event.type === 'patch') {
+          renderViewers(document.getElementById('viewers-top'), send);
+        }
       }
       break;
     case 'sse-status':
     case 'health':
       send({ type: 'get-status' }).then((r) => {
-        updateStatusPill(pill, r.cache);
-        updateSseChip(sseChip, r.cache);
-      });
+        if (r && r.cache) {
+          updateStatusPill(pill, r.cache);
+          updateSseChip(sseChip, r.cache);
+        }
+      }).catch(() => {});
       break;
   }
-});
+}
+
+connectPort();
 
 // ── Device chip ──
 async function refreshDevice() {

@@ -4,11 +4,14 @@ export function updateStatusPill(el, cache) {
   let cls = 'off';
   let label = 'Hub offline';
   if (ok && sse === 'connected') {
-    cls = 'ok';
-    label = `Connected · ${cache.latencyMs != null ? cache.latencyMs + 'ms' : 'live'}`;
-  } else if (ok) {
     cls = cache.latencyMs != null && cache.latencyMs > 400 ? 'warn' : 'ok';
-    label = `Connected · ${cache.latencyMs != null ? cache.latencyMs + 'ms' : '?'}`;
+    label = `Connected · ${cache.latencyMs != null ? cache.latencyMs + 'ms' : 'live'}`;
+  } else if (ok && (sse === 'connecting' || sse === 'reconnecting')) {
+    cls = 'warn';
+    label = `SSE connecting… (${cache.latencyMs != null ? cache.latencyMs + 'ms' : 'hub ok'})`;
+  } else if (ok) {
+    cls = 'off';
+    label = `SSE offline · Hub ${cache.latencyMs != null ? cache.latencyMs + 'ms' : 'up'}`;
   }
 
   // Animate text change

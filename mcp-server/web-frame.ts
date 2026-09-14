@@ -26,9 +26,18 @@ export type FrameStore = {
 export function createFrameStore(broadcast: (payload: object, name?: string) => void): FrameStore {
   const sessions = new Map<string, Session>();
 
+  const MAX_WATCH_SESSIONS = 10;
   const touch = (watchId: string): Session => {
     let s = sessions.get(watchId);
     if (!s) {
+      if (sessions.size >= MAX_WATCH_SESSIONS) {
+        const oldestKey = sessions.keys().next().value;
+        if (oldestKey) {
+          const old = sessions.get(oldestKey);
+          if (old) clearTimeout(old.timer);
+          sessions.delete(oldestKey);
+        }
+      }
       s = { watchId, frames: [], timer: setTimeout(() => sessions.delete(watchId), SESSION_IDLE_MS) };
       sessions.set(watchId, s);
     }

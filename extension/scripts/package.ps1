@@ -41,11 +41,24 @@ Get-ChildItem -Path $root -Recurse -File |
     -not $skip
   } |
   ForEach-Object {
-    $entry = $_.FullName.Substring($root.Length + 1)
+    $entry = $_.FullName.Substring($root.Length + 1).Replace('\', '/')
+    if ($entry.Contains('\')) {
+      throw "Invalid ZIP entry name contains backslash: $entry"
+    }
     [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entry) | Out-Null
   }
 
 $zip.Dispose()
+
+# Verification check: re-open and assert 0 backslash entries
+$verifyZip = [System.IO.Compression.ZipFile]::OpenRead($out)
+foreach ($e in $verifyZip.Entries) {
+  if ($e.FullName.Contains('\')) {
+    $verifyZip.Dispose()
+    throw "Verification failed: ZIP contains backslash entry $($e.FullName)"
+  }
+}
+$verifyZip.Dispose()
 
 $hash = (Get-FileHash -Path $out -Algorithm SHA256).Hash
 Write-Output "Successfully packaged ScreenSync Extension v$manifestVer"

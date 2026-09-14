@@ -38,7 +38,7 @@ type BrowserEntry = {
   userAgent: string | null;
 };
 
-export function createWebBridge(broadcast: (payload: object, name?: string) => void): WebBridge {
+export function createWebBridge(broadcast: (payload: object, name?: string) => void, getSseClientCount?: () => number): WebBridge {
   const pending = new Map<string, Pending>();
   const frameStore = createFrameStore(broadcast);
 
@@ -70,7 +70,10 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
   const onlineEntries = () =>
     [...browsers.values()].filter(isOnline).sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt));
 
-  const online = () => onlineEntries().length > 0;
+  const online = () => {
+    const sseCount = getSseClientCount ? getSseClientCount() : 1;
+    return sseCount > 0 && onlineEntries().length > 0;
+  };
 
   const status = () => {
     const entries = onlineEntries();
@@ -78,8 +81,11 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       entries[0] ??
       [...browsers.values()].sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt))[0] ??
       null;
+    const sseClients = getSseClientCount ? getSseClientCount() : 0;
     return {
       online: online(),
+      sseConnected: sseClients > 0,
+      sseClients,
       webAccessEnabled: [...browsers.values()].some((b) => b.webAccessEnabled),
       lastSeenAt: latest ? latest.lastSeenAt : null,
       activeTab: latest ? latest.tab : null,
@@ -105,7 +111,10 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         resolve({ ok: false, error: `Timed out after ${timeoutMs}ms waiting for the browser extension.` });
       }, timeoutMs);
       pending.set(id, { resolve, timer });
-      broadcast({ type: "web_request", id, tool, args });
+      const targetBrowser = typeof args.__browser === "string"
+        ? args.__browser
+        : (onlineEntries()[0]?.name || null);
+      broadcast({ type: "web_request", id, tool, args, targetBrowser });
     });
 
     // ── Persisted Flows Library: save / list / run / delete ──────────────

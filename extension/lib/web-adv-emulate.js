@@ -1,17 +1,25 @@
 // ScreenSync CDP emulation executors — viewport/geo/network emulation,
 // permissions, timezone, network throttling, color scheme overrides.
-import { rawAttach, rawDetach, attachCdp, detachCdp } from './web-adv-core.js';
+import { rawAttach, rawDetach, attachCdp, detachCdp, activeEmulations } from './web-adv-core.js';
+
 export async function cdpEmulate(tab, args = {}) {
   const target = { tabId: tab.id };
-  let attached = false;
+  const attached = await attachCdp(tab);
+  if (!attached.ok) return attached;
   try {
-    await rawAttach(target);
-    attached = true;
-  } catch (e) {
-    if (String((e && e.message) || e).includes('Already attached')) attached = true;
-    else return { ok: false, error: `CDP attach failed: ${String((e && e.message) || e)}` };
-  }
-  try {
+    if (args.clear === true) {
+      try {
+        await chrome.debugger.sendCommand(target, 'Emulation.clearDeviceMetricsOverride');
+        await chrome.debugger.sendCommand(target, 'Emulation.clearGeolocationOverride');
+        await chrome.debugger.sendCommand(target, 'Emulation.setEmulatedMedia', { media: '' });
+        await chrome.debugger.sendCommand(target, 'Network.emulateNetworkConditions', {
+          offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1,
+        });
+      } catch {}
+      activeEmulations.delete(tab.id);
+      await detachCdp(tab);
+      return { ok: true, data: { cleared: true } };
+    }
     const applied = {};
     if (args.width && args.height) {
       await chrome.debugger.sendCommand(target, 'Emulation.setDeviceMetricsOverride', {
@@ -60,16 +68,14 @@ export async function cdpEmulate(tab, args = {}) {
       });
       applied.network = { offline: Boolean(args.offline || net === 'offline'), type: net || 'custom' };
     }
-    return { ok: true, data: { emulated: true, applied, url: tab.url } };
+    activeEmulations.set(tab.id, true);
+    return { ok: true, data: { emulated: true, applied, url: tab.url, note: 'Emulation active on this tab until clear:true or tab close.' } };
   } catch (err) {
+    activeEmulations.delete(tab.id);
+    await detachCdp(tab);
     return { ok: false, error: `CDP emulation error: ${String((err && err.message) || err)}` };
-  } finally {
-    if (attached) {
-      await rawDetach(target);
-    }
   }
 }
-
 
 export async function cdpGrantPermissions(tab, args = {}) {
   const permissions = Array.isArray(args.permissions) ? args.permissions : [args.permission || 'geolocation'];
@@ -107,37 +113,34 @@ export async function cdpGrantPermissions(tab, args = {}) {
         longitude: Number(args.longitude) || 74.3587,
         accuracy: 100,
       });
+      activeEmulations.set(tab.id, true);
     } catch {}
   }
 
   return { ok: true, data: { granted: permissions, origin: origin || 'activeTab' } };
 }
 
-
 export async function cdpSetTimezone(tab, args = {}) {
   const target = { tabId: tab.id };
-  let newlyAttached = false;
+  const attached = await attachCdp(tab);
+  if (!attached.ok) return attached;
   try {
-    await rawAttach(target);
-    newlyAttached = true;
-  } catch (e) {
-    if (!/already attached/i.test(String((e && e.message) || e))) {
-      return { ok: false, error: `CDP attach: ${e.message || e}` };
+    if (args.clear === true) {
+      await chrome.debugger.sendCommand(target, 'Emulation.setTimezoneOverride', { timezoneId: '' });
+      activeEmulations.delete(tab.id);
+      await detachCdp(tab);
+      return { ok: true, data: { cleared: true } };
     }
-  }
-  try {
     const timezoneId = String(args.timezoneId || args.timezone || 'Asia/Karachi');
     await chrome.debugger.sendCommand(target, 'Emulation.setTimezoneOverride', { timezoneId });
-    return { ok: true, data: { timezoneId } };
+    activeEmulations.set(tab.id, true);
+    return { ok: true, data: { timezoneId, note: 'Timezone override active until clear:true or tab close.' } };
   } catch (err) {
+    activeEmulations.delete(tab.id);
+    await detachCdp(tab);
     return { ok: false, error: `CDP timezone error: ${String((err && err.message) || err)}` };
-  } finally {
-    if (newlyAttached) {
-      await rawDetach(target);
-    }
   }
 }
-
 
 export async function cdpSetGeolocation(tab, args = {}) {
   const target = { tabId: tab.id };
@@ -146,6 +149,7 @@ export async function cdpSetGeolocation(tab, args = {}) {
   try {
     if (args.clear) {
       await chrome.debugger.sendCommand(target, 'Emulation.clearGeolocationOverride', {});
+      activeEmulations.delete(tab.id);
       await detachCdp(tab);
       return { ok: true, data: { cleared: true } };
     }
@@ -172,14 +176,14 @@ export async function cdpSetGeolocation(tab, args = {}) {
       },
       args: [latitude, longitude, accuracy],
     }).catch(() => {});
-    await detachCdp(tab);
-    return { ok: true, data: { latitude, longitude, accuracy } };
+    activeEmulations.set(tab.id, true);
+    return { ok: true, data: { latitude, longitude, accuracy, note: 'Geolocation override active until clear:true.' } };
   } catch (err) {
+    activeEmulations.delete(tab.id);
     await detachCdp(tab);
     return { ok: false, error: `CDP setGeolocation error: ${String((err && err.message) || err)}` };
   }
 }
-
 
 export async function cdpThrottleNetwork(tab, args = {}) {
   const target = { tabId: tab.id };
@@ -192,6 +196,7 @@ export async function cdpThrottleNetwork(tab, args = {}) {
     let latency = Number(args.latency ?? 0);
     let downloadThroughput = Number(args.downloadThroughput ?? -1);
     let uploadThroughput = Number(args.uploadThroughput ?? -1);
+    const isClear = preset === 'none' || preset === 'online' || preset === 'clear' || args.clear === true;
 
     if (preset === 'offline') {
       offline = true;
@@ -208,7 +213,7 @@ export async function cdpThrottleNetwork(tab, args = {}) {
       latency = 150;
       downloadThroughput = (1.6 * 1024 * 1024) / 8;
       uploadThroughput = (750 * 1024) / 8;
-    } else if (preset === 'none' || preset === 'online' || preset === 'clear') {
+    } else if (isClear) {
       offline = false;
       latency = 0;
       downloadThroughput = -1;
@@ -221,7 +226,12 @@ export async function cdpThrottleNetwork(tab, args = {}) {
       downloadThroughput,
       uploadThroughput,
     });
-    await detachCdp(tab);
+    if (isClear) {
+      activeEmulations.delete(tab.id);
+      await detachCdp(tab);
+    } else {
+      activeEmulations.set(tab.id, true);
+    }
     return {
       ok: true,
       data: {
@@ -230,26 +240,22 @@ export async function cdpThrottleNetwork(tab, args = {}) {
         latencyMs: latency,
         downloadThroughputKbps: downloadThroughput > 0 ? Math.round((downloadThroughput * 8) / 1024) : 'unlimited',
         uploadThroughputKbps: uploadThroughput > 0 ? Math.round((uploadThroughput * 8) / 1024) : 'unlimited',
+        active: !isClear,
       },
     };
   } catch (err) {
+    activeEmulations.delete(tab.id);
     await detachCdp(tab);
     return { ok: false, error: `CDP throttleNetwork error: ${String((err && err.message) || err)}` };
   }
 }
 
-
 // ── web_emulate_media: Playwright page.emulateMedia parity — media type +
 // prefers-reduced-motion / forced-colors / prefers-contrast feature overrides ──
 export async function cdpEmulateMedia(tab, args = {}) {
   const target = { tabId: tab.id };
-  let attachedHere = false;
-  try {
-    await rawAttach(target);
-    attachedHere = true;
-  } catch (err) {
-    if (!/already attached/i.test(String((err && err.message) || err))) throw err;
-  }
+  const attached = await attachCdp(tab);
+  if (!attached.ok) return attached;
   try {
     const params = { media: args.media !== undefined ? String(args.media) : '' };
     const features = [];
@@ -259,6 +265,13 @@ export async function cdpEmulateMedia(tab, args = {}) {
     if (args.colorScheme) features.push({ name: 'prefers-color-scheme', value: String(args.colorScheme) });
     if (features.length) params.features = features;
     await chrome.debugger.sendCommand(target, 'Emulation.setEmulatedMedia', params);
+    const hasOverrides = Boolean(params.media || features.length);
+    if (hasOverrides) {
+      activeEmulations.set(tab.id, true);
+    } else {
+      activeEmulations.delete(tab.id);
+      await detachCdp(tab);
+    }
     return {
       ok: true,
       data: {
@@ -268,9 +281,9 @@ export async function cdpEmulateMedia(tab, args = {}) {
       },
     };
   } catch (err) {
+    activeEmulations.delete(tab.id);
+    await detachCdp(tab);
     return { ok: false, error: 'web_emulate_media failed: ' + String((err && err.message) || err) };
-  } finally {
-    if (attachedHere) { await rawDetach(target); }
   }
 }
 
@@ -286,9 +299,10 @@ export async function cdpSetColorScheme(tab, args = {}) {
       media: '',
       features: [{ name: 'prefers-color-scheme', value: chosen }],
     });
-    await detachCdp(tab);
+    activeEmulations.set(tab.id, true);
     return { ok: true, data: { colorScheme: chosen } };
   } catch (err) {
+    activeEmulations.delete(tab.id);
     await detachCdp(tab);
     return { ok: false, error: `CDP setColorScheme error: ${String((err && err.message) || err)}` };
   }

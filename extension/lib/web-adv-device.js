@@ -75,7 +75,9 @@ async function clearEmulation(tab, tabId) {
 
 async function captureWindowBounds(tabId) {
   try {
-    const win = await chrome.windows.get(tabId);
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab || !tab.windowId) return;
+    const win = await chrome.windows.get(tab.windowId);
     origWindowBounds.set(tabId, { windowId: win.id, left: win.left, top: win.top, width: win.width, height: win.height, state: win.state });
   } catch { /* best effort */ }
 }

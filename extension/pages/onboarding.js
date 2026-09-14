@@ -158,6 +158,12 @@ $('btn-connect').onclick = async () => {
     }
     const r = await send({ type: 'probe', url });
     if (!r.ok) throw new Error(r.error || 'unreachable');
+    const authCheck = await send({ type: 'test-hub', url, token });
+    if (!authCheck.ok) {
+      const errObj = new Error(authCheck.error || 'authentication failed');
+      errObj.status = authCheck.status;
+      throw errObj;
+    }
     await send({ type: 'update-settings', patch: { hubUrl: url, token, onboardingComplete: true } });
     show('guide');
     loadGuide();
