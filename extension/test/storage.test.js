@@ -8,9 +8,12 @@ const { getSettings, saveSettings } = await import('../lib/storage.js');
 
 console.log('[test] running storage unit tests...');
 
-// 1. Initial defaults
+// 1. Initial defaults (Safe defaults: OFF by default per §0 / Phase 0)
 const s1 = await getSettings();
 assert.equal(typeof s1.token, 'string', 'Token should be present in settings');
+assert.equal(s1.token, '', 'Safe default: token must be empty on fresh install (no default secret)');
+assert.equal(s1.onboardingComplete, false, 'Safe default: onboardingComplete must be false on fresh install');
+assert.equal(s1.webAccessEnabled, false, 'Safe default: webAccessEnabled must be false on fresh install (OFF by default)');
 assert.equal(typeof s1.hubUrl, 'string', 'hubUrl should be present');
 
 // 2. Saving secret token writes to local, NOT sync
