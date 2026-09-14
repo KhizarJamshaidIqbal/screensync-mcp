@@ -92,9 +92,9 @@ void main() {
   testWidgets('tap triggers capture and writes bridge event', (tester) async {
     await tester.pumpWidget(harness());
     await tester.tap(find.byIcon(Icons.camera_alt_rounded));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     await _drainRealIO(tester);
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
 
     expect(_triggerFile().existsSync(), isTrue);
     final payload =
@@ -103,49 +103,19 @@ void main() {
     expect(payload['source'], 'floating_bubble');
   });
 
-  testWidgets('long-press opens selector, drag + confirm writes crop event',
+  testWidgets('long-press triggers region capture and writes bridge event',
       (tester) async {
     await tester.pumpWidget(harness());
 
     await tester.longPress(find.byIcon(Icons.camera_alt_rounded));
-    await tester.pumpAndSettle();
-    expect(find.text('Drag a box over the faulty widget, then confirm'),
-        findsOneWidget);
-
-    final gesture = await tester.startGesture(const Offset(100, 100));
-    await gesture.moveBy(const Offset(160, 200));
-    await gesture.up();
-    await tester.pump();
-
-    await tester.tap(find.text('Capture region'));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     await _drainRealIO(tester);
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
 
     expect(_triggerFile().existsSync(), isTrue);
     final payload =
         jsonDecode(_triggerFile().readAsStringSync()) as Map<String, dynamic>;
-    expect(payload['type'], 'CROP_CAPTURE');
-    final rect = payload['rect'] as Map<String, dynamic>;
-    expect(rect['nx'], closeTo(100 / 800, 0.01));
-    expect(rect['ny'], closeTo(100 / 600, 0.01));
-  });
-
-  testWidgets('selector cancel returns to bubble without capture',
-      (tester) async {
-    await tester.pumpWidget(harness());
-
-    await tester.longPress(find.byIcon(Icons.camera_alt_rounded));
-    await tester.pumpAndSettle();
-    expect(find.text('Cancel'), findsOneWidget);
-
-    await tester.tap(find.text('Cancel'));
-    await tester.pump();
-    await _drainRealIO(tester);
-    await tester.pumpAndSettle();
-
-    expect(find.byIcon(Icons.camera_alt_rounded), findsOneWidget);
-    final file = _triggerFile();
-    expect(!file.existsSync() || file.readAsStringSync().isEmpty, isTrue);
+    expect(payload['type'], 'REGION_CAPTURE');
+    expect(payload['source'], 'floating_bubble');
   });
 }
