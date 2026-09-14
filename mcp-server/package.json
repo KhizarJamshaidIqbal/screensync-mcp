@@ -15,7 +15,8 @@
     "fetch:latest": "tsx test/fetch_latest.ts",
     "lint:ext": "npx eslint ../extension",
     "typecheck:ext": "tsc --project ../extension/jsconfig.json",
-    "verify:ext": "npm run lint:ext && npm run typecheck:ext"
+    "verify:ext": "npm run lint:ext && npm run typecheck:ext",
+    "verify:unpacked": "node ../extension/test/verify_unpacked.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.5",
