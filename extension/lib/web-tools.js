@@ -8,7 +8,7 @@ import { execAdvTool, cdpWaitNetworkIdle } from './web-adv.js';
 import { execDeviceTool } from './web-adv-device.js';
 import { execWatch } from './web-watch.js';
 import { ssWebUnitInteract, ssWebUnitExtract } from './web-unit.js';
-import { ssWebUnitAgent } from './web-unit-agent.js';
+import { ssWebUnitPerception, ssWebUnitAction } from './web-unit-agent.js';
 import { ssWebUnitDom } from './web-unit-dom.js';
 import { ssWebUnitStorageAdv } from './web-storage-adv.js';
 import { ssWebUnitDigest } from './web-unit-digest.js';
@@ -37,10 +37,13 @@ const INTERACT_TOOLS = new Set([
   'web_upload_file', 'web_drag_and_drop',
 ]);
 
-const AGENT_UNIT_TOOLS = new Set([
-  'web_expect', 'web_aria_snapshot', 'web_table_extract', 'web_get_by',
-  'web_fill', 'web_check', 'web_focus', 'web_scroll_to', 'web_media_extract',
+const AGENT_PERCEPTION_TOOLS = new Set([
+  'web_expect', 'web_aria_snapshot', 'web_table_extract', 'web_media_extract',
   'web_actionable',
+]);
+
+const AGENT_ACTION_TOOLS = new Set([
+  'web_get_by', 'web_fill', 'web_check', 'web_focus', 'web_scroll_to',
 ]);
 
 const DOM_TOOLS = new Set([
@@ -87,7 +90,8 @@ async function inject(tab, args) {
   try {
     const toolName = (args && args.__tool) || '';
     const fn = INTERACT_TOOLS.has(toolName) ? ssWebUnitInteract
-      : AGENT_UNIT_TOOLS.has(toolName) ? ssWebUnitAgent
+      : AGENT_PERCEPTION_TOOLS.has(toolName) ? ssWebUnitPerception
+      : AGENT_ACTION_TOOLS.has(toolName) ? ssWebUnitAction
       : DOM_TOOLS.has(toolName) ? ssWebUnitDom
       : STORAGE_ADV_TOOLS.has(toolName) ? ssWebUnitStorageAdv
       : ssWebUnitExtract;
@@ -245,7 +249,7 @@ export async function executeWebTool(tool, args = {}) {
     default: {
       // Injected DOM / Agent / Storage tools
       if (
-        INTERACT_TOOLS.has(tool) || AGENT_UNIT_TOOLS.has(tool) || DOM_TOOLS.has(tool) ||
+        INTERACT_TOOLS.has(tool) || AGENT_PERCEPTION_TOOLS.has(tool) || AGENT_ACTION_TOOLS.has(tool) || DOM_TOOLS.has(tool) ||
         STORAGE_ADV_TOOLS.has(tool) || tool === 'web_hierarchy' || tool === 'web_find' ||
         tool === 'web_assert' || tool === 'web_markdown_extract' || tool === 'web_som_overlay' ||
         tool === 'web_remove_overlay' || tool === 'web_dom_diff' || tool === 'web_scrape_schema'

@@ -4,16 +4,17 @@
 // chrome.scripting target.frameIds.
 
 import { ssWebUnitInteract, ssWebUnitExtract } from './web-unit.js';
-import { ssWebUnitAgent } from './web-unit-agent.js';
+import { ssWebUnitPerception, ssWebUnitAction } from './web-unit-agent.js';
 
 const RESTRICTED_TAB = /^(chrome|edge|view-source|devtools|chrome-extension):/;
 const INTERACT_TOOLS = new Set(['web_click', 'web_type', 'web_paste', 'web_clear', 'web_highlight', 'web_scroll', 'web_upload_file', 'web_drag_and_drop']);
-const AGENT_TOOLS = new Set(['web_expect', 'web_aria_snapshot', 'web_table_extract', 'web_get_by', 'web_fill', 'web_check', 'web_focus', 'web_scroll_to', 'web_media_extract']);
+const PERCEPTION_TOOLS = new Set(['web_expect', 'web_aria_snapshot', 'web_table_extract', 'web_media_extract', 'web_actionable']);
+const ACTION_TOOLS = new Set(['web_get_by', 'web_fill', 'web_check', 'web_focus', 'web_scroll_to', 'web_run_code']);
 
 export async function execInFrame(tab, args) {
   const innerTool = String(args.tool || '');
   if (!/^web_[a-z_]+$/.test(innerTool)) return { ok: false, error: 'web_in_frame requires tool (a web_* tool to run inside the frame).' };
-  if (!INTERACT_TOOLS.has(innerTool) && !AGENT_TOOLS.has(innerTool) && !['web_find', 'web_scrape_schema', 'web_dom_diff', 'web_som_overlay', 'web_remove_overlay', 'web_assert', 'web_markdown_extract'].includes(innerTool)) {
+  if (!INTERACT_TOOLS.has(innerTool) && !PERCEPTION_TOOLS.has(innerTool) && !ACTION_TOOLS.has(innerTool) && !['web_find', 'web_scrape_schema', 'web_dom_diff', 'web_som_overlay', 'web_remove_overlay', 'web_assert', 'web_markdown_extract'].includes(innerTool)) {
     return { ok: false, error: `Tool ${innerTool} is not a frame-scopable page tool. Use interact/agent/extract tools (web_click, web_fill, web_expect, ...).` };
   }
   let frames;
@@ -37,7 +38,10 @@ export async function execInFrame(tab, args) {
     return { ok: false, error: 'web_in_frame requires frameId (from web_frame_tree) or frameUrl substring.' };
   }
 
-  const fn = INTERACT_TOOLS.has(innerTool) ? ssWebUnitInteract : AGENT_TOOLS.has(innerTool) ? ssWebUnitAgent : ssWebUnitExtract;
+  const fn = INTERACT_TOOLS.has(innerTool) ? ssWebUnitInteract
+    : PERCEPTION_TOOLS.has(innerTool) ? ssWebUnitPerception
+    : ACTION_TOOLS.has(innerTool) ? ssWebUnitAction
+    : ssWebUnitExtract;
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id, frameIds: [frame.frameId] },
