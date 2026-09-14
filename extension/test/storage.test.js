@@ -13,7 +13,7 @@ const s1 = await getSettings();
 assert.equal(typeof s1.token, 'string', 'Token should be present in settings');
 assert.equal(s1.token, '', 'Safe default: token must be empty on fresh install (no default secret)');
 assert.equal(s1.onboardingComplete, false, 'Safe default: onboardingComplete must be false on fresh install');
-assert.equal(s1.webAccessEnabled, false, 'Safe default: webAccessEnabled must be false on fresh install (OFF by default)');
+assert.equal(s1.webAccessEnabled, true, 'Intentional default: webAccessEnabled ships ON so a fresh install needs no extra click (owner decision 2026-09-14)');
 assert.equal(typeof s1.hubUrl, 'string', 'hubUrl should be present');
 
 // 2. Saving secret token writes to local, NOT sync

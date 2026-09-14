@@ -7,7 +7,7 @@ const LOCAL_DEFAULTS = {
   hubUrl: 'http://127.0.0.1:3000',
   token: '',
   onboardingComplete: false,
-  webAccessEnabled: false,
+  webAccessEnabled: true,
   grants: {},
   setupGuideCache: null,
   setupGuideFetchedAt: null,
