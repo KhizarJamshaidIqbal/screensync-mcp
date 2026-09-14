@@ -372,47 +372,53 @@ class _SettingsTabState extends State<SettingsTab> {
                 style: AppTheme.typeBodyMedium
                     .copyWith(color: AppTheme.darkTextDim))
           else
-            for (final p in presets)
-              RadioListTile<String>(
-                activeColor: AppTheme.primary,
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                value: p.id,
-                groupValue: activeId,
-                onChanged: (v) =>
-                    setState(() => settings.activeCustomPresetId = v ?? ''),
-                title: Row(
-                  children: [
-                    Expanded(
-                      child: Text(p.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w600)),
+            RadioGroup<String>(
+              groupValue: activeId,
+              onChanged: (v) =>
+                  setState(() => settings.activeCustomPresetId = v ?? ''),
+              child: Column(
+                children: [
+                  for (final p in presets)
+                    RadioListTile<String>(
+                      activeColor: AppTheme.primary,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: p.id,
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(p.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.w600)),
+                          ),
+                          IconButton(
+                            tooltip: 'Delete preset',
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.delete_outline_rounded,
+                                size: 18),
+                            onPressed: () {
+                              final next =
+                                  presets.where((e) => e.id != p.id).toList();
+                              setState(() {
+                                settings.customPresetsRaw =
+                                    CustomPreset.encodeList(next);
+                                if (activeId == p.id) {
+                                  settings.activeCustomPresetId = '';
+                                }
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      subtitle: Text(p.summary,
+                          style: AppTheme.typeCaption
+                              .copyWith(color: AppTheme.darkTextDim)),
                     ),
-                    IconButton(
-                      tooltip: 'Delete preset',
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.delete_outline_rounded,
-                          size: 18),
-                      onPressed: () {
-                        final next =
-                            presets.where((e) => e.id != p.id).toList();
-                        setState(() {
-                          settings.customPresetsRaw =
-                              CustomPreset.encodeList(next);
-                          if (activeId == p.id) {
-                            settings.activeCustomPresetId = '';
-                          }
-                        });
-                      },
-                    ),
-                  ],
-                ),
-                subtitle: Text(p.summary,
-                    style: AppTheme.typeCaption
-                        .copyWith(color: AppTheme.darkTextDim)),
+                ],
               ),
+            ),
         ],
       ),
     );
