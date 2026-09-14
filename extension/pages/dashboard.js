@@ -24,11 +24,11 @@ if (location.search.includes('autoreload=1')) {
 // a user-configured hub URL / token / web-access toggle on every open.
 (async () => {
   try {
-    const existing = await chrome.storage.sync.get(null);
+    const existing = await chrome.storage.local.get(null);
     if (!existing || Object.keys(existing).length === 0) {
       await send({
         type: 'update-settings',
-        patch: { hubUrl: 'http://127.0.0.1:3000', token: 'screensync-local-dev', onboardingComplete: true, webAccessEnabled: true }
+        patch: { hubUrl: 'http://127.0.0.1:3000', onboardingComplete: true }
       });
     }
   } catch {}

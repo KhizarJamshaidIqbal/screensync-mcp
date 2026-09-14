@@ -184,7 +184,9 @@ if (chrome.contextMenus && chrome.contextMenus.onClicked) {
         await api.control('open_url', { url: info.linkUrl });
       } else if (info.menuItemId === 'screensync-sidepanel') {
         if (chrome.sidePanel && chrome.sidePanel.open && tab) {
-          chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {});
+          chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {
+            chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
+          });
         } else {
           chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
         }
@@ -207,12 +209,15 @@ if (chrome.commands && chrome.commands.onCommand) {
       try {
         const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         if (tab && chrome.sidePanel && chrome.sidePanel.open) {
-          chrome.sidePanel.open({ windowId: tab.windowId });
+          // Await, so a rejection is caught here instead of becoming an unhandled
+          // promise rejection that silently drops the keyboard shortcut.
+          await chrome.sidePanel.open({ windowId: tab.windowId });
         } else {
           chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
         }
       } catch (e) {
-        console.warn('[ss] open sidepanel command failed:', e);
+        console.warn('[ss] open sidepanel command failed, opening dashboard tab:', e);
+        chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
       }
     }
   });
@@ -427,13 +432,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           sendResponse({ ok: true });
           break;
         case 'open-side-panel': {
-          const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-          if (tab && chrome.sidePanel && chrome.sidePanel.open) {
-            await chrome.sidePanel.open({ windowId: tab.windowId });
-            sendResponse({ ok: true });
-          } else {
+          try {
+            const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            if (tab && chrome.sidePanel && chrome.sidePanel.open) {
+              await chrome.sidePanel.open({ windowId: tab.windowId });
+              sendResponse({ ok: true });
+            } else {
+              chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
+              sendResponse({ ok: true, fallback: true });
+            }
+          } catch (err) {
+            // sidePanel.open() needs a live user gesture; a message hop from the popup
+            // does not carry one, so this can legitimately reject. Never fail silently.
             chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
-            sendResponse({ ok: true, fallback: true });
+            sendResponse({ ok: false, fallback: true, error: String((err && err.message) || err) });
           }
           break;
         }

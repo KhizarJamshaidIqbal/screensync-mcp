@@ -21,11 +21,11 @@ ver.textContent = 'v' + chrome.runtime.getManifest().version;
 // a user-configured hub URL / token / web-access toggle on every open.
 (async () => {
   try {
-    const existing = await chrome.storage.sync.get(null);
+    const existing = await chrome.storage.local.get(null);
     if (!existing || Object.keys(existing).length === 0) {
       await send({
         type: 'update-settings',
-        patch: { hubUrl: 'http://127.0.0.1:3000', token: 'screensync-local-dev', onboardingComplete: true, webAccessEnabled: true }
+        patch: { hubUrl: 'http://127.0.0.1:3000', onboardingComplete: true }
       });
     }
   } catch {}
@@ -153,6 +153,30 @@ if (reloadBtn) {
 
 // Navigation
 const sideBtn = document.getElementById('open-side');
-if (sideBtn) sideBtn.onclick = () => { send({ type: 'open-side-panel' }); window.close(); };
+if (sideBtn) {
+  // chrome.sidePanel.open() must be called while the user gesture is still live.
+  // A runtime.sendMessage hop to the service worker loses user activation, and the
+  // worker's call then rejects with "may only be called in response to a user
+  // gesture" - which is why this button did nothing. Call it from the popup first.
+  sideBtn.onclick = async () => {
+    try {
+      if (chrome.sidePanel && chrome.sidePanel.open && chrome.windows) {
+        const win = await chrome.windows.getCurrent();
+        await chrome.sidePanel.open({ windowId: win.id });
+        window.close();
+        return;
+      }
+    } catch (err) {
+      console.warn('[ss] sidePanel.open from popup failed, falling back:', err);
+    }
+    try {
+      const r = await send({ type: 'open-side-panel' });
+      if (!r || !r.ok) send({ type: 'open-dashboard' });
+    } catch {
+      send({ type: 'open-dashboard' });
+    }
+    window.close();
+  };
+}
 document.getElementById('open').onclick = () => send({ type: 'open-dashboard' });
 document.getElementById('setup').onclick = () => { location.href = 'onboarding.html'; };
