@@ -20,6 +20,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
 <link rel="stylesheet" href="css/custom.css">
 <style>
   :root {
@@ -148,7 +150,37 @@
   @media print { .cl-controls, .cl-actions { display: none; } }
 </style>
 </head>
-<body>
+<body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
+
+<!-- The site's standard header. The Changelog item carries the active state, so the
+     page you are on is obvious, and the mobile menu carries its own copy. -->
+<header class="glass-nav fixed top-0 inset-x-0 z-50">
+  <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
+    <a href="/" class="flex items-center gap-2.5">
+      <img src="assets/logo.png" alt="ScreenSync MCP logo" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
+      <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
+    </a>
+    <div class="hidden md:flex items-center gap-7 text-[15px] font-medium text-[#4B4460]">
+      <a href="/" class="hover:text-[#6541D6] transition">Home</a>
+      <a href="about.html" class="hover:text-[#6541D6] transition">About</a>
+      <a href="goal.html" class="hover:text-[#6541D6] transition">Goal</a>
+      <a href="privacy.html" class="hover:text-[#6541D6] transition">Privacy</a>
+      <a href="data-policy.html" class="hover:text-[#6541D6] transition">Data Policy</a>
+      <a href="extension.html" class="hover:text-[#6541D6] transition">Extension</a>
+      <a href="changelog.html" class="text-[#6541D6] font-semibold" aria-current="page">Changelog</a>
+      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold">Get Connected</a>
+    </div>
+    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false"><i data-lucide="menu" class="w-6 h-6"></i></button>
+  </nav>
+  <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
+    <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
+      <a href="/" class="py-1.5">Home</a><a href="about.html" class="py-1.5">About</a><a href="goal.html" class="py-1.5">Goal</a><a href="privacy.html" class="py-1.5">Privacy</a><a href="data-policy.html" class="py-1.5">Data Policy</a>
+      <a href="extension.html" class="py-1.5">Extension</a>
+      <a href="changelog.html" class="py-1.5 text-[#6541D6] font-semibold" aria-current="page">Changelog</a>
+    </div>
+  </div>
+</header>
+
 <div class="cl-shell">
 
   <header class="cl-hero">
@@ -185,14 +217,46 @@
   </div>
 
   <footer class="cl-foot">
-    Generated 2026-09-15T18:32:38Z from the repository history.<br>
-    App builds arrive on <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener">Google Play</a>;
-    the extension ships from <a href="extension.html">the extension page</a>.<br>
+    Generated 2026-09-15T19:04:41Z from the repository history. App builds arrive on
+    <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener">Google Play</a>;
+    the extension ships from <a href="extension.html">the extension page</a>.
     This page is rebuilt by <span class="cl-sha">tools/build_changelog.py</span> on every release.
   </footer>
 </div>
 
-<script id="cl-data" type="application/json">{"generatedAt":"2026-09-15T18:32:38Z","repo":"github.com/KhizarJamshaidIqbal/screensync-mcp","entries":[{"sha":"7ffa95f","date":"2026-09-15","ts":1789490047,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.4","build":"32","display":"2.5.4 (build 32)","date":"2026-09-15","ts":1789490047,"sha":"7ffa95f","groups":{"NEW":["Modernise the connect prompt - top-right skip, live status, one-tap reconnect","Connect prompt with a scan shortcut, and a real version in the app bar","Keep the live stream card hidden until the first frame arrives","Show Finish setup first and let the hero step aside until it is done","Show the app version and update channel in Settings and on the hub screen"],"IMPROVED":[],"FIXED":[]},"count":5}],"count":5,"title":"App 2.5.4 (build 32)"},{"sha":"9489bb0","date":"2026-09-15","ts":1789465902,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.4","build":"31","display":"2.5.4 (build 31)","date":"2026-09-15","ts":1789465902,"sha":"9489bb0","groups":{"NEW":["Play In-App Updates (Immediate) + a periodic Play update check"],"IMPROVED":[],"FIXED":["Apply the independent review of the Play update integration"]},"count":2}],"count":2,"title":"App 2.5.4 (build 31)"},{"sha":"3b1ffc5","date":"2026-09-14","ts":1789399219,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.4","build":"29","display":"2.5.4 (build 29)","date":"2026-09-14","ts":1789399219,"sha":"3b1ffc5","groups":{"NEW":["Blocking update gate, Play-aware, plus a Play release workflow"],"IMPROVED":[],"FIXED":[]},"count":1}],"count":1,"title":"App 2.5.4 (build 29)"},{"sha":"ac3ba2d","date":"2026-09-14","ts":1789397516,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.2","build":"27","display":"2.5.2 (build 27)","date":"2026-09-14","ts":1789397516,"sha":"ac3ba2d","groups":{"NEW":["In-app update channel - hub publishes the build, phones install it"],"IMPROVED":[],"FIXED":[]},"count":1}],"count":1,"title":"App 2.5.2 (build 27)"},{"sha":"c36cc9b","date":"2026-09-14","ts":1789396087,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.1","build":"26","display":"2.5.1 (build 26)","date":"2026-09-14","ts":1789396087,"sha":"c36cc9b","groups":{"NEW":["Opt-in live mirror so the hub can see the phone screen","Live connect-kit endpoint, global install, address beside the QR","Rebuild the pairing screen with motion and real fallbacks","Make the OS-control opt-in a host setting the desktop app can drive","Restore broken declared tools, clean catalogue to 165 tools, and add consistency guard","Agent catalog, sequenced SSE replay, pairing window, os_* hardening","Repo-free setup guide v2 + guide cache revalidation","First-run privacy gate with Settings re-read entry","Add E3 live-bridge theme picker and advanced UX features"],"IMPROVED":[],"FIXED":["The pairing QR could never be decoded - drop the scanWindow","Re-arm hub maintenance timer so auto-sync survives a disconnect","Migrate deprecated Radio groupValue/onChanged to RadioGroup","Ship true-PNG splash/icon assets and branded pre-31 splash","Align Live Bridge cable through phone/orb centers"]},"count":14}],"count":14,"title":"App 2.5.1 (build 26)"},{"sha":"7d07946","date":"2026-09-14","ts":1789379562,"parts":[{"stream":"extension","streamLabel":"Extension","version":"1.8.0","build":"","display":"1.8.0","date":"2026-09-14","ts":1789379562,"sha":"7d07946","groups":{"NEW":["Implement items P7-P12 (trace viewer, test runner, codegen, handles, semantics, service workers)","Playwright parity gaps (P1-P6) and ai-browser loop (D1-D9)","Approval gate for destructive actions, origin consent enforcement, and boundary fixes","Restore broken declared tools, clean catalogue to 165 tools, and add consistency guard","Remove cdpStealthCloak and navigator webdriver patching","Delete vault, session-sync, harvest, and social modules","Implement improvement plan rev 3 (D10-D13, L1-L11, C1-C9, H1-H8)"],"IMPROVED":["Remove excised tool handlers and schemas","Split mixed agent files to separate sensitive tools"],"FIXED":["Import leaf units directly in web-frames and web-tools to eliminate duplicate declarations","Route all raw Network.enable/disable through ref-counted helpers","Complete Rev 3 remaining fixes (H6 schedules, H1 browser binding, C5 network ref-count, D4 validation, V0 static gate)","Enforce safe defaults (OFF by default, empty token, onboarding false per §0)"]},"count":13}],"count":13,"title":"Extension 1.8.0"},{"sha":"67a0a07","date":"2026-09-13","ts":1789322580,"parts":[{"stream":"extension","streamLabel":"Extension","version":"1.7.1","build":"","display":"1.7.1","date":"2026-09-13","ts":1789322580,"sha":"67a0a07","groups":{"NEW":["Implement Playwright and operator parity, modular units, and safe defaults","Round-10 complete playwright & social operator parity (181 tools)","Round-9 playwright parity - visual baselines, media emulation, mhtml, cache control, flow chaining","Flow schedules — hub runs flows on autopilot; api multipart — v1.6.1 / v3.2.0 (163 tools)","Operator data layer — api-fetch, flows library, SSE zombie fix — v1.5.0 / v3.1.0 (160 tools)","Clock/pdf/download parity, tab fanout, teach-once-replay — v1.4.0 / v3.0.0 (152 tools)","Multi-browser data sync + frame/auth parity — v1.3.0 / v2.9.0 (146 tools)","HAR 1.2 pages metadata + refresh website download zips","Playwright-parity agent layer, evidence tools, ambient SSE events","One-paste AI setup prompt button on onboarding guide step","Repo-free setup guide v2 + guide cache revalidation","Advanced toolkit — 13 new web tools, realtime watch + 4 skills","Add AI-agent web access bridge (hub + extension)","MV3 browser extension + website extension page & setup guide"],"IMPROVED":["Split web-adv.js monolith into 9 focused CDP modules"],"FIXED":["Guard web-access pill refresh against toggle race + fresh zips"]},"count":16}],"count":16,"title":"Extension 1.7.1"},{"sha":"0805557","date":"2026-08-28","ts":1787943375,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.0","build":"25","display":"2.5.0 (build 25)","date":"2026-08-28","ts":1787943375,"sha":"0805557","groups":{"NEW":["Ship violet UX overhaul with QR pairing and live AI push"],"IMPROVED":[],"FIXED":[]},"count":1}],"count":1,"title":"App 2.5.0 (build 25)"}],"stats":{"releases":8,"appReleases":6,"extensionReleases":2,"changes":53}}</script>
+<!-- The site's standard footer. -->
+<footer class="bg-[#150E27] text-purple-200/80">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-3 gap-10">
+    <div>
+      <div class="flex items-center gap-2.5"><img src="assets/logo.png" alt="ScreenSync MCP" class="w-9 h-9 rounded-xl"><span class="font-extrabold text-white text-lg">ScreenSync MCP</span></div>
+      <p class="text-sm mt-4 leading-relaxed text-purple-200/60">Your AI, watching over your shoulder. Live Android screen capture &amp; control for MCP agents — LAN-first, privacy-first.</p>
+    </div>
+    <div>
+      <h4 class="text-white font-bold mb-4">Pages</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="/" class="hover:text-white transition">Home</a></li>
+        <li><a href="about.html" class="hover:text-white transition">About Us</a></li>
+        <li><a href="goal.html" class="hover:text-white transition">Goal &amp; Vision</a></li>
+        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
+        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
+        <li><a href="extension.html" class="hover:text-white transition">Browser Extension</a></li>
+        <li><a href="changelog.html" class="text-white transition" aria-current="page">Changelog</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4 class="text-white font-bold mb-4">Contact</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li class="flex items-center gap-2"><i data-lucide="globe" class="w-4 h-4"></i><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
+        <li class="flex items-center gap-2"><i data-lucide="mail" class="w-4 h-4"></i><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10 py-6 text-center text-xs text-purple-200/50">© <span class="year"></span> EpsolDev · ScreenSync MCP v2.5 · All rights reserved.</div>
+</footer>
+
+<script src="js/main.js"></script>
+
+<script id="cl-data" type="application/json">{"generatedAt":"2026-09-15T19:04:41Z","repo":"github.com/KhizarJamshaidIqbal/screensync-mcp","entries":[{"sha":"7ffa95f","date":"2026-09-15","ts":1789490047,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.4","build":"32","display":"2.5.4 (build 32)","date":"2026-09-15","ts":1789490047,"sha":"7ffa95f","groups":{"NEW":["Modernise the connect prompt - top-right skip, live status, one-tap reconnect","Connect prompt with a scan shortcut, and a real version in the app bar","Keep the live stream card hidden until the first frame arrives","Show Finish setup first and let the hero step aside until it is done","Show the app version and update channel in Settings and on the hub screen"],"IMPROVED":[],"FIXED":[]},"count":5}],"count":5,"title":"App 2.5.4 (build 32)"},{"sha":"9489bb0","date":"2026-09-15","ts":1789465902,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.4","build":"31","display":"2.5.4 (build 31)","date":"2026-09-15","ts":1789465902,"sha":"9489bb0","groups":{"NEW":["Play In-App Updates (Immediate) + a periodic Play update check"],"IMPROVED":[],"FIXED":["Apply the independent review of the Play update integration"]},"count":2}],"count":2,"title":"App 2.5.4 (build 31)"},{"sha":"3b1ffc5","date":"2026-09-14","ts":1789399219,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.4","build":"29","display":"2.5.4 (build 29)","date":"2026-09-14","ts":1789399219,"sha":"3b1ffc5","groups":{"NEW":["Blocking update gate, Play-aware, plus a Play release workflow"],"IMPROVED":[],"FIXED":[]},"count":1}],"count":1,"title":"App 2.5.4 (build 29)"},{"sha":"ac3ba2d","date":"2026-09-14","ts":1789397516,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.2","build":"27","display":"2.5.2 (build 27)","date":"2026-09-14","ts":1789397516,"sha":"ac3ba2d","groups":{"NEW":["In-app update channel - hub publishes the build, phones install it"],"IMPROVED":[],"FIXED":[]},"count":1}],"count":1,"title":"App 2.5.2 (build 27)"},{"sha":"c36cc9b","date":"2026-09-14","ts":1789396087,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.1","build":"26","display":"2.5.1 (build 26)","date":"2026-09-14","ts":1789396087,"sha":"c36cc9b","groups":{"NEW":["Opt-in live mirror so the hub can see the phone screen","Live connect-kit endpoint, global install, address beside the QR","Rebuild the pairing screen with motion and real fallbacks","Make the OS-control opt-in a host setting the desktop app can drive","Restore broken declared tools, clean catalogue to 165 tools, and add consistency guard","Agent catalog, sequenced SSE replay, pairing window, os_* hardening","Repo-free setup guide v2 + guide cache revalidation","First-run privacy gate with Settings re-read entry","Add E3 live-bridge theme picker and advanced UX features"],"IMPROVED":[],"FIXED":["The pairing QR could never be decoded - drop the scanWindow","Re-arm hub maintenance timer so auto-sync survives a disconnect","Migrate deprecated Radio groupValue/onChanged to RadioGroup","Ship true-PNG splash/icon assets and branded pre-31 splash","Align Live Bridge cable through phone/orb centers"]},"count":14}],"count":14,"title":"App 2.5.1 (build 26)"},{"sha":"7d07946","date":"2026-09-14","ts":1789379562,"parts":[{"stream":"extension","streamLabel":"Extension","version":"1.8.0","build":"","display":"1.8.0","date":"2026-09-14","ts":1789379562,"sha":"7d07946","groups":{"NEW":["Implement items P7-P12 (trace viewer, test runner, codegen, handles, semantics, service workers)","Playwright parity gaps (P1-P6) and ai-browser loop (D1-D9)","Approval gate for destructive actions, origin consent enforcement, and boundary fixes","Restore broken declared tools, clean catalogue to 165 tools, and add consistency guard","Remove cdpStealthCloak and navigator webdriver patching","Delete vault, session-sync, harvest, and social modules","Implement improvement plan rev 3 (D10-D13, L1-L11, C1-C9, H1-H8)"],"IMPROVED":["Remove excised tool handlers and schemas","Split mixed agent files to separate sensitive tools"],"FIXED":["Import leaf units directly in web-frames and web-tools to eliminate duplicate declarations","Route all raw Network.enable/disable through ref-counted helpers","Complete Rev 3 remaining fixes (H6 schedules, H1 browser binding, C5 network ref-count, D4 validation, V0 static gate)","Enforce safe defaults (OFF by default, empty token, onboarding false per §0)"]},"count":13}],"count":13,"title":"Extension 1.8.0"},{"sha":"67a0a07","date":"2026-09-13","ts":1789322580,"parts":[{"stream":"extension","streamLabel":"Extension","version":"1.7.1","build":"","display":"1.7.1","date":"2026-09-13","ts":1789322580,"sha":"67a0a07","groups":{"NEW":["Implement Playwright and operator parity, modular units, and safe defaults","Round-10 complete playwright & social operator parity (181 tools)","Round-9 playwright parity - visual baselines, media emulation, mhtml, cache control, flow chaining","Flow schedules — hub runs flows on autopilot; api multipart — v1.6.1 / v3.2.0 (163 tools)","Operator data layer — api-fetch, flows library, SSE zombie fix — v1.5.0 / v3.1.0 (160 tools)","Clock/pdf/download parity, tab fanout, teach-once-replay — v1.4.0 / v3.0.0 (152 tools)","Multi-browser data sync + frame/auth parity — v1.3.0 / v2.9.0 (146 tools)","HAR 1.2 pages metadata + refresh website download zips","Playwright-parity agent layer, evidence tools, ambient SSE events","One-paste AI setup prompt button on onboarding guide step","Repo-free setup guide v2 + guide cache revalidation","Advanced toolkit — 13 new web tools, realtime watch + 4 skills","Add AI-agent web access bridge (hub + extension)","MV3 browser extension + website extension page & setup guide"],"IMPROVED":["Split web-adv.js monolith into 9 focused CDP modules"],"FIXED":["Guard web-access pill refresh against toggle race + fresh zips"]},"count":16}],"count":16,"title":"Extension 1.7.1"},{"sha":"0805557","date":"2026-08-28","ts":1787943375,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.0","build":"25","display":"2.5.0 (build 25)","date":"2026-08-28","ts":1787943375,"sha":"0805557","groups":{"NEW":["Ship violet UX overhaul with QR pairing and live AI push"],"IMPROVED":[],"FIXED":[]},"count":1}],"count":1,"title":"App 2.5.0 (build 25)"}],"stats":{"releases":8,"appReleases":6,"extensionReleases":2,"changes":53}}</script>
 <script>
 (function () {
   var data = JSON.parse(document.getElementById('cl-data').textContent);
