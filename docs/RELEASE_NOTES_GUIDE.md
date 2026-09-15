@@ -82,7 +82,7 @@ python .\tools\release_notes.py --check build\notes.en-US.txt
 Tool kya karta hai:
 
 - Conventional commits (feat / fix / perf / refactor) parh kar:
-  `feat` → **NEW**, `perf`/`refactor` → **IMPROVED**, `fix` → **FIXED**
+  `feat` -> **NEW**, `perf`/`refactor` -> **IMPROVED**, `fix` -> **FIXED**
 - `chore`, `docs`, `test`, `style`, `build`, `ci` aur internal scopes
   (`release`, `ci`, `docs`, `tooling`) **skip** kar deta hai
 - Duplicate lines hata deta hai

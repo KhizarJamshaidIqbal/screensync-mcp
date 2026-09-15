@@ -30,7 +30,7 @@ Overall guide: <https://developer.android.com/google/play/developer-api>
 ## 2. Auth: service account
 
 - Ek Google Cloud service account banao, us ka JSON key lo.
-- Play Console → **Users and permissions** → service account ko invite karo aur
+- Play Console -> **Users and permissions** -> service account ko invite karo aur
   app-level permissions do (Releases: "Release to production", "Manage testing tracks" waghera).
 - OAuth scope jo is repo ka tool use karta hai:
   `https://www.googleapis.com/auth/androidpublisher`
