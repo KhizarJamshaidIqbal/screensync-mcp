@@ -61,6 +61,11 @@
     mojood ho, warna notes kabhi display nahi hote. Is app ki default listing en-GB hai,
     is liye default bhi en-GB hai.
 
+.PARAMETER TargetPlatform
+    Kis ABI ke liye build karna hai. Default 'android-arm,android-arm64' x86_64 hata deta
+    hai - woh sirf emulators ke liye hota hai aur uski wajah se AAB ~14 MB bari thi.
+    Emulator ke liye build karna ho to '-TargetPlatform android-x64' ya teeno dein.
+
 .EXAMPLE
     .\tools\release.ps1 -Track internal -Notes "Naya pairing screen, QR scan fix"
 
@@ -92,7 +97,8 @@ param(
     [switch]$NotesFromGit,
     [string]$FromRevision = '',
     [string]$SinceVersion = '',
-    [string]$NotesLanguage = 'en-GB'
+    [string]$NotesLanguage = 'en-GB',
+    [string]$TargetPlatform = 'android-arm,android-arm64'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -183,6 +189,7 @@ Write-Host "  track       : $Track"
 Write-Host "  status      : $Status"
 Write-Host "  dry run     : $([bool]$DryRun)"
 Write-Host "  python      : $python"
+Write-Host "  platforms   : $TargetPlatform"
 if ($Track -eq 'production' -and -not $DryRun) {
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Red
@@ -240,7 +247,7 @@ if ($SkipBuild) {
     Write-Head "Build"
     Write-Host "    skip (-SkipBuild)" -ForegroundColor DarkGray
 } else {
-    Invoke-Tool 'Release App Bundle (flutter build appbundle --release)' 'flutter' @('build', 'appbundle', '--release')
+    Invoke-Tool 'Release App Bundle (flutter build appbundle --release)' 'flutter' @('build', 'appbundle', '--release', '--target-platform', $TargetPlatform)
 }
 
 $aabPath = ''
@@ -328,6 +335,7 @@ Write-Host "----------------------------------------------------------------" -F
 Write-Host "  version    : $currentVersion"
 Write-Host "  package    : com.screensync.mcp"
 Write-Host "  track      : $Track"
+Write-Host "  platforms  : $TargetPlatform"
 Write-Host "  status     : $Status"
 if ($VersionCode -gt 0) {
     Write-Host "  aab        : (none - versionCode $VersionCode promote ho raha hai)"

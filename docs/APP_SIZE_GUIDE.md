@@ -154,3 +154,37 @@ $zip.Entries | Where-Object { $_.FullName -match '^base/lib/([^/]+)/' } |
                    (($_.Group | Measure-Object Length -Sum).Sum/1MB) }
 $zip.Dispose()
 ```
+
+---
+
+## 8. Update: AAB 55.03 MB -> 40.73 MB (verified 15 Sept 2026)
+
+Asli lever `--target-platform` hai, `abiFilters` nahi:
+
+| Build | Command | AAB |
+|---|---|---|
+| Pehle | `flutter build appbundle --release` | **55.03 MB** (arm64 23.23 + armv7 19.64 + x86_64 25.52) |
+| Ab | `... --target-platform android-arm,android-arm64` | **40.73 MB** (arm64 23.23 + armv7 19.64 + x86_64 5.80) |
+
+Bachat: **14.3 MB (26%)**. `release.ps1` mein `-TargetPlatform` add ho gaya
+(default `android-arm,android-arm64`).
+
+### Jo kaam NAHI kiya (is liye revert kar diya)
+`android/app/build.gradle` mein `buildTypes.release.ndk.abiFilters` add karne ki koshish ki gayi -
+**uska koi asar nahi hua**: AAB aur APK dono bilkul waise hi rahe (486 entries identical).
+Flutter ka gradle plugin ABI set khud `--target-platform` se set karta hai, is liye woh config
+ignore ho jati hai. Woh change revert kar diya gaya - repo mein bekaar config nahi chhori.
+
+### x86_64 ka bacha hua 5.80 MB
+`libbarhopper_v3.so` (ML Kit, `mobile_scanner` ka hissa) x86_64 ke liye bhi ship hota hai aur
+`--target-platform` usay nahi hatata. Isay hatane ka wahid tareeqa QR scanner badalna hai
+(Section 4, item 3) - woh alag kaam hai aur device par test maangta hai.
+
+### Verification (sab pass)
+- `flutter analyze` -> No issues found
+- `flutter test` -> **48 tests pass**
+- Emulator (`Medium_Phone_API_36.1`, x86_64) par release APK install -> `versionCode=31`,
+  `versionName=2.5.4`, app launch hui, logcat mein koi FATAL / Flutter error nahi
+- AAB structural comparison: `base/**` (lib ke bagair) **472 entries, 0 differences** -
+  yani dex, resources, assets aur manifest bilkul waise hi hain; sirf native ABIs badle.
+  Is liye kisi feature ya design par koi asar nahi.
