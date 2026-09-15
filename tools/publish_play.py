@@ -229,7 +229,10 @@ def resolve_service_account(explicit: str | None, repo_root: Path) -> str:
     config = repo_root / "tools" / "release.config.json"
     if config.is_file():
         try:
-            data = json.loads(config.read_text(encoding="utf-8"))
+            # utf-8-sig: PowerShell's Out-File -Encoding UTF8 writes a BOM, and a
+            # leading BOM makes plain utf-8 decoding fail. Stripping it is harmless
+            # for a normal file and fixes a BOM-prefixed one.
+            data = json.loads(config.read_text(encoding="utf-8-sig"))
         except json.JSONDecodeError as exc:
             raise SystemExit("[ERROR] %s is not valid JSON: %s" % (config, exc))
         candidate = str(data.get("serviceAccountPath") or "").strip()
@@ -258,7 +261,7 @@ def read_notes(args: argparse.Namespace) -> str:
         path = Path(args.notes_file).expanduser()
         if not path.is_file():
             raise SystemExit("[ERROR] --notes-file not found: %s" % path)
-        return path.read_text(encoding="utf-8").strip()
+        return path.read_text(encoding="utf-8-sig").strip()
     return (args.notes or "").strip()
 
 
