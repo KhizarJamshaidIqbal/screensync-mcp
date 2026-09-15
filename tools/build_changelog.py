@@ -253,6 +253,8 @@ TEMPLATE = r"""<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
 <link rel="stylesheet" href="css/custom.css">
 <style>
   :root {
@@ -381,7 +383,37 @@ TEMPLATE = r"""<!DOCTYPE html>
   @media print { .cl-controls, .cl-actions { display: none; } }
 </style>
 </head>
-<body>
+<body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
+
+<!-- The site's standard header. The Changelog item carries the active state, so the
+     page you are on is obvious, and the mobile menu carries its own copy. -->
+<header class="glass-nav fixed top-0 inset-x-0 z-50">
+  <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
+    <a href="/" class="flex items-center gap-2.5">
+      <img src="assets/logo.png" alt="ScreenSync MCP logo" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
+      <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
+    </a>
+    <div class="hidden md:flex items-center gap-7 text-[15px] font-medium text-[#4B4460]">
+      <a href="/" class="hover:text-[#6541D6] transition">Home</a>
+      <a href="about.html" class="hover:text-[#6541D6] transition">About</a>
+      <a href="goal.html" class="hover:text-[#6541D6] transition">Goal</a>
+      <a href="privacy.html" class="hover:text-[#6541D6] transition">Privacy</a>
+      <a href="data-policy.html" class="hover:text-[#6541D6] transition">Data Policy</a>
+      <a href="extension.html" class="hover:text-[#6541D6] transition">Extension</a>
+      <a href="changelog.html" class="text-[#6541D6] font-semibold" aria-current="page">Changelog</a>
+      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold">Get Connected</a>
+    </div>
+    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false"><i data-lucide="menu" class="w-6 h-6"></i></button>
+  </nav>
+  <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
+    <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
+      <a href="/" class="py-1.5">Home</a><a href="about.html" class="py-1.5">About</a><a href="goal.html" class="py-1.5">Goal</a><a href="privacy.html" class="py-1.5">Privacy</a><a href="data-policy.html" class="py-1.5">Data Policy</a>
+      <a href="extension.html" class="py-1.5">Extension</a>
+      <a href="changelog.html" class="py-1.5 text-[#6541D6] font-semibold" aria-current="page">Changelog</a>
+    </div>
+  </div>
+</header>
+
 <div class="cl-shell">
 
   <header class="cl-hero">
@@ -418,12 +450,44 @@ TEMPLATE = r"""<!DOCTYPE html>
   </div>
 
   <footer class="cl-foot">
-    Generated __GENERATED__ from the repository history.<br>
-    App builds arrive on <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener">Google Play</a>;
-    the extension ships from <a href="extension.html">the extension page</a>.<br>
+    Generated __GENERATED__ from the repository history. App builds arrive on
+    <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener">Google Play</a>;
+    the extension ships from <a href="extension.html">the extension page</a>.
     This page is rebuilt by <span class="cl-sha">tools/build_changelog.py</span> on every release.
   </footer>
 </div>
+
+<!-- The site's standard footer. -->
+<footer class="bg-[#150E27] text-purple-200/80">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-3 gap-10">
+    <div>
+      <div class="flex items-center gap-2.5"><img src="assets/logo.png" alt="ScreenSync MCP" class="w-9 h-9 rounded-xl"><span class="font-extrabold text-white text-lg">ScreenSync MCP</span></div>
+      <p class="text-sm mt-4 leading-relaxed text-purple-200/60">Your AI, watching over your shoulder. Live Android screen capture &amp; control for MCP agents — LAN-first, privacy-first.</p>
+    </div>
+    <div>
+      <h4 class="text-white font-bold mb-4">Pages</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="/" class="hover:text-white transition">Home</a></li>
+        <li><a href="about.html" class="hover:text-white transition">About Us</a></li>
+        <li><a href="goal.html" class="hover:text-white transition">Goal &amp; Vision</a></li>
+        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
+        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
+        <li><a href="extension.html" class="hover:text-white transition">Browser Extension</a></li>
+        <li><a href="changelog.html" class="text-white transition" aria-current="page">Changelog</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4 class="text-white font-bold mb-4">Contact</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li class="flex items-center gap-2"><i data-lucide="globe" class="w-4 h-4"></i><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
+        <li class="flex items-center gap-2"><i data-lucide="mail" class="w-4 h-4"></i><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10 py-6 text-center text-xs text-purple-200/50">© <span class="year"></span> EpsolDev · ScreenSync MCP v2.5 · All rights reserved.</div>
+</footer>
+
+<script src="js/main.js"></script>
 
 <script id="cl-data" type="application/json">__DATA__</script>
 <script>
