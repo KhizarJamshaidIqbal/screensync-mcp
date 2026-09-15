@@ -354,7 +354,7 @@ def cmd_reporting_anomalies(service, args) -> int:
     return 0
 
 
-def _vitals_query(service, args, metric_set: str, metrics: list[str]) -> int:
+def _vitals_query(service, args, method: str, metric_set: str, metrics: list[str]) -> int:
     """Shared query for the vitals metric sets.
 
     The `name` must be exactly `apps/<package>/<metricSet>` - the API validates it
@@ -365,21 +365,17 @@ def _vitals_query(service, args, metric_set: str, metrics: list[str]) -> int:
         "timelineSpec": {
             "aggregationPeriod": "DAILY",
             "startTime": {"year": args.year, "month": args.month, "day": args.day},
-            "endTime": {
-                "year": args.year,
-                "month": args.month,
-                "day": args.day,
-                "hours": 23,
-                "minutes": 59,
-                "seconds": 59,
-            },
+            # DAILY aggregation: hours/minutes/seconds MUST be unset, warna API
+            # "Minutes, seconds and nanos should be unset" keh kar reject kar deti hai.
+            "endTime": {"year": args.year, "month": args.month, "day": args.day},
         },
         "metrics": metrics,
         "dimensions": ["versionCode"],
         "pageSize": 100,
     }
     print("metric set: %s" % parent)
-    data = service.vitals().crashrate().query(name=parent, body=request).execute()
+    resource = getattr(service.vitals(), method)()
+    data = resource.query(name=parent, body=request).execute()
     rows = data.get("rows") or []
     if not rows:
         print("(is range mein koi data nahi - Play ka data 1-2 din late aata hai)")
@@ -401,6 +397,7 @@ def cmd_reporting_crash_rate(service, args) -> int:
     return _vitals_query(
         service,
         args,
+        "crashrate",
         "crashRateMetricSet",
         ["crashRate", "userPerceivedCrashRate", "distinctUsers"],
     )
@@ -410,6 +407,7 @@ def cmd_reporting_anr_rate(service, args) -> int:
     return _vitals_query(
         service,
         args,
+        "anrrate",
         "anrRateMetricSet",
         ["anrRate", "userPerceivedAnrRate", "distinctUsers"],
     )
@@ -417,9 +415,12 @@ def cmd_reporting_anr_rate(service, args) -> int:
 
 def cmd_reporting_freshness(service, args) -> int:
     """Kaun se din tak ka data mojood hai - is se pata chalta hai kon sa range maangna hai."""
-    for metric_set in ("crashRateMetricSet", "anrRateMetricSet"):
+    # Har metric set ka apna method hai, aur har ek apne `name` pattern ko khud
+    # validate karta hai - ANR set ke liye crashrate() call karna parameter check par
+    # fail ho jata hai.
+    for method, metric_set in (("crashrate", "crashRateMetricSet"), ("anrrate", "anrRateMetricSet")):
         name = "apps/%s/%s" % (args.package, metric_set)
-        data = service.vitals().crashrate().get(name=name).execute()
+        data = getattr(service.vitals(), method)().get(name=name).execute()
         fresh = data.get("freshnessInfo") or {}
         print("%s" % metric_set)
         print("  freshness: %s" % json.dumps(fresh.get("freshnesses") or [], ensure_ascii=False))
