@@ -15,7 +15,11 @@ import '../screens/dashboard/detail_cards.dart';
 /// a permission the user still needs to grant; as soon as one is granted the
 /// row animates away, and when all are done the whole card collapses.
 class PermissionChecklist extends StatefulWidget {
-  const PermissionChecklist({super.key});
+  const PermissionChecklist({super.key, this.onPendingChanged});
+
+  /// Fires whenever "does the user still have setup steps left?" changes, so
+  /// the Dashboard can hide its top hero while this card is on screen.
+  final ValueChanged<bool>? onPendingChanged;
 
   @override
   State<PermissionChecklist> createState() => _PermissionChecklistState();
@@ -34,6 +38,8 @@ class _PermissionChecklistState extends State<PermissionChecklist>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Start with the hero visible; the first check flips it if setup is pending.
+    _notifyPending(false);
     _refresh();
     // Poll so granting in system settings reflects here without a restart;
     // stops itself once everything is granted.
@@ -67,6 +73,7 @@ class _PermissionChecklistState extends State<PermissionChecklist>
         _loading = false;
       });
       if (_allDone) _poll?.cancel();
+      _notifyPending(!_allDone);
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -90,6 +97,16 @@ class _PermissionChecklistState extends State<PermissionChecklist>
       ].where((e) => e).length;
 
   int get _totalCount => _isOem ? 5 : 4;
+
+  /// Never call back into the parent during a build; a post-frame callback
+  /// keeps the parent's setState out of this widget's build phase.
+  void _notifyPending(bool pending) {
+    final callback = widget.onPendingChanged;
+    if (callback == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) callback(pending);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -38,6 +38,9 @@ class DashboardTab extends StatefulWidget {
 class _DashboardTabState extends State<DashboardTab> {
   bool _showDetails = false;
   bool _showHealth = false;
+  /// True while "Finish setup" still has steps left. The top hero (status pill,
+  /// heading and connection card) hides meanwhile so setup owns the screen.
+  bool _setupPending = false;
   int _frameCount = 4;
   final ScrollController _scroll = ScrollController();
 
@@ -76,6 +79,16 @@ class _DashboardTabState extends State<DashboardTab> {
           controller: _scroll,
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
+            // "Finish setup" is the first thing on the screen while it is pending.
+            PermissionChecklist(
+              onPendingChanged: (pending) {
+                if (mounted && pending != _setupPending) {
+                  setState(() => _setupPending = pending);
+                }
+              },
+            ),
+            // The hero steps aside while setup is pending, and comes back when done.
+            if (!_setupPending) ...[
             Align(
               alignment: Alignment.centerLeft,
               child: StatusDotPill(
@@ -108,6 +121,7 @@ class _DashboardTabState extends State<DashboardTab> {
                     duration: 420.ms,
                     curve: Curves.easeOutCubic),
             const SizedBox(height: 14),
+            ],
             BubbleStatusCard(running: state.isOverlayRunning)
                 .animate(delay: 160.ms)
                 .fadeIn(duration: 420.ms)
@@ -116,8 +130,6 @@ class _DashboardTabState extends State<DashboardTab> {
                     end: 0,
                     duration: 420.ms,
                     curve: Curves.easeOutCubic),
-            const SizedBox(height: 14),
-            const PermissionChecklist(),
             if (showLoopbackWarning && !simple) ...[
               const LoopbackWarningBanner(),
               const SizedBox(height: 14),
