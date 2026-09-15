@@ -141,6 +141,12 @@ Play Console khol kar khud "Send for review" dabana parega.
 
 # Sirf Play upload (Flutter build ke bagair)
 python .\tools\publish_play.py --aab build\app\outputs\bundle\release\app-release.aab --track internal
+
+# Mojooda upload ko doosre track par promote karo - build ya upload dobara nahi hota
+python .\tools\publish_play.py --version-code 31 --track production --status completed --release-name "2.5.4" --notes "Bug fixes"
+
+# Staged rollout: pehle 10% users ko
+python .\tools\publish_play.py --version-code 31 --track production --status inProgress --user-fraction 0.1
 ```
 
 ### `release.ps1` ke parameters

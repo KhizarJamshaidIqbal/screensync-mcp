@@ -250,7 +250,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="publish_play.py",
         description="Upload an .aab to Google Play and attach it to a track.",
     )
-    parser.add_argument("--aab", required=True, help="Path to the .aab file to upload")
+    parser.add_argument("--aab", default=None, help="Path to the .aab file to upload (omit when using --version-code)")
+    parser.add_argument(
+        "--version-code",
+        type=int,
+        default=None,
+        help="Reuse a versionCode already uploaded to Play instead of uploading again (promote)",
+    )
     parser.add_argument("--package", default=DEFAULT_PACKAGE, help="Application id (default: %(default)s)")
     parser.add_argument("--track", default="internal", help="Play track (default: %(default)s)")
     parser.add_argument(
@@ -276,16 +282,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         )
     if args.user_fraction is not None and not (0.0 < args.user_fraction < 1.0):
         parser.error("--user-fraction must be between 0 and 1 (exclusive)")
+    if not args.aab and args.version_code is None:
+        parser.error("provide --aab (to upload) or --version-code (to promote an existing upload)")
+    if args.version_code is not None and args.version_code <= 0:
+        parser.error("--version-code must be a positive integer")
     return args
 
 
-def run_dry(service, args: argparse.Namespace, aab: Path, notes: str) -> bool:
+def run_dry(service, args: argparse.Namespace, aab: Path | None, notes: str) -> bool:
     info("")
     info("[dry-run] Validating, nothing will be uploaded.")
     info("    package       : %s" % args.package)
     info("    track         : %s" % args.track)
     info("    status        : %s" % args.status)
-    info("    aab           : %s (%.2f MB)" % (aab, aab.stat().st_size / (1024 * 1024)))
+    if aab is not None:
+        info("    aab           : %s (%.2f MB)" % (aab, aab.stat().st_size / (1024 * 1024)))
+    else:
+        info("    aab           : (none - promoting versionCode %s)" % args.version_code)
     info("    notes         : %s" % (notes[:80] + ("..." if len(notes) > 80 else "") if notes else "(none)"))
     if args.user_fraction is not None:
         info("    userFraction  : %s" % args.user_fraction)
@@ -301,13 +314,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     repo_root = Path(__file__).resolve().parent.parent
 
-    aab = Path(args.aab).expanduser()
-    if not aab.is_absolute():
-        aab = (Path.cwd() / aab).resolve()
-    if not aab.is_file():
-        raise SystemExit("[ERROR] AAB not found: %s" % aab)
-    if aab.suffix.lower() != ".aab":
-        warn("[WARN] %s does not end with .aab - Play expects an Android App Bundle." % aab.name)
+    aab: Path | None = None
+    if args.aab:
+        aab = Path(args.aab).expanduser()
+        if not aab.is_absolute():
+            aab = (Path.cwd() / aab).resolve()
+        if not aab.is_file():
+            raise SystemExit("[ERROR] AAB not found: %s" % aab)
+        if aab.suffix.lower() != ".aab":
+            warn("[WARN] %s does not end with .aab - Play expects an Android App Bundle." % aab.name)
 
     notes = read_notes(args)
     socket.setdefaulttimeout(float(args.timeout))
@@ -329,9 +344,23 @@ def main(argv: list[str] | None = None) -> int:
     info("    edit id: %s" % edit_id)
 
     try:
-        info("[2/4] Uploading %s (this can take a while) ..." % aab.name)
-        version_code = upload_bundle(service, args.package, edit_id, aab)
-        info("    uploaded versionCode: %s" % version_code)
+        if aab is not None:
+            info("[2/4] Uploading %s (this can take a while) ..." % aab.name)
+            version_code = upload_bundle(service, args.package, edit_id, aab)
+            info("    uploaded versionCode: %s" % version_code)
+        else:
+            version_code = int(args.version_code)
+            info("[2/4] Reusing versionCode %s already on Play (no upload)." % version_code)
+            existing = call_with_retry(
+                lambda: service.edits().bundles().list(packageName=args.package, editId=edit_id),
+                "edits.bundles.list",
+            )
+            available = [str(b.get("versionCode")) for b in existing.get("bundles", []) or []]
+            if str(version_code) not in available:
+                raise SystemExit(
+                    "[ERROR] versionCode %s is not on Play. Available: %s" % (version_code, available or "[]")
+                )
+            info("    confirmed versionCode %s exists on Play (available: %s)." % (version_code, available))
 
         info("[3/4] Attaching versionCode %s to track '%s' (status=%s) ..." % (version_code, args.track, args.status))
         update_track(service, args.package, edit_id, args, version_code, notes)
