@@ -1,0 +1,6 @@
+{
+  "packageName": "com.screensync.mcp",
+  "serviceAccountPath": "C:\\path\\to\\your-service-account.json",
+  "track": "internal",
+  "defaultNotes": "Bug fixes and improvements."
+}

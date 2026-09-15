@@ -53,3 +53,8 @@ task.xml
 .zcode/
 .mcp.json
 .cursorrules
+# Local release tool (never commit)
+tools/.venv/
+tools/release.config.json
+tools/__pycache__/
+tools/.build/
