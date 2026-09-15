@@ -9,7 +9,17 @@ confirms the freshly uploaded versionCode is actually listed on it.
 Examples:
     python tools/publish_play.py --aab build/app/outputs/bundle/release/app-release.aab
     python tools/publish_play.py --aab ... --track internal --status draft
+    python tools/publish_play.py --aab ... --notes-file build/notes.en-US.txt
     python tools/publish_play.py --aab ... --dry-run
+
+    # LIVE rollout (production). Human approval is mandatory, and the release
+    # notes must say what actually changed (no "bug fixes and improvements"):
+    python tools/publish_play.py --version-code 31 --track production \
+        --status completed --notes-file build/notes.en-US.txt \
+        --confirm-live-rollout --approved-by "Khizar"
+
+    # Preview a production rollout without publishing anything:
+    python tools/publish_play.py --version-code 31 --track production --dry-run
 
 Service account resolution order:
     1. --service-account <path or inline JSON>
@@ -38,6 +48,29 @@ DEFAULT_PACKAGE = "com.screensync.mcp"
 DEFAULT_TIMEOUT = 600
 ALLOWED_STATUSES = ("completed", "draft", "inProgress", "halted")
 STAGED_STATUSES = ("inProgress", "halted")
+# A release on one of these tracks reaches real users, so it needs an explicit
+# human approval before anything is committed to Play.
+LIVE_TRACKS = ("production",)
+# Play accepts up to 500 Unicode characters per language for "What's new".
+# https://support.google.com/googleplay/android-developer/answer/9859348
+RELEASE_NOTES_MAX = 500
+# Notes that say nothing about what actually changed. Shipping one of these on a
+# live release is what we are trying to prevent, so they are rejected there.
+GENERIC_NOTE_PATTERNS = (
+    "bug fixes and improvements",
+    "bug fixes and performance improvements",
+    "bug fixes",
+    "minor fixes",
+    "various fixes",
+    "performance improvements",
+    "general improvements",
+    "maintenance release",
+    "internal test build",
+    "initial release",
+    "tbd",
+    "todo",
+    "n/a",
+)
 RETRYABLE_HTTP = (429, 500, 502, 503, 504)
 MAX_TRIES = 5
 
@@ -53,6 +86,68 @@ def info(message: str) -> None:
 
 def warn(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
+
+
+def is_live_track(track: str) -> bool:
+    """True when this track publishes to real users (not a test channel)."""
+    return (track or "").strip().lower() in LIVE_TRACKS
+
+
+def looks_generic(notes: str) -> str | None:
+    """Return the matched filler phrase when the notes say nothing useful."""
+    flat = " ".join((notes or "").lower().split()).strip(" .!")
+    if not flat:
+        return "(empty)"
+    for pattern in GENERIC_NOTE_PATTERNS:
+        cleaned = flat.replace(pattern, "").strip(" .-,")
+        if pattern in flat and len(cleaned) < 24:
+            return pattern
+    return None
+
+
+def validate_notes(notes: str, args: argparse.Namespace) -> None:
+    """Enforce Play's length rule, and refuse filler on a live release."""
+    length = len(notes or "")
+    if length > RELEASE_NOTES_MAX:
+        raise SystemExit(
+            "[ERROR] Release notes are %d characters; Play allows at most %d per language.\n"
+            "        Generate them with: python tools/release_notes.py --from <rev> --write <file>"
+            % (length, RELEASE_NOTES_MAX)
+        )
+    if is_live_track(args.track) and not args.dry_run:
+        if not (notes or "").strip():
+            raise SystemExit(
+                "[ERROR] LIVE rollout ke liye release notes lazmi hain.\n"
+                "        python tools/release_notes.py --list-versions\n"
+                "        python tools/release_notes.py --from <rev> --write build/notes.en-US.txt"
+            )
+        filler = looks_generic(notes)
+        if filler and not args.allow_generic_notes:
+            raise SystemExit(
+                "[ERROR] Release notes '%s' hain, jo batati nahi ke kya badla.\n"
+                "        Play par 'What's new' asli changes dikhne chahiye.\n"
+                "        Behtar notes: python tools/release_notes.py --from <rev> --write <file>\n"
+                "        Sirf jaan boojh kar bhejna ho to: --allow-generic-notes" % filler
+            )
+
+
+def announce_live_rollout(args: argparse.Namespace, version_code: str) -> None:
+    """Print an unmissable banner right before anything goes live."""
+    if args.user_fraction is not None:
+        fraction = "%d%% (staged)" % round(float(args.user_fraction) * 100)
+    else:
+        fraction = "100% (full rollout)"
+    info("")
+    info("================================================================")
+    info(" LIVE ROLLOUT  -  ye real users ko publish hoga")
+    info("================================================================")
+    info("  package       : %s" % args.package)
+    info("  track         : %s" % args.track)
+    info("  versionCode   : %s" % version_code)
+    info("  status        : %s" % args.status)
+    info("  userFraction  : %s" % fraction)
+    info("  approved by   : %s" % args.approved_by)
+    info("================================================================")
 
 
 def describe_http_error(exc: HttpError) -> str:
@@ -271,6 +366,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--user-fraction", type=float, default=None, help="Staged rollout fraction, 0 < f < 1")
     parser.add_argument("--service-account", default=None, help="Service account JSON path or inline JSON")
     parser.add_argument("--dry-run", action="store_true", help="Validate only; never uploads or commits")
+    parser.add_argument(
+        "--confirm-live-rollout",
+        action="store_true",
+        help="Confirm a rollout that goes live to real users (required for the production track)",
+    )
+    parser.add_argument(
+        "--approved-by",
+        default=None,
+        help="Name of the human who approved this live rollout (required for the production track)",
+    )
+    parser.add_argument(
+        "--allow-generic-notes",
+        action="store_true",
+        help="Allow 'bug fixes and improvements' style notes on a live track (not recommended)",
+    )
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help="Socket timeout in seconds (default: %(default)s)")
 
     args = parser.parse_args(argv)
@@ -286,6 +396,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("provide --aab (to upload) or --version-code (to promote an existing upload)")
     if args.version_code is not None and args.version_code <= 0:
         parser.error("--version-code must be a positive integer")
+
+    # Live-rollout gate. A production release reaches real users, so it needs an
+    # explicit human approval. This runs before any credential or network use, so
+    # a missing approval can never be discovered halfway through a publish.
+    if is_live_track(args.track) and not args.dry_run:
+        if not args.confirm_live_rollout:
+            parser.error(
+                "PRODUCTION rollout ke liye human approval lazmi hai.\n"
+                "Ye change users ko turant live ho jayega, is liye pehle user se saaf ijazat lein.\n"
+                "Ijazat milne ke baad dobara chalayein:\n"
+                '    --confirm-live-rollout --approved-by "<user ka naam>"\n'
+                "Sirf preview dekhna ho to: --dry-run"
+            )
+        if not (args.approved_by or "").strip():
+            parser.error(
+                "--track production ke saath --approved-by \"<naam>\" bhi dena zaroori hai "
+                "(kaun ne approval di - ye log mein likha jata hai)."
+            )
     return args
 
 
@@ -299,7 +427,10 @@ def run_dry(service, args: argparse.Namespace, aab: Path | None, notes: str) -> 
         info("    aab           : %s (%.2f MB)" % (aab, aab.stat().st_size / (1024 * 1024)))
     else:
         info("    aab           : (none - promoting versionCode %s)" % args.version_code)
-    info("    notes         : %s" % (notes[:80] + ("..." if len(notes) > 80 else "") if notes else "(none)"))
+    info("    notes         : %s" % (notes[:100] + ("..." if len(notes) > 100 else "") if notes else "(none)"))
+    info("    notes length  : %d / %d characters" % (len(notes or ""), RELEASE_NOTES_MAX))
+    if is_live_track(args.track):
+        info("    [dry-run] NOTE: ye production track ka PREVIEW hai - kuch bhi live nahi jayega.")
     if args.user_fraction is not None:
         info("    userFraction  : %s" % args.user_fraction)
     edit_id = open_edit(service, args.package)
@@ -325,6 +456,7 @@ def main(argv: list[str] | None = None) -> int:
             warn("[WARN] %s does not end with .aab - Play expects an Android App Bundle." % aab.name)
 
     notes = read_notes(args)
+    validate_notes(notes, args)
     socket.setdefaulttimeout(float(args.timeout))
 
     source = resolve_service_account(args.service_account, repo_root)
@@ -338,6 +470,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         return 0 if run_dry(service, args, aab, notes) else 1
 
+    if is_live_track(args.track):
+        announce_live_rollout(args, args.version_code if aab is None else "pending upload")
+
     info("")
     info("[1/4] Opening an edit ...")
     edit_id = open_edit(service, args.package)
@@ -348,6 +483,13 @@ def main(argv: list[str] | None = None) -> int:
             info("[2/4] Uploading %s (this can take a while) ..." % aab.name)
             version_code = upload_bundle(service, args.package, edit_id, aab)
             info("    uploaded versionCode: %s" % version_code)
+            if is_live_track(args.track):
+                info("")
+                info(
+                    ">>> LIVE ROLLOUT: versionCode %s ab '%s' par attach ho raha hai (approved by %s)."
+                    % (version_code, args.track, args.approved_by)
+                )
+                info("")
         else:
             version_code = int(args.version_code)
             info("[2/4] Reusing versionCode %s already on Play (no upload)." % version_code)

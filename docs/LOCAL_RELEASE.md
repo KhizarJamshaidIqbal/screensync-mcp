@@ -278,3 +278,36 @@ Koi bhi step fail ho to script partially-bana edit delete kar deta hai.
 
 Local tool ke liye in secrets ki zaroorat **nahi**  -  woh seedha is machine se
 key.properties aur JSON key padhta hai.
+
+---
+
+## 10. Live rollout - human approval gate
+
+Production track real users ko jata hai, is liye ab **insaan ki saaf ijazat** ke
+bagair production par kuch nahi jata.
+
+- `tools/release.ps1 -Track production` ke liye `-ConfirmLiveRollout` aur
+  `-ApprovedBy "<naam>"` lazmi hain.
+- `tools/publish_play.py --track production` ke liye `--confirm-live-rollout` aur
+  `--approved-by "<naam>"` lazmi hain.
+- Guard credentials load hone se **pehle** chalta hai, is liye adhoora publish namumkin hai.
+- Sirf preview chahiye to `--dry-run` (ye allowed hai, kuch live nahi hota).
+
+## 11. Release notes - "What's new"
+
+Play ka rule: **500 Unicode characters per language**.
+https://support.google.com/googleplay/android-developer/answer/9859348
+
+- Notes ke bagair release nahi hoti. `-NotesFromGit` sab se asaan raasta hai.
+- Git history se notes: `python .\tools\release_notes.py --since-version 2.5.0`
+- Validate: `python .\tools\release_notes.py --check build\notes.en-US.txt`
+- "Bug fixes and improvements" jaisa filler production par reject hota hai.
+- Tafseel: `docs/RELEASE_NOTES_GUIDE.md`  |  API limits: `docs/PLAY_API_GUIDE.md`
+
+## 12. Aur guides
+
+| File | Kya |
+|---|---|
+| `docs/PLAY_API_GUIDE.md` | Play API se kya hota hai / kya nahi |
+| `docs/RELEASE_NOTES_GUIDE.md` | "What's new" ka official rule + house style |
+| `.agents/skills/screensync-release/SKILL.md` | Agent ke liye release playbook |

@@ -109,3 +109,28 @@ The hub runs a **sequenced SSE event stream** (`/api/events`): every event carri
 
 ## 9. Screensync Operator Skill
 `/screensync-operator` (in `.agents/skills`, `.zcode/skills`, and `.claude/commands/`) is the canonical playbook for agent-driven web operations: all web work goes through the user's real logged-in browser via ScreenSync `web_*` tools — never Playwright. When you change the tool surface, update that skill file in all three locations.
+
+---
+
+## 10. Release safety - a LIVE rollout needs a human (user-ordered 2026-09-15)
+
+- **Never publish to the Play `production` track on your own.** A production
+  release reaches real users. The tooling requires an explicit human approval and
+  refuses without it. Ask the user first, then pass
+  `-ConfirmLiveRollout -ApprovedBy "<name>"` (PowerShell) or
+  `--confirm-live-rollout --approved-by "<name>"` (Python).
+- **A commit or a push is not a release.** Git push never publishes to Play.
+  Publishing happens only through `tools/release.ps1` / `tools/publish_play.py`.
+- **Release notes are mandatory and must be real.** Play allows 500 Unicode
+  characters per language. Generate them from git history with
+  `python tools/release_notes.py`; generic text such as "bug fixes and
+  improvements" is rejected on a live track. See `docs/RELEASE_NOTES_GUIDE.md`.
+- **The Play API cannot report review status.** `edits.tracks.list` exposes only
+  rollout state (`draft`/`inProgress`/`halted`/`completed`); "in review" vs "live
+  to users" is Play Console only. To check live, compare the public store listing.
+  See `docs/PLAY_API_GUIDE.md`.
+- **Prefer a staged first production rollout** (`--user-fraction 0.10`), and
+  remember a halt does not roll back users who already updated.
+- Skill: `.agents/skills/screensync-release/SKILL.md`, mirrored in
+  `.zcode/skills/screensync-release/` and `.claude/commands/screensync-release.md`.
+  When the release tooling changes, update all three.
