@@ -14,19 +14,33 @@ import '../screens/dashboard/detail_cards.dart';
 /// Dismissible "Connect an AI agent" card on the Dashboard. Copies the full
 /// MCP server + skills kit so the user can paste it into Claude / ChatGPT /
 /// any agent and have it auto-integrate. Dismissing persists forever.
-class ConnectKitCard extends StatelessWidget {
+class ConnectKitCard extends StatefulWidget {
   const ConnectKitCard({super.key});
 
   @override
+  State<ConnectKitCard> createState() => _ConnectKitCardState();
+}
+
+class _ConnectKitCardState extends State<ConnectKitCard> {
+  /// Seeded from prefs so a card dismissed earlier stays gone, and flipped
+  /// locally on tap: writing the pref alone does not rebuild this subtree,
+  /// which is why the close button looked dead.
+  bool _dismissed = SettingsService.instance.connectKitDismissed;
+
+  @override
   Widget build(BuildContext context) {
-    if (SettingsService.instance.connectKitDismissed) {
+    if (_dismissed) {
       return const SizedBox.shrink();
     }
     final bloc = context.read<ScreenCaptureBloc>();
     final hubUrl = bloc.screenRepository.hubUrl;
     final token = SettingsService.instance.pairingToken;
 
-    return DashedBorder(
+    // The bottom gap lives inside the card, so a dismissed card leaves no
+    // empty space behind it in the list.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DashedBorder(
       color: AppTheme.primary.withValues(alpha: 0.5),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -51,8 +65,12 @@ class ConnectKitCard extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.close_rounded,
                       size: 18, color: AppTheme.darkTextDim),
-                  onPressed: () =>
-                      SettingsService.instance.connectKitDismissed = true,
+                  onPressed: () {
+                    SettingsService.instance.connectKitDismissed = true;
+                    // Persisting alone does not rebuild this subtree, so hide
+                    // the card here as well.
+                    setState(() => _dismissed = true);
+                  },
                 ),
               ],
             ),
@@ -86,6 +104,7 @@ class ConnectKitCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.04, end: 0);
   }

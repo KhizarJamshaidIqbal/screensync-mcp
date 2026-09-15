@@ -7,9 +7,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../blocs/screen_capture_bloc.dart';
 import '../core/app_theme.dart';
+import '../services/device_intent_service.dart';
+import '../services/settings_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/common_widgets.dart';
+import '../widgets/connect_prompt_dialog.dart';
 import 'annotate_screen.dart';
+import 'pair_scan_screen.dart';
 import 'hub_screen.dart';
 import 'region_crop_screen.dart';
 import 'tabs/dashboard_tab.dart';
@@ -29,6 +33,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _lastRegionId = 0;
   bool _cropOpen = false;
+
+  /// "Connect your hub" prompt: shown once after install, then again on
+  /// every drop of the hub link. Skipping silences it until the next drop.
+  bool _promptOpen = false;
+  bool _promptSkippedForThisDrop = false;
+  bool? _wasHubOnline;
+
+  /// Real version, so the app-bar badge stops claiming "v2.5" forever.
+  String _appVersionLabel = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final v = await DeviceIntentService.appVersion();
+    if (!mounted) return;
+    setState(() => _appVersionLabel = 'v${v.name}');
+  }
 
   /// A1: selected primary destination (Dashboard · Gallery · Diagnose ·
   /// MCP · Settings). Bodies preserved in an IndexedStack.
@@ -68,6 +93,45 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  /// Shows the "connect your hub" prompt once after install, and again
+  /// after every drop of the hub link. Skip silences one outage only.
+  Future<void> _maybeShowConnectPrompt(
+      BuildContext context, ScreenCaptureState state) async {
+    if (_promptOpen || !mounted) return;
+
+    final online = state.hubOnline == true;
+    final was = _wasHubOnline;
+    _wasHubOnline = online;
+
+    final dropped = was == true && !online;
+    // A fresh drop re-arms the prompt, so skipping silences one outage only.
+    if (dropped) _promptSkippedForThisDrop = false;
+
+    final firstRun = !SettingsService.instance.connectPromptShown;
+    if (!firstRun && !dropped) return;
+    if (_promptSkippedForThisDrop) return;
+
+    if (firstRun) SettingsService.instance.connectPromptShown = true;
+    await _runConnectPrompt(context);
+  }
+
+  Future<void> _runConnectPrompt(BuildContext context) async {
+    // Captured before the await so no BuildContext is used across an
+    // async gap.
+    final navigator = Navigator.of(context);
+    _promptOpen = true;
+    final scan = await showConnectPrompt(context);
+    _promptOpen = false;
+    if (!mounted) return;
+    if (scan) {
+      await navigator.push(
+        MaterialPageRoute(builder: (_) => const PairScanScreen()),
+      );
+    } else {
+      _promptSkippedForThisDrop = true;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ScreenCaptureBloc, ScreenCaptureState>(
@@ -75,7 +139,8 @@ class _HomeScreenState extends State<HomeScreen> {
           previous.status != current.status ||
           previous.errorMessage != current.errorMessage ||
           previous.regionRequestId != current.regionRequestId ||
-          previous.liveConnected != current.liveConnected,
+          previous.liveConnected != current.liveConnected ||
+          previous.hubOnline != current.hubOnline,
       listener: (context, state) {
         // F2: reconnect/disconnect toasts (backoff handled by the service).
         if (_lastLiveToast != null && _lastLiveToast != state.liveConnected) {
@@ -90,6 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ));
         }
         _lastLiveToast = state.liveConnected;
+        _maybeShowConnectPrompt(context, state);
         if (state.regionRequestId != _lastRegionId &&
             state.regionBytes != null) {
           _lastRegionId = state.regionRequestId;
@@ -184,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: AppTheme.success.withValues(alpha: 0.35)),
                         ),
                         child: Text(
-                          'v2.5',
+                          _appVersionLabel,
                           style: AppTheme.microLabel
                               .copyWith(color: AppTheme.success),
                         ),

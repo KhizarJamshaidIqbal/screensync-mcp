@@ -122,6 +122,9 @@ class _DashboardTabState extends State<DashboardTab> {
                     curve: Curves.easeOutCubic),
             const SizedBox(height: 14),
             ],
+            // "Connect an AI agent" sits above the bubble card, so a new user
+            // meets it as soon as setup is done. It hides itself once dismissed.
+            if (!simple) const ConnectKitCard(),
             BubbleStatusCard(running: state.isOverlayRunning)
                 .animate(delay: 160.ms)
                 .fadeIn(duration: 420.ms)
@@ -221,10 +224,7 @@ class _DashboardTabState extends State<DashboardTab> {
                         CaptureSyncCard(state: state),
                         const SizedBox(height: 14),
                         const CaptureControlsCard(),
-                        if (!simple) ...[
-                          const SizedBox(height: 14),
-                          const ConnectKitCard(),
-                        ],
+
                         const SizedBox(height: 14),
                         const DeviceStatusPanel(),
                       ],

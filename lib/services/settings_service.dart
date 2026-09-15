@@ -27,6 +27,7 @@ class SettingsService extends ChangeNotifier {
   static const _kVendorConfirmed = 'vendor_bg_confirmed';
   static const _kGestureConfirmed = 'gesture_control_confirmed';
   static const _kConnectKitDismissed = 'connect_kit_dismissed';
+  static const _kConnectPromptShown = 'connect_prompt_shown';
   static const _kTelemetry = 'telemetry_log';
   static const _kOnboardingDone = 'onboarding_done';
   static const _kPrivacyAccepted = 'privacy_accepted';
@@ -132,6 +133,14 @@ class SettingsService extends ChangeNotifier {
   bool get connectKitDismissed => _prefs.getBool(_kConnectKitDismissed) ?? false;
   set connectKitDismissed(bool v) {
     _prefs.setBool(_kConnectKitDismissed, v);
+    notifyListeners();
+  }
+
+  /// Whether the one-off "connect your hub" prompt has been shown since
+  /// install. The prompt still returns whenever the hub link drops.
+  bool get connectPromptShown => _prefs.getBool(_kConnectPromptShown) ?? false;
+  set connectPromptShown(bool v) {
+    _prefs.setBool(_kConnectPromptShown, v);
     notifyListeners();
   }
 
