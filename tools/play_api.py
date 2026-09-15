@@ -39,6 +39,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -354,6 +355,29 @@ def cmd_reporting_anomalies(service, args) -> int:
     return 0
 
 
+def _date_range(args) -> tuple[date, date]:
+    """Resolve the reporting window.
+
+    The API rejects a DAILY range whose start is not strictly earlier than its end
+    ("The 'start_time' must be earlier than the 'end_time'"), so a single day is
+    never valid. Defaults to a 7-day window ending two days ago, because Play's
+    daily data lags by 1-2 days.
+    """
+    if args.end:
+        end = date.fromisoformat(args.end)
+    else:
+        end = date.today() - timedelta(days=2)
+    if args.start:
+        start = date.fromisoformat(args.start)
+    else:
+        start = end - timedelta(days=6)
+    if start >= end:
+        raise SystemExit(
+            "[ERROR] --start --end se pehle hona chahiye (DAILY range single day nahi ho sakti)."
+        )
+    return start, end
+
+
 def _vitals_query(service, args, method: str, metric_set: str, metrics: list[str]) -> int:
     """Shared query for the vitals metric sets.
 
@@ -361,19 +385,21 @@ def _vitals_query(service, args, method: str, metric_set: str, metrics: list[str
     with ^apps/[^/]+/<metricSet>$ and rejects anything else.
     """
     parent = "apps/%s/%s" % (args.package, metric_set)
+    start, end = _date_range(args)
     request = {
         "timelineSpec": {
             "aggregationPeriod": "DAILY",
-            "startTime": {"year": args.year, "month": args.month, "day": args.day},
             # DAILY aggregation: hours/minutes/seconds MUST be unset, warna API
             # "Minutes, seconds and nanos should be unset" keh kar reject kar deti hai.
-            "endTime": {"year": args.year, "month": args.month, "day": args.day},
+            "startTime": {"year": start.year, "month": start.month, "day": start.day},
+            "endTime": {"year": end.year, "month": end.month, "day": end.day},
         },
         "metrics": metrics,
         "dimensions": ["versionCode"],
         "pageSize": 100,
     }
     print("metric set: %s" % parent)
+    print("range     : %s .. %s" % (start.isoformat(), end.isoformat()))
     resource = getattr(service.vitals(), method)()
     data = resource.query(name=parent, body=request).execute()
     rows = data.get("rows") or []
@@ -477,15 +503,13 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("reporting-anomalies", help="Reporting API: crash / ANR anomalies")
     p.add_argument("--limit", type=int, default=50)
 
-    p = sub.add_parser("reporting-crash-rate", help="Reporting API: crash rates")
-    p.add_argument("--year", type=int, default=2026)
-    p.add_argument("--month", type=int, default=9)
-    p.add_argument("--day", type=int, default=1)
+    p = sub.add_parser("reporting-crash-rate", help="Reporting API: crash rates (DAILY range)")
+    p.add_argument("--start", default=None, help="YYYY-MM-DD (default: end - 6 din)")
+    p.add_argument("--end", default=None, help="YYYY-MM-DD (default: 2 din pehle)")
 
-    p = sub.add_parser("reporting-anr-rate", help="Reporting API: ANR rates")
-    p.add_argument("--year", type=int, default=2026)
-    p.add_argument("--month", type=int, default=9)
-    p.add_argument("--day", type=int, default=1)
+    p = sub.add_parser("reporting-anr-rate", help="Reporting API: ANR rates (DAILY range)")
+    p.add_argument("--start", default=None, help="YYYY-MM-DD (default: end - 6 din)")
+    p.add_argument("--end", default=None, help="YYYY-MM-DD (default: 2 din pehle)")
 
     sub.add_parser("reporting-freshness", help="Reporting API: kis din tak ka data mojood hai")
 
