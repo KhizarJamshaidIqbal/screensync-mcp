@@ -186,3 +186,36 @@ After driving the page, call **`web_events` {since: <lastSeq>}** to see what act
 | 403 "web access disabled" | Ask user to enable the toggle (Alt+Shift+S). |
 | Weird/stale results | `web_extension_reload`, wait 5s, `web_status`. |
 | Wrong browser answered | Pass `__browser` hint (see §5). |
+
+---
+
+## Native browser dialogs (beforeunload) - why a tab can look stuck
+
+`alert` / `confirm` / `prompt` are shimmed by the extension and read back through
+`web_dialog`. The **native `beforeunload` dialog** ("Leave site? Changes you may not be
+saved.") is a different animal: it is browser chrome, not DOM.
+
+- No DOM tool can see or click it. `web_click`, `web_eval`, `web_run_code` all execute in
+  the page, and the page is frozen while the dialog is up.
+- Chrome only raises it after a real user gesture, so it shows up on pages carrying
+  unsaved state (a half-written post, a filled form) when something navigates away.
+- While it is open the renderer is blocked, so renderer-bound CDP calls
+  (`Target.setAutoAttach`, `Page.enable`, `Runtime.evaluate`, `Page.captureScreenshot`)
+  hang. That is precisely the symptom `Timed out after 45000ms waiting for the browser
+  extension`.
+
+What to do:
+
+| Situation | Action |
+|---|---|
+| Navigate a page that may hold unsaved state | Nothing extra - `web_navigate` and `web_reload` attach a CDP session and accept the prompt first. Pass `acceptBeforeUnload:false` to stay on the page instead. |
+| A dialog is already open | `web_dialog_rule {action:"accept"}` answers it and sets the accept rule; `{action:"dismiss"}` answers it and keeps the page. The response reports `clearedOpenDialog`. |
+| The tab is wedged and even `web_dialog_rule` keeps timing out | Close the tab: `web_tab {action:"close", tabId}`. `chrome.tabs.remove` is browser-level, so a frozen renderer cannot block it. Reopen the URL afterwards. |
+| Stop accepting prompts later | `web_dialog_rule {action:"clear"}` |
+
+Rule of thumb: **never leave a composer or form half-filled and then navigate away** - fill
+it, post it, or close the tab. Otherwise the next navigation is the one that hangs.
+
+Evidence for the fix (2026-09-16): a test page armed a real `beforeunload` via a trusted
+click, then `web_navigate` moved the tab to example.com in **0.4s** with `status: complete`,
+against a 45s timeout before the change.

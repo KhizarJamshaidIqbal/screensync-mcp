@@ -215,9 +215,18 @@ export async function executeWebTool(tool, args = {}) {
       const url = String(args.url || '');
       if (!/^https?:/i.test(url)) return makeError(ERROR_CODES.BAD_ARGS, 'Only http(s) URLs are supported.');
       const current = await pickActiveTab(args);
+      // A page with unsaved state raises the native beforeunload dialog on navigation.
+      // It is browser chrome, not DOM, so no DOM tool can dismiss it and the navigation
+      // would hang until timeout. Attach a CDP session first so the dialog event is
+      // received, and accept it because the caller asked to navigate. Pass
+      // acceptBeforeUnload:false to leave the page alone instead.
+      const guard = args.acceptBeforeUnload === false
+        ? null
+        : await execAdvTool('web_dialog_rule', current, { action: 'accept' }).catch(() => null);
       const tab = args.newTab ? await chrome.tabs.create({ url }) : await chrome.tabs.update(current.id, { url });
       if (args.newTab && tab.id) groupAgentTab(tab.id);
       await waitForTabComplete(tab.id, 20000);
+      if (guard && guard.ok) await execAdvTool('web_dialog_rule', tab, { action: 'clear' }).catch(() => null);
       const after = await chrome.tabs.get(tab.id);
       return { ok: true, data: { tabId: tab.id, url: after.url, title: after.title, status: after.status } };
     }
@@ -237,8 +246,14 @@ export async function executeWebTool(tool, args = {}) {
     }
     case 'web_reload': {
       const tab = await pickActiveTab(args);
+      // Same beforeunload guard as web_navigate: an unsaved page would otherwise raise a
+      // native dialog that nothing can click, and the reload would hang.
+      const guard = args.acceptBeforeUnload === false
+        ? null
+        : await execAdvTool('web_dialog_rule', tab, { action: 'accept' }).catch(() => null);
       await chrome.tabs.reload(tab.id, { bypassCache: !!args.bypassCache });
       await waitForTabComplete(tab.id, 20000);
+      if (guard && guard.ok) await execAdvTool('web_dialog_rule', tab, { action: 'clear' }).catch(() => null);
       const after = await chrome.tabs.get(tab.id);
       return { ok: true, data: { url: after.url, title: after.title } };
     }

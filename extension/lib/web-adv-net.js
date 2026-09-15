@@ -311,6 +311,27 @@ export async function cdpDialogRule(tab, args = {}) {
     await detachCdp(tab);
     return { ok: true, data: { dialogRule: 'cleared', tabId: tab.id } };
   }
+
+  // Answer a dialog that is ALREADY open before anything else. While a native dialog is
+  // up the renderer is blocked, so Target.setAutoAttach and Page.enable can hang and the
+  // call dies on the caller's timeout - which is exactly how a stuck beforeunload used to
+  // present. A bare attach plus a time-boxed Page.handleJavaScriptDialog is handled by the
+  // browser process, so it cannot hang.
+  let clearedOpenDialog = false;
+  try {
+    await chrome.debugger.attach(target, '1.3').catch((e) => {
+      if (!/already attached/i.test(String((e && e.message) || e))) throw e;
+    });
+    await Promise.race([
+      chrome.debugger.sendCommand(target, 'Page.handleJavaScriptDialog', { accept: action === 'accept' }),
+      new Promise((_res, rej) => setTimeout(() => rej(new Error('dialog answer timed out')), 4000)),
+    ]);
+    clearedOpenDialog = true;
+  } catch (_err) {
+    // No dialog open, or the page cannot answer. Not fatal: the rule below still applies
+    // to the next dialog that opens.
+  }
+
   const attachRes = await attachCdp(tab);
   if (!attachRes.ok) return attachRes;
   try {
@@ -319,7 +340,10 @@ export async function cdpDialogRule(tab, args = {}) {
       rule: action,
       promptText: args.promptText || '',
     });
-    return { ok: true, data: { dialogRule: action, promptText: args.promptText || null } };
+    return {
+      ok: true,
+      data: { dialogRule: action, promptText: args.promptText || null, clearedOpenDialog },
+    };
   } catch (err) {
     await detachCdp(tab);
     return { ok: false, error: `CDP dialog rule error: ${String((err && err.message) || err)}` };

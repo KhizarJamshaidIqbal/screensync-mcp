@@ -100,3 +100,21 @@ Every permission declared in `manifest.json` is mapped to active tool call sites
   `/api/device/status`, `/api/mcp/catalog`, `/api/inspections/latest`,
   `/api/patches/latest`, `/api/control/:action`, `/api/web/register`,
   `/api/web/result`, `/api/web/status`, `/api/web/tool`, `/pair`.
+
+---
+
+## Native dialogs and navigation (maintainer note)
+
+`web_navigate` and `web_reload` attach a CDP session and accept a pending `beforeunload`
+prompt before navigating, because that dialog is browser chrome: no DOM tool can click it
+and the renderer is blocked while it is open, so the call would otherwise hang until the
+hub's timeout. Pass `acceptBeforeUnload: false` to stay on the page.
+
+`cdpDialogRule` answers an already-open dialog with a bare `chrome.debugger.attach` plus a
+time-boxed `Page.handleJavaScriptDialog`, *before* `Target.setAutoAttach` / `Page.enable`.
+Ordering matters: those two can wait on the renderer, which is exactly what a modal dialog
+has frozen.
+
+If a tab is wedged so badly that CDP calls keep timing out, close it with
+`web_tab {action:"close", tabId}` - `chrome.tabs.remove` is browser-level and is not
+blocked by the frozen page.
