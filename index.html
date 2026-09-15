@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ScreenSync MCP — Live Android Screen Capture for AI Agents</title>
-<meta name="description" content="ScreenSync MCP connects your Android phone to any AI agent via the Model Context Protocol. Live screen capture, 25+ MCP tools, LAN-first privacy. Free by EpsolDev.">
+<meta name="description" content="ScreenSync MCP connects your Android phone to any AI agent via the Model Context Protocol. Live screen capture, 169 MCP tools, LAN-first privacy. Free by EpsolDev.">
 <meta name="keywords" content="ScreenSync MCP, MCP server, Model Context Protocol, Android screen capture, AI agent tools, mobile automation, screen sharing AI, EpsolDev">
 <meta name="robots" content="index,follow">
 <meta name="author" content="EpsolDev">
@@ -14,14 +14,14 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://screensyncmcp.epsoldev.com/">
 <meta property="og:title" content="ScreenSync MCP — Live Android Screen Capture for AI Agents">
-<meta property="og:description" content="Connect your Android phone to any AI agent. Live screen capture, 25+ MCP tools, LAN-first privacy.">
+<meta property="og:description" content="Connect your Android phone to any AI agent. Live screen capture, 169 MCP tools, LAN-first privacy.">
 <meta property="og:image" content="https://screensyncmcp.epsoldev.com/assets/logo.png">
 <meta property="og:site_name" content="ScreenSync MCP">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:url" content="https://screensyncmcp.epsoldev.com/">
 <meta name="twitter:title" content="ScreenSync MCP — Live Android Screen Capture for AI Agents">
-<meta name="twitter:description" content="Connect your Android phone to any AI agent. Live screen capture, 25+ MCP tools, LAN-first privacy.">
+<meta name="twitter:description" content="Connect your Android phone to any AI agent. Live screen capture, 169 MCP tools, LAN-first privacy.">
 <meta name="twitter:image" content="https://screensyncmcp.epsoldev.com/assets/logo.png">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -63,12 +63,12 @@
       "operatingSystem": "Android",
       "applicationCategory": "DeveloperApplication",
       "softwareVersion": "2.5",
-      "description": "ScreenSync MCP connects your Android phone to any AI agent via the Model Context Protocol. Live screen capture, 25+ MCP tools, LAN-first privacy.",
+      "description": "ScreenSync MCP connects your Android phone to any AI agent via the Model Context Protocol. Live screen capture, 169 MCP tools, LAN-first privacy.",
       "url": "https://screensyncmcp.epsoldev.com/",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "featureList": [
         "Live screen capture via MediaProjection",
-        "25+ MCP tools for full device control",
+        "169 MCP tools for full device and browser control",
         "LAN-first, token-secured transport",
         "Floating bubble one-tap capture",
         "Shake-to-capture gesture",
@@ -98,7 +98,7 @@
         {
           "@type": "Question",
           "name": "Which AI agents work with ScreenSync MCP?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Any MCP-compatible client: Claude Desktop, Claude Code, OpenClaw, custom agents — anything that speaks Model Context Protocol over stdio can use all 25+ tools and 4 built-in prompts." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Any MCP-compatible client: Claude Desktop, Claude Code, OpenClaw, custom agents — anything that speaks Model Context Protocol over stdio can use all 169 tools, 17 prompts, and 3 resources." }
         },
         {
           "@type": "Question",
@@ -126,17 +126,18 @@
 <!-- ═══════════ NAV ═══════════ -->
 <header class="glass-nav fixed top-0 inset-x-0 z-50">
   <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
-    <a href="index.html" class="flex items-center gap-2.5">
+    <a href="/" class="flex items-center gap-2.5">
       <img src="assets/logo.png" alt="ScreenSync MCP logo" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
       <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
     </a>
     <div class="hidden md:flex items-center gap-4 lg:gap-7 text-[15px] font-medium text-[#4B4460] whitespace-nowrap">
-      <a href="index.html" class="hover:text-[#6541D6] transition">Home</a>
+      <a href="/" class="hover:text-[#6541D6] transition">Home</a>
       <a href="about.html" class="hover:text-[#6541D6] transition">About</a>
       <a href="goal.html" class="hover:text-[#6541D6] transition">Goal</a>
       <a href="privacy.html" class="hover:text-[#6541D6] transition">Privacy</a>
       <a href="data-policy.html" class="hover:text-[#6541D6] transition">Data Policy</a>
       <a href="extension.html" class="hover:text-[#6541D6] transition">Extension</a>
+      <a href="changelog.html" class="hover:text-[#6541D6] transition">Changelog</a>
       <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" title="Get it on Google Play" aria-label="Get it on Google Play" class="hidden lg:inline-flex btn-secondary px-5 py-2 rounded-full text-sm font-semibold items-center gap-2 shrink-0"><i data-lucide="smartphone" class="w-4 h-4"></i> Get App</a>
       <a href="#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold shrink-0">Get Connected</a>
     </div>
@@ -146,7 +147,7 @@
   </nav>
   <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
     <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
-      <a href="index.html" class="py-1.5">Home</a>
+      <a href="/" class="py-1.5">Home</a>
       <a href="about.html" class="py-1.5">About</a>
       <a href="goal.html" class="py-1.5">Goal</a>
       <a href="privacy.html" class="py-1.5">Privacy</a>
@@ -170,7 +171,7 @@
       </h1>
       <p class="mt-6 text-lg text-[#4B4460] leading-relaxed max-w-lg">
         ScreenSync MCP turns your Android phone into a <strong>live window for any AI agent</strong>.
-        Real-time screen capture, full device control, and 25+ MCP tools — all over your own LAN,
+        Real-time screen capture, full device control, and 169 MCP tools — all over your own LAN,
         with privacy built in.
       </p>
       <div class="mt-9 flex flex-wrap gap-4">
@@ -185,7 +186,7 @@
         </a>
       </div>
       <div class="mt-10 grid grid-cols-3 gap-4 max-w-md">
-        <div><div class="stat-num text-3xl font-extrabold grad-text" data-count="25" data-suffix="+">0</div><div class="text-xs text-[#7A7291] font-medium mt-1">MCP Tools</div></div>
+        <div><div class="stat-num text-3xl font-extrabold grad-text" data-count="169">0</div><div class="text-xs text-[#7A7291] font-medium mt-1">MCP Tools</div></div>
         <div><div class="stat-num text-3xl font-extrabold grad-text" data-count="94" data-suffix="ms">0</div><div class="text-xs text-[#7A7291] font-medium mt-1">P50 Latency</div></div>
         <div><div class="stat-num text-3xl font-extrabold grad-text" data-count="100" data-suffix="%">0</div><div class="text-xs text-[#7A7291] font-medium mt-1">LAN-first Privacy</div></div>
       </div>
@@ -288,7 +289,7 @@
   <div class="max-w-7xl mx-auto px-5 sm:px-8">
     <div class="text-center max-w-2xl mx-auto reveal">
       <span class="inline-flex items-center gap-2 bg-purple-50 rounded-full px-4 py-1.5 text-xs font-bold text-[#6541D6] uppercase tracking-wider">Model Context Protocol</span>
-      <h2 class="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight">25+ tools. <span class="grad-text">Full device control.</span></h2>
+      <h2 class="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight">169 tools. <span class="grad-text">Full device control.</span></h2>
       <p class="mt-4 text-[#4B4460] text-lg">Your agent doesn't just watch — it acts. Every tool is exposed over standard MCP stdio.</p>
     </div>
   </div>
@@ -390,8 +391,9 @@
                                           ▼
                                    ╭──────────────╮
                                    │  🤖 AI AGENT  │
-                                   │  25+ tools    │
-                                   │  4 prompts    │
+                                   │  169 tools   │
+                                   │  17 prompts  │
+                                   │  3 resources │
                                    ╰──────────────╯</pre>
       </div>
     </div>
@@ -406,7 +408,7 @@
     </div>
     <div class="mt-12 space-y-4">
       <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Does my screen data leave my network?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">No — by default everything stays on your LAN. Frames go phone → hub over your own Wi-Fi with bearer-token auth. Only if you explicitly enable the Google Drive BYOS fallback do frames sync through <em>your own</em> Drive account. See our <a href="data-policy.html" class="text-[#6541D6] font-semibold underline">Data Policy</a>.</div></div></div>
-      <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Which AI agents work with ScreenSync MCP?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">Any MCP-compatible client: Claude Desktop, Claude Code, OpenClaw, custom agents — anything that speaks Model Context Protocol over stdio can use all 25+ tools and 4 built-in prompts.</div></div></div>
+      <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Which AI agents work with ScreenSync MCP?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">Any MCP-compatible client: Claude Desktop, Claude Code, OpenClaw, custom agents — anything that speaks Model Context Protocol over stdio can use all 169 tools, 17 prompts, and 3 resources.</div></div></div>
       <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Do I need root or ADB on the phone?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">No root needed. Screen capture uses Android's official MediaProjection API with your one-time consent. Device-control tools (tap/swipe/type) use ADB from the hub side — ideal with wireless debugging.</div></div></div>
       <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">What happens when I leave my Wi-Fi network?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">Hybrid mode automatically falls back to Google Drive BYOS sync (if you enabled it). Captures queue locally in SQLite and push when a route is available — the dashboard shows unsynced counts.</div></div></div>
       <div class="faq-item lux-card reveal"><button class="faq-q w-full flex items-center justify-between p-6 text-left font-bold" aria-expanded="false">Is it free?<i data-lucide="chevron-down" class="chev w-5 h-5 text-[#6541D6] shrink-0"></i></button><div class="faq-a"><div class="px-6 pb-6 text-sm text-[#4B4460] leading-relaxed">ScreenSync MCP is currently free while in active development by EpsolDev. Follow the <a href="goal.html" class="text-[#6541D6] font-semibold underline">Goal page</a> for the roadmap.</div></div></div>
@@ -444,7 +446,7 @@
     <div>
       <h4 class="text-white font-bold mb-4">Pages</h4>
       <ul class="space-y-2.5 text-sm">
-        <li><a href="index.html" class="hover:text-white transition">Home</a></li>
+        <li><a href="/" class="hover:text-white transition">Home</a></li>
         <li><a href="about.html" class="hover:text-white transition">About Us</a></li>
         <li><a href="goal.html" class="hover:text-white transition">Goal &amp; Vision</a></li>
         <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>

@@ -41,18 +41,19 @@
 <!-- ═══════════ NAV ═══════════ -->
 <header class="glass-nav fixed top-0 inset-x-0 z-50">
   <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
-    <a href="index.html" class="flex items-center gap-2.5">
+    <a href="/" class="flex items-center gap-2.5">
       <img src="assets/logo.png" alt="ScreenSync MCP logo" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
       <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
     </a>
     <div class="hidden md:flex items-center gap-7 text-[15px] font-medium text-[#4B4460]">
-      <a href="index.html" class="hover:text-[#6541D6] transition">Home</a>
+      <a href="/" class="hover:text-[#6541D6] transition">Home</a>
       <a href="about.html" class="hover:text-[#6541D6] transition">About</a>
       <a href="goal.html" class="hover:text-[#6541D6] transition">Goal</a>
       <a href="extension.html" class="text-[#6541D6] font-semibold">Extension</a>
+      <a href="changelog.html" class="hover:text-[#6541D6] transition">Changelog</a>
       <a href="privacy.html" class="hover:text-[#6541D6] transition">Privacy</a>
       <a href="data-policy.html" class="hover:text-[#6541D6] transition">Data Policy</a>
-      <a href="index.html#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold">Get Connected</a>
+      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold">Get Connected</a>
     </div>
     <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false">
       <i data-lucide="menu" class="w-6 h-6"></i>
@@ -60,13 +61,14 @@
   </nav>
   <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
     <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
-      <a href="index.html" class="py-1.5">Home</a>
+      <a href="/" class="py-1.5">Home</a>
       <a href="about.html" class="py-1.5">About</a>
       <a href="goal.html" class="py-1.5">Goal</a>
       <a href="extension.html" class="py-1.5 text-[#6541D6] font-semibold">Extension</a>
+      <a href="changelog.html" class="py-1.5 hover:text-[#6541D6] transition">Changelog</a>
       <a href="privacy.html" class="py-1.5">Privacy</a>
       <a href="data-policy.html" class="py-1.5">Data Policy</a>
-      <a href="index.html#connect" class="btn-primary px-5 py-2.5 rounded-full text-sm font-semibold text-center mt-1">Get Connected</a>
+      <a href="/#connect" class="btn-primary px-5 py-2.5 rounded-full text-sm font-semibold text-center mt-1">Get Connected</a>
     </div>
   </div>
 </header>
@@ -103,8 +105,8 @@
         </div>
         <img src="assets/screenshots/ext-web-access.png" alt="ScreenSync extension dashboard with the Web access for AI agents card enabled" class="rounded-xl border border-purple-100 w-full h-auto" loading="eager">
         <div class="mt-4 grid grid-cols-3 gap-3 text-center">
-          <div class="bg-[#F6F3FD] rounded-xl py-2"><div class="font-extrabold text-[#6541D6]">20 web tools</div></div>
-          <div class="bg-[#F6F3FD] rounded-xl py-2"><div class="font-extrabold text-[#6541D6]">8 skills</div></div>
+          <div class="bg-[#F6F3FD] rounded-xl py-2"><div class="font-extrabold text-[#6541D6]">169 MCP tools</div></div>
+          <div class="bg-[#F6F3FD] rounded-xl py-2"><div class="font-extrabold text-[#6541D6]">17 skills</div></div>
           <div class="bg-[#F6F3FD] rounded-xl py-2"><div class="font-extrabold text-[#6541D6]">OFF by default</div></div>
         </div>
       </div>
@@ -126,7 +128,7 @@
       <div class="lux-card p-7 reveal"><i data-lucide="shield-check" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">You stay in control</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Web access is OFF by default. Browser-internal pages are refused. A heartbeat shows presence; flip the toggle and the agent is cut off instantly.</p></div>
       <div class="lux-card p-7 reveal reveal-delay-1"><i data-lucide="monitor-play" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Phone, live too</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">The same dashboard streams your Android screen, latency telemetry and AI activity — click the frame to tap the phone.</p></div>
       <div class="lux-card p-7 reveal reveal-delay-2"><i data-lucide="clipboard-copy" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">One-click Connect Kit</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Copy the exact MCP config for Claude Code / Desktop with your hub URL + token baked in, ready to paste.</p></div>
-      <div class="lux-card p-7 reveal sm:col-span-2 lg:col-span-3"><i data-lucide="activity" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Advanced automation toolkit — Playwright-grade, in your real browser</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Thirteen new tools take the agent from clicking to full debugging: <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_eval</code> runs JavaScript, <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_console</code>, <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_network</code> and <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_dialog</code> capture logs, requests and popups, <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_storage</code> reads localStorage &amp; cookies, <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_perf</code> reports Core Web Vitals, <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_tabs</code> / <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_tab</code> manage multiple tabs, and <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_wait_for</code>, <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_key</code>, <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_hover</code>, <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_select</code> handle waits and precise input.</p><p class="text-sm text-[#4B4460] mt-2 leading-relaxed"><strong class="text-[#1E1633]">And the headline:</strong> <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_watch</code> streams changed frames every ~500&nbsp;ms with pixel-level change detection — the agent literally watches your screen like a live video and never misses a visual change.</p></div>
+      <div class="lux-card p-7 reveal sm:col-span-2 lg:col-span-3"><i data-lucide="activity" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Advanced automation toolkit — 100% Playwright &amp; AI-operator parity</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">169 tools take the agent from simple clicking to full browser engineering: auto-waiting actionability (<code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_actionable</code>), parent-scoped locators, token-bounded digests (<code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_page_digest</code>), JavaScript eval, CDP network mocking, dialog interception, storage inspection, Core Web Vitals, tab groups, multi-browser data sync, and visual diff baselines.</p><p class="text-sm text-[#4B4460] mt-2 leading-relaxed"><strong class="text-[#1E1633]">And the headline:</strong> <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_watch</code> streams changed frames with pixel-level change detection — the agent literally watches your screen like a live video and never misses a visual change.</p></div>
     </div>
   </div>
 </section>
@@ -279,7 +281,7 @@
     <div>
       <h4 class="text-white font-bold mb-4">Pages</h4>
       <ul class="space-y-2.5 text-sm">
-        <li><a href="index.html" class="hover:text-white transition">Home</a></li>
+        <li><a href="/" class="hover:text-white transition">Home</a></li>
         <li><a href="about.html" class="hover:text-white transition">About Us</a></li>
         <li><a href="goal.html" class="hover:text-white transition">Goal &amp; Vision</a></li>
         <li><a href="extension.html" class="hover:text-white transition">Browser Extension</a></li>
