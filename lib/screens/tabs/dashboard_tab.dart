@@ -134,9 +134,13 @@ class _DashboardTabState extends State<DashboardTab> {
               const LoopbackWarningBanner(),
               const SizedBox(height: 14),
             ],
-            const SizedBox(height: 14),
             // B1: live thumbnail strip (same frame source as StoredFrames).
-            LiveStreamStrip(frames: state.gallery, live: live),
+            // Hidden until at least one frame exists - before that the card is just
+            // an empty "Frames will appear here as they stream in." placeholder.
+            if (state.gallery.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              LiveStreamStrip(frames: state.gallery, live: live),
+            ],
             const SizedBox(height: 14),
             // B2: collapsible latency/health mini-HUD.
             Row(
