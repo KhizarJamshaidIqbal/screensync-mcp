@@ -354,9 +354,13 @@ def cmd_reporting_anomalies(service, args) -> int:
     return 0
 
 
-def cmd_reporting_crash_rate(service, args) -> int:
-    """Fresh-crash-rate over the last 28 days at daily granularity."""
-    parent = "apps/%s" % args.package
+def _vitals_query(service, args, metric_set: str, metrics: list[str]) -> int:
+    """Shared query for the vitals metric sets.
+
+    The `name` must be exactly `apps/<package>/<metricSet>` - the API validates it
+    with ^apps/[^/]+/<metricSet>$ and rejects anything else.
+    """
+    parent = "apps/%s/%s" % (args.package, metric_set)
     request = {
         "timelineSpec": {
             "aggregationPeriod": "DAILY",
@@ -370,12 +374,55 @@ def cmd_reporting_crash_rate(service, args) -> int:
                 "seconds": 59,
             },
         },
-        "metrics": ["crashRate", "userPerceivedCrashRate", "anrRate", "userPerceivedAnrRate"],
+        "metrics": metrics,
         "dimensions": ["versionCode"],
         "pageSize": 100,
     }
+    print("metric set: %s" % parent)
     data = service.vitals().crashrate().query(name=parent, body=request).execute()
-    print(json.dumps(data, indent=2, ensure_ascii=False)[:4000])
+    rows = data.get("rows") or []
+    if not rows:
+        print("(is range mein koi data nahi - Play ka data 1-2 din late aata hai)")
+    for row in rows:
+        start = row.get("startTime") or {}
+        dims = ", ".join(
+            "%s=%s" % (d.get("dimension"), d.get("int64Value") or d.get("stringValue"))
+            for d in (row.get("dimensions") or [])
+        )
+        values = ", ".join(
+            "%s=%s" % (m.get("metric"), m.get("decimalValue", {}).get("value"))
+            for m in (row.get("metrics") or [])
+        )
+        print("  %04d-%02d-%02d  %-22s %s" % (start.get("year", 0), start.get("month", 0), start.get("day", 0), dims, values))
+    return 0
+
+
+def cmd_reporting_crash_rate(service, args) -> int:
+    return _vitals_query(
+        service,
+        args,
+        "crashRateMetricSet",
+        ["crashRate", "userPerceivedCrashRate", "distinctUsers"],
+    )
+
+
+def cmd_reporting_anr_rate(service, args) -> int:
+    return _vitals_query(
+        service,
+        args,
+        "anrRateMetricSet",
+        ["anrRate", "userPerceivedAnrRate", "distinctUsers"],
+    )
+
+
+def cmd_reporting_freshness(service, args) -> int:
+    """Kaun se din tak ka data mojood hai - is se pata chalta hai kon sa range maangna hai."""
+    for metric_set in ("crashRateMetricSet", "anrRateMetricSet"):
+        name = "apps/%s/%s" % (args.package, metric_set)
+        data = service.vitals().crashrate().get(name=name).execute()
+        fresh = data.get("freshnessInfo") or {}
+        print("%s" % metric_set)
+        print("  freshness: %s" % json.dumps(fresh.get("freshnesses") or [], ensure_ascii=False))
     return 0
 
 
@@ -429,10 +476,17 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("reporting-anomalies", help="Reporting API: crash / ANR anomalies")
     p.add_argument("--limit", type=int, default=50)
 
-    p = sub.add_parser("reporting-crash-rate", help="Reporting API: crash / ANR rates")
+    p = sub.add_parser("reporting-crash-rate", help="Reporting API: crash rates")
     p.add_argument("--year", type=int, default=2026)
     p.add_argument("--month", type=int, default=9)
     p.add_argument("--day", type=int, default=1)
+
+    p = sub.add_parser("reporting-anr-rate", help="Reporting API: ANR rates")
+    p.add_argument("--year", type=int, default=2026)
+    p.add_argument("--month", type=int, default=9)
+    p.add_argument("--day", type=int, default=1)
+
+    sub.add_parser("reporting-freshness", help="Reporting API: kis din tak ka data mojood hai")
 
     return parser
 
@@ -442,7 +496,13 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path(__file__).resolve().parent.parent
     source = resolve_source(args.service_account, repo_root)
 
-    reporting_cmds = {"reporting-apps", "reporting-anomalies", "reporting-crash-rate"}
+    reporting_cmds = {
+        "reporting-apps",
+        "reporting-anomalies",
+        "reporting-crash-rate",
+        "reporting-anr-rate",
+        "reporting-freshness",
+    }
     try:
         if args.command in reporting_cmds:
             service = reporting(source)
@@ -451,6 +511,8 @@ def main(argv: list[str] | None = None) -> int:
                 "reporting-apps": cmd_reporting_apps,
                 "reporting-anomalies": cmd_reporting_anomalies,
                 "reporting-crash-rate": cmd_reporting_crash_rate,
+                "reporting-anr-rate": cmd_reporting_anr_rate,
+                "reporting-freshness": cmd_reporting_freshness,
             }[args.command]
             return handler(service, args)
 
