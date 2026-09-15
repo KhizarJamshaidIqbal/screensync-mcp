@@ -134,9 +134,12 @@ if ($BumpVersion) {
     Write-Head "Version bump"
     $newVersion = Get-NextBuildVersion $currentVersion
     Write-Host "    purani : version: $currentVersion" -ForegroundColor DarkGray
-    $content = Get-Content -LiteralPath $pubspec -Raw
+    # Byte-safe: PowerShell 5.1's Get-Content -Raw reads UTF-8 files as ANSI,
+    # which double-encodes any non-ASCII character in pubspec.yaml.
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $content = [System.IO.File]::ReadAllText($pubspec, $utf8NoBom)
     $updated = [regex]::Replace($content, '(?m)^version:\s*.+?$', "version: $newVersion")
-    [System.IO.File]::WriteAllText($pubspec, $updated, (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText($pubspec, $updated, $utf8NoBom)
     $currentVersion = Get-PubspecVersion
     Write-Host "    nayi   : version: $currentVersion" -ForegroundColor DarkGray
     if ($currentVersion -ne $newVersion) {

@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Play policy: REQUEST_INSTALL_PACKAGES is a restricted permission and may
+      not be used to self-update outside Google Play's own update mechanism.
+
+      This overlays src/main for the release build type only, so the Play
+      artifact does not declare it. Store installs update through Play In-App
+      Updates (com.google.android.play:app-update). Sideloaded builds keep the
+      permission from src/main and continue to use the hub OTA path.
+    -->
+    <uses-permission
+        android:name="android.permission.REQUEST_INSTALL_PACKAGES"
+        tools:node="remove" />
+
+</manifest>

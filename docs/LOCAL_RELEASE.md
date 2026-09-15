@@ -205,6 +205,7 @@ Pehle `production` par seedha push karne se Play mana kar deta hai
 | `403 ... API has not been used in project ... before or it is disabled` | Google Play Android Developer API enable nahi hai | [console.cloud.google.com/apis/library/androidpublisher.googleapis.com](https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com) -> project select -> **Enable** |
 | `Package not found` | App Play Console mein mojood nahi (`com.screensync.mcp`) | Pehle Play Console se manually ek AAB chada kar app banao |
 | `Precondition check failed` | Production par seedha push, ya edit conflict (Console khol kar changes kar diye) | Pehle `internal` track par release karo; Console se aakhri kaam ke baad naya edit banao |
+| `This release includes the REQUEST_INSTALL_PACKAGES permission, which hasn't been declared in Play Console` | Play ki restricted-permission policy: app Play ke bahar se khud ko update nahi kar sakti | `android/app/src/release/AndroidManifest.xml` is permission ko release build se hata deta hai (pehle se laga hua hai). Store builds Play In-App Updates se update hote hain, sideloaded builds hub OTA se. |
 | `APK/AAB with version code X has already been uploaded` (ya similar) | Wohi versionCode dobara | `-BumpVersion` lagao |
 | `401` / `403` permission wala error, `The caller does not have permission` | Service account ko Play Console mein app permissions nahi mili, ya abhi propagate ho rahi hain | Play Console -> Users and permissions -> service account -> Manage -> App permissions -> app add karo + `Release apps to testing tracks` tick karo. Thora intezar karo. |
 | `Unexpected end of JSON` / `Invalid JWT` | Service account JSON adhoora ya ghalat file | JSON dobara download karo, poora file use karo |
@@ -214,6 +215,20 @@ Pehle `production` par seedha push karne se Play mana kar deta hai
 
 ---
 
+## 6b. Store build vs sideload build - update kaise hota hai
+
+| Build | `REQUEST_INSTALL_PACKAGES` | Update channel |
+|---|---|---|
+| Release / Play (`.aab` se) | **nahi** - `android/app/src/release/AndroidManifest.xml` ise hata deta hai | Play In-App Updates (`com.google.android.play:app-update`) |
+| Debug / sideload | haan - `src/main` se aata hai | Hub OTA (hub naya APK bhejta hai, phone install karta hai) |
+
+Wajah: Google ki Play policy kehti hai ke `REQUEST_INSTALL_PACKAGES` ko Play ke apne
+update mechanism ke bahar self-update ke liye use nahi kiya ja sakta. Is liye store
+build ise declare nahi karta, aur sideload build wahi feature use karta rehta hai.
+
+Agar tumhe release build par bhi hub OTA chahiye to `src/release/AndroidManifest.xml`
+ko hata do - magar phir Play Console mein Permissions Declaration Form bharna parega,
+aur Google us use case ko reject kar sakta hai.
 ## 7. Security  -  ye ghalat na karo
 
 - Service account JSON, `key.properties`, aur `.jks`  -  **kabhi commit na karo**.
