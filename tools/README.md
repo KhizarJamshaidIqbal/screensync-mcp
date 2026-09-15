@@ -142,3 +142,47 @@ python .\tools\release_notes.py --list-versions
   (OneDrive/Dropbox) mein na rakhein.
 - `play_api.py` ki write commands `--confirm-write` ke bagair kuch nahi badalti.
 - Live rollout ke liye Section 2 ka rule lazmi hai.
+
+---
+
+## 7. Reporting API - verified surface aur enablement ki state
+
+Discovery document se (revision 20260913) ye resources mojood hain:
+
+| Resource | Methods |
+|---|---|
+| `apps` | `search`, `fetchReleaseFilterOptions` |
+| `anomalies` | `list` |
+| `vitals.crashrate`, `vitals.anrrate` | `get`, `query` |
+| `vitals.errors.counts` | `get`, `query` |
+| `vitals.errors.issues`, `vitals.errors.reports` | `search` |
+| `vitals.slowstartrate`, `vitals.slowrenderingrate` | `get`, `query` |
+| `vitals.excessivewakeuprate`, `vitals.stuckbackgroundwakelockrate`, `vitals.lmkrate`, `vitals.bitmapmemoryusage`, `vitals.anonrssandswapmemoryusage` | `get`, `query` |
+
+**Note:** `apps.list` mojood nahi - `apps.search` hota hai.
+
+### Enablement ki asli state (15 Sept 2026)
+- Reporting scope ka token ban gaya, magar API ne **HTTP 404** diya - yani project
+  `advance-archery-505415-r2` par API **enable nahi** hai.
+- `gcloud services enable playdeveloperreporting.googleapis.com --project advance-archery-505415-r2`
+  chalaya gaya -> **PERMISSION_DENIED**. Wajah: gcloud us waqt `microexpertzseo@gmail.com`
+  se authenticated tha, jis ke paas us project ka access nahi.
+- **Ye kaam user ko khud karna hoga** (Console, owner account se):
+  https://console.cloud.google.com/apis/library/playdeveloperreporting.googleapis.com
+  -> project `advance-archery-505415-r2` -> Enable.
+- Enable hone ke baad: `python tools\play_api.py reporting-apps`
+
+---
+
+## 8. Release notes ki language (publish karte waqt pakra gaya bug)
+
+`edits.details.get` ne dikhaya: is app ki **default store language `en-GB`** hai, aur
+store par sirf ek hi listing language hai (`en-GB`).
+
+Pehle `publish_play.py` notes hamesha `en-US` ke saath bhejta tha. Play ne usay display
+kar diya, magar sahi tareeqa ye hai ke notes ki language wahan mojood ho jo listing
+language hai - warna Play ke paas un notes ko dikhane ke liye listing hi nahi hoti.
+
+**Fix:** `--notes-language` add hua (default `en-GB`) aur `release.ps1` mein
+`-NotesLanguage`. Production par jo `en-US` notes abhi live hain unhein badalne ke liye
+live approval chahiye.

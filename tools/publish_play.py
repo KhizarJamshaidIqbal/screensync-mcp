@@ -299,7 +299,10 @@ def update_track(service, package: str, edit_id: str, args: argparse.Namespace, 
     if args.user_fraction is not None:
         release["userFraction"] = float(args.user_fraction)
     if notes:
-        release["releaseNotes"] = [{"language": "en-US", "text": notes}]
+        # The language must match a language the store listing actually uses, or
+        # Play has no listing to attach the notes to and they never display.
+        # This app's default listing language is en-GB (see `play_api.py details-get`).
+        release["releaseNotes"] = [{"language": args.notes_language, "text": notes}]
 
     body = {"releases": [release]}
     result = call_with_retry(
@@ -366,6 +369,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--notes", default="", help="Release notes text")
     parser.add_argument("--notes-file", default=None, help="File containing release notes")
     parser.add_argument("--release-name", default=None, help="Optional release name")
+    parser.add_argument(
+        "--notes-language",
+        default="en-GB",
+        help="Release notes language; must match a store listing language (default: %(default)s)",
+    )
     parser.add_argument("--user-fraction", type=float, default=None, help="Staged rollout fraction, 0 < f < 1")
     parser.add_argument("--service-account", default=None, help="Service account JSON path or inline JSON")
     parser.add_argument("--dry-run", action="store_true", help="Validate only; never uploads or commits")
@@ -431,6 +439,7 @@ def run_dry(service, args: argparse.Namespace, aab: Path | None, notes: str) -> 
     else:
         info("    aab           : (none - promoting versionCode %s)" % args.version_code)
     info("    notes         : %s" % (notes[:100] + ("..." if len(notes) > 100 else "") if notes else "(none)"))
+    info("    notes language: %s" % args.notes_language)
     info("    notes length  : %d / %d characters" % (len(notes or ""), RELEASE_NOTES_MAX))
     if is_live_track(args.track):
         info("    [dry-run] NOTE: ye production track ka PREVIEW hai - kuch bhi live nahi jayega.")

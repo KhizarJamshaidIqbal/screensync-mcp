@@ -258,3 +258,22 @@ Search ke waqt jo pages mile (snippet-level evidence):
 - <https://support.google.com/googleplay/android-developer/answer/9859348> - release notes ki 500-character limit
 - <https://support.google.com/googleplay/android-developer/thread/462608398> - custom store listings API
 - <https://stackoverflow.com/questions/72534856/google-play-console-api-get-release-status> - review state nahi milti
+
+---
+
+## 11. Reporting API - verified surface (15 Sept 2026)
+
+Discovery revision 20260913 ke mutabiq ye resources hain: `apps.search`,
+`apps.fetchReleaseFilterOptions`, `anomalies.list`, aur `vitals.*` (`crashrate`,
+`anrrate`, `errors.counts`, `errors.issues`, `errors.reports`, `slowstartrate`,
+`slowrenderingrate`, `excessivewakeuprate`, `stuckbackgroundwakelockrate`, `lmkrate`,
+`bitmapmemoryusage`, `anonrssandswapmemoryusage`). `apps.list` mojood nahi - `apps.search` hai.
+
+Enablement: project `advance-archery-505415-r2` par API abhi **enable nahi** (token bana,
+magar 404 aaya). gcloud se enable karne ki koshish PERMISSION_DENIED se fail hui kyunke
+gcloud `microexpertzseo@gmail.com` se authenticated tha. Enable Console se karna hoga.
+
+## 12. Store listing language: en-GB
+
+`edits.details.get` -> `defaultLanguage: "en-GB"`, aur store par sirf `en-GB` listing hai.
+Release notes isi language ke saath bhejni chahiye (`--notes-language`, default `en-GB`).

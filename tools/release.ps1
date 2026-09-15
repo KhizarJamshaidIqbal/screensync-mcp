@@ -56,6 +56,11 @@
 .PARAMETER SinceVersion
     -NotesFromGit ke saath: kis version ke baad ke changes chahiye (misal 2.5.0).
 
+.PARAMETER NotesLanguage
+    Release notes ki language. Ye us store listing language se milni chahiye jo Play par
+    mojood ho, warna notes kabhi display nahi hote. Is app ki default listing en-GB hai,
+    is liye default bhi en-GB hai.
+
 .EXAMPLE
     .\tools\release.ps1 -Track internal -Notes "Naya pairing screen, QR scan fix"
 
@@ -86,7 +91,8 @@ param(
     [string]$ApprovedBy = '',
     [switch]$NotesFromGit,
     [string]$FromRevision = '',
-    [string]$SinceVersion = ''
+    [string]$SinceVersion = '',
+    [string]$NotesLanguage = 'en-GB'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -301,6 +307,7 @@ if ($VersionCode -gt 0) {
 }
 if ($releaseNotesFile -ne '' -and (Test-Path -LiteralPath $releaseNotesFile)) {
     $pubArgs += @('--notes-file', $releaseNotesFile)
+    $pubArgs += @('--notes-language', $NotesLanguage)
 }
 if ($Track -eq 'production' -and -not $DryRun) {
     $pubArgs += '--confirm-live-rollout'
@@ -327,7 +334,7 @@ if ($VersionCode -gt 0) {
 } else {
     Write-Host "  aab        : $aabPath ($aabSizeMb MB)"
 }
-if ($releaseNotesFile -ne '') { Write-Host "  notes      : $releaseNotesFile" }
+if ($releaseNotesFile -ne '') { Write-Host "  notes      : $releaseNotesFile ($NotesLanguage)" }
 if ($Track -eq 'production' -and -not $DryRun) {
     Write-Host "  approved by: $ApprovedBy" -ForegroundColor Yellow
 }

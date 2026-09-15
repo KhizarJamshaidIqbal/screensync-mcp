@@ -337,12 +337,20 @@ def cmd_reviews_reply(service, args) -> int:
 # reporting commands
 # --------------------------------------------------------------------------- #
 def cmd_reporting_apps(service, args) -> int:
-    data = service.apps().list(pageSize=args.limit).execute()
+    """Reporting API mein `apps.list` nahi hota - `apps.search` hota hai."""
+    data = service.apps().search(pageSize=args.limit).execute()
     rows = data.get("apps") or []
     if not rows:
         print("(koi app nahi mili)")
     for a in rows:
-        print("%s" % a.get("name"))
+        print(a.get("name"))
+    return 0
+
+
+def cmd_reporting_anomalies(service, args) -> int:
+    """anomalies.list - crash/ANR mein achanak badhat."""
+    data = service.anomalies().list(parent="apps/%s" % args.package, pageSize=args.limit).execute()
+    print(json.dumps(data, indent=2, ensure_ascii=False)[:4000])
     return 0
 
 
@@ -415,7 +423,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--review", default=None)
     p.add_argument("--text", default=None)
 
-    p = sub.add_parser("reporting-apps", help="Reporting API: apps list (API enable honi chahiye)")
+    p = sub.add_parser("reporting-apps", help="Reporting API: apps search (API enable honi chahiye)")
+    p.add_argument("--limit", type=int, default=50)
+
+    p = sub.add_parser("reporting-anomalies", help="Reporting API: crash / ANR anomalies")
     p.add_argument("--limit", type=int, default=50)
 
     p = sub.add_parser("reporting-crash-rate", help="Reporting API: crash / ANR rates")
@@ -431,13 +442,14 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path(__file__).resolve().parent.parent
     source = resolve_source(args.service_account, repo_root)
 
-    reporting_cmds = {"reporting-apps", "reporting-crash-rate"}
+    reporting_cmds = {"reporting-apps", "reporting-anomalies", "reporting-crash-rate"}
     try:
         if args.command in reporting_cmds:
             service = reporting(source)
             print("[auth] reporting API | package: %s" % args.package)
             handler = {
                 "reporting-apps": cmd_reporting_apps,
+                "reporting-anomalies": cmd_reporting_anomalies,
                 "reporting-crash-rate": cmd_reporting_crash_rate,
             }[args.command]
             return handler(service, args)
