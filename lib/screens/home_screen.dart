@@ -112,21 +112,32 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_promptSkippedForThisDrop) return;
 
     if (firstRun) SettingsService.instance.connectPromptShown = true;
-    await _runConnectPrompt(context);
+    await _runConnectPrompt(context, state);
   }
 
-  Future<void> _runConnectPrompt(BuildContext context) async {
+  Future<void> _runConnectPrompt(
+      BuildContext context, ScreenCaptureState state) async {
     // Captured before the await so no BuildContext is used across an
     // async gap.
     final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     _promptOpen = true;
-    final scan = await showConnectPrompt(context);
+    final result = await showConnectPrompt(
+      context,
+      hubUrl: state.hubUrl,
+      online: state.hubOnline == true,
+    );
     _promptOpen = false;
     if (!mounted) return;
-    if (scan) {
+    if (result == ConnectPromptResult.scan) {
       await navigator.push(
         MaterialPageRoute(builder: (_) => const PairScanScreen()),
       );
+    } else if (result == ConnectPromptResult.recent) {
+      // The bloc is already reconnecting to the saved hub.
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Reconnecting to the saved hub...'),
+      ));
     } else {
       _promptSkippedForThisDrop = true;
     }
