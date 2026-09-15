@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../core/app_theme.dart';
+import '../services/device_intent_service.dart';
 import '../services/settings_service.dart';
 import '../widgets/ref_widgets.dart';
 import 'tabs/diagnose_tab.dart';
@@ -67,7 +68,10 @@ class HubScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ScreenSync Hub')),
+      appBar: AppBar(
+        title: const Text('ScreenSync Hub'),
+        actions: const [_HubVersionBadge()],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
@@ -157,6 +161,45 @@ class _HubTile extends StatelessWidget {
                   size: 15, color: item.gradient.colors.last),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small "v2.5.4 (31)" badge in the hub app bar. Loaded once on mount, so a
+/// rebuild does not re-query the platform channel.
+class _HubVersionBadge extends StatefulWidget {
+  const _HubVersionBadge();
+
+  @override
+  State<_HubVersionBadge> createState() => _HubVersionBadgeState();
+}
+
+class _HubVersionBadgeState extends State<_HubVersionBadge> {
+  String _label = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final v = await DeviceIntentService.appVersion();
+    if (!mounted) return;
+    setState(() => _label = 'v${v.name} (${v.code})');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_label.isEmpty) return const SizedBox.shrink();
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 16),
+        child: Text(
+          _label,
+          style: AppTheme.microLabel.copyWith(color: AppTheme.darkTextDim),
         ),
       ),
     );

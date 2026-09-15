@@ -6,6 +6,7 @@ import '../../blocs/screen_capture_bloc.dart';
 import '../../core/app_theme.dart';
 import '../../models/custom_preset.dart';
 import '../../models/region_favorite.dart';
+import '../../services/app_update_service.dart';
 import '../../services/device_intent_service.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/ref_widgets.dart';
@@ -26,6 +27,9 @@ class _SettingsTabState extends State<SettingsTab> {
   String? _brand;
   bool _batteryOk = false;
   bool _brandLoading = true;
+  String _appVersionName = '0.0.0';
+  int _appVersionCode = 0;
+  bool? _playOwned;
 
   @override
   void initState() {
@@ -42,12 +46,30 @@ class _SettingsTabState extends State<SettingsTab> {
     setState(() => _brandLoading = true);
     final brand = await DeviceIntentService.deviceBrand();
     final battery = await DeviceIntentService.batteryWhitelisted();
+    final version = await DeviceIntentService.appVersion();
+    final playOwned = await AppUpdateService.instance.isPlayOwned();
     if (!mounted) return;
     setState(() {
       _brand = brand;
       _batteryOk = battery;
+      _appVersionName = version.name;
+      _appVersionCode = version.code;
+      _playOwned = playOwned;
       _brandLoading = false;
     });
+  }
+
+  /// "2.5.4 (build 31)" - the build the phone is actually running.
+  String get _versionLabel => _appVersionCode > 0
+      ? '$_appVersionName (build $_appVersionCode)'
+      : _appVersionName;
+
+  /// Which channel owns updates for this install. A Play-installed build is only
+  /// ever updated by Play; a sideloaded build is updated over the hub. Showing
+  /// this here explains why an update prompt can legitimately stay silent.
+  String get _updateChannelLabel {
+    if (_playOwned == null) return 'checking...';
+    return _playOwned! ? 'Google Play' : 'Hub (sideloaded)';
   }
 
   @override
@@ -110,6 +132,24 @@ class _SettingsTabState extends State<SettingsTab> {
           hubUrlController: _hubUrlController,
           tokenController: _tokenController,
         ),
+        const SizedBox(height: 14),
+
+        // -- About this build --
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionHeader(
+                icon: Icons.info_outline_rounded,
+                gradient: AppTheme.gradOrb,
+                title: 'About this build',
+              ),
+              const SizedBox(height: 8),
+              _DriveRow(label: 'App version', value: _versionLabel),
+              _DriveRow(label: 'Update channel', value: _updateChannelLabel),
+            ],
+          ),
+        ).animate().fadeIn(duration: 240.ms),
         const SizedBox(height: 14),
 
         // -- Capture behaviour --
