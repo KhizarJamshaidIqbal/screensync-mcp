@@ -134,3 +134,36 @@ The hub runs a **sequenced SSE event stream** (`/api/events`): every event carri
 - Skill: `.agents/skills/screensync-release/SKILL.md`, mirrored in
   `.zcode/skills/screensync-release/` and `.claude/commands/screensync-release.md`.
   When the release tooling changes, update all three.
+---
+
+## 11. Changelog and site publishing (user-ordered 2026-09-15)
+
+The public changelog is **generated, never hand-written**. Two tools own it:
+
+| Tool | What it does |
+|---|---|
+| `tools/build_changelog.py` | Rebuilds `website/changelog.html` + `website/changelog.json` from git history (app = `lib/` + `android/`, extension = `extension/`) |
+| `tools/fix_site_paths.py` | Keeps every page's home link at `/` - `href="index.html"` makes the address bar read `/index.html` |
+| `tools/link_changelog.py` | Adds the Changelog nav link to any new page and to `sitemap.xml` |
+
+**Rules:**
+
+1. **After any release, regenerate the changelog before committing.**
+   A release means an app version bump (`pubspec.yaml`) or an extension bump
+   (`extension/version.json`). Run `python tools/build_changelog.py`, then commit
+   `website/changelog.html` and `website/changelog.json` together with the bump.
+2. **Verify it is not stale:** `python tools/build_changelog.py --check` exits 1 when the
+   page or feed no longer matches history. Treat a non-zero exit as a build failure.
+3. **Never edit `website/changelog.html` by hand** - the next run overwrites it. Change
+   the generator or the commit history instead.
+4. **New pages must be linked:** run `python tools/link_changelog.py` so the nav and
+   sitemap stay complete, and add the page to `website/sitemap.xml`.
+5. **Internal home links are `/`, never `index.html`.** Run
+   `python tools/fix_site_paths.py` after adding a page. The site's own canonical tag
+   uses the extensionless URL.
+6. **Publishing the site is the `deploy` branch mirror, not `main`** (see CLAUDE.md
+   section 1): `main` is the source, `deploy` is what Hostinger serves. The changelog
+   ships with that mirror, so a release is not done until `deploy` is updated.
+7. **The changelog is the source of truth for "what changed."** When writing Play
+   release notes, start from the same generated change list (`tools/release_notes.py`
+   for a single release, `tools/build_changelog.py --stdout` for the whole history).

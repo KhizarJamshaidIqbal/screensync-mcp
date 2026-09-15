@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Changelog | ScreenSync MCP</title>
+<meta name="description" content="Every ScreenSync MCP release in one place: what changed in the Android app and the browser extension, per build.">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#6541D6">
+<link rel="canonical" href="https://screensyncmcp.epsoldev.com/changelog.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://screensyncmcp.epsoldev.com/changelog.html">
+<meta property="og:title" content="Changelog | ScreenSync MCP">
+<meta property="og:description" content="Every ScreenSync MCP release: app and extension changes, per build.">
+<meta property="og:image" content="https://screensyncmcp.epsoldev.com/assets/logo.png">
+<meta property="og:site_name" content="ScreenSync MCP">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/custom.css">
+<style>
+  :root {
+    --cl-accent: #6541D6;
+    --cl-ink: #150E27;
+    --cl-dim: #6B6482;
+    --cl-line: #EDE9F7;
+    --cl-lav: #EFEAF9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #FBFAFE;
+    color: var(--cl-ink);
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cl-shell { max-width: 1080px; margin: 0 auto; padding: 0 24px 140px; }
+
+  /* ---- header: generous, quiet, one accent ---- */
+  .cl-hero { padding: 132px 0 64px; }
+  .cl-eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--cl-accent); margin: 0 0 28px;
+  }
+  .cl-h1 {
+    font-size: clamp(2.6rem, 6vw, 4.2rem); line-height: 1.02; font-weight: 200;
+    letter-spacing: -.03em; margin: 0 0 26px;
+  }
+  .cl-h1 b { font-weight: 600; }
+  .cl-lede {
+    font-size: 1.0625rem; line-height: 1.75; color: var(--cl-dim);
+    max-width: 46ch; margin: 0 0 40px; font-weight: 400;
+  }
+  .cl-stat-row { display: flex; flex-wrap: wrap; gap: 56px; margin: 0 0 8px; }
+  .cl-stat .n { font-size: 2.25rem; font-weight: 600; letter-spacing: -.02em; display: block; }
+  .cl-stat .l { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--cl-dim); }
+  .cl-feed { margin-top: 40px; display: flex; gap: 14px; flex-wrap: wrap; }
+
+  /* ---- controls ---- */
+  .cl-controls {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+    padding: 18px 0; margin: 0 0 8px;
+    /* A flat background instead of backdrop-filter: the blur made the chips
+       report as "moving or animating" to automation, so a click could not land. */
+    background: #FBFAFE;
+    border-bottom: 1px solid var(--cl-line);
+  }
+  .cl-chip {
+    appearance: none; cursor: pointer;
+    border: 1px solid var(--cl-line); background: #fff; color: var(--cl-dim);
+    padding: 9px 20px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 600;
+    transition: color .25s ease, border-color .25s ease, background .25s ease;
+  }
+  .cl-chip:hover { border-color: var(--cl-accent); color: var(--cl-accent); }
+  .cl-chip[aria-pressed="true"] { background: var(--cl-accent); border-color: var(--cl-accent); color: #fff; }
+  .cl-search {
+    flex: 1 1 220px; min-width: 180px;
+    border: 1px solid var(--cl-line); background: #fff; color: var(--cl-ink);
+    padding: 11px 16px; border-radius: 999px; font: inherit; font-size: 14px;
+  }
+  .cl-search:focus, .cl-chip:focus-visible { outline: 2px solid var(--cl-accent); outline-offset: 2px; }
+  .cl-count { font-size: 12px; color: var(--cl-dim); margin-left: auto; white-space: nowrap; }
+
+  /* ---- timeline ---- */
+  .cl-list { list-style: none; margin: 0; padding: 0; }
+  .cl-entry {
+    position: relative; padding: 48px 0 48px 0; border-bottom: 1px solid var(--cl-line);
+  }
+  .cl-entry:last-child { border-bottom: 0; }
+  .cl-when {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px; margin: 0 0 22px;
+  }
+  .cl-date { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--cl-dim); }
+  .cl-tag {
+    font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    padding: 4px 11px; border-radius: 999px; border: 1px solid var(--cl-line);
+    background: #fff; color: var(--cl-ink);
+  }
+  .cl-tag.app { border-color: rgba(101,65,214,.35); color: var(--cl-accent); }
+  .cl-tag.ext { border-color: rgba(139,106,236,.4); color: #6F4FD8; background: var(--cl-lav); }
+  .cl-title { font-size: 1.5rem; font-weight: 300; letter-spacing: -.02em; margin: 0 0 26px; }
+  .cl-title b { font-weight: 600; }
+  .cl-group { margin: 0 0 22px; }
+  .cl-group h3 {
+    font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--cl-dim); font-weight: 700; margin: 0 0 12px;
+  }
+  .cl-group ul { margin: 0; padding: 0; list-style: none; }
+  .cl-group li {
+    position: relative; padding-left: 20px; margin: 0 0 10px;
+    font-size: 15px; line-height: 1.65; color: #322A46;
+  }
+  .cl-group li::before {
+    content: ""; position: absolute; left: 2px; top: .62em;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--cl-accent); opacity: .5;
+  }
+  .cl-group.new li::before { background: #12A150; opacity: .75; }
+  .cl-group.fixed li::before { background: #C2410C; opacity: .7; }
+  .cl-actions { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 26px; }
+  .cl-link {
+    appearance: none; background: none; border: 0; padding: 0; cursor: pointer;
+    font: inherit; font-size: 12px; font-weight: 600; color: var(--cl-dim);
+    border-bottom: 1px solid transparent; transition: color .25s ease, border-color .25s ease;
+  }
+  .cl-link:hover { color: var(--cl-accent); border-color: var(--cl-accent); }
+  .cl-sha { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--cl-dim); }
+
+  /* ---- empty state (the error path a filter can hit) ---- */
+  .cl-empty {
+    display: none; padding: 96px 0; text-align: center; color: var(--cl-dim);
+  }
+  .cl-empty.show { display: block; }
+  .cl-empty strong { display: block; font-size: 1.125rem; font-weight: 600; color: var(--cl-ink); margin-bottom: 8px; }
+
+  .cl-foot { padding-top: 72px; color: var(--cl-dim); font-size: 13px; line-height: 1.8; }
+  .cl-foot a { color: var(--cl-accent); text-decoration: none; }
+  .cl-foot a:hover { text-decoration: underline; }
+  @media (max-width: 640px) {
+    .cl-hero { padding: 96px 0 40px; }
+    .cl-stat-row { gap: 32px; }
+    .cl-entry { padding: 38px 0; }
+  }
+  @media print { .cl-controls, .cl-actions { display: none; } }
+</style>
+</head>
+<body>
+<div class="cl-shell">
+
+  <header class="cl-hero">
+    <p class="cl-eyebrow">Changelog</p>
+    <h1 class="cl-h1">Every build, <b>written down.</b></h1>
+    <p class="cl-lede">
+      What actually changed in the Android app and the browser extension, release by release.
+      Generated from this repository's history, so it cannot drift from what shipped.
+    </p>
+    <div class="cl-stat-row">
+      <div class="cl-stat"><span class="n">8</span><span class="l">Releases</span></div>
+      <div class="cl-stat"><span class="n">53</span><span class="l">Changes logged</span></div>
+    </div>
+    <div class="cl-feed">
+      <a class="cl-chip" href="changelog.json" style="text-decoration:none">JSON feed</a>
+      <a class="cl-chip" href="/" style="text-decoration:none">Back to home</a>
+      <a class="cl-chip" href="extension.html" style="text-decoration:none">Get the extension</a>
+    </div>
+  </header>
+
+  <div class="cl-controls">
+    <button class="cl-chip" type="button" data-filter="all" aria-pressed="true">All</button>
+    <button class="cl-chip" type="button" data-filter="app" aria-pressed="false">App</button>
+    <button class="cl-chip" type="button" data-filter="extension" aria-pressed="false">Extension</button>
+    <input class="cl-search" id="cl-q" type="search" placeholder="Search a change&hellip;" aria-label="Search the changelog">
+    <span class="cl-count" id="cl-count"></span>
+  </div>
+
+  <ul class="cl-list" id="cl-list"></ul>
+
+  <div class="cl-empty" id="cl-empty">
+    <strong>Nothing matches that.</strong>
+    Try a different word, or switch the filter back to All.
+  </div>
+
+  <footer class="cl-foot">
+    Generated 2026-09-15T18:32:38Z from the repository history.<br>
+    App builds arrive on <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener">Google Play</a>;
+    the extension ships from <a href="extension.html">the extension page</a>.<br>
+    This page is rebuilt by <span class="cl-sha">tools/build_changelog.py</span> on every release.
+  </footer>
+</div>
+
+<script id="cl-data" type="application/json">{"generatedAt":"2026-09-15T18:32:38Z","repo":"github.com/KhizarJamshaidIqbal/screensync-mcp","entries":[{"sha":"7ffa95f","date":"2026-09-15","ts":1789490047,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.4","build":"32","display":"2.5.4 (build 32)","date":"2026-09-15","ts":1789490047,"sha":"7ffa95f","groups":{"NEW":["Modernise the connect prompt - top-right skip, live status, one-tap reconnect","Connect prompt with a scan shortcut, and a real version in the app bar","Keep the live stream card hidden until the first frame arrives","Show Finish setup first and let the hero step aside until it is done","Show the app version and update channel in Settings and on the hub screen"],"IMPROVED":[],"FIXED":[]},"count":5}],"count":5,"title":"App 2.5.4 (build 32)"},{"sha":"9489bb0","date":"2026-09-15","ts":1789465902,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.4","build":"31","display":"2.5.4 (build 31)","date":"2026-09-15","ts":1789465902,"sha":"9489bb0","groups":{"NEW":["Play In-App Updates (Immediate) + a periodic Play update check"],"IMPROVED":[],"FIXED":["Apply the independent review of the Play update integration"]},"count":2}],"count":2,"title":"App 2.5.4 (build 31)"},{"sha":"3b1ffc5","date":"2026-09-14","ts":1789399219,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.4","build":"29","display":"2.5.4 (build 29)","date":"2026-09-14","ts":1789399219,"sha":"3b1ffc5","groups":{"NEW":["Blocking update gate, Play-aware, plus a Play release workflow"],"IMPROVED":[],"FIXED":[]},"count":1}],"count":1,"title":"App 2.5.4 (build 29)"},{"sha":"ac3ba2d","date":"2026-09-14","ts":1789397516,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.2","build":"27","display":"2.5.2 (build 27)","date":"2026-09-14","ts":1789397516,"sha":"ac3ba2d","groups":{"NEW":["In-app update channel - hub publishes the build, phones install it"],"IMPROVED":[],"FIXED":[]},"count":1}],"count":1,"title":"App 2.5.2 (build 27)"},{"sha":"c36cc9b","date":"2026-09-14","ts":1789396087,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.1","build":"26","display":"2.5.1 (build 26)","date":"2026-09-14","ts":1789396087,"sha":"c36cc9b","groups":{"NEW":["Opt-in live mirror so the hub can see the phone screen","Live connect-kit endpoint, global install, address beside the QR","Rebuild the pairing screen with motion and real fallbacks","Make the OS-control opt-in a host setting the desktop app can drive","Restore broken declared tools, clean catalogue to 165 tools, and add consistency guard","Agent catalog, sequenced SSE replay, pairing window, os_* hardening","Repo-free setup guide v2 + guide cache revalidation","First-run privacy gate with Settings re-read entry","Add E3 live-bridge theme picker and advanced UX features"],"IMPROVED":[],"FIXED":["The pairing QR could never be decoded - drop the scanWindow","Re-arm hub maintenance timer so auto-sync survives a disconnect","Migrate deprecated Radio groupValue/onChanged to RadioGroup","Ship true-PNG splash/icon assets and branded pre-31 splash","Align Live Bridge cable through phone/orb centers"]},"count":14}],"count":14,"title":"App 2.5.1 (build 26)"},{"sha":"7d07946","date":"2026-09-14","ts":1789379562,"parts":[{"stream":"extension","streamLabel":"Extension","version":"1.8.0","build":"","display":"1.8.0","date":"2026-09-14","ts":1789379562,"sha":"7d07946","groups":{"NEW":["Implement items P7-P12 (trace viewer, test runner, codegen, handles, semantics, service workers)","Playwright parity gaps (P1-P6) and ai-browser loop (D1-D9)","Approval gate for destructive actions, origin consent enforcement, and boundary fixes","Restore broken declared tools, clean catalogue to 165 tools, and add consistency guard","Remove cdpStealthCloak and navigator webdriver patching","Delete vault, session-sync, harvest, and social modules","Implement improvement plan rev 3 (D10-D13, L1-L11, C1-C9, H1-H8)"],"IMPROVED":["Remove excised tool handlers and schemas","Split mixed agent files to separate sensitive tools"],"FIXED":["Import leaf units directly in web-frames and web-tools to eliminate duplicate declarations","Route all raw Network.enable/disable through ref-counted helpers","Complete Rev 3 remaining fixes (H6 schedules, H1 browser binding, C5 network ref-count, D4 validation, V0 static gate)","Enforce safe defaults (OFF by default, empty token, onboarding false per §0)"]},"count":13}],"count":13,"title":"Extension 1.8.0"},{"sha":"67a0a07","date":"2026-09-13","ts":1789322580,"parts":[{"stream":"extension","streamLabel":"Extension","version":"1.7.1","build":"","display":"1.7.1","date":"2026-09-13","ts":1789322580,"sha":"67a0a07","groups":{"NEW":["Implement Playwright and operator parity, modular units, and safe defaults","Round-10 complete playwright & social operator parity (181 tools)","Round-9 playwright parity - visual baselines, media emulation, mhtml, cache control, flow chaining","Flow schedules — hub runs flows on autopilot; api multipart — v1.6.1 / v3.2.0 (163 tools)","Operator data layer — api-fetch, flows library, SSE zombie fix — v1.5.0 / v3.1.0 (160 tools)","Clock/pdf/download parity, tab fanout, teach-once-replay — v1.4.0 / v3.0.0 (152 tools)","Multi-browser data sync + frame/auth parity — v1.3.0 / v2.9.0 (146 tools)","HAR 1.2 pages metadata + refresh website download zips","Playwright-parity agent layer, evidence tools, ambient SSE events","One-paste AI setup prompt button on onboarding guide step","Repo-free setup guide v2 + guide cache revalidation","Advanced toolkit — 13 new web tools, realtime watch + 4 skills","Add AI-agent web access bridge (hub + extension)","MV3 browser extension + website extension page & setup guide"],"IMPROVED":["Split web-adv.js monolith into 9 focused CDP modules"],"FIXED":["Guard web-access pill refresh against toggle race + fresh zips"]},"count":16}],"count":16,"title":"Extension 1.7.1"},{"sha":"0805557","date":"2026-08-28","ts":1787943375,"parts":[{"stream":"app","streamLabel":"App","version":"2.5.0","build":"25","display":"2.5.0 (build 25)","date":"2026-08-28","ts":1787943375,"sha":"0805557","groups":{"NEW":["Ship violet UX overhaul with QR pairing and live AI push"],"IMPROVED":[],"FIXED":[]},"count":1}],"count":1,"title":"App 2.5.0 (build 25)"}],"stats":{"releases":8,"appReleases":6,"extensionReleases":2,"changes":53}}</script>
+<script>
+(function () {
+  var data = JSON.parse(document.getElementById('cl-data').textContent);
+  var list = document.getElementById('cl-list');
+  var empty = document.getElementById('cl-empty');
+  var countEl = document.getElementById('cl-count');
+  var input = document.getElementById('cl-q');
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.cl-chip[data-filter]'));
+  var filter = 'all';
+  var query = '';
+
+  function esc(value) {
+    return String(value).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function textOf(entry) {
+    var t = entry.title + ' ' + (entry.date || '') + ' ' + (entry.sha || '');
+    entry.parts.forEach(function (part) {
+      t += ' ' + part.display + ' ' + part.streamLabel;
+      Object.keys(part.groups).forEach(function (k) { t += ' ' + part.groups[k].join(' '); });
+    });
+    return t.toLowerCase();
+  }
+
+  function matchesFilter(entry) {
+    if (filter === 'all') return true;
+    return entry.parts.some(function (p) { return p.stream === filter; });
+  }
+
+  function entryId(entry) {
+    var first = entry.parts[0];
+    return (first.stream === 'app' ? 'app-' : 'ext-') + String(first.version).replace(/[^0-9A-Za-z.]+/g, '-');
+  }
+
+  function groupHtml(part) {
+    var html = '';
+    ['NEW', 'IMPROVED', 'FIXED'].forEach(function (name) {
+      var items = part.groups[name] || [];
+      if (!items.length) return;
+      html += '<div class="cl-group ' + name.toLowerCase() + '"><h3>' + name + ' &middot; ' +
+        esc(part.streamLabel) + '</h3><ul>';
+      items.forEach(function (item) { html += '<li>' + esc(item) + '</li>'; });
+      html += '</ul></div>';
+    });
+    return html;
+  }
+
+  function entryHtml(entry) {
+    var tags = entry.parts.map(function (p) {
+      var cls = p.stream === 'app' ? 'app' : 'ext';
+      var label = p.stream === 'app' ? ('App ' + p.version + (p.build ? ' &middot; build ' + p.build : '')) : ('Extension ' + p.version);
+      return '<span class="cl-tag ' + cls + '">' + label + '</span>';
+    }).join('');
+    var title = entry.parts.map(function (p) {
+      return p.stream === 'app' ? p.version : ('Extension ' + p.version);
+    }).join(' <b>+</b> ');
+    var groups = entry.parts.map(groupHtml).join('');
+    return '<li class="cl-entry" id="' + esc(entryId(entry)) + '">' +
+      '<div class="cl-when"><span class="cl-date">' + esc(entry.date) + '</span>' + tags + '</div>' +
+      '<h2 class="cl-title">' + title + ' <b>&middot;</b> ' + entry.count + ' change' + (entry.count === 1 ? '' : 's') + '</h2>' +
+      groups +
+      '<div class="cl-actions">' +
+        '<button class="cl-link" type="button" data-copy="' + esc(entryId(entry)) + '">Copy link</button>' +
+        '<span class="cl-sha">' + esc(entry.sha) + '</span>' +
+      '</div></li>';
+  }
+
+  function render() {
+    var visible = data.entries.filter(function (entry) {
+      if (!matchesFilter(entry)) return false;
+      if (!query) return true;
+      return textOf(entry).indexOf(query) !== -1;
+    });
+    list.innerHTML = visible.map(entryHtml).join('');
+    empty.classList.toggle('show', visible.length === 0);
+    countEl.textContent = visible.length + ' of ' + data.entries.length + ' releases';
+  }
+
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      filter = chip.getAttribute('data-filter');
+      chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)); });
+      render();
+    });
+  });
+
+  input.addEventListener('input', function () {
+    query = input.value.trim().toLowerCase();
+    render();
+  });
+
+  list.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-copy]');
+    if (!button) return;
+    var url = location.origin + location.pathname + '#' + button.getAttribute('data-copy');
+    var done = function () {
+      var old = button.textContent;
+      button.textContent = 'Copied';
+      setTimeout(function () { button.textContent = old; }, 1400);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, done);
+    } else {
+      done();
+    }
+  });
+
+  render();
+
+  // Deep link: #app-2.5.4 should reveal and highlight that entry.
+  if (location.hash) {
+    var target = document.querySelector(location.hash);
+    if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }
+})();
+</script>
+</body>
+</html>
