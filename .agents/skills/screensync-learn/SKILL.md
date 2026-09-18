@@ -343,7 +343,57 @@ const homeo = await callTool('web_homeostatic_regulation', {
 
 ---
 
-### 13. Nightly / Post-Run: Hippocampal Consolidation
+### 13. Architecture 9.0: Lifespan Cognitive Ontogeny & Epistemic Property Graph 2.0 (LCO-EPG)
+
+#### A. Lifespan Cognitive Development Engine (`web_cognitive_lifespan`)
+Tracks real-time cognitive lifespan age (0.1 infant to 50.0 sage), Vygotskian scaffolding levels, and hot-stove pain regressions:
+```javascript
+const lifespan = await callTool('web_cognitive_lifespan', {
+  domain: 'portal.enterprise.internal',
+  event: { outcome: 'success', milestoneName: 'auth_workflow_complete' }
+});
+// Advances cognitiveAgeYears: 2.4 -> 3.6, promotes scaffoldingLevel: 'GUIDED_CHILD' -> 'COLLABORATIVE_YOUTH'!
+```
+
+#### B. Property Graph GQL Pattern Matcher & Cycle Detection (`web_graph_pattern_match`)
+Queries multi-hop paths across the browser graph and detects infinite redirect loops (synthesizing BigQuery GQL):
+```javascript
+const match = await callTool('web_graph_pattern_match', {
+  startNodeId: 'page_login',
+  targetNodeId: 'btn_publish',
+  nodes: registeredGraphNodes,
+  edges: registeredGraphEdges,
+  maxDepth: 5
+});
+// If cycleDetected: true -> alerts agent to avoid infinite navigation loops!
+// Returns shortestSafePath with lowest cumulative risk!
+```
+
+#### C. Infant Motor Babbling & Coordinate Calibration (`web_motor_babbling`)
+Probes event mechanics on complex SPAs before executing high-speed automation macros:
+```javascript
+const motor = await callTool('web_motor_babbling', {
+  domain: 'app.canva.com',
+  targetElementType: 'canvas',
+  sampleLatencyMs: 25,
+  devicePixelRatio: 2.0
+});
+// recommendedDispatchType: 'pointer_synthetic', coordinateAccuracy: 0.98
+```
+
+#### D. Gentner's Structure-Mapping Analogical Transfer (`web_metaphoric_transfer`)
+Transfers mature procedural schemas from familiar platforms to new targets:
+```javascript
+const transfer = await callTool('web_metaphoric_transfer', {
+  sourceDomain: 'x.com',
+  targetDomain: 'bsky.app'
+});
+// Automatically maps composer_editor to div[contenteditable="true"] and transfers verified publishing playbooks!
+```
+
+---
+
+### 14. Nightly / Post-Run: Hippocampal Consolidation
 At session end or during periodic maintenance, trigger consolidation:
 ```javascript
 const report = await callTool('web_consolidate', {});

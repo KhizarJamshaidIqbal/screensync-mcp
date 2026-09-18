@@ -17,7 +17,7 @@ unless you choose Google Drive BYOS as a fallback.
 │  BLoC pipeline → SQLite cache → sync      │ ◀────── │   • /pair + terminal QR   (pairing) │
 │  Drive BYOS fallback (hybrid mode)        │   SSE   │   • mDNS _screensync-hub._tcp       │
 └───────────────────────────────────────────┘  push   │  MCP stdio server                   │
-        ▲                                             │   197 tools · 17 prompts · 3 resources│
+        ▲                                             │   201 tools · 17 prompts · 3 resources│
         │  inspections / patches / live events        └──────────────┬──────────────────────┘
         ────────────────────────────────────────────────────────────┘
                               Claude Desktop · Claude Code · any MCP agent
@@ -67,7 +67,7 @@ unless you choose Google Drive BYOS as a fallback.
 │   ├── hub.ts                Express: upload, SSE, pairing, catalog,
 │   │                         inspections, patches, control API
 │   ├── mcp.ts / catalog.ts   MCP protocol + single-source capability
-│   │                         catalog (197 tools / 17 prompts / 3 resources)
+│   │                         catalog (201 tools / 17 prompts / 3 resources)
 │   ├── control.ts            ADB backend (input, UI tree, logcat, record)
 │   ├── storage.ts / config.ts  Retention, env, auth
 │   └── test/                 E2E suites (protocol + full aim-loop)

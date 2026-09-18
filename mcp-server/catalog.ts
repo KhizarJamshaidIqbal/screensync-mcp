@@ -1,6 +1,7 @@
 import { AUTH_TOKEN, DATA_DIR, HTTP_HOST, HTTP_PORT } from "./config.js";
 import { webSkillDefinitions, webToolDefinitions } from "./catalog-web.js";
 import { cognitiveToolDefinitions } from "./catalog-cognitive.js";
+import { lifespanToolDefinitions } from "./catalog-lifespan.js";
 export { consolidatedToolDefinitions, isConsolidatedMode, getToolsForMode, resolveConsolidatedCall } from "./catalog-consolidated.js";
 import { getToolsForMode } from "./catalog-consolidated.js";
 
@@ -356,6 +357,7 @@ export function toolDefinitions() {
 
     ...webToolDefinitions(),
     ...cognitiveToolDefinitions(),
+    ...lifespanToolDefinitions(),
   ];
 }
 

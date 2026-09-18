@@ -5,6 +5,8 @@
 // 3. Epistemic Curiosity Frontier (Safe Novelty Seeking)
 // 4. Biological Homeostatic Regulation & Stress Adaptation
 
+import { execCognitiveLifespanTool } from './cognitive-lifespan-ext.js';
+
 function normalizeDomain(input) {
   if (!input) return '';
   try {
@@ -105,6 +107,6 @@ export async function execCognitiveMaturationTool(tool, args = {}) {
     case 'web_epistemic_graph': return execWebEpistemicGraph(args);
     case 'web_curiosity_frontier': return execWebCuriosityFrontier(args);
     case 'web_homeostatic_regulation': return execWebHomeostaticRegulation(args);
-    default: return { ok: false, error: `Unknown cognitive maturation tool: ${tool}` };
+    default: return execCognitiveLifespanTool(tool, args);
   }
 }

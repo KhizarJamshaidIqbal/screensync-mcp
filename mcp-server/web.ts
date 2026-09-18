@@ -19,6 +19,7 @@ import { globalDevelopmentEngine } from "./cognitive-development.js";
 import { globalReplayAndHygieneEngine } from "./cognitive-replay.js";
 import { globalRpdEngine } from "./cognitive-rpd.js";
 import { globalMaturationEngine } from "./cognitive-maturation.js";
+import { globalLifespanEngine } from "./cognitive-lifespan.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -837,6 +838,69 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           res.json({ success: true, ok: true, data: homeo });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Homeostatic regulation failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_cognitive_lifespan") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const event = typeof args.event === "object" && args.event ? (args.event as any) : undefined;
+          const lifespan = globalLifespanEngine.evaluateLifespan(domain, event);
+          res.json({ success: true, ok: true, data: lifespan });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Cognitive lifespan evaluation failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_graph_pattern_match") {
+        try {
+          const startNodeId = String(args.startNodeId || "").trim();
+          const nodes = Array.isArray(args.nodes) ? (args.nodes as any) : [];
+          const edges = Array.isArray(args.edges) ? (args.edges as any) : [];
+          const query = {
+            startNodeId,
+            targetNodeType: typeof args.targetNodeType === "string" ? args.targetNodeType : undefined,
+            targetNodeId: typeof args.targetNodeId === "string" ? args.targetNodeId : undefined,
+            relationshipTypes: Array.isArray(args.relationshipTypes) ? (args.relationshipTypes as string[]) : undefined,
+            maxDepth: typeof args.maxDepth === "number" ? args.maxDepth : undefined,
+          };
+          const matchResult = globalLifespanEngine.matchGraphPattern(nodes, edges, query);
+          res.json({ success: true, ok: true, data: matchResult });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Graph pattern match failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_motor_babbling") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const sampleLatencyMs = typeof args.sampleLatencyMs === "number" ? args.sampleLatencyMs : undefined;
+          const devicePixelRatio = typeof args.devicePixelRatio === "number" ? args.devicePixelRatio : undefined;
+          const targetElementType = typeof args.targetElementType === "string" ? (args.targetElementType as any) : undefined;
+          const calibration = globalLifespanEngine.calibrateMotorBabbling({
+            domain,
+            sampleLatencyMs,
+            devicePixelRatio,
+            targetElementType,
+          });
+          res.json({ success: true, ok: true, data: calibration });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Motor babbling calibration failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_metaphoric_transfer") {
+        try {
+          const sourceDomain = String(args.sourceDomain || "").trim();
+          const targetDomain = String(args.targetDomain || "").trim();
+          const mapping = globalLifespanEngine.transferMetaphor(sourceDomain, targetDomain);
+          res.json({ success: true, ok: true, data: mapping });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Metaphoric transfer failed: ${e.message}` } });
         }
         return;
       }
