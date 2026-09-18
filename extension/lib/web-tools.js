@@ -450,7 +450,7 @@ export async function executeWebTool(tool, args = {}) {
     }
     case 'web_recall': case 'web_learn': case 'web_warm': case 'web_consolidate':
     case 'web_graph_query': case 'web_contract_check': case 'web_lineage':
-    case 'web_metacognition': case 'web_similarity_search': case 'web_federated_catalog':
+    case 'web_metacognition': case 'web_similarity_search': case 'web_federated_catalog': case 'web_cognitive_stage':
       return execCognitiveTool(tool, args);
     default: {
       // Injected DOM / Agent / Storage tools

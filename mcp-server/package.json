@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx index.ts",
-    "test": "tsx test/catalog_consistency.test.ts && tsx test/cognitive_memory.test.ts && tsx test/cognitive_2_0.test.ts && tsx test/cognitive_3_0.test.ts && tsx test/cognitive_4_0.test.ts && tsx test/help_overlay.test.ts && tsx test/vom_engine.test.ts && tsx test/consolidated.test.ts && tsx test/e2e.ts && tsx test/flow.e2e.ts && tsx test/web_bridge.e2e.ts",
+    "test": "tsx test/catalog_consistency.test.ts && tsx test/cognitive_memory.test.ts && tsx test/cognitive_2_0.test.ts && tsx test/cognitive_3_0.test.ts && tsx test/cognitive_4_0.test.ts && tsx test/cognitive_5_0.test.ts && tsx test/help_overlay.test.ts && tsx test/vom_engine.test.ts && tsx test/consolidated.test.ts && tsx test/e2e.ts && tsx test/flow.e2e.ts && tsx test/web_bridge.e2e.ts",
     "test:catalog": "tsx test/catalog_consistency.test.ts",
     "test:live": "tsx test/live_browser_e2e.ts",
     "test:flow": "tsx test/flow.e2e.ts",

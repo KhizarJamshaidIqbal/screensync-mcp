@@ -253,6 +253,32 @@ export function cognitiveToolDefinitions(): Tool[] {
           }
         }
       }
+    },
+    {
+      name: "web_cognitive_stage",
+      description:
+        "Neuro-Developmental Memory Stage inspector & scaffolding manager (Architecture 5.0). Tracks agent cognitive maturity per domain across 5 developmental stages (Infant -> Toddler -> Child -> Adult -> Sovereign Sage), dynamically adjusting autonomy scaffolding and execution speed.",
+      inputSchema: {
+        type: "object",
+        required: ["domain"],
+        properties: {
+          domain: {
+            type: "string",
+            description: "Target domain (e.g. 'x.com', 'threads.net', 'unknown-domain.com')."
+          },
+          action: {
+            type: "string",
+            enum: ["get", "evaluate", "override"],
+            description: "Stage action: 'get' (retrieve current maturity & scaffolding), 'evaluate' (test level-up criteria), 'override' (manually force stage 1-5)."
+          },
+          stage: {
+            type: "integer",
+            minimum: 1,
+            maximum: 5,
+            description: "Target stage level for override (1: Sensorimotor Infant, 2: Preoperational Toddler, 3: Concrete Child, 4: Formal Adult, 5: Sovereign Sage)."
+          }
+        }
+      }
     }
   ];
 }

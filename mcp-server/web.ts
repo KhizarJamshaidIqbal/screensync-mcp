@@ -15,6 +15,7 @@ import { globalLineageEngine } from "./cognitive-lineage.js";
 import { globalMetacognitiveEngine } from "./cognitive-metacognition.js";
 import { globalSimilarityEngine } from "./cognitive-similarity.js";
 import { globalFederatedCatalog } from "./cognitive-federation.js";
+import { globalDevelopmentEngine } from "./cognitive-development.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -623,6 +624,26 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Federated catalog query failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_cognitive_stage") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const action = String(args.action || "get").toLowerCase();
+          const stage = typeof args.stage === "number" ? args.stage : undefined;
+
+          if (action === "override" && stage !== undefined) {
+            const overridden = globalDevelopmentEngine.overrideStage(domain, stage);
+            res.json({ success: true, ok: true, data: overridden });
+            return;
+          }
+
+          const maturity = globalDevelopmentEngine.getMaturity(domain);
+          res.json({ success: true, ok: true, data: maturity });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Cognitive stage query failed: ${e.message}` } });
         }
         return;
       }

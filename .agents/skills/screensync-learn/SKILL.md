@@ -159,7 +159,46 @@ await callTool('web_federated_catalog', {
 });
 ```
 
-### 9. Nightly / Post-Run: Hippocampal Consolidation
+### 9. Neuro-Developmental Stages & Dynamic Scaffolding (Architecture 5.0)
+Just as a human develops from infancy to adulthood (Piagetian cognitive stages & Vygotsky ZPD scaffolding), an agent assesses domain mastery level before acting:
+
+```javascript
+// Check current developmental stage and active scaffolding constraints
+const stage = await callTool('web_cognitive_stage', {
+  action: 'get',
+  domain: 'x.com'
+});
+// Response:
+// {
+//   stage: 'LEVEL_4_FORMAL_OPERATIONAL',
+//   level: 4,
+//   xp: 125,
+//   scaffolding: {
+//     perceptionPauseMs: 0,
+//     requireHumanConfirm: false,
+//     allowBranchSkipping: true,
+//     allowCrossDomainTransfer: true,
+//     fastPathSystem1Allowed: true
+//   }
+// }
+
+// After executing an action, report outcome to award XP or trigger Stress Regression:
+await callTool('web_cognitive_stage', {
+  action: 'evaluate',
+  domain: 'x.com',
+  outcome: 'success' // or 'failure', 'severe_drift'
+});
+```
+
+#### The 5 Cognitive Developmental Levels:
+1. **Level 1 — Sensorimotor (Infant)**: New/unknown domain (0–19 XP). Maximum scaffolding (`requireHumanConfirm: true`, 3000ms sensory pause, branch skipping disabled).
+2. **Level 2 — Preoperational (Toddler)**: Early pattern recognition (20–49 XP). Basic playbook execution, 1500ms perception pause, initial pitfall imprinting.
+3. **Level 3 — Concrete Operational (Child)**: Structured multi-branch playbooks (50–99 XP). 500ms pause, form safety contracts (`web_contract_check`), self-healing DOM drift correction.
+4. **Level 4 — Formal Operational (Adult)**: Abstract reasoning (100–199 XP). 0ms pause, cross-domain skill transfer (`web_graph_query`), dual-process metacognition, federated mesh sharing.
+5. **Level 5 — Sovereign Sage (Master)**: Fully habituated autonomy (200+ XP). Sub-3s atomic reflex (`SYSTEM_1_REFLEX`), zero-shot adaptation.
+6. **Stress Regression**: On 3 consecutive failures or severe drift, automatically regresses to Level 2/3 scaffolding to protect user safety and prevent compounding errors.
+
+### 10. Nightly / Post-Run: Hippocampal Consolidation
 At session end or during periodic maintenance, trigger consolidation:
 ```javascript
 const report = await callTool('web_consolidate', {});

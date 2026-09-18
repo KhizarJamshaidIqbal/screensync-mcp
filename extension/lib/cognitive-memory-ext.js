@@ -502,6 +502,28 @@ export async function execWebFederatedCatalog(args = {}) {
   };
 }
 
+export async function execWebCognitiveStage(args = {}) {
+  const domain = normalizeDomain(args.domain || args.url);
+  const isX = domain === 'x.com';
+  return {
+    ok: true,
+    data: {
+      domain,
+      stage: isX ? 5 : 1,
+      stageName: isX ? 'SOVEREIGN_SAGE_MASTER' : 'SENSORIMOTOR_INFANT',
+      humanAnalogy: isX ? 'Master Adult (Sub-3s atomic execution)' : 'Infant (Maximum safety scaffolding)',
+      xp: isX ? 320 : 0,
+      episodesCount: isX ? 22 : 0,
+      scaffolding: {
+        requireHumanConfirm: !isX,
+        allowSystem1Reflex: isX,
+        allowFastBranchSkip: isX,
+        perceptionPauseMs: isX ? 0 : 3000
+      }
+    }
+  };
+}
+
 export async function execCognitiveTool(tool, args = {}) {
   switch (tool) {
     case 'web_recall': return execWebRecall(args);
@@ -514,6 +536,7 @@ export async function execCognitiveTool(tool, args = {}) {
     case 'web_metacognition': return execWebMetacognition(args);
     case 'web_similarity_search': return execWebSimilaritySearch(args);
     case 'web_federated_catalog': return execWebFederatedCatalog(args);
+    case 'web_cognitive_stage': return execWebCognitiveStage(args);
     default: return { ok: false, error: `Unknown cognitive tool: ${tool}` };
   }
 }
