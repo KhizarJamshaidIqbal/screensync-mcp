@@ -61,6 +61,15 @@ export async function execWebTab(args = {}) {
 export async function execWebWindow(args = {}) {
   try {
     const action = String(args.action || 'update');
+    if (action === 'create') {
+      const createOpts = {};
+      if (args.tabId) createOpts.tabId = Number(args.tabId);
+      if (args.url) createOpts.url = String(args.url);
+      if (args.focused !== undefined) createOpts.focused = Boolean(args.focused);
+      if (args.state) createOpts.state = String(args.state);
+      const win = await chrome.windows.create(createOpts);
+      return { ok: true, data: { windowId: win.id, focused: win.focused, state: win.state } };
+    }
     if (action === 'list') {
       const wins = await chrome.windows.getAll({ populate: true }).catch(() => []);
       return {

@@ -269,8 +269,8 @@ export async function ssWebUnitInteract(args) {
       const top = document.elementFromPoint(cx, cy);
       if (top && top !== el && !el.contains(top) && !top.contains(el)) return { ok: false, reason: 'Element is covered by ' + (top.tagName ? top.tagName.toLowerCase() : 'overlay') };
     } catch {}
-    if (typeof requestAnimationFrame === 'function') {
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (!document.hidden && typeof requestAnimationFrame === 'function') {
+      await new Promise((res) => { const t = setTimeout(res, 50); requestAnimationFrame(() => requestAnimationFrame(() => { clearTimeout(t); res(); })); });
       const r2 = el.getBoundingClientRect();
       const diff = Math.abs(r.x - r2.x) + Math.abs(r.y - r2.y) + Math.abs(r.width - r2.width) + Math.abs(r.height - r2.height);
       if (diff > 1) return { ok: false, reason: 'Element is moving or animating (not stable)' };
@@ -425,21 +425,27 @@ export async function ssWebUnitInteract(args) {
         sel.removeAllRanges();
         sel.addRange(range);
       } catch {}
+      const textSample = text.trim().slice(0, 12);
+      let inserted = false;
       try {
         const dt = new DataTransfer();
         dt.setData('text/plain', text);
-        el.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }));
+        const ev = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt });
+        const prevented = !el.dispatchEvent(ev);
+        if (prevented || (textSample && el.textContent && el.textContent.includes(textSample))) inserted = true;
       } catch {}
-      try {
-        el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
-      } catch {}
-      let executed = false;
-      try { executed = document.execCommand('insertText', false, text); } catch {}
-      if (!executed || !el.textContent || !el.textContent.includes(text.slice(0, 10))) {
+      if (!inserted) {
+        try {
+          el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+          document.execCommand('insertText', false, text);
+          if (textSample && el.textContent && el.textContent.includes(textSample)) inserted = true;
+        } catch {}
+      }
+      if (!inserted) {
         try {
           const paras = text.split('\n\n').filter(Boolean);
           if (paras.length > 0) {
-            el.innerHTML = paras.map((p) => '<p>' + p.split('\n').map((line) => line ? escapeHtml(line) : '<br>').join('<br>') + '</p>').join('');
+            el.innerHTML = paras.map((p) => '<p>' + p.split('\n').map((l) => l ? escapeHtml(l) : '<br>').join('<br>') + '</p>').join('');
           } else {
             el.textContent = text;
           }
@@ -448,13 +454,6 @@ export async function ssWebUnitInteract(args) {
       try { el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text })); } catch {}
       try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
       try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
-      try {
-        el.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', charCode: 32, keyCode: 32, which: 32, bubbles: true }));
-        el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: ' ' }));
-        document.execCommand('insertText', false, ' ');
-        el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ' ' }));
-        el.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', charCode: 32, keyCode: 32, which: 32, bubbles: true }));
-      } catch {}
     } else if (el.tagName === 'SELECT') {
       el.value = text;
       el.dispatchEvent(new Event('input', { bubbles: true }));
