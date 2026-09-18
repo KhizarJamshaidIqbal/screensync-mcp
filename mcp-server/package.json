@@ -8,8 +8,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx index.ts",
-    "test": "tsx test/catalog_consistency.test.ts && tsx test/e2e.ts && tsx test/flow.e2e.ts && tsx test/web_bridge.e2e.ts",
+    "test": "tsx test/catalog_consistency.test.ts && tsx test/cognitive_memory.test.ts && tsx test/cognitive_2_0.test.ts && tsx test/help_overlay.test.ts && tsx test/vom_engine.test.ts && tsx test/consolidated.test.ts && tsx test/e2e.ts && tsx test/flow.e2e.ts && tsx test/web_bridge.e2e.ts",
     "test:catalog": "tsx test/catalog_consistency.test.ts",
+    "test:live": "tsx test/live_browser_e2e.ts",
     "test:flow": "tsx test/flow.e2e.ts",
     "test:bridge": "tsx test/web_bridge.e2e.ts",
     "fetch:latest": "tsx test/fetch_latest.ts",
@@ -19,7 +20,8 @@
     "verify:unpacked": "node ../extension/test/verify_unpacked.js",
     "package:all": "powershell -NoProfile -ExecutionPolicy Bypass -File ../extension/scripts/package.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-hub.ps1",
     "sync:toolcount": "tsx scripts/sync-tool-count.ts",
-    "check:toolcount": "tsx scripts/sync-tool-count.ts --check"
+    "check:toolcount": "tsx scripts/sync-tool-count.ts --check",
+    "install-skills": "node scripts/install-skills.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.5",

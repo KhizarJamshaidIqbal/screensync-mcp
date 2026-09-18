@@ -324,5 +324,37 @@ export function inspectWebToolDefinitions(): WebToolDef[] {
         additionalProperties: false,
       },
     },
+    {
+      name: "web_page_observe",
+      description:
+        "Non-mutating CDP-only page perception (VOM / Visual Object Model): joins Chrome's Accessibility Tree with DOM Snapshot geometry without injecting or modifying DOM attributes. Computes physical occlusion, detects modal blocking layers, and supports token-bounded cursor pagination.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          maxTokens: { type: "integer", minimum: 500, maximum: 32000, default: 4000, description: "Maximum token budget for returned observation tree." },
+          cursor: { type: "string", description: "Continuation cursor (e.g. 'node:145') to paginate through large pages." },
+          includeOccluded: { type: "boolean", default: false, description: "Include elements visually covered by modals or overlays." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_screenshot_read",
+      description:
+        "Reads a specific tile chunk from a previously captured tiled long screenshot. Used in conjunction with web_full_screenshot (longPage: true) to inspect multi-tile vertical captures.",
+      inputSchema: {
+        type: "object",
+        required: ["captureId"],
+        properties: {
+          captureId: { type: "string", description: "The captureId returned by web_full_screenshot when longPage: true." },
+          tileIndex: { type: "integer", minimum: 0, default: 0, description: "Zero-based tile index to retrieve." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
   ];
 }

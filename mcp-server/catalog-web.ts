@@ -72,6 +72,7 @@ export function webToolDefinitions() {
         properties: {
           format: { type: "string", enum: ["jpeg", "png"], default: "jpeg" },
           quality: { type: "integer", minimum: 1, maximum: 100, default: 85 },
+          longPage: { type: "boolean", default: false, description: "Use tiled scrolling capture for pages taller than 16,384px. Handles infinite scroll feeds, sticky header dedup, and stall detection." },
         },
         additionalProperties: false,
       },

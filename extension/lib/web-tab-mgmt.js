@@ -5,13 +5,21 @@ import { pickActiveTab, groupAgentTab, waitForTabComplete, isRestrictedTab } fro
 import { makeError, ERROR_CODES } from './errors.js';
 
 export async function execWebTabs(args = {}) {
-  let tabs = await chrome.tabs.query({ lastFocusedWindow: true }).catch(() => []);
-  if (!tabs || tabs.length === 0) tabs = await chrome.tabs.query({}).catch(() => []);
+  let tabs;
+  if (args.windowId) {
+    tabs = await chrome.tabs.query({ windowId: Number(args.windowId) }).catch(() => []);
+  } else if (args.all) {
+    tabs = await chrome.tabs.query({}).catch(() => []);
+  } else {
+    tabs = await chrome.tabs.query({ lastFocusedWindow: true }).catch(() => []);
+    if (!tabs || tabs.length === 0) tabs = await chrome.tabs.query({}).catch(() => []);
+  }
   return {
     ok: true,
     data: {
       tabs: (tabs || []).map((t) => ({
         tabId: t.id,
+        windowId: t.windowId,
         url: t.url,
         title: t.title,
         active: t.active,
@@ -32,14 +40,14 @@ export async function execWebTab(args = {}) {
     if (created && created.id) groupAgentTab(created.id);
     await waitForTabComplete(created.id, 20000);
     const t = await chrome.tabs.get(created.id);
-    return { ok: true, data: { tabId: t.id, url: t.url, title: t.title } };
+    return { ok: true, data: { tabId: t.id, windowId: t.windowId, url: t.url, title: t.title } };
   }
   if (action === 'switch') {
     const tabId = Number(args.tabId);
     if (!tabId) return makeError(ERROR_CODES.BAD_ARGS, 'tabId is required for switch action.');
     const t = await chrome.tabs.update(tabId, { active: true });
     if (t.windowId) await chrome.windows.update(t.windowId, { focused: true });
-    return { ok: true, data: { tabId, url: t.url, title: t.title } };
+    return { ok: true, data: { tabId, windowId: t.windowId, url: t.url, title: t.title } };
   }
   if (action === 'close') {
     const tabId = Number(args.tabId);
@@ -52,6 +60,43 @@ export async function execWebTab(args = {}) {
 
 export async function execWebWindow(args = {}) {
   try {
+    const action = String(args.action || 'update');
+    if (action === 'list') {
+      const wins = await chrome.windows.getAll({ populate: true }).catch(() => []);
+      return {
+        ok: true,
+        data: {
+          windows: (wins || []).map((w) => {
+            const activeTab = (w.tabs || []).find((t) => t.active) || (w.tabs && w.tabs[0]);
+            return {
+              windowId: w.id,
+              focused: w.focused,
+              state: w.state,
+              type: w.type,
+              top: w.top,
+              left: w.left,
+              width: w.width,
+              height: w.height,
+              tabCount: w.tabs ? w.tabs.length : 0,
+              activeTab: activeTab ? { tabId: activeTab.id, url: activeTab.url, title: activeTab.title } : null,
+            };
+          }),
+        },
+      };
+    }
+    if (action === 'focus') {
+      const winId = Number(args.windowId);
+      if (!winId) return makeError(ERROR_CODES.BAD_ARGS, 'windowId is required for focus action.');
+      const win = await chrome.windows.update(winId, { focused: true });
+      return { ok: true, data: { windowId: win.id, focused: win.focused, state: win.state } };
+    }
+    if (action === 'close') {
+      const winId = Number(args.windowId);
+      if (!winId) return makeError(ERROR_CODES.BAD_ARGS, 'windowId is required for close action.');
+      await chrome.windows.remove(winId);
+      return { ok: true, data: { closedWindowId: winId } };
+    }
+
     const tabs = await chrome.tabs.query({});
     let winId = args.windowId;
     if (!winId) {

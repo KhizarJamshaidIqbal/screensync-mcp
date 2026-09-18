@@ -628,6 +628,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.check:
+        if FEED.is_file():
+            try:
+                disk_feed = json.loads(FEED.read_text(encoding="utf-8"))
+                if disk_feed.get("generatedAt"):
+                    data["generatedAt"] = disk_feed["generatedAt"]
+                    page = render(data)
+                    feed = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+            except Exception:
+                pass
         stale = []
         if not PAGE.is_file() or PAGE.read_text(encoding="utf-8") != page:
             stale.append(PAGE.name)

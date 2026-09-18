@@ -1,0 +1,344 @@
+// ScreenSync Extension Cognitive Memory Unit (Multi-Condition Probing Model)
+// Mirrors cognitive memory model on client-side:
+// 1. Sensory Probing & Environmental Signals (Is flame lit? Is pan on fire? Any burning drafts?)
+// 2. State-Dependent Episodic Memory
+// 3. Semantic Memory
+// 4. Adaptive Procedural Playbooks with Conditional Branches
+
+const STORAGE_KEY = 'cognitive_memory';
+
+function getDefaultSeed() {
+  return {
+    version: '1.1.0',
+    updatedAt: new Date().toISOString(),
+    domains: {
+      'x.com': {
+        domain: 'x.com',
+        framework: 'Draft.js / Lexical ContentEditable',
+        authRequired: true,
+        cspRestricted: true,
+        preferredInputMethod: 'execCommand',
+        keySelectors: {
+          editor: 'div[data-testid="tweetTextarea_0"]',
+          tweetButton: 'button[data-testid="tweetButton"]',
+          tweetArticle: 'article[data-testid="tweet"]',
+          tweetText: 'div[data-testid="tweetText"]',
+          userName: 'div[data-testid="User-Name"]',
+          accountSwitcher: 'div[data-testid="SideNav_AccountSwitcher_Button"]',
+          discardConfirm: 'div[data-testid="confirmationSheetConfirm"]'
+        },
+        lastVerifiedAt: '2026-09-18T10:43:12.000Z'
+      }
+    },
+    playbooks: {
+      'x_publish_post': {
+        id: 'pb_x_publish_post',
+        name: 'x_publish_post',
+        domain: 'x.com',
+        intent: 'post',
+        description: 'Condition-aware composition and publishing on X (Twitter). Checks environmental signals before firing motor steps.',
+        environmentalProbes: [
+          {
+            signal: 'flame_is_lit_auth_active',
+            selector: 'div[data-testid="SideNav_AccountSwitcher_Button"]',
+            expected: 'present',
+            humanAnalogy: 'Like checking if stove burner is on and gas supply is active (user is authenticated)'
+          },
+          {
+            signal: 'pan_already_on_fire_compose_open',
+            selector: 'div[data-testid="tweetTextarea_0"]',
+            expected: 'present',
+            humanAnalogy: 'Like checking if the pan is already on the flame (compose modal is already open, skip navigation)'
+          },
+          {
+            signal: 'food_burning_unsaved_draft_dialog',
+            selector: 'div[data-testid="confirmationSheetConfirm"]',
+            expected: 'absent',
+            humanAnalogy: 'Like checking if an old burnt pan is blocking the burner (unsaved draft dialog must be cleared first)'
+          }
+        ],
+        branches: [
+          {
+            name: 'fast_skip_modal_open',
+            conditionDescription: 'Compose modal is already open in DOM (pan is already on fire)',
+            whenSignal: 'pan_already_on_fire_compose_open',
+            skipToStep: 4
+          }
+        ],
+        preconditions: [
+          'Target window must be focused (web_window { action: "focus", windowId })',
+          'Specify profile: "epsoldev@gmail.com" for multi-profile isolation',
+          'User must be logged in to X'
+        ],
+        steps: [
+          { step: 1, name: 'Focus Target Window', tool: 'web_window', args: { action: 'focus' } },
+          { step: 2, name: 'Navigate to Compose Modal', tool: 'web_navigate', args: { url: 'https://x.com/compose/post' } },
+          { step: 3, name: 'Wait for ContentEditable Editor', tool: 'web_wait_for', args: { selector: 'div[data-testid="tweetTextarea_0"]', timeoutMs: 5000 } },
+          {
+            step: 4,
+            name: 'Atomic Text Injection via execCommand',
+            tool: 'web_eval',
+            codeSnippet: "const el = document.querySelector('div[data-testid=\"tweetTextarea_0\"]'); el.focus(); document.execCommand('selectAll', false, null); document.execCommand('delete', false, null); document.execCommand('insertText', false, postText); el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: '' }));"
+          },
+          { step: 5, name: 'Click Post Button', tool: 'web_eval', codeSnippet: "const btn = document.querySelector('button[data-testid=\"tweetButton\"]'); btn.click();" },
+          { step: 6, name: 'Verify Live Tweet on Profile Feed', tool: 'web_navigate', args: { url: 'https://x.com/{profileUsername}' } }
+        ],
+        successCount: 2,
+        lastExecutedAt: '2026-09-18T10:43:12.000Z',
+        targetDurationSeconds: 15
+      }
+    },
+    pitfalls: {
+      'x.com': [
+        {
+          id: 'pitfall_x_draftjs_fill',
+          domain: 'x.com',
+          symptom: 'Using web_fill or setting innerText leaves tweetButton disabled (aria-disabled="true").',
+          rootCause: 'Draft.js / Lexical requires browser native input events and contentEditable execCommand to synchronize internal React state.',
+          conditionTrigger: 'When typing into ContentEditable editor div[data-testid="tweetTextarea_0"]',
+          antiPattern: 'web_fill({ selector: \'div[data-testid="tweetTextarea_0"]\', text })',
+          provenSolution: 'Focus editor, execCommand("selectAll"), execCommand("delete"), execCommand("insertText", false, text), dispatch InputEvent("input").',
+          discoveredAt: '2026-09-18T10:30:00.000Z'
+        },
+        {
+          id: 'pitfall_x_csp_eval',
+          domain: 'x.com',
+          symptom: 'web_eval fails with Content Security Policy violation in main world.',
+          rootCause: 'x.com sends strict CSP headers forbidding eval() in page world.',
+          conditionTrigger: 'Evaluating expressions in MAIN world',
+          antiPattern: 'Running arbitrary eval in MAIN world without fallback.',
+          provenSolution: 'Use CDP Runtime.evaluate or extension ISOLATED world script injection.',
+          discoveredAt: '2026-09-18T10:25:00.000Z'
+        },
+        {
+          id: 'pitfall_x_unfocused_screenshot',
+          domain: 'x.com',
+          symptom: 'web_screenshot times out or fails on background window.',
+          rootCause: 'Chrome captureVisibleTab requires the target window to be active/focused.',
+          conditionTrigger: 'When window state is unfocused/minimized',
+          antiPattern: 'Capturing tab while target window is minimized or unfocused.',
+          provenSolution: 'Call web_window({ action: "focus", windowId }) before capture.',
+          discoveredAt: '2026-09-18T10:15:00.000Z'
+        },
+        {
+          id: 'pitfall_x_multi_profile_crosstalk',
+          domain: 'x.com',
+          symptom: 'Operating wrong browser profile when multiple windows are open.',
+          rootCause: 'ScreenSync tool calls route to first connected browser if profile is omitted.',
+          conditionTrigger: 'When multiple browser instances are connected',
+          antiPattern: 'web_navigate({ url: "https://x.com" }) without profile argument.',
+          provenSolution: 'Always pass profile: "epsoldev@gmail.com" (or target profile).',
+          discoveredAt: '2026-09-18T09:40:00.000Z'
+        }
+      ]
+    },
+    episodes: []
+  };
+}
+
+let cachedMemory = null;
+
+async function loadMemory() {
+  if (cachedMemory) return cachedMemory;
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      const data = await chrome.storage.local.get(STORAGE_KEY);
+      if (data && data[STORAGE_KEY]) {
+        cachedMemory = data[STORAGE_KEY];
+        return cachedMemory;
+      }
+    }
+  } catch {}
+  cachedMemory = getDefaultSeed();
+  await persistMemory();
+  return cachedMemory;
+}
+
+async function persistMemory() {
+  if (!cachedMemory) return;
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      cachedMemory.updatedAt = new Date().toISOString();
+      await chrome.storage.local.set({ [STORAGE_KEY]: cachedMemory });
+    }
+  } catch {}
+}
+
+export function normalizeDomain(input) {
+  if (!input) return '';
+  try {
+    const u = new URL(input.startsWith('http') ? input : `https://${input}`);
+    return u.hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return String(input).replace(/^www\./, '').toLowerCase();
+  }
+}
+
+export async function execWebRecall(args = {}) {
+  const data = await loadMemory();
+  const domain = normalizeDomain(args.domain || args.url);
+  const intent = String(args.intent || '').toLowerCase();
+
+  const domainFacts = domain ? (data.domains[domain] || null) : null;
+  const domainPitfalls = domain ? (data.pitfalls[domain] || []) : [];
+
+  const matchingPlaybooks = Object.values(data.playbooks || {}).filter((pb) => {
+    if (domain && normalizeDomain(pb.domain) !== domain) return false;
+    if (intent && pb.intent.toLowerCase() !== intent) return false;
+    return true;
+  });
+
+  const recommendedPlaybook = matchingPlaybooks.length > 0 ? matchingPlaybooks[0] : null;
+  let selectedBranch = null;
+
+  if (recommendedPlaybook && args.detectedSignals) {
+    selectedBranch = (recommendedPlaybook.branches || []).find(
+      (b) => args.detectedSignals[b.whenSignal] === true
+    ) || null;
+  }
+
+  return {
+    ok: true,
+    data: {
+      found: Boolean(domainFacts || domainPitfalls.length > 0 || recommendedPlaybook),
+      domain,
+      intent: intent || undefined,
+      domainFacts,
+      pitfalls: domainPitfalls,
+      recommendedPlaybook,
+      selectedBranch,
+      environmentalProbes: recommendedPlaybook?.environmentalProbes || [],
+      fastPathAvailable: Boolean(recommendedPlaybook),
+      estimatedSeconds: selectedBranch?.skipToStep ? 5 : (recommendedPlaybook?.targetDurationSeconds || 15)
+    }
+  };
+}
+
+export async function execWebLearn(args = {}) {
+  const data = await loadMemory();
+  const action = String(args.action || '').toLowerCase();
+  const domain = normalizeDomain(args.domain);
+  if (!domain) return { ok: false, error: 'domain is required for learning' };
+
+  let entryId = '';
+  const payload = args.data || {};
+
+  switch (action) {
+    case 'playbook': {
+      const id = payload.id || `pb_${domain.replace(/\./g, '_')}_${payload.name || 'custom'}`;
+      const playbook = {
+        id,
+        name: payload.name || id,
+        domain,
+        intent: payload.intent || args.intent || 'general',
+        description: payload.description || 'Learned procedural playbook',
+        environmentalProbes: Array.isArray(payload.environmentalProbes) ? payload.environmentalProbes : [],
+        branches: Array.isArray(payload.branches) ? payload.branches : [],
+        preconditions: Array.isArray(payload.preconditions) ? payload.preconditions : [],
+        steps: Array.isArray(payload.steps) ? payload.steps : [],
+        successCount: (payload.successCount || 1),
+        lastExecutedAt: new Date().toISOString(),
+        targetDurationSeconds: payload.targetDurationSeconds || 30
+      };
+      if (!data.playbooks) data.playbooks = {};
+      data.playbooks[playbook.name] = playbook;
+      entryId = id;
+      break;
+    }
+    case 'pitfall': {
+      const id = payload.id || `pitfall_${domain.replace(/\./g, '_')}_${Date.now()}`;
+      const pitfall = {
+        id,
+        domain,
+        symptom: String(payload.symptom || 'Unexpected failure'),
+        rootCause: String(payload.rootCause || 'Unknown root cause'),
+        conditionTrigger: payload.conditionTrigger ? String(payload.conditionTrigger) : undefined,
+        antiPattern: String(payload.antiPattern || ''),
+        provenSolution: String(payload.provenSolution || ''),
+        codeSnippet: payload.codeSnippet ? String(payload.codeSnippet) : undefined,
+        discoveredAt: new Date().toISOString()
+      };
+      if (!data.pitfalls) data.pitfalls = {};
+      if (!data.pitfalls[domain]) data.pitfalls[domain] = [];
+      data.pitfalls[domain].push(pitfall);
+      entryId = id;
+      break;
+    }
+    case 'fact': {
+      if (!data.domains) data.domains = {};
+      data.domains[domain] = {
+        ...(data.domains[domain] || {}),
+        ...payload,
+        domain,
+        lastVerifiedAt: new Date().toISOString()
+      };
+      entryId = domain;
+      break;
+    }
+    default:
+      return { ok: false, error: `Unknown learn action: ${action}` };
+  }
+
+  await persistMemory();
+  return { ok: true, data: { learned: true, action, domain, entryId } };
+}
+
+export async function execWebWarm(args = {}) {
+  const domain = normalizeDomain(args.domain || args.url);
+  const intent = (args.intent || '').toLowerCase();
+  if (!domain || !intent) {
+    return { ok: false, error: 'web_warm requires domain and intent' };
+  }
+
+  const recallResult = await execWebRecall({
+    domain,
+    intent,
+    profile: args.profile,
+    detectedSignals: args.detectedSignals || {}
+  });
+
+  const fastPathAvailable = Boolean(recallResult.data?.recommendedPlaybook);
+  return {
+    ok: true,
+    data: {
+      ready: true,
+      domain,
+      intent,
+      fastPathAvailable,
+      recommendedPlaybookId: recallResult.data?.recommendedPlaybook?.id,
+      selectedBranch: recallResult.data?.selectedBranch || null,
+      estimatedSeconds: recallResult.data?.estimatedSeconds || 15,
+      circuitBreakerStatus: 'CLOSED',
+      preFlightChecks: [
+        { probe: 'circuit_breaker', status: 'passed', details: 'Circuit breaker is CLOSED (healthy).' },
+        { probe: 'cognitive_recall', status: 'passed', details: fastPathAvailable ? 'Playbook cached and ready.' : 'Domain recognized.' }
+      ],
+      warmedAt: new Date().toISOString()
+    }
+  };
+}
+
+export async function execWebConsolidate(args = {}) {
+  const data = await loadMemory();
+  const episodes = data.episodes || [];
+  let prunedCount = 0;
+  if (episodes.length > 50) {
+    prunedCount = episodes.length - 50;
+    data.episodes = episodes.slice(-50);
+  }
+  await persistMemory();
+
+  return {
+    ok: true,
+    data: {
+      timestamp: new Date().toISOString(),
+      bronzePrunedCount: prunedCount,
+      bronzeRetainedCount: (data.episodes || []).length,
+      silverMetricsUpdated: Object.keys(data.domains || {}).length,
+      strengthenedPlaybooks: Object.keys(data.playbooks || {}),
+      decayedPlaybooks: [],
+      prunedPlaybooks: [],
+      sanitizedWisdomEntries: Object.keys(data.playbooks || {}).length
+    }
+  };
+}

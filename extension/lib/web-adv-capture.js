@@ -2,7 +2,11 @@
 import { rawAttach, rawDetach, attachCdp, detachCdp, main, activeScreencasts, activeCoverage } from './web-adv-core.js';
 import { ensureHooks, ssReadBuffer } from './web-adv-units.js';
 import { ssWebUnitExtract } from './web-unit.js';
+import { captureLongScreenshot } from './web-long-screenshot.js';
 export async function cdpScreenshot(tab, args = {}) {
+  if (args.longPage === true) {
+    return captureLongScreenshot(tab, args);
+  }
   const target = { tabId: tab.id };
   let attached = false;
   try {

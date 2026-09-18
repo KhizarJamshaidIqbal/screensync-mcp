@@ -30,6 +30,29 @@ export function normalizeOrigin(input) {
   }
 }
 
+// Sites the owner trusts with full agent access (read, act, cookies) without a
+// per-origin grant. Matched on the HOST - the domain itself or a subdomain of it -
+// never as a substring: `o.includes('x.com')` also matched dropbox.com,
+// netflix.com and fedex.com, and `o.includes('epsoldev.com')` matched
+// epsoldev.com.anything.net. Add a host here only on the owner's instruction.
+export const OWNER_TRUSTED_HOSTS = Object.freeze([
+  'epsoldev.com',
+  'x.com',
+  'twitter.com',
+  'blog.niagarafallscanadatours.com',
+]);
+
+export function isOwnerTrustedOrigin(origin) {
+  let host = '';
+  try {
+    host = new URL(String(origin)).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (!host) return false;
+  return OWNER_TRUSTED_HOSTS.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
 export function isLoopbackOrTestOrigin(origin) {
   if (!origin) return false;
   const o = origin.toLowerCase();
@@ -37,6 +60,7 @@ export function isLoopbackOrTestOrigin(origin) {
     o.includes('127.0.0.1') ||
     o.endsWith('.test') ||
     o.includes('example.test') ||
+    isOwnerTrustedOrigin(o) ||
     o.startsWith('chrome-extension://');
 }
 
@@ -173,7 +197,7 @@ export async function checkOriginPermission(origin, category, tool, _args = {}) 
   if (!rl.ok) return { ok: false, code: 'RATE_LIMIT_EXCEEDED', error: rl.error };
 
   // 2. Loopback / test origins always pass
-  if (isLoopbackOrTestOrigin(norm)) return { ok: true, origin: norm };
+  if (isLoopbackOrTestOrigin(norm)) return { ok: true, origin: norm, grant: { read: true, act: true, cookies: true } };
 
   // 3. Check persistent grant
   const grant = await getOriginGrant(norm);

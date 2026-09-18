@@ -29,6 +29,25 @@ export async function pickActiveTab(args = {}) {
     }
   }
 
+  // Window-level isolation: target a specific window if requested
+  if (args && args.windowId) {
+    const winId = Number(args.windowId);
+    let winTabs = await chrome.tabs.query({ active: true, windowId: winId }).catch(() => []);
+    if (!winTabs || !winTabs.length) winTabs = await chrome.tabs.query({ windowId: winId }).catch(() => []);
+    if (winTabs && winTabs.length) {
+      const usable = winTabs.find((t) => !isRestrictedTab(t)) || winTabs[0];
+      return usable;
+    }
+  }
+
+  // URL matching within open tabs if specified
+  if (args && (args.matchUrl || args.urlPattern)) {
+    const pattern = String(args.matchUrl || args.urlPattern).toLowerCase();
+    const all = await chrome.tabs.query({}).catch(() => []);
+    const match = all.find((t) => t.url && t.url.toLowerCase().includes(pattern) && !isRestrictedTab(t));
+    if (match) return match;
+  }
+
   let tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
   if (!tabs || !tabs.length) tabs = await chrome.tabs.query({ active: true }).catch(() => []);
   if (!tabs || !tabs.length) tabs = await chrome.tabs.query({}).catch(() => []);

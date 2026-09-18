@@ -20,10 +20,15 @@ import { execDownload, execWaitDownload } from './web-download.js';
 import { execBatchCrawl, execMultiTabSync } from './web-crawl.js';
 import { execExtensionDiagnostics } from './web-diag.js';
 import { execWebPopupWait, getRecentPopups } from './web-popup.js';
-import { execWebTakeover } from './takeover.js';
+import { execWebTakeover, execWebRequestHelp } from './takeover.js';
+import { buildVom } from './web-vom-engine.js';
+import { readLongScreenshotTile } from './web-long-screenshot.js';
+import { execWebAgentWindow } from './web-agent-window.js';
 import { execWebSiteMemory } from './site-memory.js';
+import { execWebRecall, execWebLearn, execWebWarm, execWebConsolidate } from './cognitive-memory-ext.js';
 import { apiFetch } from './web-api-fetch.js';
 import { historySearch, bookmarksSearch } from './web-browser-data.js';
+import { getProfileIdentity, setProfileIdentity, matchesSelfTarget, RUNTIME_ID, BROWSER_NAME } from './profile-identity.js';
 import { execTabGroup } from './web-tab-groups.js';
 import { pickActiveTab, isRestrictedTab, waitForTabComplete, groupAgentTab } from './tab-resolve.js';
 import { makeError, ERROR_CODES } from './errors.js';
@@ -59,35 +64,10 @@ const DOM_TOOLS = new Set([
 
 const STORAGE_ADV_TOOLS = new Set(['web_indexeddb', 'web_cache_storage']);
 
-function detectBrowserName() {
-  try {
-    const brands = (navigator.userAgentData && navigator.userAgentData.brands) || [];
-    for (const b of brands) {
-      const n = b.brand.toLowerCase();
-      if (n.includes('edge')) return 'edge';
-      if (n.includes('brave')) return 'brave';
-      if (n.includes('opera')) return 'opera';
-      if (n.includes('vivaldi')) return 'vivaldi';
-    }
-    const ua = navigator.userAgent || '';
-    if (/Edg\//.test(ua)) return 'edge';
-    if (/OPR\//.test(ua)) return 'opera';
-    return 'chrome';
-  } catch {
-    return 'chrome';
-  }
-}
-
 export const SELF_BROWSER = {
-  id: (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) || 'default',
-  name: detectBrowserName(),
+  id: RUNTIME_ID,
+  name: BROWSER_NAME,
 };
-
-function selfBrowserMatches(hint) {
-  const h = String(hint || '').toLowerCase();
-  if (!h || h === 'any' || h === 'default') return true;
-  return h === SELF_BROWSER.name || h === String(SELF_BROWSER.id).toLowerCase();
-}
 
 async function inject(tab, args) {
   if (isRestrictedTab(tab)) {
@@ -298,6 +278,16 @@ export async function executeWebTool(tool, args = {}) {
     case 'web_multi_tab_sync': return execMultiTabSync(args);
     case 'web_batch_crawl': return execBatchCrawl(args);
     case 'web_extension_diagnostics': return execExtensionDiagnostics();
+    case 'web_profile': {
+      const action = String(args.action || 'get');
+      if (action === 'configure' || action === 'set') {
+        const updated = await setProfileIdentity(args);
+        await registerWebBridge();
+        return { ok: true, data: { updated: true, identity: updated } };
+      }
+      const id = await getProfileIdentity();
+      return { ok: true, data: { identity: id } };
+    }
     case 'web_keep_alive': {
       const tab = await pickActiveTab(args);
       const action = String(args.action || 'protect').toLowerCase();
@@ -438,10 +428,30 @@ export async function executeWebTool(tool, args = {}) {
       const tab = await pickActiveTab(args);
       return execWebTakeover(tab ? tab.id : null, args);
     }
+    case 'web_request_help': {
+      const tab = await pickActiveTab(args);
+      return execWebRequestHelp(tab ? tab.id : null, args);
+    }
+    case 'web_page_observe': {
+      const tab = await pickActiveTab(args);
+      if (isRestrictedTab(tab)) return makeError(ERROR_CODES.RESTRICTED_PAGE, `Cannot observe restricted tab (${tab.url}).`);
+      return buildVom(tab, args);
+    }
+    case 'web_screenshot_read': {
+      return readLongScreenshotTile(args.captureId, args.tileIndex || 0);
+    }
+    case 'web_agent_window': {
+      const tab = await pickActiveTab(args).catch(() => null);
+      return execWebAgentWindow(tab ? tab.id : null, args);
+    }
     case 'web_site_memory': {
       const tab = await pickActiveTab(args);
       return execWebSiteMemory(tab ? tab.id : null, args);
     }
+    case 'web_recall': return execWebRecall(args);
+    case 'web_learn': return execWebLearn(args);
+    case 'web_warm': return execWebWarm(args);
+    case 'web_consolidate': return execWebConsolidate(args);
     default: {
       // Injected DOM / Agent / Storage tools
       if (
@@ -492,16 +502,38 @@ export async function registerWebBridge() {
     const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (t && t.url && !isRestrictedTab(t)) tab = { url: t.url, title: t.title };
   } catch {}
+  let windows = [];
   try {
+    const wins = await chrome.windows.getAll({ populate: true });
+    windows = (wins || []).map((w) => {
+      const activeTab = (w.tabs || []).find((t) => t.active) || (w.tabs && w.tabs[0]);
+      return {
+        id: w.id,
+        focused: w.focused,
+        state: w.state,
+        type: w.type,
+        tabCount: w.tabs ? w.tabs.length : 0,
+        activeTab: activeTab && activeTab.url && !isRestrictedTab(activeTab)
+          ? { tabId: activeTab.id, url: activeTab.url, title: activeTab.title }
+          : null,
+      };
+    });
+  } catch {}
+  try {
+    const identity = await getProfileIdentity();
     const s = await getSettings();
     const regRes = await hubFetch('/api/web/register', {
       method: 'POST',
       body: {
         webAccessEnabled: s.webAccessEnabled === true,
         tab,
+        windows,
         userAgent: navigator.userAgent,
-        browserId: SELF_BROWSER.id,
-        browserName: SELF_BROWSER.name,
+        browserId: identity.runtimeId,
+        instanceId: identity.instanceId,
+        browserName: identity.browserName,
+        profileEmail: identity.profileEmail,
+        profileName: identity.profileName,
       },
     });
     if (regRes && regRes.reloadRequested === true) {
@@ -511,9 +543,15 @@ export async function registerWebBridge() {
 }
 
 export async function handleWebRequest(req) {
-  const { id, tool, args = {}, targetBrowser } = req || {};
-  const target = (typeof args.__browser === 'string' && args.__browser) || (typeof targetBrowser === 'string' && targetBrowser) || null;
-  if (target && !selfBrowserMatches(target)) return;
+  const { id, tool, args = {} } = req || {};
+  const identity = await getProfileIdentity();
+
+  // Strict Zero Cross-Talk Guard:
+  // If targeted to a specific profile, instance, or email, drop immediately if not for us.
+  if (!matchesSelfTarget(req, identity)) {
+    return;
+  }
+
   const startedAt = Date.now();
   let out;
   const s = await getSettings();
@@ -547,8 +585,11 @@ export async function handleWebRequest(req) {
         error: out.error,
         code: out.code,
         retryable: out.retryable,
-        browserId: SELF_BROWSER.id,
-        browserName: SELF_BROWSER.name,
+        browserId: identity.runtimeId,
+        instanceId: identity.instanceId,
+        browserName: identity.browserName,
+        profileEmail: identity.profileEmail,
+        profileName: identity.profileName,
       },
     });
   } catch {}

@@ -7,6 +7,8 @@ import { emitHubEvent, lastEventSeq, recentHubEvents } from "./events.js";
 import { createFrameStore } from "./web-frame.js";
 import { generateFlow, generatePlaywright } from "./codegen.js";
 import { runTestSuite } from "./test-runner.js";
+import { createProfileRegistry, BrowserInstance, BrowserWindowInfo } from "./profile-registry.js";
+import { cognitiveStore } from "./cognitive-memory.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -20,6 +22,9 @@ type Pending = {
   resolve: (r: WebToolResult) => void;
   timer: ReturnType<typeof setTimeout>;
   targetBrowser?: string | null;
+  targetInstanceId?: string | null;
+  targetEmail?: string | null;
+  targetProfile?: string | null;
 };
 
 export type WebBridge = {
@@ -62,47 +67,18 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
     "web_fanout", "web_tab_fanout",
   ]);
 
-  // Multi-browser registry: every extension install (Chrome, Edge, Brave, ...)
-  // heartbeats under its own browserId, so agents can list and target browsers
-  // individually while the legacy single-browser status fields stay compatible.
-  const browsers = new Map<string, BrowserEntry>();
-
-  const isOnline = (b: BrowserEntry) => Date.now() - Date.parse(b.lastSeenAt) < PRESENCE_TTL_MS;
-
-  const onlineEntries = () =>
-    [...browsers.values()].filter(isOnline).sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt));
+  // Multi-profile & multi-browser registry: every extension instance (Chrome profiles, Edge, Brave, ...)
+  // heartbeats under its own instanceId with profile email, name, and windows.
+  const registry = createProfileRegistry();
 
   const online = () => {
     const sseCount = getSseClientCount ? getSseClientCount() : 1;
-    return sseCount > 0 && onlineEntries().length > 0;
+    return sseCount > 0 && registry.listOnline().length > 0;
   };
 
   const status = () => {
-    const entries = onlineEntries();
-    const latest =
-      entries[0] ??
-      [...browsers.values()].sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt))[0] ??
-      null;
     const sseClients = getSseClientCount ? getSseClientCount() : 0;
-    return {
-      online: online(),
-      sseConnected: sseClients > 0,
-      sseClients,
-      webAccessEnabled: [...browsers.values()].some((b) => b.webAccessEnabled),
-      lastSeenAt: latest ? latest.lastSeenAt : null,
-      activeTab: latest ? latest.tab : null,
-      heartbeatMs: EXTENSION_RE_REGISTER_MS,
-      browserCount: browsers.size,
-      browsers: [...browsers.entries()].map(([id, b]) => ({
-        id,
-        name: b.name,
-        online: isOnline(b),
-        webAccessEnabled: b.webAccessEnabled,
-        lastSeenAt: b.lastSeenAt,
-        activeTab: b.tab,
-        userAgent: b.userAgent,
-      })),
-    };
+    return registry.statusPayload(sseClients);
   };
 
   const request = (tool: string, args: Record<string, unknown>, timeoutMs: number): Promise<WebToolResult> =>
@@ -112,11 +88,34 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         pending.delete(id);
         resolve({ ok: false, error: `Timed out after ${timeoutMs}ms waiting for the browser extension.` });
       }, timeoutMs);
-      const targetBrowser = typeof args.__browser === "string"
-        ? args.__browser
-        : (onlineEntries()[0]?.name || null);
-      pending.set(id, { resolve, timer, targetBrowser });
-      broadcast({ type: "web_request", id, tool, args, targetBrowser });
+
+      const hint =
+        typeof args.__profile === "string" ? args.__profile
+        : typeof args.profile === "string" ? args.profile
+        : typeof args.__email === "string" ? args.__email
+        : typeof args.email === "string" ? args.email
+        : typeof args.__instance === "string" ? args.__instance
+        : typeof args.instanceId === "string" ? args.instanceId
+        : typeof args.__browser === "string" ? args.__browser
+        : null;
+
+      const targetEntry = registry.resolveTarget(hint);
+      const targetBrowser = targetEntry ? targetEntry.name : (typeof args.__browser === "string" ? args.__browser : null);
+      const targetInstanceId = targetEntry ? targetEntry.instanceId : null;
+      const targetEmail = targetEntry ? targetEntry.profileEmail : (typeof args.email === "string" ? String(args.email) : null);
+      const targetProfile = targetEntry ? targetEntry.profileName : (typeof args.profile === "string" ? String(args.profile) : null);
+
+      pending.set(id, { resolve, timer, targetBrowser, targetInstanceId, targetEmail, targetProfile });
+      broadcast({
+        type: "web_request",
+        id,
+        tool,
+        args,
+        targetBrowser,
+        targetInstanceId,
+        targetEmail,
+        targetProfile,
+      });
     });
 
     // ── Persisted Flows Library: save / list / run / delete ──────────────
@@ -293,23 +292,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
       const b = (req.body ?? {}) as Record<string, unknown>;
-      const id =
-        typeof b.browserId === "string" && b.browserId.trim()
-          ? b.browserId.trim()
-          : typeof b.userAgent === "string" && b.userAgent
-            ? b.userAgent
-            : "default";
-      const entry: BrowserEntry = {
-        name: typeof b.browserName === "string" && b.browserName.trim() ? b.browserName.trim().toLowerCase() : "chrome",
-        webAccessEnabled: b.webAccessEnabled === true,
-        lastSeenAt: new Date().toISOString(),
-        tab: b.tab && typeof b.tab === "object" ? (b.tab as { url?: string; title?: string }) : null,
-        userAgent: typeof b.userAgent === "string" ? b.userAgent : null,
-      };
-      if (typeof b.webAccessEnabled !== "boolean" && browsers.has(id)) {
-        entry.webAccessEnabled = browsers.get(id)!.webAccessEnabled;
-      }
-      browsers.set(id, entry);
+      registry.register(b);
       res.json({
         success: true,
         status: status(),
@@ -396,14 +379,15 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       // These run ONE tool on N browsers by issuing sequential per-browser
       // requests (each extension self-filters via args.__browser) and merging.
       const resolveTargets = (): Array<{ id: string; name: string }> => {
-        const online = onlineEntries().map((e) => {
-          const id = [...browsers.entries()].find(([, v]) => v === e)?.[0] ?? "default";
-          return { id, name: e.name };
-        });
+        const online = registry.listOnline().map((e) => ({
+          id: e.instanceId,
+          name: e.name,
+          email: e.profileEmail,
+        }));
         const want = args.browsers;
         if (!want || want === "all") return online;
         const list = Array.isArray(want) ? want.map(String) : String(want).split(",").map((s) => s.trim());
-        return online.filter((t) => list.includes(t.name) || list.includes(t.id));
+        return online.filter((t) => list.includes(t.name) || list.includes(t.id) || (t.email && list.includes(t.email)));
       };
       const callOn = (target: { id: string; name: string }, innerTool: string, innerArgs: Record<string, unknown>, timeoutMs: number): Promise<WebToolResult> =>
         request(innerTool, { ...innerArgs, __browser: target.id }, timeoutMs);
@@ -433,6 +417,74 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
 
+
+      if (tool === "web_recall") {
+        try {
+          const resData = cognitiveStore.recall({
+            domain: args.domain ? String(args.domain) : undefined,
+            url: args.url ? String(args.url) : undefined,
+            intent: args.intent ? String(args.intent) : undefined,
+            profile: args.profile ? String(args.profile) : undefined,
+          });
+          res.json({ success: true, ok: true, data: resData });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Recall failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_learn") {
+        try {
+          const action = String(args.action || "").toLowerCase() as "playbook" | "pitfall" | "fact" | "episode";
+          const domain = String(args.domain || "").trim();
+          if (!domain) {
+            res.status(400).json({ success: false, ok: false, error: "web_learn requires domain" });
+            return;
+          }
+          const learnData = (args.data && typeof args.data === "object" ? args.data : {}) as Record<string, any>;
+          const learned = cognitiveStore.learn({
+            action,
+            domain,
+            intent: args.intent ? String(args.intent) : undefined,
+            data: learnData,
+          });
+          res.json({ success: true, ok: true, data: learned });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Learn failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_warm") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const intent = String(args.intent || "").trim();
+          if (!domain || !intent) {
+            res.status(400).json({ success: false, ok: false, error: "web_warm requires domain and intent" });
+            return;
+          }
+          const warmed = cognitiveStore.warm({
+            domain,
+            intent,
+            profile: args.profile ? String(args.profile) : undefined,
+            detectedSignals: (args.detectedSignals && typeof args.detectedSignals === "object") ? (args.detectedSignals as Record<string, boolean>) : undefined,
+          });
+          res.json({ success: true, ok: true, data: warmed });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Warming failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_consolidate") {
+        try {
+          const report = cognitiveStore.consolidate();
+          res.json({ success: true, ok: true, data: report });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Consolidation failed: ${e.message}` } });
+        }
+        return;
+      }
 
       if (tool === "web_flow_save") {
         const name = String(args.name || "").trim();
@@ -614,10 +666,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         }
 
         // Capture the CURRENT viewport as PNG via the extension.
-        const targets = onlineEntries().map((e) => {
-          const id = [...browsers.entries()].find(([, v]) => v === e)?.[0] ?? "default";
-          return { id, name: e.name };
-        });
+        const targets = registry.listOnline().map((e) => ({ id: e.instanceId, name: e.name }));
         const target = args.__browser
           ? targets.find((t) => t.name === String(args.__browser) || t.id === String(args.__browser)) ?? targets[0]
           : targets[0];
@@ -765,12 +814,12 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           return;
         }
         const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
-        const browser = onlineEntries()[0];
+        const browser = registry.listOnline()[0];
         if (!browser) {
           res.status(503).json({ success: false, ok: false, error: "No browser is online." });
           return;
         }
-        const targetId = [...browsers.entries()].find(([, v]) => v === browser)?.[0] ?? "default";
+        const targetId = browser.instanceId;
         const tabsRes = await request("web_tabs", { __browser: targetId }, timeoutMs);
         const tabsRaw = (tabsRes.data as { tabs?: Array<{ tabId: number; url?: string }> } | undefined)?.tabs ?? [];
         const want = args.tabIds;
@@ -796,32 +845,75 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
 
-      if (browsers.size === 0) {
+      if (tool === "web_profile") {
+        const action = String(args.action || "list");
+        if (action === "select" || action === "set") {
+          const prof = typeof args.profile === "string" ? args.profile.trim() : null;
+          registry.setSelectedProfile(prof);
+          res.json({
+            success: true,
+            ok: true,
+            data: {
+              selectedProfile: registry.getSelectedProfile(),
+              message: prof ? `Active profile set to '${prof}'` : "Active profile cleared.",
+            },
+          });
+          return;
+        }
+        const online = registry.listOnline();
+        res.json({
+          success: true,
+          ok: true,
+          data: {
+            selectedProfile: registry.getSelectedProfile(),
+            activeCount: online.length,
+            profiles: online.map((p) => ({
+              instanceId: p.instanceId,
+              browserName: p.name,
+              profileEmail: p.profileEmail,
+              profileName: p.profileName,
+              profileDir: p.profileDir,
+              activeTab: p.tab,
+              windowCount: p.windows.length,
+              windows: p.windows,
+            })),
+          },
+        });
+        return;
+      }
+
+      const onlineBrowsers = registry.listOnline();
+      if (onlineBrowsers.length === 0) {
         res.status(503).json({
           success: false, ok: false,
           error: "Browser extension is not connected to this hub. Open the ScreenSync extension dashboard so it can pair.",
         });
         return;
       }
-      if (!onlineEntries().some((b) => b.webAccessEnabled)) {
+      if (!onlineBrowsers.some((b) => b.webAccessEnabled)) {
         res.status(403).json({
           success: false, ok: false,
           error: "Web access is disabled in the extension. Enable the 'Web access for AI agents' toggle in the extension dashboard.",
         });
         return;
       }
-      // Multi-browser targeting: args.__browser routes the call to a specific
-      // connected browser (name like 'edge'/'brave', or the install id from
-      // web_status.browsers). 'any'/omitted lets the first responder answer.
-      const hint = typeof args.__browser === "string" ? args.__browser.toLowerCase() : null;
-      if (hint && hint !== "any" && hint !== "default") {
-        const matched = onlineEntries().some(
-          (b) => b.name === hint || [...browsers.entries()].some(([id, e]) => e === b && id.toLowerCase() === hint),
-        );
+      // Multi-profile & multi-browser targeting:
+      const hint =
+        typeof args.__profile === "string" ? args.__profile
+        : typeof args.profile === "string" ? args.profile
+        : typeof args.__email === "string" ? args.__email
+        : typeof args.email === "string" ? args.email
+        : typeof args.__instance === "string" ? args.__instance
+        : typeof args.instanceId === "string" ? args.instanceId
+        : typeof args.__browser === "string" ? args.__browser
+        : null;
+
+      if (hint && hint.toLowerCase() !== "any" && hint.toLowerCase() !== "default") {
+        const matched = registry.resolveTarget(hint);
         if (!matched) {
           res.status(400).json({
             success: false, ok: false,
-            error: `No connected browser matches '${args.__browser}'. Connected: ${onlineEntries().map((b) => b.name).join(", ") || "none"}. Call web_status to list browsers.`,
+            error: `No connected browser matches '${hint}'. Connected: ${onlineBrowsers.map((b) => b.profileEmail || b.profileName || b.name).join(", ") || "none"}. Call web_status or web_profile to list browsers.`,
           });
           return;
         }
@@ -849,24 +941,41 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         error?: string;
         browserId?: string;
         browserName?: string;
+        instanceId?: string;
+        profileEmail?: string;
+        profileName?: string;
       };
       const entry = b.id ? pending.get(b.id) : undefined;
       if (!entry) {
         res.status(404).json({ success: false, error: "Unknown or already-resolved request id." });
         return;
       }
-      // H1 fix: Check if request was targeted to a specific browser.
+      // Strict target matching on instanceId
+      if (entry.targetInstanceId && b.instanceId) {
+        if (b.instanceId.toLowerCase() !== entry.targetInstanceId.toLowerCase()) {
+          log("WARN", "Ignored result from non-target instance", {
+            id: b.id,
+            targetInstanceId: entry.targetInstanceId,
+            answeringInstanceId: b.instanceId,
+          });
+          res.status(200).json({ success: false, ignored: true, reason: "mismatched_target_instance" });
+          return;
+        }
+      }
+      // Strict target matching on browserName or browserId
       if (entry.targetBrowser) {
         const target = entry.targetBrowser.toLowerCase();
         const incomingId = (b.browserId || "").toLowerCase();
         const incomingName = (b.browserName || "").toLowerCase();
-        if (incomingId || incomingName) {
-          if (target !== "any" && target !== "default" && incomingId !== target && incomingName !== target) {
+        const incomingInst = (b.instanceId || "").toLowerCase();
+        if (target !== "any" && target !== "default") {
+          if (incomingId !== target && incomingName !== target && incomingInst !== target) {
             log("WARN", "Ignored result from non-target browser", {
               id: b.id,
               targetBrowser: entry.targetBrowser,
               answeringId: b.browserId,
               answeringName: b.browserName,
+              answeringInst: b.instanceId,
             });
             res.status(200).json({ success: false, ignored: true, reason: "mismatched_target_browser" });
             return;

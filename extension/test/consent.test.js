@@ -40,6 +40,19 @@ assert.equal(isLoopbackOrTestOrigin('http://127.0.0.1:8080'), true);
 assert.equal(isLoopbackOrTestOrigin('https://example.test'), true);
 assert.equal(isLoopbackOrTestOrigin('https://app.realbank.com'), false);
 
+// ── TEST 2b: owner-trusted hosts match by HOST, never by substring ────────
+assert.equal(isLoopbackOrTestOrigin('https://blog.niagarafallscanadatours.com'), true);
+assert.equal(isLoopbackOrTestOrigin('https://niagarafallscanadatours.com'), false, 'the main domain is not trusted, only the blog');
+assert.equal(isLoopbackOrTestOrigin('https://blog.epsoldev.com'), true);
+assert.equal(isLoopbackOrTestOrigin('https://epsoldev.com'), true);
+assert.equal(isLoopbackOrTestOrigin('https://epsoldev.com.evil.net'), false, 'a suffix trick is not the domain');
+assert.equal(isLoopbackOrTestOrigin('https://x.com'), true);
+assert.equal(isLoopbackOrTestOrigin('https://mobile.x.com'), true);
+assert.equal(isLoopbackOrTestOrigin('https://www.dropbox.com'), false, 'dropbox.com contains "x.com" but is not x.com');
+assert.equal(isLoopbackOrTestOrigin('https://www.netflix.com'), false);
+assert.equal(isLoopbackOrTestOrigin('https://www.fedex.com'), false);
+assert.equal(isLoopbackOrTestOrigin('https://nottwitter.com'), false);
+
 // ── TEST 3: Origin Grants CRUD ────────────────────────────────────────────
 // Loopback gets all permissions by default
 const loopbackGrant = await getOriginGrant('http://localhost:3000');

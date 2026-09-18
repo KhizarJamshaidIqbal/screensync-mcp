@@ -231,5 +231,46 @@ export function agentCoreWebToolDefinitions(): WebToolDef[] {
         additionalProperties: false,
       },
     },
+    {
+      name: "web_request_help",
+      description:
+        "Pauses agent execution and displays an in-page Shadow DOM overlay for the user with target element glowing highlight, countdown timer, desktop OS notification, and optional automatic completion criteria (URL change, element appeared/gone, form submitted).",
+      inputSchema: {
+        type: "object",
+        required: ["prompt"],
+        properties: {
+          prompt: { type: "string", description: "Human instruction explaining what verification or action is required." },
+          targetSelector: { type: "string", description: "Optional CSS selector or locator of the element to highlight with glowing border." },
+          tabId: { type: "integer", description: "Optional background tab ID." },
+          timeoutMs: { type: "integer", minimum: 5000, maximum: 600000, default: 120000, description: "Timeout before auto-cancelling if human does not respond." },
+          completionCriteria: {
+            type: "object",
+            description: "Auto-resume conditions evaluated every 500ms while overlay is active.",
+            properties: {
+              startUrl: { type: "string", description: "If provided, auto-resumes when location.href differs from startUrl." },
+              selectorGone: { type: "string", description: "Auto-resumes when this selector disappears from the page (e.g. CAPTCHA modal closed)." },
+              selectorAppeared: { type: "string", description: "Auto-resumes when this selector appears on the page (e.g. success dashboard loaded)." },
+            },
+            additionalProperties: false,
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_agent_window",
+      description:
+        "Manages an isolated browser window with an amber breathing viewport border for agent tasks. Keeps automated work segregated from user personal windows. Accessing tabs outside the agent window triggers in-page borrowing approval.",
+      inputSchema: {
+        type: "object",
+        required: ["action"],
+        properties: {
+          action: { type: "string", enum: ["create", "close", "status", "borrow", "return"], description: "Agent window lifecycle or tab borrowing action." },
+          targetTabId: { type: "integer", description: "Tab ID for borrow/return actions." },
+          __browser: { type: "string", description: "Target a specific connected browser." },
+        },
+        additionalProperties: false,
+      },
+    },
   ];
 }

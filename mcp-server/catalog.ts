@@ -1,5 +1,8 @@
 import { AUTH_TOKEN, DATA_DIR, HTTP_HOST, HTTP_PORT } from "./config.js";
 import { webSkillDefinitions, webToolDefinitions } from "./catalog-web.js";
+import { cognitiveToolDefinitions } from "./catalog-cognitive.js";
+export { consolidatedToolDefinitions, isConsolidatedMode, getToolsForMode, resolveConsolidatedCall } from "./catalog-consolidated.js";
+import { getToolsForMode } from "./catalog-consolidated.js";
 
 // Single source of truth for everything the MCP server exposes. The MCP
 // protocol handlers, the HTTP /api/mcp/catalog endpoint and the new
@@ -352,6 +355,7 @@ export function toolDefinitions() {
     },
 
     ...webToolDefinitions(),
+    ...cognitiveToolDefinitions(),
   ];
 }
 
@@ -448,7 +452,7 @@ export function getSkillsContent() {
       "Playwright-Grade & CDP Tools: web_full_screenshot (full-page scrolling capture), web_pdf, web_cdp_click, web_cdp_type (genuine hardware clicks & keystrokes for SPAs), web_eval, web_console, web_network, web_dialog, web_storage, web_perf, web_tabs, web_tab, web_wait_for, web_key, web_hover, web_select, web_watch, web_extension_reload.",
       "For autonomous workflows use the bundled skills: screensync_operator, web_autonomous_agent, mobile_autonomous_agent, web_social_publish, mobile_social_publish, web_visual_qa, web_debug_session, web_perf_audit, web_form_autofill, web_watch_flow, web_multitab_workflow.",
     ],
-    tools: toolDefinitions().map((t) => ({ name: t.name, purpose: t.description.split(".")[0] })),
+    tools: toolDefinitions().map((t) => ({ name: t.name, purpose: (t.description || "").split(".")[0] })),
     quickRecipes: [
       { ask: "operate browser and phone with full cognitive autonomy", use: "screensync_operator { task: '...' }" },
       { ask: "show me the latest 2 reference images", use: "get_recent_screenshots { limit: 2 }" },
@@ -495,7 +499,7 @@ export function buildCatalog() {
   return {
     server: { name: SERVER_NAME, version: SERVER_VERSION },
     connection: connectionInfo(),
-    tools: toolDefinitions(),
+    tools: getToolsForMode(),
     prompts: promptDefinitions(),
     resources: resourceDefinitions(),
     recommendedUsage: [

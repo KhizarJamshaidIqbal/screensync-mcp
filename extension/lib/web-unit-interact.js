@@ -1,8 +1,10 @@
-import { escapeHtml } from './escape.js';
-// ScreenSync DOM Interaction Unit (Under 500 lines)
+// ScreenSync DOM Interaction Unit
 // Self-contained executor for interactive web tools (click, type, clear, highlight, scroll, upload, drag)
 
 export async function ssWebUnitInteract(args) {
+  function escapeHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
   try {
     if (!window.chrome) window.chrome = { runtime: {} };
   } catch {}

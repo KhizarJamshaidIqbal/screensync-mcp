@@ -19,6 +19,9 @@ import {
   SERVER_NAME,
   SERVER_VERSION,
   toolDefinitions,
+  getToolsForMode,
+  isConsolidatedMode,
+  resolveConsolidatedCall,
 } from "./catalog.js";
 import { AUTH_TOKEN, HTTP_PORT, log } from "./config.js";
 import { emitHubEvent } from "./events.js";
@@ -100,10 +103,29 @@ export function createMcpServer() {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: toolDefinitions(),
+    tools: getToolsForMode(),
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (isConsolidatedMode()) {
+      const resolved = resolveConsolidatedCall(
+        request.params.name,
+        (request.params.arguments ?? {}) as { action: string; args?: Record<string, unknown> }
+      );
+      if ("toolName" in resolved) {
+        request = {
+          ...request,
+          params: {
+            ...request.params,
+            name: resolved.toolName,
+            arguments: resolved.args,
+          },
+        };
+      } else if ("error" in resolved) {
+        return textResult({ success: false, error: resolved.error }, true);
+      }
+    }
+
     // B3: surface every tool call on the phone's AI activity timeline.
     // (web_* tools emit their own timeline event after the bridge round trip.)
     if (!request.params.name.startsWith("web_")) {

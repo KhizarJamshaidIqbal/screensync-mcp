@@ -103,10 +103,11 @@ export function agentWebToolDefinitions(): WebToolDef[] {
     {
       name: "web_window",
       description:
-        "Window management for automation: restore a minimized/tiny window to normal or maximized state (screenshots, screencasts and visibility checks need a real viewport), focus it, or move/resize. Uses chrome.windows — no CDP.",
+        "Window management for automation: list all windows, restore/minimize/maximize, focus, move/resize, or close windows. Uses chrome.windows — no CDP.",
       inputSchema: {
         type: "object",
         properties: {
+          action: { type: "string", enum: ["update", "list", "focus", "close"], description: "Action to perform. Default: update." },
           state: { type: "string", enum: ["normal", "maximized", "minimized", "fullscreen"], description: "Target window state. Default: normal." },
           focused: { type: "boolean", description: "Bring the window to the foreground." },
           tabId: { type: "integer", description: "Identify the window via this tab." },
@@ -115,6 +116,19 @@ export function agentWebToolDefinitions(): WebToolDef[] {
           top: { type: "integer" },
           width: { type: "integer" },
           height: { type: "integer" },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "web_profile",
+      description:
+        "Multi-profile management: list all connected browser profiles (with profileEmail, profileName, instanceId, windows, activeTab) or select an active target profile to enforce zero cross-talk.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "select", "set"], description: "Action: 'list' active profiles, or 'select' to set active target. Default: 'list'." },
+          profile: { type: "string", description: "Target profile email, name, or instanceId for action=select." },
         },
         additionalProperties: false,
       },

@@ -2,6 +2,8 @@
 // Allows an AI agent to pause and request human intervention for logins,
 // 2FA, and CAPTCHAs, then cleanly resume when the user confirms completion.
 
+import { ssShowHelpOverlay, ssCheckCompletionCriteria, ssRemoveHelpOverlay } from './web-unit-help-overlay.js';
+
 let activeTakeover = null; // { id, reason, message, tabId, startedAt, resolve, reject, timer }
 
 function notifyTakeover(state) {
@@ -89,3 +91,97 @@ export async function execWebTakeover(tabId, args = {}) {
   const timeoutMs = Number(args.timeoutMs) || 300000;
   return requestTakeover({ reason, message, tabId, timeoutMs });
 }
+
+export async function execWebRequestHelp(tabId, args = {}) {
+  const prompt = args.prompt || 'Human help requested.';
+  const targetSelector = args.targetSelector || null;
+  const timeoutMs = args.timeoutMs || 120000;
+  const completionCriteria = args.completionCriteria || null;
+  
+  const helpRequestId = `help_${Date.now()}`;
+  
+  // Inject overlay
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: ssShowHelpOverlay,
+    args: [{ prompt, targetSelector, helpRequestId, timeoutMs }]
+  });
+  
+  // Notification
+  try {
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icon128.png',
+      title: 'ScreenSync Help Needed',
+      message: prompt,
+      priority: 2
+    });
+  } catch {}
+  
+  return new Promise((resolve) => {
+    let checkInterval = null;
+    let listener = null;
+    let isDone = false;
+    
+    const cleanup = () => {
+      if (isDone) return;
+      isDone = true;
+      if (checkInterval) clearInterval(checkInterval);
+      if (listener) chrome.runtime.onMessage.removeListener(listener);
+      chrome.scripting.executeScript({
+        target: { tabId },
+        func: ssRemoveHelpOverlay
+      }).catch(() => {});
+    };
+
+    // Need a content script relayer to relay the custom event from document to background script,
+    // since CustomEvent is in page context. We can inject a small listener that sends chrome.runtime.sendMessage.
+    const relayCode = (reqId) => {
+      document.addEventListener('screensync:help:done', (e) => {
+        if(e.detail && e.detail.helpRequestId === reqId) {
+          try { chrome.runtime.sendMessage({ type: 'help_overlay_done', helpRequestId: reqId }); } catch {}
+        }
+      });
+      document.addEventListener('screensync:help:cancel', (e) => {
+        if(e.detail && e.detail.helpRequestId === reqId) {
+          try { chrome.runtime.sendMessage({ type: 'help_overlay_cancel', helpRequestId: reqId, reason: e.detail.reason }); } catch {}
+        }
+      });
+    };
+
+    chrome.scripting.executeScript({
+      target: { tabId },
+      func: relayCode,
+      args: [helpRequestId]
+    }).catch(()=>{});
+    
+    listener = (msg, _sender, _sendResponse) => {
+      if (msg.helpRequestId !== helpRequestId) return;
+      if (msg.type === 'help_overlay_done') {
+        cleanup();
+        resolve({ ok: true, reason: 'user_done' });
+      } else if (msg.type === 'help_overlay_cancel') {
+        cleanup();
+        resolve({ ok: false, error: 'USER_CANCELLED', reason: msg.reason || 'user_cancel' });
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    
+    if (completionCriteria) {
+      checkInterval = setInterval(async () => {
+        try {
+          const res = await chrome.scripting.executeScript({
+            target: { tabId },
+            func: ssCheckCompletionCriteria,
+            args: [completionCriteria]
+          });
+          if (res && res[0] && res[0].result && res[0].result.met) {
+            cleanup();
+            resolve({ ok: true, reason: 'criteria_met', details: res[0].result });
+          }
+        } catch {}
+      }, 500);
+    }
+  });
+}
+

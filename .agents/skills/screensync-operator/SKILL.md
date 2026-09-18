@@ -11,6 +11,41 @@ server's `web_*` tools**. Never spin up Playwright, Puppeteer, or a fresh CDP
 profile for a web task: those start with empty sessions and get bot-blocked.
 The user's real browser is already authenticated, fingerprinted, and trusted.
 
+## -1 · Cognitive Memory 2.0 & The Autonomous Predictive Engine (AP-CE)
+
+Human minds don't solve the same puzzle from scratch twice: once a motor skill or site quirk is mastered, it becomes an automated procedural routine executed in seconds. AP-CE 2.0 unifies neuroscience, data lakehouse tiering, and chaos engineering:
+
+1. **Speculative Pre-Flight Warming (`web_warm`)**:
+   - Before executing actions, warm target state: `web_warm { domain: "x.com", intent: "post", profile: "epsoldev@gmail.com" }`.
+   - Probes auth sessions, verifies circuit breaker health, evaluates environmental signals (is modal already open?), and pre-compiles fast-path branches (< 5s execution).
+
+2. **Pre-Flight Memory Recall (`web_recall`)**:
+   - Call `web_recall { domain: "x.com", intent: "post" }` before unfamiliar operations.
+   - Returns: `{ fastPathAvailable, recommendedPlaybook, selectedBranch, pitfalls, environmentalProbes }`.
+   - **If a playbook is returned, EXECUTE IT DIRECTLY.** Do not guess, do not trial-and-error. Execution takes **< 15 seconds**.
+   - Avoid known traps (e.g. Draft.js requiring `execCommand('insertText')`, CSP blocking main-world eval, inactive window screenshot failures).
+
+3. **Chaos Circuit Breaker & Anti-Bot Guard**:
+   - The cognitive store tracks consecutive failures and challenge screens (Cloudflare Turnstile, CAPTCHA, Arkose).
+   - If a challenge is encountered, the circuit breaker trips to `OPEN` immediately, refusing blind clicks and safely summoning human help (`web_request_help`).
+
+4. **VOM Heuristic Self-Healing (DOM Drift Recovery)**:
+   - When a known selector changes or drifts, the self-healing engine locates semantic candidates via ARIA roles (`role="textbox"`), `contenteditable`, and visual geometry, auto-patching the playbook in-flight.
+
+5. **Hippocampal Memory Consolidation (`web_consolidate`)**:
+   - Runs Medallion Lakehouse compaction: Bronze (raw traces) -> Silver (telemetry & duration deltas) -> Gold (master playbooks).
+   - Applies Long-Term Potentiation (LTP) on proven paths, Long-Term Depression (LTD) on dead selectors, and purges obsolete traces.
+   - Automatically sanitizes private credentials/emails before promoting wisdom to shared multi-profile knowledge.
+
+6. **Canonical Playbook: X.com / Twitter Post (15 Seconds Fast-Path)**:
+   - Step 1: `web_window { action: "focus", windowId }` (ensures OS/rendering active).
+   - Step 2: `web_navigate { url: "https://x.com/compose/post", profile }`.
+   - Step 3: `web_wait_for { selector: 'div[data-testid="tweetTextarea_0"]' }`.
+   - Step 4: Inject via `web_eval`:
+     `const el = document.querySelector('div[data-testid="tweetTextarea_0"]'); el.focus(); document.execCommand('selectAll', false, null); document.execCommand('delete', false, null); document.execCommand('insertText', false, text); el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: '' }));`
+   - Step 5: `web_click` or click `button[data-testid="tweetButton"]` when not disabled.
+   - Step 6: Verify on profile feed (`https://x.com/{user}`).
+
 ## 0 · Connect & discover
 
 1. If the `screensync` MCP server is not attached, configure it (stdio):
@@ -22,9 +57,10 @@ The user's real browser is already authenticated, fingerprinted, and trusted.
 
 ## 1 · See before acting (perception loop)
 
+- **`web_page_observe`** — non-mutating VOM (Visual Object Model): joins CDP AXTree + DOMSnapshot layout geometry, computes occlusion, modal blocking layers, and token-bounded cursor pagination (`node:N`). Zero DOM mutations.
 - **`web_aria_snapshot`** — the default way to READ a page: compact YAML ARIA
   tree with `[index=N]` refs. Feed refs straight into `web_click`/`web_type`.
-- **`web_screenshot`** — vision pass for layout/visual questions.
+- **`web_screenshot`** / **`web_full_screenshot`** (`longPage: true` for tiled scrolling of massive/infinite feeds; `web_screenshot_read` to read tile chunks).
 - **`web_hierarchy`** — interactive-element list with coordinates (Set-of-Marks
   alternative: `web_som_overlay`).
 - `web_dom_diff` after actions to detect modals/toasts/route changes.
@@ -90,6 +126,9 @@ The user's real browser is already authenticated, fingerprinted, and trusted.
 | Audit ring & privacy trail | `web_audit_log` {action: 'get'|'clear'|'export'} — local privacy-safe activity log with redaction |
 | Real session data sync | `web_real_data_sync` {url, platforms?, useActiveTab?} — real-browser multi-tab/browser data extraction without credential exfiltration |
 | Trusted OS-level input | `web_cdp_click`, `web_cdp_type`, `web_mouse`, `web_touch` |
+| **In-page Human Help Overlay** | `web_request_help` {prompt, targetSelector, timeoutMs, completionCriteria} — Shadow DOM overlay, glowing highlight, desktop OS notification, auto-resumes when criteria met |
+| **Isolated Agent Window** | `web_agent_window` {action: 'create'\|'close'\|'status'\|'borrow'\|'return'} — amber breathing border, tab borrowing gate with in-page approval modal/toast |
+| **Tiled Long Screenshot Read** | `web_screenshot_read` {captureId, tileIndex} — retrieves individual 256KB base64 tile chunks from long captures |
 
 **Locator language everywhere:** `css=`, `>>>` (shadow piercing), `pierce/`,
 `:has-text()`, `xpath=`, `role=[name="…"]`, `placeholder=`, `label=`, `text=`,
