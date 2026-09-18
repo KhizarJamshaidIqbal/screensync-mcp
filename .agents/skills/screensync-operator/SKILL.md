@@ -11,9 +11,9 @@ server's `web_*` tools**. Never spin up Playwright, Puppeteer, or a fresh CDP
 profile for a web task: those start with empty sessions and get bot-blocked.
 The user's real browser is already authenticated, fingerprinted, and trusted.
 
-## -1 · Cognitive Memory 2.0 & The Autonomous Predictive Engine (AP-CE)
+## -1 · Cognitive Memory Architecture 3.0: Sovereign Cognitive Web Agent (SC-WA)
 
-Human minds don't solve the same puzzle from scratch twice: once a motor skill or site quirk is mastered, it becomes an automated procedural routine executed in seconds. AP-CE 2.0 unifies neuroscience, data lakehouse tiering, and chaos engineering:
+Human minds don't solve the same puzzle from scratch twice: once a motor skill or site quirk is mastered, it becomes an automated procedural routine executed in seconds. Architecture 3.0 fuses cognitive neuroscience, Medallion Lakehouse tiering, GQL property graphs (`bigquery_graph` pattern), and accidental data loss prevention (`accidental_data_loss_prevention` pattern):
 
 1. **Speculative Pre-Flight Warming (`web_warm`)**:
    - Before executing actions, warm target state: `web_warm { domain: "x.com", intent: "post", profile: "epsoldev@gmail.com" }`.
@@ -25,19 +25,29 @@ Human minds don't solve the same puzzle from scratch twice: once a motor skill o
    - **If a playbook is returned, EXECUTE IT DIRECTLY.** Do not guess, do not trial-and-error. Execution takes **< 15 seconds**.
    - Avoid known traps (e.g. Draft.js requiring `execCommand('insertText')`, CSP blocking main-world eval, inactive window screenshot failures).
 
-3. **Chaos Circuit Breaker & Anti-Bot Guard**:
-   - The cognitive store tracks consecutive failures and challenge screens (Cloudflare Turnstile, CAPTCHA, Arkose).
-   - If a challenge is encountered, the circuit breaker trips to `OPEN` immediately, refusing blind clicks and safely summoning human help (`web_request_help`).
+3. **Cognitive Associative Knowledge Graph & Skill Transfer (`web_graph_query`)**:
+   - Traverses property graph topology (`Domain`, `Framework`, `Primitive`, `Auth`) connected by `RUNS_ON` and `SHARES_PRIMITIVE`.
+   - When encountering an unmastered site (e.g. `threads.net`, `linkedin.com`), inherit the verified `execCommand` atomic input recipe from `x.com` automatically (`transferSkill: true`).
 
-4. **VOM Heuristic Self-Healing (DOM Drift Recovery)**:
+4. **Cognitive Data Safety Contracts & Accidental Form Loss Prevention (`web_contract_check`)**:
+   - Evaluates active DOM before navigations or disruptive actions. Scans `<input>`, `<textarea>`, and `contenteditable="true"` for unsaved user text.
+   - If uncommitted inputs exist and `allowDirtyNavigation !== true`, blocks destructive loss (`actionRecommended: "block_and_confirm"`) and auto-saves an Ephemeral Recovery Snapshot (`snap_*`).
+
+5. **Playbook DAG Lineage & Cryptographic Mutation Provenance (`web_lineage`)**:
+   - Maintains an immutable commit DAG tracking every selector evolution, healing event, or operator modification with diff summaries (`oldSelector` -> `newSelector`).
+
+6. **Chaos Circuit Breaker & Anti-Bot Guard**:
+   - Tracks consecutive failures and challenge screens (Cloudflare Turnstile, CAPTCHA, Arkose). Trips to `OPEN` immediately to summon human help (`web_request_help`).
+
+7. **VOM Heuristic Self-Healing (DOM Drift Recovery)**:
    - When a known selector changes or drifts, the self-healing engine locates semantic candidates via ARIA roles (`role="textbox"`), `contenteditable`, and visual geometry, auto-patching the playbook in-flight.
 
-5. **Hippocampal Memory Consolidation (`web_consolidate`)**:
+8. **Hippocampal Memory Consolidation (`web_consolidate`)**:
    - Runs Medallion Lakehouse compaction: Bronze (raw traces) -> Silver (telemetry & duration deltas) -> Gold (master playbooks).
    - Applies Long-Term Potentiation (LTP) on proven paths, Long-Term Depression (LTD) on dead selectors, and purges obsolete traces.
    - Automatically sanitizes private credentials/emails before promoting wisdom to shared multi-profile knowledge.
 
-6. **Canonical Playbook: X.com / Twitter Post (15 Seconds Fast-Path)**:
+9. **Canonical Playbook: X.com / Twitter Post (15 Seconds Fast-Path)**:
    - Step 1: `web_window { action: "focus", windowId }` (ensures OS/rendering active).
    - Step 2: `web_navigate { url: "https://x.com/compose/post", profile }`.
    - Step 3: `web_wait_for { selector: 'div[data-testid="tweetTextarea_0"]' }`.

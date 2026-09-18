@@ -15,6 +15,7 @@ const REPO_ROOT = resolve(__dirname, '..', '..');
 // Skill source files
 const SKILL_SOURCE = join(REPO_ROOT, '.agents', 'skills', 'screensync-operator', 'SKILL.md');
 const SKILL_RELEASE_SOURCE = join(REPO_ROOT, '.agents', 'skills', 'screensync-release', 'SKILL.md');
+const SKILL_LEARN_SOURCE = join(REPO_ROOT, '.agents', 'skills', 'screensync-learn', 'SKILL.md');
 
 // Harness definitions
 const HARNESSES = [
@@ -24,10 +25,10 @@ const HARNESSES = [
       const dir = join(homedir(), '.cursor');
       return existsSync(dir) ? dir : null;
     },
-    install: (baseDir) => {
-      const targetDir = join(baseDir, 'skills', 'screensync-operator');
-      return [{ src: SKILL_SOURCE, dest: join(targetDir, 'SKILL.md') }];
-    }
+    install: (baseDir) => [
+      { src: SKILL_SOURCE, dest: join(baseDir, 'skills', 'screensync-operator', 'SKILL.md') },
+      { src: SKILL_LEARN_SOURCE, dest: join(baseDir, 'skills', 'screensync-learn', 'SKILL.md') }
+    ]
   },
   {
     name: 'Claude Code',
@@ -35,11 +36,10 @@ const HARNESSES = [
       const dir = join(homedir(), '.claude');
       return existsSync(dir) ? dir : null;
     },
-    install: (baseDir) => {
-      const targetDir = join(baseDir, 'commands');
-      // Claude uses flat .md files
-      return [{ src: SKILL_SOURCE, dest: join(targetDir, 'screensync-operator.md') }];
-    }
+    install: (baseDir) => [
+      { src: SKILL_SOURCE, dest: join(baseDir, 'commands', 'screensync-operator.md') },
+      { src: SKILL_LEARN_SOURCE, dest: join(baseDir, 'commands', 'screensync-learn.md') }
+    ]
   },
   {
     name: 'OpenAI Codex / Agents',
@@ -48,10 +48,10 @@ const HARNESSES = [
       const dir = join(REPO_ROOT, '.agents', 'skills');
       return existsSync(dir) ? dirname(dirname(dir)) : null;
     },
-    install: (baseDir) => {
-      const targetDir = join(baseDir, '.agents', 'skills', 'screensync-operator');
-      return [{ src: SKILL_SOURCE, dest: join(targetDir, 'SKILL.md') }];
-    }
+    install: (baseDir) => [
+      { src: SKILL_SOURCE, dest: join(baseDir, '.agents', 'skills', 'screensync-operator', 'SKILL.md') },
+      { src: SKILL_LEARN_SOURCE, dest: join(baseDir, '.agents', 'skills', 'screensync-learn', 'SKILL.md') }
+    ]
   },
   {
     name: 'OpenClaw',
@@ -61,10 +61,10 @@ const HARNESSES = [
       const dir2 = join(homedir(), '.openclaw');
       return existsSync(dir2) ? dir2 : null;
     },
-    install: (baseDir) => {
-      const targetDir = join(baseDir, 'skills', 'screensync-operator');
-      return [{ src: SKILL_SOURCE, dest: join(targetDir, 'SKILL.md') }];
-    }
+    install: (baseDir) => [
+      { src: SKILL_SOURCE, dest: join(baseDir, 'skills', 'screensync-operator', 'SKILL.md') },
+      { src: SKILL_LEARN_SOURCE, dest: join(baseDir, 'skills', 'screensync-learn', 'SKILL.md') }
+    ]
   },
   {
     name: 'VS Code Copilot',
@@ -72,9 +72,10 @@ const HARNESSES = [
       const dir = join(homedir(), '.github');
       return existsSync(dir) ? dir : null;
     },
-    install: (baseDir) => {
-      return [{ src: SKILL_SOURCE, dest: join(baseDir, 'copilot-instructions', 'screensync-operator.md') }];
-    }
+    install: (baseDir) => [
+      { src: SKILL_SOURCE, dest: join(baseDir, 'copilot-instructions', 'screensync-operator.md') },
+      { src: SKILL_LEARN_SOURCE, dest: join(baseDir, 'copilot-instructions', 'screensync-learn.md') }
+    ]
   },
   {
     name: 'Antigravity / Gemini',
@@ -82,10 +83,10 @@ const HARNESSES = [
       const dir = join(homedir(), '.gemini');
       return existsSync(dir) ? dir : null;
     },
-    install: (baseDir) => {
-      const targetDir = join(baseDir, 'config', 'skills', 'screensync-operator');
-      return [{ src: SKILL_SOURCE, dest: join(targetDir, 'SKILL.md') }];
-    }
+    install: (baseDir) => [
+      { src: SKILL_SOURCE, dest: join(baseDir, 'config', 'skills', 'screensync-operator', 'SKILL.md') },
+      { src: SKILL_LEARN_SOURCE, dest: join(baseDir, 'config', 'skills', 'screensync-learn', 'SKILL.md') }
+    ]
   }
 ];
 
