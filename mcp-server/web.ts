@@ -20,6 +20,7 @@ import { globalReplayAndHygieneEngine } from "./cognitive-replay.js";
 import { globalRpdEngine } from "./cognitive-rpd.js";
 import { globalMaturationEngine } from "./cognitive-maturation.js";
 import { globalLifespanEngine } from "./cognitive-lifespan.js";
+import { trackToolExecution } from "./cognitive-auto-tracker.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -1345,6 +1346,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         recorder.steps.push({ step: recorder.steps.length + 1, tool, args });
       }
       log("INFO", "Web tool round trip", { tool, ok: result.ok, durationMs: Date.now() - startedAt });
+      trackToolExecution(tool, args, result, Date.now() - startedAt);
       res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error });
     });
 

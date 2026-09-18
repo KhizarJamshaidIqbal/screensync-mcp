@@ -56,6 +56,20 @@ Human minds don't solve the same puzzle from scratch twice: once a motor skill o
    - Step 5: `web_click` or click `button[data-testid="tweetButton"]` when not disabled.
    - Step 6: Verify on profile feed (`https://x.com/{user}`).
 
+10. **Canonical Playbook: LinkedIn Post & Media (30 Seconds Fast-Path)**:
+    - Step 1: `web_window { action: "focus", windowId }`.
+    - Step 2: `web_navigate { url: "https://www.linkedin.com/feed/" }`.
+    - Step 3: Open compose modal: `document.querySelector('button.share-box-feed-entry__trigger')?.click()`.
+    - Step 4: **Pierce Open Shadow DOM**: Post creation modal lives inside host `div.theme--light`. Target editor via `host.shadowRoot.querySelector('div.ql-editor')`.
+    - Step 5: **Media Injection**: Set files via `DataTransfer` on `#media-editor-file-selector__file-input` and dispatch synthetic `input` and `change` bubbling events. Click "Next".
+    - Step 6: **Quill Input Sync**: Focus editor, inject text via `execCommand('insertText')`, and dispatch `new Event('input', { bubbles: true })` to enable the Post button.
+    - Step 7: Click `button.share-actions__primary-action` to publish.
+
+11. **Instant Inline Learning Protocol (NO DEFERRAL — User-Ordered 2026-09-19)**:
+    - **Never wait for session end**: The moment an agent encounters or solves a DOM quirk, shadow DOM root, disabled button state, or timing trap, IMMEDIATELY call `web_learn` (`action: "fact"` or `"pitfall"`).
+    - **Immediate Playbook Synthesis**: When a new multi-step flow succeeds, immediately call `web_learn` (`action: "playbook"`).
+    - **Immediate Consolidation**: Call `web_cognitive_maturation` with `{ outcome: "success", xpGain: 25 }` and `web_consolidate` to lock memories into Gold tier before finishing the turn.
+
 ## 0 · Connect & discover
 
 1. If the `screensync` MCP server is not attached, configure it (stdio):

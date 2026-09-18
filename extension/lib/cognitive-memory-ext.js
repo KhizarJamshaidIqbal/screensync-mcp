@@ -92,46 +92,10 @@ function getDefaultSeed() {
     },
     pitfalls: {
       'x.com': [
-        {
-          id: 'pitfall_x_draftjs_fill',
-          domain: 'x.com',
-          symptom: 'Using web_fill or setting innerText leaves tweetButton disabled (aria-disabled="true").',
-          rootCause: 'Draft.js / Lexical requires browser native input events and contentEditable execCommand to synchronize internal React state.',
-          conditionTrigger: 'When typing into ContentEditable editor div[data-testid="tweetTextarea_0"]',
-          antiPattern: 'web_fill({ selector: \'div[data-testid="tweetTextarea_0"]\', text })',
-          provenSolution: 'Focus editor, execCommand("selectAll"), execCommand("delete"), execCommand("insertText", false, text), dispatch InputEvent("input").',
-          discoveredAt: '2026-09-18T10:30:00.000Z'
-        },
-        {
-          id: 'pitfall_x_csp_eval',
-          domain: 'x.com',
-          symptom: 'web_eval fails with Content Security Policy violation in main world.',
-          rootCause: 'x.com sends strict CSP headers forbidding eval() in page world.',
-          conditionTrigger: 'Evaluating expressions in MAIN world',
-          antiPattern: 'Running arbitrary eval in MAIN world without fallback.',
-          provenSolution: 'Use CDP Runtime.evaluate or extension ISOLATED world script injection.',
-          discoveredAt: '2026-09-18T10:25:00.000Z'
-        },
-        {
-          id: 'pitfall_x_unfocused_screenshot',
-          domain: 'x.com',
-          symptom: 'web_screenshot times out or fails on background window.',
-          rootCause: 'Chrome captureVisibleTab requires the target window to be active/focused.',
-          conditionTrigger: 'When window state is unfocused/minimized',
-          antiPattern: 'Capturing tab while target window is minimized or unfocused.',
-          provenSolution: 'Call web_window({ action: "focus", windowId }) before capture.',
-          discoveredAt: '2026-09-18T10:15:00.000Z'
-        },
-        {
-          id: 'pitfall_x_multi_profile_crosstalk',
-          domain: 'x.com',
-          symptom: 'Operating wrong browser profile when multiple windows are open.',
-          rootCause: 'ScreenSync tool calls route to first connected browser if profile is omitted.',
-          conditionTrigger: 'When multiple browser instances are connected',
-          antiPattern: 'web_navigate({ url: "https://x.com" }) without profile argument.',
-          provenSolution: 'Always pass profile: "epsoldev@gmail.com" (or target profile).',
-          discoveredAt: '2026-09-18T09:40:00.000Z'
-        }
+        { id: 'pitfall_x_draftjs_fill', domain: 'x.com', symptom: 'Using web_fill leaves tweetButton disabled.', rootCause: 'Draft.js requires native InputEvent and execCommand.', conditionTrigger: 'When typing into tweetTextarea_0', antiPattern: 'web_fill({ selector, text })', provenSolution: 'Focus editor, execCommand("insertText", false, text), dispatch InputEvent("input").', discoveredAt: '2026-09-18T10:30:00.000Z' },
+        { id: 'pitfall_x_csp_eval', domain: 'x.com', symptom: 'web_eval fails with CSP violation.', rootCause: 'x.com sends strict CSP.', conditionTrigger: 'Evaluating expressions in MAIN world', antiPattern: 'Running eval in MAIN world without fallback.', provenSolution: 'Use CDP Runtime.evaluate or extension ISOLATED world script injection.', discoveredAt: '2026-09-18T10:25:00.000Z' },
+        { id: 'pitfall_x_unfocused_screenshot', domain: 'x.com', symptom: 'web_screenshot times out on background window.', rootCause: 'Chrome captureVisibleTab requires active window.', conditionTrigger: 'When window state is unfocused', antiPattern: 'Capturing tab while target window is minimized.', provenSolution: 'Call web_window({ action: "focus", windowId }) before capture.', discoveredAt: '2026-09-18T10:15:00.000Z' },
+        { id: 'pitfall_x_multi_profile_crosstalk', domain: 'x.com', symptom: 'Operating wrong browser profile.', rootCause: 'ScreenSync routes to first browser if profile omitted.', conditionTrigger: 'Multiple browser instances connected', antiPattern: 'web_navigate without profile argument.', provenSolution: 'Always pass profile: "epsoldev@gmail.com".', discoveredAt: '2026-09-18T09:40:00.000Z' }
       ]
     },
     episodes: []
@@ -275,6 +239,25 @@ export async function execWebLearn(args = {}) {
         lastVerifiedAt: new Date().toISOString()
       };
       entryId = domain;
+      break;
+    }
+    case 'episode': {
+      if (!data.episodes) data.episodes = [];
+      const id = payload.id || `ep_${Date.now()}`;
+      data.episodes.push({
+        id,
+        timestamp: new Date().toISOString(),
+        domain,
+        intent: payload.intent || 'task',
+        profile: payload.profile,
+        conditionSignals: payload.conditionSignals || {},
+        success: Boolean(payload.success),
+        durationMs: Number(payload.durationMs) || 0,
+        pitfallsEncountered: Array.isArray(payload.pitfallsEncountered) ? payload.pitfallsEncountered : [],
+        notes: payload.notes
+      });
+      if (data.episodes.length > 200) data.episodes.shift();
+      entryId = id;
       break;
     }
     default:

@@ -167,3 +167,30 @@ The public changelog is **generated, never hand-written**. Two tools own it:
 7. **The changelog is the source of truth for "what changed."** When writing Play
    release notes, start from the same generated change list (`tools/release_notes.py`
    for a single release, `tools/build_changelog.py --stdout` for the whole history).
+
+---
+
+## 12. Instant Cognitive Memory & Continuous Learning Protocol (MANDATORY — User-Ordered 2026-09-19)
+
+**All agents operating ScreenSync MUST actively learn and record procedural knowledge, DOM quirks, and pitfalls INSTANTLY and CONTINUOUSLY as they work. Never defer learning to the end of a conversation.**
+
+### The 5 Iron Rules of Continuous Autonomous Learning:
+
+1. **Pre-Flight Cue Recall (`web_recall`)**:
+   - Before interacting with ANY domain or web task (e.g. `x.com`, `linkedin.com`, `wordpress`, `github.com`), the agent MUST call `web_recall({ domain })` (and `web_warm` if evaluating condition signals).
+   - If a verified playbook is returned and conditions match, execute the fast-path directly (< 15–30s). Never reinvent an already-mastered sequence.
+
+2. **Instant Inline Recording ("Learn-As-You-Go", NO DEFERRAL)**:
+   - **On DOM/Framework Discovery**: The instant an agent detects a site's framework, Shadow DOM root (e.g. `div.theme--light`), or editor primitive (Quill, Lexical, Draft.js, Slate), immediately call `web_learn({ action: "fact", domain, data })`.
+   - **On Trap / Pitfall Discovery**: The instant an error occurs, an element is unclickable, a button remains disabled, a modal hangs on background tabs, or a rich-text paste duplicates text, DO NOT just fix it silently — immediately call `web_learn({ action: "pitfall", domain, data: { symptom, rootCause, antiPattern, provenSolution, codeSnippet } })`.
+   - **On Workflow Mastery**: Once a sequential action completes successfully (e.g. creating/editing a post, uploading media, checking out), immediately synthesize and store the playbook via `web_learn({ action: "playbook", domain, intent, data })`.
+
+3. **Cognitive Maturation & Lifespan Progression**:
+   - Every successful operation advances domain maturation: call `web_cognitive_maturation({ domain, event: { outcome: "success", xpGain: number } })` and check `web_cognitive_lifespan`.
+   - When hitting unexpected barriers or security challenges, record `{ outcome: "trauma" }` (hot-stove burn) so protective safety scaffolding is immediately established.
+
+4. **Hippocampal Consolidation (`web_consolidate`)**:
+   - After completing a task or registering new facts/pitfalls/playbooks, call `web_consolidate` to compact Bronze telemetry into Silver/Gold Lakehouse storage, trigger Long-Term Potentiation (LTP) on proven playbooks, and sanitize wisdom entries.
+
+5. **Cross-Session Permanent Sync (MemPalace)**:
+   - Synchronize all high-level operational milestones into MemPalace diary (`mempalace_diary_write`) and Knowledge Graph (`mempalace_kg_add`).

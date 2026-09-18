@@ -33,6 +33,11 @@ This skill encodes the **Human Mind Cognitive Learning Protocol** for AI agents 
 
 ## 🛠️ Step-by-Step Autonomous Learning Workflow
 
+> [!IMPORTANT]
+> **MANDATORY IRON RULE: Learn, Record & Update INSTANTLY (NO DEFERRAL — User-Ordered 2026-09-19)**
+> Never wait until the end of the session or conversation to register learning!
+> The exact instant you discover a DOM quirk, solve a disabled button state, pierce a Shadow DOM boundary, or succeed on a sequence, call `web_learn` immediately, evolve maturity via `web_cognitive_maturation`, and run `web_consolidate` so knowledge is instantly persistent.
+
 ### 1. Before Action: Sensory Probing & Recall (Warm-Up)
 Always probe the environment before touching the DOM:
 ```javascript
