@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browser Extension — ScreenSync MCP</title>
+<meta name="description" content="The ScreenSync MCP extension gives AI agents safe, live access to your browser — see, read and act on your active tab — plus the full Android phone dashboard. Chrome & Edge, Manifest V3.">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#6541D6">
+<link rel="canonical" href="https://screensyncmcp.epsoldev.com/extension.html">
+<link rel="alternate" hreflang="x-default" href="https://screensyncmcp.epsoldev.com/extension.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://screensyncmcp.epsoldev.com/extension.html">
+<meta property="og:title" content="Browser Extension — ScreenSync MCP">
+<meta property="og:description" content="Your browser, in your AI's hands: live web access for agents plus the Android phone dashboard. Safe by default.">
+<meta property="og:image" content="https://screensyncmcp.epsoldev.com/assets/screenshots/ext-web-access.png">
+<meta property="og:site_name" content="ScreenSync MCP">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="css/custom.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "ScreenSync MCP Browser Extension",
+  "operatingSystem": "Chrome, Edge (Manifest V3)",
+  "applicationCategory": "DeveloperApplication",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "url": "https://screensyncmcp.epsoldev.com/extension.html",
+  "description": "Gives AI agents safe live access to your browser (see, read, click, type, scroll, navigate) plus the Android phone dashboard: live streaming, latency telemetry, remote control and a one-click MCP Connect Kit."
+}
+</script>
+</head>
+<body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
+
+<!-- ═══════════ NAV ═══════════ -->
+<header class="glass-nav fixed top-0 inset-x-0 z-50">
+  <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
+    <a href="/" class="flex items-center gap-2.5">
+      <img src="assets/logo.png" alt="ScreenSync MCP logo" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
+      <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
+    </a>
+    <div class="hidden md:flex items-center gap-7 text-[15px] font-medium text-[#4B4460]">
+      <a href="/" class="hover:text-[#6541D6] transition">Home</a>
+      <a href="about.html" class="hover:text-[#6541D6] transition">About</a>
+      <a href="goal.html" class="hover:text-[#6541D6] transition">Goal</a>
+      <a href="extension.html" class="text-[#6541D6] font-semibold">Extension</a>
+      <a href="changelog.html" class="hover:text-[#6541D6] transition">Changelog</a>
+      <a href="privacy.html" class="hover:text-[#6541D6] transition">Privacy</a>
+      <a href="data-policy.html" class="hover:text-[#6541D6] transition">Data Policy</a>
+      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold">Get Connected</a>
+    </div>
+    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false">
+      <i data-lucide="menu" class="w-6 h-6"></i>
+    </button>
+  </nav>
+  <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
+    <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
+      <a href="/" class="py-1.5">Home</a>
+      <a href="about.html" class="py-1.5">About</a>
+      <a href="goal.html" class="py-1.5">Goal</a>
+      <a href="extension.html" class="py-1.5 text-[#6541D6] font-semibold">Extension</a>
+      <a href="changelog.html" class="py-1.5">Changelog</a>
+      <a href="privacy.html" class="py-1.5">Privacy</a>
+      <a href="data-policy.html" class="py-1.5">Data Policy</a>
+      <a href="/#connect" class="btn-primary px-5 py-2.5 rounded-full text-sm font-semibold text-center mt-1">Get Connected</a>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════ HERO ═══════════ -->
+<section class="hero-glow pt-32 pb-20 sm:pt-40 sm:pb-24 overflow-hidden relative">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+    <div class="reveal">
+      <span class="inline-flex items-center gap-2 bg-white border border-purple-100 rounded-full px-4 py-1.5 text-xs font-semibold text-[#6541D6] shadow-sm mb-6">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span> CHROME &amp; EDGE · MANIFEST V3
+      </span>
+      <h1 class="text-4xl sm:text-5xl font-extrabold leading-[1.08] tracking-tight">
+        Your browser,<br><span class="grad-text">in your AI's hands.</span>
+      </h1>
+      <p class="mt-6 text-lg text-[#4B4460] leading-relaxed max-w-lg">
+        One extension gives AI agents safe, live access to your web — see your active
+        tab, read any page, click &amp; type for you — plus the full phone dashboard:
+        live Android screen, latency telemetry and a one-click Connect Kit.
+      </p>
+      <div class="mt-9 flex flex-wrap gap-4">
+        <a href="#install" class="btn-primary px-7 py-3.5 rounded-full font-semibold inline-flex items-center gap-2">
+          <i data-lucide="puzzle" class="w-5 h-5"></i> Install in 5 steps
+        </a>
+        <a href="#skills" class="btn-secondary px-7 py-3.5 rounded-full font-semibold inline-flex items-center gap-2">
+          <i data-lucide="sparkles" class="w-5 h-5"></i> Agent skills
+        </a>
+      </div>
+    </div>
+    <div class="reveal reveal-delay-1 relative flex justify-center">
+      <div class="lux-card p-6 w-full max-w-md">
+        <div class="flex items-center justify-between mb-4">
+          <span class="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-full px-3 py-1 text-xs font-bold"><span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span> Bridge live</span>
+          <span class="inline-flex items-center gap-2 bg-purple-50 border border-purple-100 text-[#6541D6] rounded-full px-3 py-1 text-xs font-bold">Web access ON</span>
+        </div>
+        <img src="assets/screenshots/ext-web-access.png" alt="ScreenSync extension dashboard with the Web access for AI agents card enabled" class="rounded-xl border border-purple-100 w-full h-auto" loading="eager">
+        <div class="mt-4 grid grid-cols-3 gap-3 text-center">
+          <div class="bg-[#F6F3FD] rounded-xl py-2"><div class="font-extrabold text-[#6541D6]">186 MCP tools</div></div>
+          <div class="bg-[#F6F3FD] rounded-xl py-2"><div class="font-extrabold text-[#6541D6]">17 skills</div></div>
+          <div class="bg-[#F6F3FD] rounded-xl py-2"><div class="font-extrabold text-[#6541D6]">OFF by default</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FEATURES ═══════════ -->
+<section class="py-20 sm:py-24">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="text-center max-w-2xl mx-auto reveal">
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">One extension. <span class="grad-text">Two superpowers.</span></h2>
+      <p class="mt-4 text-[#4B4460] text-lg">Just like the mobile app hands agents your phone, the extension hands them your browser — through the same token-secured hub on your LAN.</p>
+    </div>
+    <div class="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="lux-card p-7 reveal"><i data-lucide="eye" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">SEE — your live tab</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">web_screenshot shows the agent exactly what you see in your active tab, as a real image.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-1"><i data-lucide="list-tree" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">READ — any page</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">web_hierarchy returns the page text plus a map of every clickable element, with indexes.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-2"><i data-lucide="mouse-pointer-click" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">ACT — like you would</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">web_click, web_type, web_scroll and web_navigate operate your real tab — no headless fake.</p></div>
+      <div class="lux-card p-7 reveal"><i data-lucide="shield-check" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">You stay in control</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Web access is OFF by default. Browser-internal pages are refused. A heartbeat shows presence; flip the toggle and the agent is cut off instantly.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-1"><i data-lucide="monitor-play" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Phone, live too</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">The same dashboard streams your Android screen, latency telemetry and AI activity — click the frame to tap the phone.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-2"><i data-lucide="clipboard-copy" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">One-click Connect Kit</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Copy the exact MCP config for Claude Code / Desktop with your hub URL + token baked in, ready to paste.</p></div>
+      <div class="lux-card p-7 reveal sm:col-span-2 lg:col-span-3"><i data-lucide="activity" class="w-9 h-9 text-[#6541D6]"></i><h3 class="font-bold text-lg mt-4">Advanced automation toolkit — 100% Playwright &amp; AI-operator parity</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">186 tools take the agent from simple clicking to full browser engineering: auto-waiting actionability (<code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_actionable</code>), parent-scoped locators, token-bounded digests (<code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_page_digest</code>), JavaScript eval, CDP network mocking, dialog interception, storage inspection, Core Web Vitals, tab groups, multi-browser data sync, and visual diff baselines.</p><p class="text-sm text-[#4B4460] mt-2 leading-relaxed"><strong class="text-[#1E1633]">And the headline:</strong> <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">web_watch</code> streams changed frames with pixel-level change detection — the agent literally watches your screen like a live video and never misses a visual change.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ INSTALL STEPS ═══════════ -->
+<section id="install" class="py-20 sm:py-24 bg-white border-y border-purple-50">
+  <div class="max-w-6xl mx-auto px-5 sm:px-8">
+    <div class="text-center max-w-2xl mx-auto reveal">
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Set up in <span class="grad-text">five easy steps.</span></h2>
+      <p class="mt-4 text-[#4B4460] text-lg">Every step below is shown with the real extension, exactly as you will see it.</p>
+    </div>
+
+    <div class="mt-14 space-y-8">
+      <!-- STEP 1 -->
+      <div class="lux-card p-6 sm:p-8 reveal grid lg:grid-cols-12 gap-8 items-center">
+        <div class="lg:col-span-5">
+          <div class="flex items-center gap-3"><div class="w-10 h-10 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center font-extrabold text-[#6541D6]">1</div><h3 class="font-bold text-xl">Run the hub on your computer</h3></div>
+          <p class="text-sm text-[#4B4460] mt-3 leading-relaxed">The hub is the small local server everything connects to. Download it below, unzip, double-click <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">start-hub.bat</code> — no repo, no terminal. It prints a pairing link + QR. (Needs free <a class="text-[#6541D6] font-semibold" href="https://nodejs.org" target="_blank" rel="noopener">Node 18+</a>.)</p>
+          <a href="downloads/screensync-hub.zip" download class="btn-primary px-6 py-3 rounded-full text-sm font-semibold inline-flex items-center gap-2 mt-4"><i data-lucide="download" class="w-4 h-4"></i> Download hub (.zip)</a>
+          <p class="text-xs text-[#4B4460] mt-2">Always the latest build — rebuilt from our GitHub on every release. Developer? The extension source is public — <a class="text-[#6541D6] font-semibold" href="https://github.com/KhizarJamshaidIqbal/screensync-extension" target="_blank" rel="noopener">clone it</a> and Load unpacked straight from the clone; the zip above always matches it.</p>
+        </div>
+        <div class="lg:col-span-7 min-w-0">
+          <div class="rounded-xl bg-[#150E27] text-purple-100 p-5 font-mono text-[13px] leading-relaxed overflow-x-auto">
+            <div class="text-purple-200/60"># unzip, then double-click start-hub.bat</div>
+            <div class="text-purple-200/60"># macOS / Linux: sh start-hub.sh</div>
+            <div class="text-emerald-300 mt-2">✔ hub on http://localhost:3000 — pairing QR printed</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="lux-card p-6 sm:p-8 reveal grid lg:grid-cols-12 gap-8 items-center">
+        <div class="lg:col-span-5">
+          <div class="flex items-center gap-3"><div class="w-10 h-10 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center font-extrabold text-[#6541D6]">2</div><h3 class="font-bold text-xl">Load the extension</h3></div>
+          <p class="text-sm text-[#4B4460] mt-3 leading-relaxed">Grab the zip below — no repo or terminal needed. Unzip it, open <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">chrome://extensions</code> (or <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">edge://extensions</code>), switch on <strong>Developer mode</strong>, click <strong>Load unpacked</strong> and pick the unzipped <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">extension/</code> folder.</p>
+          <a href="downloads/screensync-extension.zip" download class="btn-primary px-6 py-3 rounded-full text-sm font-semibold inline-flex items-center gap-2 mt-4"><i data-lucide="download" class="w-4 h-4"></i> Download extension (.zip)</a>
+          <p class="text-xs text-[#4B4460] mt-2">Always the latest build — the zip is rebuilt straight from our GitHub on every release, so you never install an outdated version.</p>
+          <p class="text-sm text-[#4B4460] mt-2 leading-relaxed">A Chrome Web Store listing is in review — the sideload build is the identical code.</p>
+        </div>
+        <div class="lg:col-span-7 space-y-4">
+          <div>
+            <div class="flex items-center gap-2 text-sm font-semibold text-[#6541D6] mb-2"><span class="w-6 h-6 shrink-0 rounded-full bg-[#6541D6] text-white flex items-center justify-center text-xs font-bold">1</span> Top right: switch <strong>&nbsp;Developer mode&nbsp;</strong> ON</div>
+            <img src="assets/screenshots/ext-guide-devmode.png" alt="Developer mode toggle in the top-right corner of chrome://extensions, switched ON" class="rounded-xl border border-purple-100 w-full h-auto" loading="lazy">
+          </div>
+          <div>
+            <div class="flex items-center gap-2 text-sm font-semibold text-[#6541D6] mb-2"><span class="w-6 h-6 shrink-0 rounded-full bg-[#6541D6] text-white flex items-center justify-center text-xs font-bold">2</span> Click <strong>&nbsp;Load unpacked</strong></div>
+            <img src="assets/screenshots/ext-guide-load-unpacked.png" alt="Load unpacked button highlighted in the extensions toolbar" class="rounded-xl border border-purple-100 w-full h-auto" loading="lazy">
+          </div>
+          <div>
+            <div class="flex items-center gap-2 text-sm font-semibold text-[#6541D6] mb-2"><span class="w-6 h-6 shrink-0 rounded-full bg-[#6541D6] text-white flex items-center justify-center text-xs font-bold">3</span> Pick the unzipped <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">extension/</code> folder → <strong>&nbsp;Select Folder</strong></div>
+            <img src="assets/screenshots/ext-guide-folder.png" alt="Folder picker showing the unzipped extension folder with the Select Folder button highlighted" class="rounded-xl border border-purple-100 w-full h-auto" loading="lazy">
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3 -->
+      <div class="lux-card p-6 sm:p-8 reveal grid lg:grid-cols-12 gap-8 items-center">
+        <div class="lg:col-span-5">
+          <div class="flex items-center gap-3"><div class="w-10 h-10 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center font-extrabold text-[#6541D6]">3</div><h3 class="font-bold text-xl">Open the wizard</h3></div>
+          <p class="text-sm text-[#4B4460] mt-3 leading-relaxed">Click the ScreenSync icon in your toolbar. A three-step welcome wizard opens — press <strong>Get started</strong> and it walks you to the connect form.</p>
+        </div>
+        <div class="lg:col-span-7"><img src="assets/screenshots/ext-onboarding.png" alt="Extension welcome wizard with Get started button" class="rounded-xl border border-purple-100 w-full h-auto" loading="lazy"></div>
+      </div>
+
+      <!-- STEP 4 -->
+      <div class="lux-card p-6 sm:p-8 reveal grid lg:grid-cols-12 gap-8 items-center">
+        <div class="lg:col-span-5">
+          <div class="flex items-center gap-3"><div class="w-10 h-10 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center font-extrabold text-[#6541D6]">4</div><h3 class="font-bold text-xl">Connect to your hub</h3></div>
+          <p class="text-sm text-[#4B4460] mt-3 leading-relaxed">On the same computer the wizard finds <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">localhost:3000</code> by itself. From another machine, paste the pairing link the hub printed (or scan its QR with the phone app). If the browser asks, allow the one-time LAN permission — that's the only prompt you'll ever see.</p>
+        </div>
+        <div class="lg:col-span-7 grid sm:grid-cols-2 gap-4">
+          <img src="assets/screenshots/ext-pairing.png" alt="Connect form with the pairing link pasted" class="rounded-xl border border-purple-100 w-full h-auto" loading="lazy">
+          <img src="assets/screenshots/ext-permission.png" alt="One-time browser permission prompt for the LAN hub address" class="rounded-xl border border-purple-100 w-full h-auto" loading="lazy">
+        </div>
+      </div>
+
+      <!-- STEP 5 -->
+      <div class="lux-card p-6 sm:p-8 reveal grid lg:grid-cols-12 gap-8 items-center">
+        <div class="lg:col-span-5">
+          <div class="flex items-center gap-3"><div class="w-10 h-10 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center font-extrabold text-[#6541D6]">5</div><h3 class="font-bold text-xl">You're live — enable Web access</h3></div>
+          <p class="text-sm text-[#4B4460] mt-3 leading-relaxed">The dashboard opens: phone screen streaming, latency pills, AI activity. Then flip the <strong>Web access for AI agents</strong> toggle (OFF by default, for privacy). The pill turns green — your agent can now see, read and act on your active tab. Flip it off any time to cut access instantly.</p>
+        </div>
+        <div class="lg:col-span-7 grid sm:grid-cols-2 gap-4">
+          <img src="assets/screenshots/ext-dashboard.png" alt="Extension dashboard with live phone screen, latency and AI activity" class="rounded-xl border border-purple-100 w-full h-auto" loading="lazy">
+          <img src="assets/screenshots/ext-web-access.png" alt="Web access for AI agents card with the toggle enabled" class="rounded-xl border border-purple-100 w-full h-auto" loading="lazy">
+        </div>
+      </div>
+    </div>
+
+    <!-- agent view callout -->
+    <div class="mt-10 lux-card p-6 sm:p-8 bg-[#150E27] !border-[#2A2242] reveal grid lg:grid-cols-12 gap-8 items-center">
+      <div class="lg:col-span-5 text-purple-100">
+        <h3 class="font-bold text-white text-xl flex items-center gap-2"><i data-lucide="bot" class="w-6 h-6 text-[#8B6AEC]"></i> What your agent sees</h3>
+        <p class="text-sm mt-3 leading-relaxed text-purple-200/80">The moment Web access is on, <code class="bg-[#2A2242] px-1.5 py-0.5 rounded">web_screenshot</code> returns your active tab exactly as it is — this capture was taken by the agent itself during testing, not staged.</p>
+        <p class="text-sm mt-2 leading-relaxed text-purple-200/80">Restricted pages (<code class="bg-[#2A2242] px-1.5 py-0.5 rounded">chrome://</code>, <code class="bg-[#2A2242] px-1.5 py-0.5 rounded">edge://</code>, <code class="bg-[#2A2242] px-1.5 py-0.5 rounded">about:</code>, devtools) are always refused.</p>
+      </div>
+      <div class="lg:col-span-7"><img src="assets/screenshots/ext-agent-view.jpg" alt="A real agent-captured screenshot of the user's active browser tab" class="rounded-xl border border-[#2A2242] w-full h-auto" loading="lazy"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ SKILLS ═══════════ -->
+<section id="skills" class="py-20 sm:py-24">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="text-center max-w-2xl mx-auto reveal">
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Built-in <span class="grad-text">agent skills.</span></h2>
+      <p class="mt-4 text-[#4B4460] text-lg">The extension ships eight ready-made MCP skills. Any connected agent discovers them automatically via <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">get_skills</code> — no prompting gymnastics.</p>
+    </div>
+    <div class="mt-14 grid sm:grid-cols-2 gap-6">
+      <div class="lux-card p-7 reveal"><div class="font-mono text-sm font-bold text-[#6541D6]">web_see_and_report</div><h3 class="font-bold text-lg mt-2">"What am I looking at?"</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">The agent checks the bridge, screenshots your live tab, reads the page, and explains it in plain words — with the image in its reply.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-1"><div class="font-mono text-sm font-bold text-[#6541D6]">web_form_autofill</div><h3 class="font-bold text-lg mt-2">Forms, filled safely</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Maps every field from the hierarchy (no selector guessing), types your values, submits, and verifies the result with a screenshot.</p></div>
+      <div class="lux-card p-7 reveal"><div class="font-mono text-sm font-bold text-[#6541D6]">web_visual_qa</div><h3 class="font-bold text-lg mt-2">Audit a page in your real browser</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Navigates to a URL, scrolls the whole page viewport by viewport, and reports layout / broken-UI / accessibility defects with evidence.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-1"><div class="font-mono text-sm font-bold text-[#6541D6]">web_reproduce_issue</div><h3 class="font-bold text-lg mt-2">Repro with evidence</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Follows your repro steps on the actual tab, screenshots before/after each step, and names the exact step where reality diverged.</p></div>
+      <div class="lux-card p-7 reveal"><div class="font-mono text-sm font-bold text-[#6541D6]">web_debug_session</div><h3 class="font-bold text-lg mt-2">Debug with the full evidence trail</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Reproduces the problem while capturing console errors, failed network requests and dialogs live, then reports the likely cause with a final screenshot attached.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-1"><div class="font-mono text-sm font-bold text-[#6541D6]">web_watch_flow</div><h3 class="font-bold text-lg mt-2">Watch it happen, frame by frame</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Records your live screen with web_watch, acts during the recording, then narrates every captured frame like a video — sub-second cadence, no visual change missed.</p></div>
+      <div class="lux-card p-7 reveal"><div class="font-mono text-sm font-bold text-[#6541D6]">web_perf_audit</div><h3 class="font-bold text-lg mt-2">Core Web Vitals checkup</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Loads the page, runs web_perf for FCP / LCP / CLS and resource stats, screenshots the result, and gives prioritized, plain-words speed recommendations.</p></div>
+      <div class="lux-card p-7 reveal reveal-delay-1"><div class="font-mono text-sm font-bold text-[#6541D6]">web_multitab_workflow</div><h3 class="font-bold text-lg mt-2">Many tabs, one workflow</h3><p class="text-sm text-[#4B4460] mt-2 leading-relaxed">Opens and switches between tabs, does its job on each one, and checkpoints progress with screenshots so you see exactly what happened where.</p></div>
+    </div>
+    <div class="mt-8 lux-card p-6 reveal flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-[#4B4460]">
+      <span class="font-bold text-[#1E1633] flex items-center gap-2"><i data-lucide="wrench" class="w-4 h-4 text-[#6541D6]"></i> Under the hood:</span>
+      <span class="font-mono">web_status</span><span class="font-mono">web_screenshot</span><span class="font-mono">web_hierarchy</span><span class="font-mono">web_click</span><span class="font-mono">web_type</span><span class="font-mono">web_scroll</span><span class="font-mono">web_navigate</span><span class="font-mono">web_eval</span><span class="font-mono">web_console</span><span class="font-mono">web_network</span><span class="font-mono">web_dialog</span><span class="font-mono">web_storage</span><span class="font-mono">web_perf</span><span class="font-mono">web_tabs</span><span class="font-mono">web_tab</span><span class="font-mono">web_wait_for</span><span class="font-mono">web_key</span><span class="font-mono">web_hover</span><span class="font-mono">web_select</span><span class="font-mono">web_watch</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ CTA ═══════════ -->
+<section class="py-20 sm:py-24">
+  <div class="max-w-4xl mx-auto px-5 sm:px-8">
+    <div class="reveal rounded-[2rem] bg-gradient-to-br from-[#6541D6] via-[#7451DE] to-[#8B6AEC] p-10 sm:p-16 text-center text-white shadow-2xl shadow-purple-300 relative overflow-hidden">
+      <h2 class="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight">One extension.<br class="sm:hidden"> Your phone + your web.</h2>
+      <p class="mt-5 text-purple-100 text-lg max-w-xl mx-auto">Hand your AI the whole picture — live Android screen and live browser — with safety switches you control.</p>
+      <div class="mt-9 flex flex-wrap justify-center gap-4">
+        <a href="#install" class="bg-white text-[#6541D6] px-8 py-3.5 rounded-full font-bold inline-flex items-center gap-2 hover:scale-105 transition shadow-lg"><i data-lucide="puzzle" class="w-5 h-5"></i> Install now</a>
+        <a href="mailto:info@epsoldev.com" class="border-2 border-white/50 px-8 py-3.5 rounded-full font-bold inline-flex items-center gap-2 hover:bg-white/10 transition"><i data-lucide="mail" class="w-5 h-5"></i> info@epsoldev.com</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<section class="max-w-4xl mx-auto px-5 sm:px-8 pb-14">
+  <p class="text-sm text-[#4B4460] leading-relaxed">Every release is written down &mdash;
+    <a href="changelog.html" class="text-[#6541D6] font-semibold underline decoration-dotted">read the changelog</a>
+    for what changed in the Android app and the browser extension, build by build.</p>
+</section>
+
+<footer class="bg-[#150E27] text-purple-200/80">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-3 gap-10">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <img src="assets/logo.png" alt="ScreenSync MCP" class="w-9 h-9 rounded-xl">
+        <span class="font-extrabold text-white text-lg">ScreenSync MCP</span>
+      </div>
+      <p class="text-sm mt-4 leading-relaxed text-purple-200/60">Your AI, watching over your shoulder. Live Android capture &amp; live browser access for MCP agents — LAN-first, privacy-first.</p>
+    </div>
+    <div>
+      <h4 class="text-white font-bold mb-4">Pages</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="/" class="hover:text-white transition">Home</a></li>
+        <li><a href="about.html" class="hover:text-white transition">About Us</a></li>
+        <li><a href="goal.html" class="hover:text-white transition">Goal &amp; Vision</a></li>
+        <li><a href="extension.html" class="hover:text-white transition">Browser Extension</a></li>
+        <li><a href="changelog.html" class="hover:text-white transition">Changelog</a></li>
+        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
+        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4 class="text-white font-bold mb-4">Contact</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li class="flex items-center gap-2"><i data-lucide="globe" class="w-4 h-4"></i><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
+        <li class="flex items-center gap-2"><i data-lucide="mail" class="w-4 h-4"></i><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10 py-6 text-center text-xs text-purple-200/50">© <span class="year"></span> EpsolDev · ScreenSync MCP v2.7 · All rights reserved.</div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>

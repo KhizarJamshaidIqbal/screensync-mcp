@@ -1,0 +1,70 @@
+{
+  "version": "2.0.0",
+  "product": "ScreenSync MCP",
+  "site": "https://screensyncmcp.epsoldev.com",
+  "hubInstall": {
+    "prerequisites": ["Node.js 18+", "Android phone with the ScreenSync MCP app (or ADB for control tools)"],
+    "steps": [
+      "Download the hub zip from https://screensyncmcp.epsoldev.com/extension.html and unzip it anywhere on your computer.",
+      "Windows: double-click start-hub.bat · macOS/Linux: sh start-hub.sh (or node screensync-hub.js). Needs free Node 18+.",
+      "The terminal prints a pairing link + QR and serves on http://localhost:3000 — keep it running.",
+      "Scan the QR with the ScreenSync Android app; install the browser extension from the same page.",
+      "Developers: the extension source is public — git clone https://github.com/KhizarJamshaidIqbal/screensync-extension.git (the clone root IS the extension folder; Load unpacked on it). Hub + app source stay private."
+    ],
+    "envVars": {
+      "SCREEN_SYNC_TOKEN": "Bearer pairing token shared by app, extension and agents (default: screensync-local-dev)",
+      "SCREEN_SYNC_PORT": "HTTP port (default: 3000)",
+      "SCREEN_SYNC_HOST": "Bind address (default: 0.0.0.0)",
+      "SCREEN_SYNC_DATA_DIR": "Frame/inspection/patch storage root (default: ./data)",
+      "SCREEN_SYNC_ADB_TARGET": "Optional: pin a specific ADB device serial",
+      "SCREEN_SYNC_ADB_BIN": "Optional: path to the adb binary (default: adb)"
+    }
+  },
+  "mcpConfig": {
+    "claudeCode": {
+      "file": ".mcp.json (project root)",
+      "template": "{\n  \"mcpServers\": {\n    \"screensync\": {\n      \"command\": \"node\",\n      \"args\": [\"<HUB_DIR>/screensync-hub.js\"],\n      \"env\": { \"SCREEN_SYNC_TOKEN\": \"<TOKEN>\" }\n    }\n  }\n}"
+    },
+    "claudeDesktop": {
+      "file": "claude_desktop_config.json (Settings → Developer)",
+      "template": "{\n  \"mcpServers\": {\n    \"screensync\": {\n      \"command\": \"node\",\n      \"args\": [\"<HUB_DIR>/screensync-hub.js\"],\n      \"env\": { \"SCREEN_SYNC_TOKEN\": \"<TOKEN>\" }\n    }\n  }\n}"
+    },
+    "cli": {
+      "file": "CLI (one-liner)",
+      "template": "claude mcp add screensync node \"<HUB_DIR>/screensync-hub.js\""
+    },
+    "httpOnly": {
+      "baseUrl": "http://<HUB-IP>:3000",
+      "header": "Authorization: Bearer <TOKEN>",
+      "note": "The browser extension uses this mode — no stdio needed."
+    }
+  },
+  "httpEndpoints": [
+    { "method": "GET", "path": "/health", "auth": false, "purpose": "Liveness + latest frame time" },
+    { "method": "GET", "path": "/pair", "auth": false, "purpose": "Human pairing page with QR" },
+    { "method": "GET", "path": "/api/pair", "auth": false, "purpose": "Machine pairing payload {url, token, link}" },
+    { "method": "GET", "path": "/api/events", "auth": true, "purpose": "SSE live stream: frame | inspection | patch | tool | agent_connect" },
+    { "method": "GET", "path": "/api/screens/latest", "auth": true, "purpose": "Latest screenshot as base64 data URL" },
+    { "method": "POST", "path": "/api/screens/upload", "auth": true, "purpose": "Push a capture (phone app)" },
+    { "method": "GET", "path": "/api/device/status", "auth": true, "purpose": "Connection state, device model, retained frames" },
+    { "method": "GET", "path": "/api/mcp/catalog", "auth": true, "purpose": "Full tool/prompt/resource catalog" },
+    { "method": "GET", "path": "/api/inspections/latest", "auth": true, "purpose": "Bug regions published by the agent" },
+    { "method": "GET", "path": "/api/patches/latest", "auth": true, "purpose": "Latest git patch from the agent" },
+    { "method": "POST", "path": "/api/control/:action", "auth": true, "purpose": "status | screenshot | tap | long_press | swipe | scroll | type | key | launch" }
+  ],
+  "pairingFormats": [
+    "screensync://pair?url=http%3A%2F%2F<IP>%3A3000&token=<TOKEN>",
+    "{\"url\":\"http://<IP>:3000\",\"token\":\"<TOKEN>\"}",
+    "http://<IP>:3000#<TOKEN>"
+  ],
+  "discovery": {
+    "mdnsType": "_screensync-hub._tcp",
+    "note": "The phone app auto-discovers via mDNS. Browsers cannot use mDNS — the extension probes localhost and accepts manual URLs / pairing links."
+  },
+  "troubleshooting": [
+    "Hub not reachable — ensure start-hub.bat / start-hub.sh (or node screensync-hub.js) is running and your firewall allows port 3000 on the LAN.",
+    "401 Unauthorized — the token must match SCREEN_SYNC_TOKEN on the hub (default: screensync-local-dev).",
+    "429 Too many live connections — /api/events allows 10 concurrent clients; close another dashboard.",
+    "Extension shows offline on another machine — grant the LAN origin permission in the extension's setup step."
+  ]
+}
