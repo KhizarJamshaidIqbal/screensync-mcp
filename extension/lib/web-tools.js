@@ -45,7 +45,7 @@ import {
 
 const INTERACT_TOOLS = new Set([
   'web_click', 'web_type', 'web_paste', 'web_clear', 'web_highlight', 'web_scroll',
-  'web_upload_file', 'web_drag_and_drop',
+  'web_drag_and_drop',
 ]);
 
 const AGENT_PERCEPTION_TOOLS = new Set([

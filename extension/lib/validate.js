@@ -1,4 +1,4 @@
-﻿// ScreenSync lightweight argument validation at extension boundary (Plan §3.1 & D4)
+// ScreenSync lightweight argument validation at extension boundary (Plan §3.1 & D4)
 // Validates agent arguments before reaching executeScript / CDP calls without bundling dependencies.
 import { ERROR_CODES, makeError } from './errors.js';
 
@@ -60,8 +60,8 @@ export function validateToolArgs(tool, args) {
       break;
     }
     case 'web_upload_file': {
-      if (!args.files && !args.path) {
-        return makeError(ERROR_CODES.BAD_ARGS, 'web_upload_file requires files or path.');
+      if (!args.files && !args.path && !args.filePath && !args.base64Data) {
+        return makeError(ERROR_CODES.BAD_ARGS, 'web_upload_file requires files, filePath, or base64Data.');
       }
       break;
     }
