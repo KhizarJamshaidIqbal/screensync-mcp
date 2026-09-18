@@ -16,6 +16,7 @@ import { globalMetacognitiveEngine } from "./cognitive-metacognition.js";
 import { globalSimilarityEngine } from "./cognitive-similarity.js";
 import { globalFederatedCatalog } from "./cognitive-federation.js";
 import { globalDevelopmentEngine } from "./cognitive-development.js";
+import { globalReplayAndHygieneEngine } from "./cognitive-replay.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -644,6 +645,56 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           res.json({ success: true, ok: true, data: maturity });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Cognitive stage query failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_cognitive_replay") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const playbookId = typeof args.playbookId === "string" ? args.playbookId : undefined;
+          const autoSynthesizeBranch = Boolean(args.autoSynthesizeBranch);
+          const counterfactualScenarios = Array.isArray(args.counterfactualScenarios) ? (args.counterfactualScenarios as any) : undefined;
+          const result = globalReplayAndHygieneEngine.simulateOfflineReplay({
+            domain,
+            playbookId,
+            autoSynthesizeBranch,
+            counterfactualScenarios,
+          });
+          res.json({ success: true, ok: true, data: result });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Replay simulation failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_episodic_query") {
+        try {
+          const domain = typeof args.domain === "string" ? args.domain.trim() : undefined;
+          const intent = typeof args.intent === "string" ? args.intent.trim() : undefined;
+          const outcome = args.outcome === "success" || args.outcome === "failure" ? args.outcome : undefined;
+          const limit = typeof args.limit === "number" ? args.limit : undefined;
+          const result = globalReplayAndHygieneEngine.queryEpisodicMemory({ domain, intent, outcome, limit });
+          res.json({ success: true, ok: true, data: result });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Episodic query failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_cognitive_hygiene") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const action = String(args.action || "profile").toLowerCase();
+          if (action === "autoclean") {
+            const cleaned = globalReplayAndHygieneEngine.runAutocleaning(domain);
+            res.json({ success: true, ok: true, data: cleaned });
+            return;
+          }
+          const profile = globalReplayAndHygieneEngine.profileHygiene(domain);
+          res.json({ success: true, ok: true, data: profile });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Cognitive hygiene failed: ${e.message}` } });
         }
         return;
       }

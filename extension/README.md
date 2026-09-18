@@ -31,7 +31,7 @@ pairing link + QR that the extension and the Android app both accept.
 - **Click-to-tap** — click the live frame to tap the phone; plus type / key / scroll / swipe / launch controls via the hub's ADB plane.
 - **AI activity feed** — `tool`, `agent_connect`, `inspection`, `patch` events in real time.
 - **Latency telemetry** — health pings (P50 latency) + SSE liveness chip.
-- **MCP catalog browser** — 186 tools / 17 prompts / 3 resources from `/api/mcp/catalog`, with stdio-only tools flagged.
+- **MCP catalog browser** — 189 tools / 17 prompts / 3 resources from `/api/mcp/catalog`, with stdio-only tools flagged.
 - **One-click Connect Kit** — copies the same agent config kit the phone app produces (Claude Code `.mcp.json`, Claude Desktop, HTTP-only).
 - **Onboarding** — probes localhost, accepts pairing links (`screensync://pair…`, JSON, `http://ip:port#token`), and pulls the setup guide from `https://screensyncmcp.epsoldev.com/setup-guide.json` (bundled fallback offline).
 

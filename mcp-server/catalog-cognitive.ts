@@ -279,6 +279,83 @@ export function cognitiveToolDefinitions(): Tool[] {
           }
         }
       }
+    },
+    {
+      name: "web_cognitive_replay",
+      description:
+        "Hippocampal Sharp-Wave Ripple (SWR) offline counterfactual replay simulator (Architecture 6.0). Replays playbooks through simulated perturbations (DOM mutations, network spikes, unexpected modal interruptions) at 15x speed to calculate resilience scores and auto-synthesize adaptive fallback branches.",
+      inputSchema: {
+        type: "object",
+        required: ["domain"],
+        properties: {
+          domain: {
+            type: "string",
+            description: "Target domain (e.g. 'x.com', 'threads.net')."
+          },
+          playbookId: {
+            type: "string",
+            description: "Optional specific playbook ID to test."
+          },
+          autoSynthesizeBranch: {
+            type: "boolean",
+            description: "If true, automatically generates and patches a self-healing fallback branch into the playbook DAG when a vulnerability is detected."
+          },
+          counterfactualScenarios: {
+            type: "array",
+            items: { type: "object" },
+            description: "Optional array of synthetic perturbations to simulate."
+          }
+        }
+      }
+    },
+    {
+      name: "web_episodic_query",
+      description:
+        "Tulving's autobiographical episodic memory recall engine (Architecture 6.0). Queries historical execution episodes across domain, intent, timestamp, tab context, and outcome to retrieve autobiographical lessons and success metrics.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          domain: {
+            type: "string",
+            description: "Optional domain filter (e.g. 'x.com')."
+          },
+          intent: {
+            type: "string",
+            description: "Optional intent filter (e.g. 'post', 'search')."
+          },
+          outcome: {
+            type: "string",
+            enum: ["success", "failure"],
+            description: "Optional outcome filter."
+          },
+          limit: {
+            type: "integer",
+            minimum: 1,
+            maximum: 100,
+            description: "Maximum episodes to return (default 20)."
+          }
+        }
+      }
+    },
+    {
+      name: "web_cognitive_hygiene",
+      description:
+        "Cognitive data quality profiling and autocleaning engine (Architecture 6.0, inspired by data_autocleaning & accidental_data_loss_prevention). Audits cognitive memory stores for orphan branches, stale selectors, and duplicate pitfalls, with safe automated pruning that preserves all Gold playbooks and contracts.",
+      inputSchema: {
+        type: "object",
+        required: ["domain"],
+        properties: {
+          domain: {
+            type: "string",
+            description: "Target domain (e.g. 'x.com', 'threads.net')."
+          },
+          action: {
+            type: "string",
+            enum: ["profile", "autoclean"],
+            description: "'profile' (read-only audit of stale selectors, orphans, duplicates) or 'autoclean' (safely prune unreferenced branches and deduplicate pitfalls)."
+          }
+        }
+      }
     }
   ];
 }

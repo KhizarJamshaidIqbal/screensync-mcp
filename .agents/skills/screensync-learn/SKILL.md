@@ -198,7 +198,47 @@ await callTool('web_cognitive_stage', {
 5. **Level 5 — Sovereign Sage (Master)**: Fully habituated autonomy (200+ XP). Sub-3s atomic reflex (`SYSTEM_1_REFLEX`), zero-shot adaptation.
 6. **Stress Regression**: On 3 consecutive failures or severe drift, automatically regresses to Level 2/3 scaffolding to protect user safety and prevent compounding errors.
 
-### 10. Nightly / Post-Run: Hippocampal Consolidation
+### 10. Hippocampal SWR Replay, Episodic Recall & Cognitive Hygiene (Architecture 6.0)
+
+#### A. Offline SWR Replay & Counterfactual Simulation (`web_cognitive_replay`)
+Replay execution traces at 15x acceleration during idle periods to discover vulnerabilities and auto-synthesize fallback branches *before* live execution:
+```javascript
+const replay = await callTool('web_cognitive_replay', {
+  domain: 'x.com',
+  autoSynthesizeBranch: true,
+  counterfactualScenarios: [
+    { type: 'unexpected_modal', modalSelector: 'div[data-testid="confirmationSheetConfirm"]' },
+    { type: 'network_spike', latencyMs: 3500 },
+    { type: 'dom_mutation', modifiedSelector: 'button[data-testid="tweetButtonInline"]' }
+  ]
+});
+// Automatically discovers modal interruption vulnerabilities and generates self-healing branches!
+```
+
+#### B. Tulving's Autobiographical Episodic Memory Query (`web_episodic_query`)
+Query past biographical experiences across domains, tabs, and time:
+```javascript
+const history = await callTool('web_episodic_query', {
+  domain: 'x.com',
+  intent: 'post',
+  outcome: 'success'
+});
+// Retrieves full autobiographical context: latency trends, probes observed, and lessons learned.
+```
+
+#### C. Cognitive Store Hygiene & Autocleaning (`web_cognitive_hygiene`)
+Profile data quality and prune orphan branches while strictly honoring `accidental_data_loss_prevention`:
+```javascript
+// Step 1: Health audit
+const audit = await callTool('web_cognitive_hygiene', { domain: 'x.com', action: 'profile' });
+
+// Step 2: Safe autoclean
+if (!audit.data.healthy) {
+  await callTool('web_cognitive_hygiene', { domain: 'x.com', action: 'autoclean' });
+}
+```
+
+### 11. Nightly / Post-Run: Hippocampal Consolidation
 At session end or during periodic maintenance, trigger consolidation:
 ```javascript
 const report = await callTool('web_consolidate', {});
