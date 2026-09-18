@@ -356,6 +356,190 @@ export function cognitiveToolDefinitions(): Tool[] {
           }
         }
       }
+    },
+    {
+      name: "web_object_permanence",
+      description:
+        "Piagetian Object Permanence & spatial occlusion resolution engine (Architecture 7.0). Tracks off-screen, occluded, or virtualized elements across scroll offsets and collapsed containers, computing precise scroll vectors to restore targets into active perception.",
+      inputSchema: {
+        type: "object",
+        required: ["domain", "selector"],
+        properties: {
+          domain: {
+            type: "string",
+            description: "Target domain (e.g. 'x.com', 'threads.net')."
+          },
+          selector: {
+            type: "string",
+            description: "CSS or VOM selector of the target element."
+          },
+          action: {
+            type: "string",
+            enum: ["resolve", "register"],
+            description: "'resolve' (calculate scroll delta to hidden element) or 'register' (record element spatial rect)."
+          },
+          rect: {
+            type: "object",
+            description: "Optional bounding rect when registering spatial location."
+          }
+        }
+      }
+    },
+    {
+      name: "web_theory_of_mind",
+      description:
+        "Theory of Mind (ToM) & anti-bot behavioral cadence projection engine (Architecture 7.0). Projects server and WAF suspicion levels to synthesize natural humanized typing latencies (Gaussian distributions) and Bezier mouse jitter curves.",
+      inputSchema: {
+        type: "object",
+        required: ["domain"],
+        properties: {
+          domain: {
+            type: "string",
+            description: "Target domain (e.g. 'x.com', 'threads.net')."
+          },
+          actionCountInLastMinute: {
+            type: "integer",
+            description: "Number of actions executed in the past 60 seconds."
+          },
+          hasCaptchaOrWafDetected: {
+            type: "boolean",
+            description: "Whether a challenge or WAF signature was observed."
+          }
+        }
+      }
+    },
+    {
+      name: "web_cognitive_undo",
+      description:
+        "Cognitive Reversibility & transactional safe rollback engine (Architecture 7.0, inspired by accidental_data_loss_prevention). Evaluates action reversibility, blocks destructive commands lacking user consent, and synthesizes inverse rollback actions.",
+      inputSchema: {
+        type: "object",
+        required: ["targetTool"],
+        properties: {
+          targetTool: {
+            type: "string",
+            description: "The action tool to evaluate (e.g. 'web_fill', 'web_click')."
+          },
+          targetSelector: {
+            type: "string",
+            description: "Optional target element selector."
+          },
+          args: {
+            type: "object",
+            description: "Arguments to be passed to the tool."
+          }
+        }
+      }
+    },
+    {
+      name: "web_rpd_prototype",
+      description:
+        "Gary Klein's Recognition-Primed Decision (RPD) page archetype classification engine (Architecture 7.0). Instantly matches visited pages to canonical archetypes (Rich Feed, Data Table, Multi-Step Wizard, Dashboard Analytics, Auth Checkpoint) and yields pre-calibrated motor strategies.",
+      inputSchema: {
+        type: "object",
+        required: ["url"],
+        properties: {
+          url: {
+            type: "string",
+            description: "Current page URL."
+          },
+          domSignature: {
+            type: "object",
+            description: "Optional sensory flags (hasTable, hasInfiniteScroll, hasContentEditable, hasCharts, hasLoginForm)."
+          }
+        }
+      }
+    },
+    {
+      name: "web_cognitive_maturation",
+      description:
+        "Ontogenetic Cognitive Maturation engine (Architecture 8.0). Evaluates and transitions the agent's developmental stage (Stage 1: Infant Sensorimotor to Stage 5: Sovereign Sage) across web domains, tracking cognitive XP, successful interactions, and nociceptive trauma (hot stove burns).",
+      inputSchema: {
+        type: "object",
+        required: ["domain"],
+        properties: {
+          domain: {
+            type: "string",
+            description: "Target domain or application URL."
+          },
+          event: {
+            type: "object",
+            description: "Optional outcome event to evolve maturity ({ outcome: 'success' | 'trauma', xpGain: number })."
+          }
+        }
+      }
+    },
+    {
+      name: "web_epistemic_graph",
+      description:
+        "BigQuery/Property-Graph Epistemic Topology & Causal Lineage engine (Architecture 8.0, data-agent-kit-plugin parity). Manages graph nodes (Page, Component, Action, State, Incident), edges, shortest-risk pathfinding, and backward causal lineage tracing from error states.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["add_node", "add_edge", "trace_lineage", "summary"],
+            description: "Graph operation to perform."
+          },
+          node: {
+            type: "object",
+            description: "Node object to insert (id, label, properties)."
+          },
+          edge: {
+            type: "object",
+            description: "Edge object to insert (fromId, toId, label, weight, properties)."
+          },
+          targetNodeId: {
+            type: "string",
+            description: "Target node ID for backward causal lineage tracing."
+          }
+        }
+      }
+    },
+    {
+      name: "web_curiosity_frontier",
+      description:
+        "Epistemic Curiosity Frontier engine (Architecture 8.0). Computes Shannon entropy reduction and novelty value vs risk for unvisited links, tabs, and interactive components to guide safe autonomous exploration.",
+      inputSchema: {
+        type: "object",
+        required: ["elements"],
+        properties: {
+          elements: {
+            type: "array",
+            description: "List of candidates ({ selector, text, tag }) to evaluate on the curiosity frontier."
+          }
+        }
+      }
+    },
+    {
+      name: "web_homeostatic_regulation",
+      description:
+        "Biological Homeostatic Regulation & Allostatic Resilience engine (Architecture 8.0). Monitors sensory telemetry (DOM bloat, action velocity, latency, WAF suspicion) and dynamically commands calm pauses, memory cache flushes, or sensory attenuation.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          domNodeCount: {
+            type: "integer",
+            description: "Current number of DOM elements."
+          },
+          actionsPerMinute: {
+            type: "integer",
+            description: "Frequency of actions in the past 60s."
+          },
+          recentErrorRate: {
+            type: "number",
+            description: "Ratio of errors to total actions (0.0 to 1.0)."
+          },
+          averageLatencyMs: {
+            type: "number",
+            description: "Average round-trip response latency."
+          },
+          threatSuspicionScore: {
+            type: "number",
+            description: "Current server/WAF threat suspicion (0.0 to 1.0)."
+          }
+        }
+      }
     }
   ];
 }

@@ -17,6 +17,8 @@ import { globalSimilarityEngine } from "./cognitive-similarity.js";
 import { globalFederatedCatalog } from "./cognitive-federation.js";
 import { globalDevelopmentEngine } from "./cognitive-development.js";
 import { globalReplayAndHygieneEngine } from "./cognitive-replay.js";
+import { globalRpdEngine } from "./cognitive-rpd.js";
+import { globalMaturationEngine } from "./cognitive-maturation.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -695,6 +697,146 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           res.json({ success: true, ok: true, data: profile });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Cognitive hygiene failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_object_permanence") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const selector = String(args.selector || "").trim();
+          const action = String(args.action || "resolve").toLowerCase();
+          if (action === "register" && args.rect) {
+            globalRpdEngine.registerSpatialLocation(domain, {
+              selector,
+              lastSeenRect: args.rect as any,
+              scrollOffsetWhenSeen: { x: 0, y: 0 },
+              observedAt: new Date().toISOString(),
+            });
+            res.json({ success: true, ok: true, data: { registered: true, domain, selector } });
+            return;
+          }
+          const currentViewport = (args.currentViewport as any) || { width: 1280, height: 800, scrollX: 0, scrollY: 0 };
+          const resolved = globalRpdEngine.resolveOffscreenElement(domain, selector, currentViewport);
+          res.json({ success: true, ok: true, data: resolved });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Object permanence failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_theory_of_mind") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const actionCount = typeof args.actionCountInLastMinute === "number" ? args.actionCountInLastMinute : 12;
+          const hasCaptcha = Boolean(args.hasCaptchaOrWafDetected);
+          const assessment = globalRpdEngine.evaluateTheoryOfMind({
+            domain,
+            actionCountInLastMinute: actionCount,
+            hasCaptchaOrWafDetected: hasCaptcha,
+          });
+          res.json({ success: true, ok: true, data: assessment });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Theory of mind failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_cognitive_undo") {
+        try {
+          const targetTool = String(args.targetTool || "").trim();
+          const targetSelector = typeof args.targetSelector === "string" ? args.targetSelector : undefined;
+          const toolArgs = typeof args.args === "object" && args.args ? (args.args as Record<string, unknown>) : undefined;
+          const assessment = globalRpdEngine.assessReversibility({
+            tool: targetTool,
+            targetSelector,
+            args: toolArgs,
+          });
+          res.json({ success: true, ok: true, data: assessment });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Cognitive undo assessment failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_rpd_prototype") {
+        try {
+          const url = String(args.url || "").trim();
+          const domSignature = typeof args.domSignature === "object" && args.domSignature ? (args.domSignature as any) : undefined;
+          const strategy = globalRpdEngine.classifyPageArchetype({ url, domSignature });
+          res.json({ success: true, ok: true, data: strategy });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `RPD archetype classification failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_cognitive_maturation") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const event = typeof args.event === "object" && args.event ? (args.event as any) : undefined;
+          const profile = globalMaturationEngine.getOrEvolveProfile(domain, event);
+          res.json({ success: true, ok: true, data: profile });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Cognitive maturation failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_epistemic_graph") {
+        try {
+          const action = String(args.action || "summary").toLowerCase();
+          if (action === "add_node" && args.node) {
+            const node = globalMaturationEngine.addNode(args.node as any);
+            res.json({ success: true, ok: true, data: { addedNode: node } });
+            return;
+          }
+          if (action === "add_edge" && args.edge) {
+            const edge = globalMaturationEngine.addEdge(args.edge as any);
+            res.json({ success: true, ok: true, data: { addedEdge: edge } });
+            return;
+          }
+          if (action === "trace_lineage" && args.targetNodeId) {
+            const lineage = globalMaturationEngine.traceLineage(String(args.targetNodeId));
+            res.json({ success: true, ok: true, data: lineage });
+            return;
+          }
+          const stats = globalMaturationEngine.getGraphStats();
+          res.json({ success: true, ok: true, data: stats });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Epistemic graph failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_curiosity_frontier") {
+        try {
+          const elements = Array.isArray(args.elements) ? (args.elements as any) : [];
+          const evaluation = globalMaturationEngine.evaluateCuriosityFrontier(elements);
+          res.json({ success: true, ok: true, data: evaluation });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Curiosity frontier evaluation failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_homeostatic_regulation") {
+        try {
+          const domNodeCount = typeof args.domNodeCount === "number" ? args.domNodeCount : 1200;
+          const actionsPerMinute = typeof args.actionsPerMinute === "number" ? args.actionsPerMinute : 15;
+          const recentErrorRate = typeof args.recentErrorRate === "number" ? args.recentErrorRate : 0.05;
+          const averageLatencyMs = typeof args.averageLatencyMs === "number" ? args.averageLatencyMs : 450;
+          const threatSuspicionScore = typeof args.threatSuspicionScore === "number" ? args.threatSuspicionScore : 0.1;
+          const homeo = globalMaturationEngine.evaluateHomeostasis({
+            domNodeCount,
+            actionsPerMinute,
+            recentErrorRate,
+            averageLatencyMs,
+            threatSuspicionScore,
+          });
+          res.json({ success: true, ok: true, data: homeo });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Homeostatic regulation failed: ${e.message}` } });
         }
         return;
       }

@@ -448,9 +448,9 @@ export async function executeWebTool(tool, args = {}) {
       const tab = await pickActiveTab(args);
       return execWebSiteMemory(tab ? tab.id : null, args);
     }
-    case 'web_recall': case 'web_learn': case 'web_warm': case 'web_consolidate': case 'web_graph_query': case 'web_contract_check':
-    case 'web_lineage': case 'web_metacognition': case 'web_similarity_search': case 'web_federated_catalog': case 'web_cognitive_stage':
-    case 'web_cognitive_replay': case 'web_episodic_query': case 'web_cognitive_hygiene':
+    case 'web_recall': case 'web_learn': case 'web_warm': case 'web_consolidate': case 'web_graph_query': case 'web_contract_check': case 'web_lineage': case 'web_metacognition':
+    case 'web_similarity_search': case 'web_federated_catalog': case 'web_cognitive_stage': case 'web_cognitive_replay': case 'web_episodic_query': case 'web_cognitive_hygiene':
+    case 'web_object_permanence': case 'web_theory_of_mind': case 'web_cognitive_undo': case 'web_rpd_prototype': case 'web_cognitive_maturation': case 'web_epistemic_graph': case 'web_curiosity_frontier': case 'web_homeostatic_regulation':
       return execCognitiveTool(tool, args);
     default: {
       // Injected DOM / Agent / Storage tools

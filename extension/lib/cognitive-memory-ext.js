@@ -5,6 +5,8 @@
 // 3. Semantic Memory
 // 4. Adaptive Procedural Playbooks with Conditional Branches
 
+import { execCognitiveRpdTool } from './cognitive-rpd-ext.js';
+
 const STORAGE_KEY = 'cognitive_memory';
 
 function getDefaultSeed() {
@@ -582,6 +584,6 @@ export async function execCognitiveTool(tool, args = {}) {
     case 'web_cognitive_replay': return execWebCognitiveReplay(args);
     case 'web_episodic_query': return execWebEpisodicQuery(args);
     case 'web_cognitive_hygiene': return execWebCognitiveHygiene(args);
-    default: return { ok: false, error: `Unknown cognitive tool: ${tool}` };
+    default: return execCognitiveRpdTool(tool, args);
   }
 }

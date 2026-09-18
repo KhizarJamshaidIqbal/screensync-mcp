@@ -238,7 +238,112 @@ if (!audit.data.healthy) {
 }
 ```
 
-### 11. Nightly / Post-Run: Hippocampal Consolidation
+### 11. Architecture 7.0: Developmental Epistemology & Recognition-Primed Decision (DE-RPD)
+
+#### A. Piagetian Object Permanence (`web_object_permanence`)
+Tracks elements scrolled out of view or occluded in dynamic DOMs, calculating exact scroll delta vectors to restore them into view:
+```javascript
+const perm = await callTool('web_object_permanence', {
+  domain: 'x.com',
+  selector: '#post-tweet-btn',
+  action: 'resolve',
+  currentViewport: { width: 1280, height: 720, scrollX: 0, scrollY: 0 }
+});
+// If element was observed at top: 1250px, recommends scroll deltaY: 1250px!
+```
+
+#### B. Theory of Mind & Anti-Bot Cadence (`web_theory_of_mind`)
+Projects server suspicion scores and humanizes typing/clicking cadences (Gaussian jitter, Bezier mouse paths) to prevent bot detection:
+```javascript
+const tom = await callTool('web_theory_of_mind', {
+  domain: 'x.com',
+  actionCountInLastMinute: 45,
+  hasCaptchaOrWafDetected: false
+});
+// Yields threatAssessment: 'elevated_monitoring', recommendedKeystrokeDelayMs: { mean: 95, stdDev: 25 }
+```
+
+#### C. Cognitive Reversibility & Transactional Undo (`web_cognitive_undo`)
+Classifies actions into REVERSIBLE, CONDITIONAL, or IRREVERSIBLE_DESTRUCTIVE and auto-synthesizes rollback DAGs (Ctrl+Z, uncheck):
+```javascript
+const undo = await callTool('web_cognitive_undo', {
+  targetTool: 'web_fill',
+  args: { selector: '#compose-text', value: 'Hello' }
+});
+// category: 'REVERSIBLE', inverseAction: { tool: 'web_key', args: { key: 'z', ctrl: true } }
+```
+
+#### D. Klein's Recognition-Primed Decision (`web_rpd_prototype`)
+Instantly categorizes visited pages into archetypes (Rich Feed, Data Table, Wizard, Dashboard, Auth Checkpoint) with pre-calibrated motor strategies:
+```javascript
+const rpd = await callTool('web_rpd_prototype', { url: 'https://x.com/home' });
+// archetype: 'ARCHETYPE_RICH_FEED', recommendedInputMethod: 'execCommand', sensoryRateMs: 500
+```
+
+---
+
+### 12. Architecture 8.0: Ontogenetic Cognitive Maturation & Property Graph Lineage (OCM-PGL)
+
+#### A. Ontogenetic Developmental Stages (`web_cognitive_maturation`)
+Tracks domain-specific cognitive age and XP progression from Infant (Level 1) to Sovereign Sage (Level 5):
+```javascript
+// Step 1: Query or initialize maturity profile
+const maturity = await callTool('web_cognitive_maturation', { domain: 'new-site.com' });
+// stage: 'STAGE_1_INFANT_SENSORIMOTOR', exploratoryCaution: 'extreme_nociceptive', batching: false
+
+// Step 2: Evolve upon success or demote upon hot-stove burns (trauma)
+await callTool('web_cognitive_maturation', {
+  domain: 'new-site.com',
+  event: { outcome: 'success', xpGain: 150 }
+});
+// Levels up to 'STAGE_2_CHILD_SYMBOLIC' with relaxed perception pauses!
+```
+
+#### B. Epistemic Property Graph & Causal Lineage (`web_epistemic_graph`)
+Synthesizes `data-agent-kit-plugin` and BigQuery Graph topologies for web workflows:
+```javascript
+// Add Page, Component, Action, and Incident nodes with directed edges
+await callTool('web_epistemic_graph', {
+  action: 'add_node',
+  node: { id: 'page_cart', label: 'PAGE', properties: { url: '/cart' } }
+});
+
+// Trace backward causal lineage from an error incident to find root cause
+const lineage = await callTool('web_epistemic_graph', {
+  action: 'trace_lineage',
+  targetNodeId: 'incident_checkout_failure'
+});
+// Returns full provenance DAG back to rootCauseNode!
+```
+
+#### C. Epistemic Curiosity Frontier (`web_curiosity_frontier`)
+Calculates information gain vs risk to guide safe autonomous exploration:
+```javascript
+const frontier = await callTool('web_curiosity_frontier', {
+  elements: [
+    { selector: 'a[href="/insights"]', text: 'Insights', tag: 'a' },
+    { selector: 'button.delete-all', text: 'Delete All', tag: 'button' }
+  ]
+});
+// Safely marks 'button.delete-all' as skip_destructive and picks '/insights' for next exploration!
+```
+
+#### D. Biological Homeostatic Regulation (`web_homeostatic_regulation`)
+Prevents cognitive exhaustion and sensory overload under high DOM or network stress:
+```javascript
+const homeo = await callTool('web_homeostatic_regulation', {
+  domNodeCount: 6500,
+  actionsPerMinute: 75,
+  recentErrorRate: 0.35,
+  averageLatencyMs: 1800,
+  threatSuspicionScore: 0.6
+});
+// If allostaticState: 'OVERLOADED' -> injects calm pause and commands working memory cache flush!
+```
+
+---
+
+### 13. Nightly / Post-Run: Hippocampal Consolidation
 At session end or during periodic maintenance, trigger consolidation:
 ```javascript
 const report = await callTool('web_consolidate', {});
