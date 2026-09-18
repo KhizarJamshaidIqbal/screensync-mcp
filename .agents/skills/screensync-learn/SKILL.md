@@ -120,7 +120,46 @@ const transfer = await callTool('web_graph_query', {
 // Automatically inherits Lexical ContentEditable input recipe from x.com!
 ```
 
-### 6. Nightly / Post-Run: Hippocampal Consolidation
+### 6. Metacognitive Reflex & Confidence Calibration (Dual Process System 1 vs 2)
+Before execution, evaluate metacognitive confidence:
+```javascript
+const meta = await callTool('web_metacognition', {
+  domain: 'x.com',
+  intent: 'post',
+  currentLatencyMs: 820
+});
+// If confidenceScore >= 0.85 -> SYSTEM_1_REFLEX (< 3s fast-path).
+// If 0.50 <= confidenceScore < 0.85 -> SYSTEM_2_DELIBERATE (step-by-step perception verification).
+// If anomalyDetected: true -> server throttling suspected, timeout automatically adjusted.
+```
+
+### 7. Semantic Intent & Selector Similarity Search (BigQuery AI.SIMILARITY pattern)
+Resolve fuzzy user requests to canonical playbooks without hardcoded keyword dictionaries:
+```javascript
+const sim = await callTool('web_similarity_search', {
+  intent: 'tweet my thoughts',
+  targetElementDescription: 'post button',
+  candidates: [{ selector: 'button.submit', text: 'Post Tweet', role: 'button' }]
+});
+// Resolves canonicalIntent: 'post' (0.98 similarity) and bestMatch: 'button.submit'.
+```
+
+### 8. Federated Multi-Profile Catalog (Lakehouse Mesh)
+Share verified recipes across isolated browser profiles safely:
+```javascript
+// Query shared recipes from the federated mesh
+const fed = await callTool('web_federated_catalog', { action: 'list_shared', domain: 'x.com' });
+
+// Contribute an anonymized recipe (auto-scrubs emails, JWT tokens, and cookies)
+await callTool('web_federated_catalog', {
+  action: 'publish',
+  domain: 'threads.net',
+  intent: 'post',
+  recipe: { method: 'execCommand', selector: 'div[contenteditable="true"]' }
+});
+```
+
+### 9. Nightly / Post-Run: Hippocampal Consolidation
 At session end or during periodic maintenance, trigger consolidation:
 ```javascript
 const report = await callTool('web_consolidate', {});
@@ -132,7 +171,9 @@ const report = await callTool('web_consolidate', {});
 ---
 
 ## 🎯 Golden Invariant for Agents
-- **Speed**: Recall + Fast-Path execution must complete in **< 15 seconds**.
+- **Speed**: System 1 Reflex executions complete in **< 3 seconds**; System 2 Deliberate in **< 15 seconds**.
 - **Resilience**: Zero blind loops. Circuit breaker trips immediately on bot challenges.
 - **Safety**: Never destroy user form state. Always check `web_contract_check`.
+- **Privacy**: Zero credential leakage across browser profiles via federated sanitization.
 - **Elegance**: Shortest working diff, fewest files, strict 500–600 line limit.
+

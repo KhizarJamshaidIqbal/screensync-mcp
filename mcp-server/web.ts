@@ -12,6 +12,9 @@ import { cognitiveStore } from "./cognitive-memory.js";
 import { globalAssociativeGraph } from "./cognitive-graph.js";
 import { globalContractEngine } from "./cognitive-contracts.js";
 import { globalLineageEngine } from "./cognitive-lineage.js";
+import { globalMetacognitiveEngine } from "./cognitive-metacognition.js";
+import { globalSimilarityEngine } from "./cognitive-similarity.js";
+import { globalFederatedCatalog } from "./cognitive-federation.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -541,6 +544,85 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           res.json({ success: true, ok: true, data: { totalCommits: history.length, commits: history } });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Lineage query failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_metacognition") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const intent = args.intent ? String(args.intent).trim() : "general";
+          const currentLatencyMs = typeof args.currentLatencyMs === "number" ? args.currentLatencyMs : undefined;
+          const evaluation = globalMetacognitiveEngine.evaluateConfidence({
+            domain,
+            intent,
+            currentLatencyMs,
+          });
+          res.json({ success: true, ok: true, data: evaluation });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Metacognition evaluation failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_similarity_search") {
+        try {
+          const intent = args.intent ? String(args.intent).trim() : undefined;
+          const targetElementDescription = args.targetElementDescription ? String(args.targetElementDescription).trim() : undefined;
+          const candidates = Array.isArray(args.candidates) ? args.candidates : [];
+
+          const out: Record<string, any> = {};
+          if (intent) {
+            out.intentMatch = globalSimilarityEngine.resolveIntent(intent);
+          }
+          if (targetElementDescription && candidates.length > 0) {
+            out.elementMatch = globalSimilarityEngine.matchCandidateElement(targetElementDescription, candidates);
+          }
+          res.json({ success: true, ok: true, data: out });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Similarity search failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_federated_catalog") {
+        try {
+          const action = String(args.action || "list_shared").toLowerCase();
+          const domain = args.domain ? String(args.domain).trim() : undefined;
+          const intent = args.intent ? String(args.intent).trim() : undefined;
+          const profile = args.profile ? String(args.profile).trim() : "epsoldev@gmail.com";
+
+          if (action === "publish") {
+            const recipe = (args.recipe && typeof args.recipe === "object") ? args.recipe : {};
+            const published = globalFederatedCatalog.publishSharedRecipe({
+              originProfile: profile,
+              domain: domain || "shared",
+              intent: intent || "workflow",
+              recipe,
+            });
+            res.json({ success: true, ok: true, data: published });
+            return;
+          }
+
+          if (action === "link_profile") {
+            const linked = globalFederatedCatalog.linkProfile(profile);
+            res.json({ success: true, ok: true, data: linked });
+            return;
+          }
+
+          // Default: list_shared
+          const recipes = globalFederatedCatalog.querySharedRecipes(domain, intent);
+          res.json({
+            success: true,
+            ok: true,
+            data: {
+              totalRecipes: recipes.length,
+              recipes,
+              linkedProfiles: globalFederatedCatalog.getLinkedProfiles(),
+            },
+          });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Federated catalog query failed: ${e.message}` } });
         }
         return;
       }

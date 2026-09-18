@@ -163,6 +163,96 @@ export function cognitiveToolDefinitions(): Tool[] {
           }
         }
       }
+    },
+    {
+      name: "web_metacognition",
+      description:
+        "Metacognitive Reflex & Confidence Calibration Engine (Architecture 4.0). Computes calibrated confidence ratings, determines System 1 (Reflex Fast-Path <3s) vs System 2 (Deliberate Verified Mode), and detects environmental telemetry anomalies.",
+      inputSchema: {
+        type: "object",
+        required: ["domain"],
+        properties: {
+          domain: {
+            type: "string",
+            description: "Target domain (e.g. 'x.com')."
+          },
+          intent: {
+            type: "string",
+            description: "High-level action intent (e.g. 'post', 'login')."
+          },
+          currentLatencyMs: {
+            type: "number",
+            description: "Optional duration of most recent action to test for server throttling or bot challenge anomalies."
+          }
+        }
+      }
+    },
+    {
+      name: "web_similarity_search",
+      description:
+        "Semantic Similarity & Intent Vector Search (Architecture 4.0, BigQuery AI.SIMILARITY pattern). Resolves fuzzy user intentions or drifted DOM element descriptions to canonical playbooks and elements without hardcoded dictionaries.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          intent: {
+            type: "string",
+            description: "Fuzzy intent string to classify (e.g. 'tweet thoughts', 'publish update', 'sign on')."
+          },
+          domain: {
+            type: "string",
+            description: "Target domain for intent matching."
+          },
+          targetElementDescription: {
+            type: "string",
+            description: "Natural language description of target element (e.g. 'post button', 'username input')."
+          },
+          candidates: {
+            type: "array",
+            description: "Candidate elements from active DOM/VOM to score for similarity.",
+            items: {
+              type: "object",
+              properties: {
+                selector: { type: "string" },
+                text: { type: "string" },
+                ariaLabel: { type: "string" },
+                role: { type: "string" }
+              },
+              required: ["selector"]
+            }
+          }
+        }
+      }
+    },
+    {
+      name: "web_federated_catalog",
+      description:
+        "Federated Cognitive Catalog & Multi-Profile Mesh (Architecture 4.0, federate_lakehouse_catalog pattern). Shares sanitized, generalized automation recipes across isolated browser profiles without leaking private handles, credentials, or cookies.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["list_shared", "publish", "link_profile"],
+            description: "Federated action: 'list_shared' (search shared Lakehouse recipes), 'publish' (sanitize and contribute recipe), 'link_profile' (join profile to mesh)."
+          },
+          domain: {
+            type: "string",
+            description: "Optional domain filter for shared recipes."
+          },
+          intent: {
+            type: "string",
+            description: "Optional intent filter for shared recipes."
+          },
+          profile: {
+            type: "string",
+            description: "Active profile identity (e.g. 'epsoldev@gmail.com')."
+          },
+          recipe: {
+            type: "object",
+            description: "Recipe payload to sanitize and publish."
+          }
+        }
+      }
     }
   ];
 }
