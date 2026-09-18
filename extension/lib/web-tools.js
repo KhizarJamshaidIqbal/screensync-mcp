@@ -25,7 +25,7 @@ import { buildVom } from './web-vom-engine.js';
 import { readLongScreenshotTile } from './web-long-screenshot.js';
 import { execWebAgentWindow } from './web-agent-window.js';
 import { execWebSiteMemory } from './site-memory.js';
-import { execWebRecall, execWebLearn, execWebWarm, execWebConsolidate } from './cognitive-memory-ext.js';
+import { execCognitiveTool } from './cognitive-memory-ext.js';
 import { apiFetch } from './web-api-fetch.js';
 import { historySearch, bookmarksSearch } from './web-browser-data.js';
 import { getProfileIdentity, setProfileIdentity, matchesSelfTarget, RUNTIME_ID, BROWSER_NAME } from './profile-identity.js';
@@ -448,10 +448,9 @@ export async function executeWebTool(tool, args = {}) {
       const tab = await pickActiveTab(args);
       return execWebSiteMemory(tab ? tab.id : null, args);
     }
-    case 'web_recall': return execWebRecall(args);
-    case 'web_learn': return execWebLearn(args);
-    case 'web_warm': return execWebWarm(args);
-    case 'web_consolidate': return execWebConsolidate(args);
+    case 'web_recall': case 'web_learn': case 'web_warm': case 'web_consolidate':
+    case 'web_graph_query': case 'web_contract_check': case 'web_lineage':
+      return execCognitiveTool(tool, args);
     default: {
       // Injected DOM / Agent / Storage tools
       if (

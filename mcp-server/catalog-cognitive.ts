@@ -100,6 +100,69 @@ export function cognitiveToolDefinitions(): Tool[] {
           }
         }
       }
+    },
+    {
+      name: "web_graph_query",
+      description:
+        "Cognitive Associative Knowledge Graph (CAG) query tool (AP-CE Tier 3). Queries cross-domain framework topology and automatically transfers motor playbooks to new websites sharing identical frameworks (e.g. threads.net inheriting from x.com).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          domain: {
+            type: "string",
+            description: "Target domain to inspect or transfer skills to (e.g. 'threads.net', 'facebook.com')."
+          },
+          intent: {
+            type: "string",
+            description: "Target action intent (e.g. 'post', 'comment')."
+          },
+          transferSkill: {
+            type: "boolean",
+            description: "If true, attempts cross-domain playbook synthesis via shared framework topology."
+          }
+        }
+      }
+    },
+    {
+      name: "web_contract_check",
+      description:
+        "Cognitive Data Safety Contract evaluator (AP-CE Tier 1). Audits the active page for unsubmitted form fields, drafts, or carts before risky navigations, taking ephemeral recovery snapshots to prevent accidental data loss.",
+      inputSchema: {
+        type: "object",
+        required: ["domain"],
+        properties: {
+          domain: {
+            type: "string",
+            description: "Target domain or active URL host."
+          },
+          url: {
+            type: "string",
+            description: "Full active page URL."
+          },
+          allowDirtyNavigation: {
+            type: "boolean",
+            description: "If true, snapshots dirty inputs and returns safe=true to permit navigation."
+          }
+        }
+      }
+    },
+    {
+      name: "web_lineage",
+      description:
+        "Playbook DAG Lineage & Cryptographic Provenance inspector (AP-CE Tier 2). Traces the evolutionary commit history of playbooks and selector mutations over time.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          playbookId: {
+            type: "string",
+            description: "Optional playbook ID to filter lineage commits (e.g. 'x_publish_post')."
+          },
+          limit: {
+            type: "integer",
+            description: "Maximum number of history commits to return (default 20)."
+          }
+        }
+      }
     }
   ];
 }

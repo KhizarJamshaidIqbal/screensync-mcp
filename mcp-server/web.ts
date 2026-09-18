@@ -9,6 +9,9 @@ import { generateFlow, generatePlaywright } from "./codegen.js";
 import { runTestSuite } from "./test-runner.js";
 import { createProfileRegistry, BrowserInstance, BrowserWindowInfo } from "./profile-registry.js";
 import { cognitiveStore } from "./cognitive-memory.js";
+import { globalAssociativeGraph } from "./cognitive-graph.js";
+import { globalContractEngine } from "./cognitive-contracts.js";
+import { globalLineageEngine } from "./cognitive-lineage.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -482,6 +485,62 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           res.json({ success: true, ok: true, data: report });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Consolidation failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_graph_query") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const intent = String(args.intent || "").trim();
+          const transferSkill = args.transferSkill === true;
+          if (transferSkill && domain) {
+            const transferRes = globalAssociativeGraph.transferSkill(domain, intent || "general", cognitiveStore);
+            res.json({ success: true, ok: true, data: transferRes });
+            return;
+          }
+          res.json({
+            success: true,
+            ok: true,
+            data: {
+              nodesCount: globalAssociativeGraph.getNodes().length,
+              edgesCount: globalAssociativeGraph.getEdges().length,
+              nodes: globalAssociativeGraph.getNodes(),
+              edges: globalAssociativeGraph.getEdges(),
+            }
+          });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Graph query failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_contract_check") {
+        try {
+          const domain = String(args.domain || "").trim();
+          const url = String(args.url || `https://${domain}`);
+          const allowDirtyNavigation = args.allowDirtyNavigation === true;
+          const detectedDirtyFields = Array.isArray(args.detectedDirtyFields) ? args.detectedDirtyFields : [];
+          const contractRes = globalContractEngine.evaluateFormContract({
+            domain,
+            url,
+            detectedDirtyFields,
+            allowDirtyNavigation,
+          });
+          res.json({ success: true, ok: true, data: contractRes });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Contract check failed: ${e.message}` } });
+        }
+        return;
+      }
+
+      if (tool === "web_lineage") {
+        try {
+          const playbookId = args.playbookId ? String(args.playbookId).trim() : undefined;
+          const history = globalLineageEngine.getHistory(playbookId);
+          res.json({ success: true, ok: true, data: { totalCommits: history.length, commits: history } });
+        } catch (e: any) {
+          res.json({ success: true, ok: false, data: { error: `Lineage query failed: ${e.message}` } });
         }
         return;
       }

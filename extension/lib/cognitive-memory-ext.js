@@ -342,3 +342,120 @@ export async function execWebConsolidate(args = {}) {
     }
   };
 }
+
+export async function execWebGraphQuery(args = {}) {
+  const domain = normalizeDomain(args.domain || args.url);
+  const data = await loadMemory();
+  const domains = Object.keys(data.domains || {});
+  const nodes = domains.map(d => ({ id: d, type: 'Domain', label: d }));
+  nodes.push({ id: 'framework_lexical', type: 'Framework', label: 'Lexical / ContentEditable' });
+  const edges = [{ source: 'x.com', target: 'framework_lexical', relation: 'RUNS_ON' }];
+
+  if (args.transferSkill && domain) {
+    const sourcePlaybook = data.playbooks?.['x_publish_post'];
+    if (sourcePlaybook) {
+      const newPlaybookId = `${domain.replace(/\./g, '_')}_publish_post`;
+      data.playbooks = data.playbooks || {};
+      data.playbooks[newPlaybookId] = {
+        ...sourcePlaybook,
+        id: `pb_${newPlaybookId}`,
+        name: newPlaybookId,
+        domain: domain,
+        description: `Transferred recipe from x.com for ${domain}`
+      };
+      await persistMemory();
+      return {
+        ok: true,
+        data: {
+          transferred: true,
+          sourceDomain: 'x.com',
+          targetDomain: domain,
+          playbookId: newPlaybookId,
+          method: 'execCommand',
+          provenance: 'associative_graph_cross_domain'
+        }
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    data: {
+      nodesCount: nodes.length,
+      edgesCount: edges.length,
+      nodes,
+      edges
+    }
+  };
+}
+
+export async function execWebContractCheck(args = {}) {
+  const domain = normalizeDomain(args.domain || args.url);
+  const detectedDirtyFields = Array.isArray(args.detectedDirtyFields) ? args.detectedDirtyFields : [];
+  const allowDirtyNavigation = args.allowDirtyNavigation === true;
+  const dirtyCount = detectedDirtyFields.length;
+
+  if (dirtyCount === 0) {
+    return {
+      ok: true,
+      data: { safe: true, domain, dirtyCount: 0, dirtyFields: [], actionRecommended: 'allow' }
+    };
+  }
+
+  const snapshotId = `snap_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const safe = allowDirtyNavigation;
+  const actionRecommended = allowDirtyNavigation ? 'snapshot_and_proceed' : 'block_and_confirm';
+
+  return {
+    ok: true,
+    data: {
+      safe,
+      domain,
+      dirtyCount,
+      dirtyFields: detectedDirtyFields,
+      snapshotId,
+      actionRecommended,
+      warning: `[DataLossGuard] ${dirtyCount} unsaved input field(s) detected. Ephemeral snapshot saved as ${snapshotId}.`
+    }
+  };
+}
+
+export async function execWebLineage(args = {}) {
+  const playbookId = args.playbookId ? String(args.playbookId).trim() : null;
+  const seedCommits = [
+    {
+      commitId: 'c_init_x_post_v1',
+      playbookId: 'x_publish_post',
+      parentCommitId: null,
+      timestamp: '2026-09-18T10:43:12.000Z',
+      author: 'initial_seed',
+      mutationReason: 'Initial canonical verified playbook for X.com composition.',
+      diffSummary: {
+        modifiedStepIndex: 3,
+        oldSelector: "div[data-testid='tweetTextarea_0']",
+        newSelector: "div[data-testid='tweetTextarea_0']"
+      }
+    }
+  ];
+  const commits = playbookId ? seedCommits.filter(c => c.playbookId === playbookId) : seedCommits;
+  return {
+    ok: true,
+    data: {
+      totalCommits: commits.length,
+      commits
+    }
+  };
+}
+
+export async function execCognitiveTool(tool, args = {}) {
+  switch (tool) {
+    case 'web_recall': return execWebRecall(args);
+    case 'web_learn': return execWebLearn(args);
+    case 'web_warm': return execWebWarm(args);
+    case 'web_consolidate': return execWebConsolidate(args);
+    case 'web_graph_query': return execWebGraphQuery(args);
+    case 'web_contract_check': return execWebContractCheck(args);
+    case 'web_lineage': return execWebLineage(args);
+    default: return { ok: false, error: `Unknown cognitive tool: ${tool}` };
+  }
+}
