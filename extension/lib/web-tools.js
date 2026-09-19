@@ -450,7 +450,7 @@ export async function executeWebTool(tool, args = {}) {
     }
     case 'web_recall': case 'web_learn': case 'web_warm': case 'web_consolidate': case 'web_graph_query': case 'web_contract_check': case 'web_lineage': case 'web_metacognition': case 'web_similarity_search':
     case 'web_federated_catalog': case 'web_cognitive_stage': case 'web_cognitive_replay': case 'web_episodic_query': case 'web_cognitive_hygiene': case 'web_object_permanence': case 'web_theory_of_mind':
-    case 'web_cognitive_undo': case 'web_rpd_prototype': case 'web_cognitive_maturation': case 'web_epistemic_graph': case 'web_curiosity_frontier': case 'web_homeostatic_regulation': case 'web_cognitive_lifespan': case 'web_graph_pattern_match': case 'web_motor_babbling': case 'web_metaphoric_transfer':
+    case 'web_cognitive_undo': case 'web_rpd_prototype': case 'web_cognitive_maturation': case 'web_epistemic_graph': case 'web_curiosity_frontier': case 'web_homeostatic_regulation': case 'web_cognitive_lifespan': case 'web_graph_pattern_match': case 'web_motor_babbling': case 'web_metaphoric_transfer': case 'web_synaptic_pruning': case 'web_critical_period': case 'web_working_memory_span': case 'web_executive_function': case 'web_erikson_identity': case 'web_autonoetic_memory': case 'web_infant_error_signature': case 'web_wisdom_calibration': case 'web_assimilation_accommodation': case 'web_forgetting_curve': case 'web_reinforcement_schedule': case 'web_prospective_memory': case 'web_source_monitoring': case 'web_interference_check': case 'web_reward_prediction_error': case 'web_cognitive_load_budget':
       return execCognitiveTool(tool, args);
     default: {
       // Injected DOM / Agent / Storage tools

@@ -5,6 +5,8 @@
 // 3. Infant Motor Babbling & Coordinate Calibration
 // 4. Gentner's Analogical Metaphoric Transfer
 
+import { execCognitiveAdolescentTool } from './cognitive-adolescent-ext.js';
+
 function normalizeDomain(input) {
   if (!input) return '';
   try {
@@ -100,6 +102,6 @@ export async function execCognitiveLifespanTool(tool, args = {}) {
     case 'web_graph_pattern_match': return execWebGraphPatternMatch(args);
     case 'web_motor_babbling': return execWebMotorBabbling(args);
     case 'web_metaphoric_transfer': return execWebMetaphoricTransfer(args);
-    default: return { ok: false, error: `Unknown cognitive lifespan tool: ${tool}` };
+    default: return execCognitiveAdolescentTool(tool, args);
   }
 }
