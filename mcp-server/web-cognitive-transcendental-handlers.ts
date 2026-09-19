@@ -25,8 +25,21 @@ export function handleTranscendentalCognitiveTool(tool: string, args: Record<str
     try {
       const domain = String(args.domain || "").trim();
       const playbook = typeof args.playbook === "object" && args.playbook ? (args.playbook as any) : { id: "", steps: [] };
-      const result = globalTranscendentalEngine.system1ReflexCompile(domain, playbook);
-      res.json({ success: true, ok: true, data: result });
+
+      // The automatism gate used to read successCount and wisdomScore from the caller's own playbook, so
+      // any caller could compile a reflex by typing 10 and 1.0. With a domain, both now come from the
+      // spine (verified successes the hub observed; the wisdom score the hub stored) and the caller's
+      // numbers are ignored. Without one there is nothing hub-held to consult, so it stays a calculator.
+      let argsIgnored: string[] = [];
+      let source: "spine" | "caller" = "caller";
+      let effective = playbook;
+      if (domain) {
+        argsIgnored = ["successCount", "wisdomScore"].filter((k) => playbook[k] !== undefined).map((k) => `playbook.${k}`);
+        effective = { ...playbook, successCount: globalSpine.evaluate(domain).evidence.verified, wisdomScore: globalSpine.wisdom(domain)?.score ?? 0 };
+        source = "spine";
+      }
+      const result = globalTranscendentalEngine.system1ReflexCompile(domain, effective);
+      res.json({ success: true, ok: true, data: { ...result, source, ...(argsIgnored.length ? { argsIgnored } : {}) } });
     } catch (e: any) {
       res.json({ success: true, ok: false, data: { error: `Reflex compilation failed: ${e.message}` } });
     }

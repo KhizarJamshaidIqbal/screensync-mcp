@@ -87,7 +87,9 @@ export function handleOntologyCognitiveTool(tool: string, args: Record<string, a
         try {
           const domain = String(args.domain || "").trim();
           const event = typeof args.event === "object" && args.event ? (args.event as any) : { errorOccurred: false };
-          const result = globalAdolescentEngine.infantErrorSignature(domain, event);
+          // The level is the hub's, never the caller's: a claimed earnedLevel is overwritten.
+          const earnedLevel = domain ? globalSpine.earnedLevel(domain) : 1;
+          const result = globalAdolescentEngine.infantErrorSignature(domain, { ...event, earnedLevel });
           res.json({ success: true, ok: true, data: result });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Infant error signature failed: ${e.message}` } });

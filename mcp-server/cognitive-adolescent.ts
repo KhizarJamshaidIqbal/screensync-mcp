@@ -197,6 +197,8 @@ export class AdolescentCognitionEngine {
   /** 7. Infant error-negativity + social referencing: first error imprints; risky acts check the caregiver. */
   public infantErrorSignature(domain: string, event: {
     errorOccurred: boolean; riskyActionPlanned?: boolean;
+    /** The level the hub EARNED for the domain (1-5). Unknown counts as NOVICE. */
+    earnedLevel?: number;
   }): { ernSignature: string | null; socialReferencingAdvised: boolean; caregiverPrompt: string | null } {
     const p = this.getOrCreate(domain);
     let ernSignature: string | null = null;
@@ -204,9 +206,11 @@ export class AdolescentCognitionEngine {
       p.firstErrorSigned = true;
       ernSignature = `ERN_${p.domain}_${Date.now()}`; // error-related negativity: first mistake imprints deepest
     }
-    const socialReferencingAdvised = Boolean(event.riskyActionPlanned)
-      && p.eriksonStage !== "EGO_INTEGRITY_VS_DESPAIR"
-      && p.eriksonStage !== "GENERATIVITY_VS_STAGNATION";
+    // Asking the human to look first used to switch OFF once the Erikson stage (a function of an age the
+    // caller can set) passed 25, so the safety advice vanished as a domain "grew up", and a caller could
+    // silence it by claiming to be 60. It now keys on the level the hub EARNED: below COMPETENT, a risky
+    // plan always gets a human check. A missing level counts as NOVICE, the safe default.
+    const socialReferencingAdvised = Boolean(event.riskyActionPlanned) && (event.earnedLevel ?? 1) < 3;
     if (socialReferencingAdvised) p.socialReferences += 1;
     p.updatedAt = new Date().toISOString();
     return {

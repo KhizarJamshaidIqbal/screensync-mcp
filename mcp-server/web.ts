@@ -10,6 +10,7 @@ import { runTestSuite } from "./test-runner.js";
 import { createProfileRegistry, BrowserInstance, BrowserWindowInfo } from "./profile-registry.js";
 import { trackToolExecution } from "./cognitive-auto-tracker.js";
 import { sessionOf } from "./cognitive-spine-observer.js";
+import { gateBeforeRelay } from "./cognitive-policy.js";
 import { handleCognitiveTool } from "./web-cognitive-handlers.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
@@ -821,6 +822,13 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
 
+      // Soft gate: a destructive-looking mutation on a domain that has not earned COMPETENT (cognitive-policy.ts). Before the
+      // connection checks: a refusal must not depend on whether a browser happens to be attached.
+      const gate = gateBeforeRelay(tool, args, session);
+      if (gate?.block) {
+        res.json({ success: false, ok: false, error: gate.message, data: { gate: gate.decision } });
+        return;
+      }
       const onlineBrowsers = registry.listOnline();
       if (onlineBrowsers.length === 0) {
         res.status(503).json({
@@ -866,7 +874,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       }
       log("INFO", "Web tool round trip", { tool, ok: result.ok, durationMs: Date.now() - startedAt });
       trackToolExecution(tool, args, result, Date.now() - startedAt, session);
-      res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error });
+      res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error, ...(gate ? { cognitiveGate: gate.decision } : {}) });
     });
 
     app.post("/api/web/result", (req: Request, res: Response) => {
