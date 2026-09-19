@@ -398,7 +398,93 @@ const transfer = await callTool('web_metaphoric_transfer', {
 
 ---
 
-### 14. Nightly / Post-Run: Hippocampal Consolidation
+### 15. Architecture 10.0: Adolescent Identity & Adult Executive Cognition (AIE-EC)
+
+#### A. Adolescent Synaptic Pruning (`web_synaptic_pruning`)
+Use-it-or-lose-it competitive elimination: weak (<=1 success) or 30-day-stale playbooks are pruned so proven ones (5+ successes) myelinate into fast reflexes:
+```javascript
+const prune = await callTool('web_synaptic_pruning', {
+  domain: 'x.com',
+  playbooks: [{ id: 'pb_post', successCount: 12, lastExecutedAt: '2026-09-19' }, { id: 'pb_old', successCount: 1 }]
+});
+// pb_old pruned; pb_post myelinated; identityCoherence sharpens.
+```
+
+#### B. Critical Periods (`web_critical_period`)
+Learning inside experience-expectant sensitive windows earns amplified XP (sensory 0-2y x2.0, procedural 2-7y x1.75, abstract transfer 7-16y x1.5, expert intuition 16-40y x1.25).
+
+#### C. Working Memory Digit Span (`web_working_memory_span`)
+Miller 7+-2 growth: infant span 2 chunks -> adult 7. Never build a plan longer than the domain's current span; chunk long macros into named sub-routines.
+
+#### D. Prefrontal Executive Battery (`web_executive_function`)
+Miyake 2000 scores: inhibition (resist distraction clicks), shifting (switch strategy after failure), updating (refresh state per action). Grades IMMATURE_CHILD -> SAGE_EXECUTIVE.
+
+#### E. Erikson Psychosocial Identity (`web_erikson_identity`)
+Eight psychosocial crises mapped to cognitive age; identity coherence = 1 - contradictions/knowledgePieces.
+
+#### F. Autonoetic Remember/Know (`web_autonoetic_memory`)
+Tulving: REMEMBER (relived via episodic replay, 0.95 certainty) vs KNOW (semantic familiarity, 0.65).
+
+#### G. Infant ERN + Social Referencing (`web_infant_error_signature`)
+First error on a domain gets a permanent ERN imprint; risky actions at immature stages trigger a caregiver check (ask the human to glance, like a child checking a parent's face).
+
+#### H. Baltes Wisdom Calibration (`web_wisdom_calibration`)
+wisdom = knowledgeDepth x (1 - |statedConfidence - measuredAccuracy|). Detects ADOLESCENT_OVERCONFIDENCE and IMPOSTER_CHILD.
+
+---
+
+### 16. Architecture 11.0: Motivated Learning Dynamics & Prospective Memory (MLDP)
+
+#### A. Piaget Assimilation vs Accommodation (`web_assimilation_accommodation`)
+Equilibration decides whether new evidence fits the schema or rewrites it:
+```javascript
+const eq = await callTool('web_assimilation_accommodation', {
+  domain: 'threads.net',
+  observation: { matchesExistingSchema: false, noveltyScore: 0.85 }
+});
+// process: 'ACCOMMODATION', schemaAction: 'create' -> build a NEW playbook, do not distort the x.com one.
+// noveltyScore < 0.7 -> schemaAction: 'rewrite' (heal the broken step instead).
+```
+
+#### B. Ebbinghaus Forgetting Curve (`web_forgetting_curve`)
+Memory decays as `R = e^(-t/S)`; reviews double stability. Review anything below 0.6 retention:
+```javascript
+const decay = await callTool('web_forgetting_curve', {
+  domain: 'x.com',
+  items: [{ id: 'x_publish_post', learnedAt: '2026-09-01T00:00:00Z', reviewCount: 0 }]
+});
+// reviewDue: [...] -> re-verify these playbooks NOW; nextReviewSchedule gives the expanding ladder (1,3,7,16,35 days).
+```
+
+#### C. Operant Reinforcement Schedule (`web_reinforcement_schedule`)
+Practice cadence by phase: CONTINUOUS (learning) → FIXED_INTERVAL (daily) → VARIABLE_INTERVAL (extinction-resistant mastery).
+
+#### D. Prospective Memory (`web_prospective_memory`)
+Remembering to remember — register implementation intentions, then check observed events:
+```javascript
+await callTool('web_prospective_memory', {
+  domain: 'x.com', action: 'register',
+  intention: { triggerEvent: 'login_wall', actionPlan: 're-auth with web_network_auth, then retry compose' }
+});
+const fired = await callTool('web_prospective_memory', { domain: 'x.com', action: 'check', observedEvent: 'login_wall' });
+// fired[0].actionPlan -> execute the pre-committed plan without re-reasoning.
+```
+
+#### E. Source Monitoring (`web_source_monitoring`)
+Never trust a fact's claimed origin. Detects misattribution (an x.com playbook actually learned on threads.net) and maintains a trust ledger per source.
+
+#### F. Interference Check (`web_interference_check`)
+Before transferring between similar platforms (x.com ↔ threads.net ↔ bsky.app), measure proactive interference (old habits leaking in) and retroactive interference (new learning corrupting the old skill). HIGH → namespace selectors and prune first.
+
+#### G. Reward Prediction Error (`web_reward_prediction_error`)
+Dopamine gating: positive surprise → consolidate hard (LTP); negative surprise → **the richest learning moment, write the pitfall immediately**; matched expectation → no learning signal.
+
+#### H. Cognitive Load Budget (`web_cognitive_load_budget`)
+Sweller CLT: keep `intrinsic + extraneous + germane` under the chunk capacity (7). COGNITIVE_OVERLOAD → chunk the plan, strip DOM noise, use `web_page_digest`/`web_reader_mode`.
+
+---
+
+### 17. Nightly / Post-Run: Hippocampal Consolidation
 At session end or during periodic maintenance, trigger consolidation:
 ```javascript
 const report = await callTool('web_consolidate', {});

@@ -70,6 +70,31 @@ Human minds don't solve the same puzzle from scratch twice: once a motor skill o
     - **Immediate Playbook Synthesis**: When a new multi-step flow succeeds, immediately call `web_learn` (`action: "playbook"`).
     - **Immediate Consolidation**: Call `web_cognitive_maturation` with `{ outcome: "success", xpGain: 25 }` and `web_consolidate` to lock memories into Gold tier before finishing the turn.
 
+### -1b · Cognitive Architecture 8.0 → 11.0: Developmental Levels (child → adult memory system)
+
+The agent's per-domain memory grows through developmental stages exactly like a child's mind — infant → child → adolescent → adult → sage. Use these tools at each phase of every real-browser operation:
+
+| Phase of work | Tool | What it decides |
+|---|---|---|
+| **Before acting** (child checks the stove) | `web_recall` / `web_warm` | Fast-path playbook or fresh start; 2–7 chunk working-memory budget via `web_working_memory_span` |
+| **Learning inside the right window** | `web_critical_period` | XP ×2 in infancy → ×1.25 in expert years; never skip a domain's sensitive window |
+| **New page evidence** | `web_assimilation_accommodation` | Fit the schema (reinforce), heal it (rewrite step), or grow a new schema |
+| **After a surprising result** | `web_reward_prediction_error` | Positive surprise → consolidate; negative surprise → write the pitfall NOW |
+| **Before transferring skills** (x.com → threads.net) | `web_interference_check` + `web_metaphoric_transfer` | Measure proactive/retroactive interference first; HIGH → namespace + `web_synaptic_pruning` |
+| **Every few hours of operation** | `web_forgetting_curve` | Review playbooks whose retention `R = e^(-t/S)` fell below 0.6 |
+| **Before risky actions at immature stages** | `web_infant_error_signature` | Social referencing: ask the human to glance first (like a child checking a parent) |
+| **Practice cadence** | `web_reinforcement_schedule` | CONTINUOUS → FIXED_INTERVAL → VARIABLE_INTERVAL; extinction-resistant mastery |
+| **Before long plans** | `web_cognitive_load_budget` | intrinsic+extraneous+germane vs 7 chunks; OVERLOAD → chunk + `web_page_digest` |
+| **Whenever facts are questioned** | `web_source_monitoring` | Catch misattribution; trust ledger per source |
+| **Future contingencies** | `web_prospective_memory` | Register "WHEN login_wall THEN re-auth+retry" — fires automatically when observed |
+| **Self-assessment** | `web_wisdom_calibration` / `web_executive_function` | Overconfidence (teen) vs imposter (child) states; inhibition/shifting/updating grade |
+
+**Operating rules (iron):**
+1. **Plan length ≤ digit span**: query `web_working_memory_span` before any multi-step macro; a plan longer than the domain's span must be chunked into named sub-routines.
+2. **Surprise = write memory immediately**: any `PHASIC_DIP` outcome → `web_learn pitfall` in the same turn (this is the highest-value learning moment).
+3. **Check interference before cross-domain transfer** — transferring an unverified playbook to a similar site is the #1 source of phantom failures.
+4. **Rehearse on schedule**: run `web_forgetting_curve` at session start; re-verify every playbook below 0.6 retention before relying on it.
+
 ## 0 · Connect & discover
 
 1. If the `screensync` MCP server is not attached, configure it (stdio):
