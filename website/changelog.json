@@ -1,7 +1,35 @@
 {
-  "generatedAt": "2026-09-19T09:39:07Z",
+  "generatedAt": "2026-09-19T13:39:29Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
+    {
+      "sha": "ed55a93",
+      "date": "2026-09-19",
+      "ts": 1789825168,
+      "parts": [
+        {
+          "stream": "extension",
+          "streamLabel": "Extension",
+          "version": "1.10.1",
+          "build": "",
+          "display": "1.10.1",
+          "date": "2026-09-19",
+          "ts": 1789825168,
+          "sha": "ed55a93",
+          "groups": {
+            "NEW": [],
+            "IMPROVED": [],
+            "FIXED": [
+              "Read the threat breaker from the hub, which owns it",
+              "Let the bridge name guard accept digits in a tool name"
+            ]
+          },
+          "count": 2
+        }
+      ],
+      "count": 2,
+      "title": "Extension 1.10.1"
+    },
     {
       "sha": "6308327",
       "date": "2026-09-19",
@@ -344,9 +372,9 @@
     }
   ],
   "stats": {
-    "releases": 10,
+    "releases": 11,
     "appReleases": 6,
-    "extensionReleases": 4,
-    "changes": 72
+    "extensionReleases": 5,
+    "changes": 74
   }
 }
