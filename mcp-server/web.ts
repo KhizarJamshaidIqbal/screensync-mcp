@@ -217,7 +217,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       for (let i = 0; i < flow.steps.length; i++) {
         const step = flow.steps[i];
         const stepTool = String(step.tool || "");
-        if (!/^web_[a-z_]+$/.test(stepTool)) {
+        if (!/^web_[a-z0-9_]+$/.test(stepTool)) {
           results.push({ step: i + 1, tool: stepTool, ok: false, error: "invalid tool name" });
           okAll = false;
           executed++;
@@ -318,7 +318,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
       const b = (req.body ?? {}) as Record<string, unknown>;
-      const type = typeof b.type === "string" && /^web_[a-z_]+$/.test(b.type) ? b.type : "web_event";
+      const type = typeof b.type === "string" && /^web_[a-z0-9_]+$/.test(b.type) ? b.type : "web_event";
       broadcast({
         type,
         at: new Date().toISOString(),
@@ -345,7 +345,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       const b = (req.body ?? {}) as { tool?: string; args?: Record<string, unknown>; timeoutMs?: number };
       const tool = String(b.tool ?? "");
       const args = b.args && typeof b.args === "object" ? b.args : {};
-      if (!/^web_[a-z_]+$/.test(tool)) {
+      if (!/^web_[a-z0-9_]+$/.test(tool)) {
         res.status(400).json({ success: false, error: `Invalid web tool name: ${tool}` });
         return;
       }
@@ -395,7 +395,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
 
       if (tool === "web_fanout") {
         const innerTool = String(args.tool || "");
-        if (!/^web_[a-z_]+$/.test(innerTool)) {
+        if (!/^web_[a-z0-9_]+$/.test(innerTool)) {
           res.status(400).json({ success: false, ok: false, error: "web_fanout requires tool (a web_* tool to run on each browser)." });
           return;
         }
@@ -723,7 +723,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
           const stepTool = String(step.tool || "");
-          if (!/^web_[a-z_]+$/.test(stepTool)) {
+          if (!/^web_[a-z0-9_]+$/.test(stepTool)) {
             results.push({ step: i + 1, tool: stepTool, ok: false, error: "invalid tool name" });
             okAll = false;
             if (stopOnError) break;
@@ -745,7 +745,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       // ── Multi-tab orchestration (mirror of web_fanout) ───────────────────
       if (tool === "web_tab_fanout") {
         const innerTool = String(args.tool || "");
-        if (!/^web_[a-z_]+$/.test(innerTool)) {
+        if (!/^web_[a-z0-9_]+$/.test(innerTool)) {
           res.status(400).json({ success: false, ok: false, error: "web_tab_fanout requires tool (a web_* tool to run on each tab)." });
           return;
         }

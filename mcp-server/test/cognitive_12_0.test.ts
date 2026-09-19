@@ -8,6 +8,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { TranscendentalCognitionEngine, CHALLENGE_FINGERPRINTS } from "../cognitive-transcendental.js";
+import { transcendentalToolDefinitions } from "../catalog-transcendental.js";
 
 test("TEC-SSC: slow-wave consolidation downscales noise and keeps proven traces", () => {
   const engine = new TranscendentalCognitionEngine();
@@ -252,6 +253,20 @@ test("TEC-SSC: wisdom capsules survive a round trip and reject tampering", () =>
 
   const missing = engine.generativeWisdomCapsule("import", {});
   assert.equal(missing.accepted, false);
+});
+
+test("TEC-SSC: every declared tool name passes the bridge's own name validator", () => {
+  // Regression: the /api/web/tool guard was /^web_[a-z_]+$/, which silently
+  // rejected web_system1_reflex_compile - the first tool name in the project to
+  // contain a digit. Unit tests call the engine directly and never saw it; only
+  // a live bridge call did. Keep the catalogue and the guard in agreement.
+  const BRIDGE_NAME_RE = /^web_[a-z0-9_]+$/;
+  const declared = transcendentalToolDefinitions().map((t) => t.name);
+  assert.equal(declared.length, 8);
+  for (const name of declared) {
+    assert.ok(BRIDGE_NAME_RE.test(name), `${name} would be rejected by the web bridge name guard`);
+  }
+  assert.ok(declared.includes("web_system1_reflex_compile"));
 });
 
 test("TEC-SSC: the checksum is canonical - key order does not change it", () => {

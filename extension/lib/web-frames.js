@@ -15,7 +15,7 @@ const ACTION_TOOLS = new Set(['web_get_by', 'web_fill', 'web_check', 'web_focus'
 
 export async function execInFrame(tab, args) {
   const innerTool = String(args.tool || '');
-  if (!/^web_[a-z_]+$/.test(innerTool)) return { ok: false, error: 'web_in_frame requires tool (a web_* tool to run inside the frame).' };
+  if (!/^web_[a-z0-9_]+$/.test(innerTool)) return { ok: false, error: 'web_in_frame requires tool (a web_* tool to run inside the frame).' };
   if (!INTERACT_TOOLS.has(innerTool) && !PERCEPTION_TOOLS.has(innerTool) && !ACTION_TOOLS.has(innerTool) && !['web_find', 'web_scrape_schema', 'web_dom_diff', 'web_som_overlay', 'web_remove_overlay', 'web_assert', 'web_markdown_extract'].includes(innerTool)) {
     return { ok: false, error: `Tool ${innerTool} is not a frame-scopable page tool. Use interact/agent/extract tools (web_click, web_fill, web_expect, ...).` };
   }
