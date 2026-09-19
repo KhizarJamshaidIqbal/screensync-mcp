@@ -49,6 +49,11 @@ const ARCH_11 = [
   "web_assimilation_accommodation", "web_forgetting_curve", "web_reinforcement_schedule", "web_prospective_memory",
   "web_source_monitoring", "web_interference_check", "web_reward_prediction_error", "web_cognitive_load_budget",
 ];
+const ARCH_12 = [
+  "web_rem_dream_simulation", "web_system1_reflex_compile", "web_amygdala_threat_inoculation", "web_zpd_scaffold_tutor",
+  "web_somatic_marker_risk", "web_baddeley_working_memory", "web_dialectical_synthesis", "web_generative_wisdom_capsule",
+];
+const ALL_DEVELOPMENTAL = [...ARCH_10, ...ARCH_11, ...ARCH_12];
 
 /** MCP flattens the tool payload into the text content — parse it. */
 function payload(res: unknown): Record<string, any> {
@@ -69,15 +74,15 @@ try {
   const client = new Client({ name: "cognitive-e2e", version: "1.0.0" });
   await client.connect(transport);
 
-  // 1. All 16 developmental tools are listed, with schemas, without duplicates.
+  // 1. All 24 developmental tools are listed, with schemas, without duplicates.
   const listed = await client.listTools();
   const names = listed.tools.map((t) => t.name);
-  for (const t of [...ARCH_10, ...ARCH_11]) assert.ok(names.includes(t), `tools/list must include ${t}`);
+  for (const t of ALL_DEVELOPMENTAL) assert.ok(names.includes(t), `tools/list must include ${t}`);
   const byName = new Map(listed.tools.map((t) => [t.name, t]));
-  for (const t of [...ARCH_10, ...ARCH_11]) {
+  for (const t of ALL_DEVELOPMENTAL) {
     const def = byName.get(t);
     assert.ok((def as any)?.inputSchema, `${t} must expose an inputSchema`);
-    assert.match((def as any)?.description ?? "", /Architecture (10|11)\.0/, `${t} description must state its architecture`);
+    assert.match((def as any)?.description ?? "", /Architecture (10|11|12)\.0/, `${t} description must state its architecture`);
   }
   assert.equal(new Set(names).size, names.length, "tools/list must not contain duplicate names");
   assert.ok(names.length >= 210, `expected >=210 tools, got ${names.length}`);
@@ -201,6 +206,47 @@ try {
   assert.equal(httpJson.data.activeWindow?.id, "sensory_calibration");
   assert.equal(httpJson.data.effectiveXp, 20, "critical-period window must amplify XP 2x");
 
+  // 4b. Architecture 12.0: the threat breaker is owned by the HUB (it answers the tool itself and
+  // never relays it to the extension), so the dashboard must read it here. Trip it over MCP, read
+  // it back through the same POST the extension's api.webTool makes, and prove a read is inert.
+  const trip = payload(await client.callTool({
+    name: "web_amygdala_threat_inoculation",
+    arguments: { domain: "e2e-guarded.test", signal: { fingerprint: "cloudflare_turnstile" } },
+  }));
+  assert.equal(trip.breakerState, "TRIPPED");
+  assert.equal(trip.handToHuman, true, "a tripped breaker hands control to the human");
+
+  type StateBody = { ok: boolean; data: { threats: Array<{ domain: string; breakerState: string; consecutiveTrips: number }> } };
+  const readState = async (args: Record<string, unknown> = {}): Promise<StateBody> => {
+    const r = await fetch(`${BASE}/api/web/tool`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ tool: "web_amygdala_threat_inoculation", args: { action: "state", ...args } }),
+    });
+    assert.equal(r.status, 200, "the bridge must accept a threat state read");
+    return await r.json() as StateBody;
+  };
+  const before = await readState();
+  assert.equal(before.ok, true);
+  const rec = before.data.threats.find((t) => t.domain === "e2e-guarded.test");
+  assert.ok(rec, "the hub must report the domain it tripped - an empty list here is the bug the panel shipped with");
+  assert.equal(rec.breakerState, "TRIPPED");
+  assert.equal(rec.consecutiveTrips, 1);
+  const after = await readState();
+  assert.deepEqual(after.data.threats, before.data.threats, "reading the breaker must not move it");
+  const scoped = await readState({ domain: "never-seen.test" });
+  assert.equal(scoped.ok, true, "an unknown domain is an empty read, not an error");
+  assert.deepEqual(scoped.data.threats, []);
+
+  const noDomain = await fetch(`${BASE}/api/web/tool`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ tool: "web_amygdala_threat_inoculation", args: { signal: {} } }),
+  });
+  const noDomainJson = await noDomain.json() as { ok: boolean };
+  assert.equal(noDomainJson.ok, false, "appraising without a domain must be refused, not recorded under an empty key");
+  assert.ok(!(await readState()).data.threats.some((t) => t.domain === ""), "no empty-domain breaker may exist");
+
   // 5. Unknown tool still fails cleanly (no crash, no false success).
   const bogus = await fetch(`${BASE}/api/web/tool`, {
     method: "POST",
@@ -216,7 +262,7 @@ try {
   assert.ok(Array.isArray(events.events), "hub must expose a replayable event tail");
 
   await client.close();
-  console.log("PASS cognitive-architecture e2e (10.0 + 11.0, 16 tools, MCP + HTTP paths)");
+  console.log("PASS cognitive-architecture e2e (10.0 - 12.0, 24 tools, MCP + HTTP paths, hub-owned breaker read)");
 } catch (err) {
   failed = true;
   console.error("FAIL cognitive-architecture e2e:", err);

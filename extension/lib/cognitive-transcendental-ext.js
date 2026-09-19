@@ -55,13 +55,11 @@ const CATASTROPHIC = [
 // Same vocabulary the page-side interact unit enforces, so hub and page agree.
 const DESTRUCTIVE_RE = /delete|remove|destroy|terminate|cancel\s*subscription|drop|pay|purchase|buy|charge/i;
 
-/** domain -> threat record. Read by the dashboard threat panel. */
+/**
+ * domain -> threat record for THIS mirror only. The hub answers this tool itself and owns
+ * the real breaker, so the dashboard reads the hub (lib/threat-state.js), not this map.
+ */
 const THREAT_STATE = new Map();
-
-export function getThreatState(domain) {
-  const all = [...THREAT_STATE.entries()].map(([k, v]) => ({ domain: k, ...v }));
-  return domain ? all.filter((r) => r.domain === normalizeDomain(domain)) : all;
-}
 
 export async function execWebRemDreamSimulation(args = {}) {
   const domain = normalizeDomain(args.domain || args.url);
@@ -159,6 +157,15 @@ export async function execWebSystem1ReflexCompile(args = {}) {
 
 export async function execWebAmygdalaThreatInoculation(args = {}) {
   const domain = normalizeDomain(args.domain || args.url);
+  // Same contract as the hub: action:'state' only reads and can never move the breaker.
+  if (args.action === 'state') {
+    const all = [...THREAT_STATE.entries()].map(([k, v]) => ({ domain: k, ...v }));
+    const threats = domain ? all.filter((r) => r.domain === domain) : all;
+    return { ok: true, data: { threats, tracked: threats.length } };
+  }
+  if (!domain) {
+    return { ok: false, error: "domain is required to appraise a threat signal (use action:'state' to read the breaker)." };
+  }
   const signal = args.signal || {};
   const rec = THREAT_STATE.get(domain) || {
     fearWeight: 0, consecutiveTrips: 0, breakerState: 'ARMED',

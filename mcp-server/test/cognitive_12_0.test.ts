@@ -9,6 +9,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { TranscendentalCognitionEngine, CHALLENGE_FINGERPRINTS } from "../cognitive-transcendental.js";
 import { transcendentalToolDefinitions } from "../catalog-transcendental.js";
+import { handleTranscendentalCognitiveTool } from "../web-cognitive-transcendental-handlers.js";
+
+/** Drives the real hub handler with a fake Express response - no HTTP, no extension. */
+function callHandler(tool: string, args: Record<string, unknown>): { handled: boolean; body: any } {
+  let body: any;
+  const res = { json: (b: unknown) => { body = b; } } as any;
+  const handled = handleTranscendentalCognitiveTool(tool, args, res);
+  return { handled, body };
+}
 
 test("TEC-SSC: slow-wave consolidation downscales noise and keeps proven traces", () => {
   const engine = new TranscendentalCognitionEngine();
@@ -267,6 +276,42 @@ test("TEC-SSC: every declared tool name passes the bridge's own name validator",
     assert.ok(BRIDGE_NAME_RE.test(name), `${name} would be rejected by the web bridge name guard`);
   }
   assert.ok(declared.includes("web_system1_reflex_compile"));
+});
+
+test("TEC-SSC: the hub-owned breaker is readable through action:state, and a read never moves it", () => {
+  // Regression. The hub answers this tool itself and never relays it to the extension, so the
+  // dashboard panel - which first read a map inside the extension - showed "every breaker is
+  // armed" while the hub's breaker was TRIPPED. The read path has to live on the hub.
+  const trip = callHandler("web_amygdala_threat_inoculation", { domain: "state-read.test", signal: { fingerprint: "datadome" } });
+  assert.equal(trip.handled, true);
+  assert.equal(trip.body.data.breakerState, "TRIPPED");
+
+  const first = callHandler("web_amygdala_threat_inoculation", { action: "state", domain: "state-read.test" });
+  assert.equal(first.body.ok, true);
+  assert.equal(first.body.data.threats.length, 1);
+  assert.equal(first.body.data.threats[0].breakerState, "TRIPPED");
+  assert.equal(first.body.data.threats[0].consecutiveTrips, 1);
+  assert.equal(first.body.data.threats[0].lastFingerprint, "datadome");
+
+  // A read must not extinguish or escalate anything, however often the panel polls.
+  const second = callHandler("web_amygdala_threat_inoculation", { action: "state", domain: "state-read.test" });
+  assert.deepEqual(second.body.data.threats, first.body.data.threats);
+
+  // No domain lists every tracked domain; an unknown one is an empty read, not an error.
+  const all = callHandler("web_amygdala_threat_inoculation", { action: "state" });
+  assert.ok(all.body.data.threats.some((t: { domain: string }) => t.domain === "state-read.test"));
+  const unknown = callHandler("web_amygdala_threat_inoculation", { action: "state", domain: "nobody.test" });
+  assert.equal(unknown.body.ok, true);
+  assert.deepEqual(unknown.body.data.threats, []);
+});
+
+test("TEC-SSC: appraising without a domain is refused rather than recorded under an empty key", () => {
+  const refused = callHandler("web_amygdala_threat_inoculation", { signal: { fingerprint: "recaptcha" } });
+  assert.equal(refused.body.ok, false);
+  assert.match(refused.body.data.error, /domain is required/);
+
+  const all = callHandler("web_amygdala_threat_inoculation", { action: "state" });
+  assert.ok(!all.body.data.threats.some((t: { domain: string }) => t.domain === ""), "no empty-domain breaker may exist");
 });
 
 test("TEC-SSC: the checksum is canonical - key order does not change it", () => {

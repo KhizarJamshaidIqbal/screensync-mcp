@@ -34,6 +34,17 @@ export function handleTranscendentalCognitiveTool(tool: string, args: Record<str
   if (tool === "web_amygdala_threat_inoculation") {
     try {
       const domain = String(args.domain || "").trim();
+      // action:"state" is the read path for the extension dashboard. The breaker lives in
+      // this process, so the panel has to ask the hub; it must never mutate what it reads.
+      if (String(args.action || "") === "state") {
+        const threats = globalTranscendentalEngine.threatState(domain || undefined);
+        res.json({ success: true, ok: true, data: { threats, tracked: threats.length } });
+        return true;
+      }
+      if (!domain) {
+        res.json({ success: true, ok: false, data: { error: "domain is required to appraise a threat signal (use action:'state' to read the breaker)." } });
+        return true;
+      }
       const signal = typeof args.signal === "object" && args.signal ? (args.signal as any) : {};
       const result = globalTranscendentalEngine.amygdalaThreatInoculation(domain, signal);
       res.json({ success: true, ok: true, data: result });

@@ -82,12 +82,16 @@ export function transcendentalToolDefinitions(): Tool[] {
         "Defensive threat appraisal (Architecture 12.0, LeDoux dual-pathway). Low road: a known challenge fingerprint (Cloudflare Turnstile, Akamai, Arkose, DataDome, reCAPTCHA, hCaptcha, PerimeterX) or a 429/403 trips the circuit breaker immediately with an exponential backoff. High road: a clean encounter extinguishes the conditioned fear (Pavlovian decay) so a domain is not penalised forever. The prescribed response is always to STOP and hand control to the human via web_request_help - this tool does not evade, defeat or solve challenges, and deliberately does not randomise cadence or cloak the browser.",
       inputSchema: {
         type: "object",
-        required: ["domain"],
         properties: {
-          domain: { type: "string", description: "Target domain." },
+          action: {
+            type: "string",
+            enum: ["appraise", "state"],
+            description: "appraise (default) records an encounter and updates the breaker; state is READ-ONLY and returns the hub's current breaker record for one domain, or for every tracked domain when domain is omitted. The dashboard threat panel reads through state.",
+          },
+          domain: { type: "string", description: "Target domain. Required for appraise; optional for state." },
           signal: {
             type: "object",
-            description: "Observed signal. Omit or pass an empty object to record a clean encounter and extinguish fear.",
+            description: "Observed signal (appraise only). Omit or pass an empty object to record a clean encounter and extinguish fear.",
             properties: {
               fingerprint: {
                 type: "string",

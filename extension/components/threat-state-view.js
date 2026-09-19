@@ -1,7 +1,8 @@
 import { escapeHtml } from '../lib/escape.js';
 // ScreenSync Threat Breaker Panel (Architecture 12.0, subsystem 3)
 // Surfaces web_amygdala_threat_inoculation state: which domains are backed off,
-// what tripped them, and how far the conditioned fear has decayed.
+// what tripped them, and how far the conditioned fear has decayed. The breaker is
+// owned by the hub, so this reads it there (see lib/threat-state.js).
 //
 // This panel reports a DEFENSIVE posture. A tripped breaker means automation has
 // stopped and the human is being asked to take over - it is never a prompt to
@@ -55,7 +56,13 @@ export function mountThreatStateView(container, send, toast) {
   async function loadThreats() {
     try {
       const res = await send({ type: 'get-threat-state' });
-      const threats = (res && res.threats) || [];
+      // The breaker lives in the hub. If we cannot reach it we do NOT know the state, and
+      // must not fall through to the "every breaker is armed" message below.
+      if (!res || res.ok !== true) {
+        rows.innerHTML = `<div class="dim">Breaker state unknown - the hub could not be read (${escapeHtml((res && res.error) || 'no response')}).</div>`;
+        return;
+      }
+      const threats = res.threats || [];
       if (!threats.length) {
         rows.innerHTML = `<div class="dim">No domain has raised a challenge this session. Every breaker is armed.</div>`;
         return;

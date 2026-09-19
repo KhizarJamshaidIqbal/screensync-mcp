@@ -55,4 +55,6 @@ export const api = {
   patch: () => hubFetch('/api/patches/latest'),
   pairInfo: () => hubFetch('/api/pair'),
   control: (action, body = {}) => hubFetch(`/api/control/${action}`, { method: 'POST', body }),
+  // Hub-side web tools (the cognitive engines live in the hub process, not here).
+  webTool: (tool, args = {}) => hubFetch('/api/web/tool', { method: 'POST', body: { tool, args } }),
 };
