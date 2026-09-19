@@ -5,6 +5,8 @@
 // 3. Cognitive Reversibility & Transactional Undo (accidental_data_loss_prevention)
 // 4. Gary Klein's Recognition-Primed Decision (RPD) Prototype Archetypes
 
+import { asRecord, capTail, toMap } from "./cognitive-serial.js";
+
 export type WebPageArchetype =
   | "ARCHETYPE_RICH_FEED"
   | "ARCHETYPE_DATA_TABLE"
@@ -285,6 +287,19 @@ export class CognitiveRpdEngine {
       safetyProfile: "low_exploratory",
       invariants: ["Use VOM AX tree for robust element discovery"],
     };
+  }
+
+  /** Durable state (see cognitive-persistence.ts). */
+  public snapshotState(): unknown {
+    return {
+      spatialMemoryMap: [...this.spatialMemoryMap.entries()].map(([domain, list]) => [domain, capTail(list, 500)]),
+    };
+  }
+
+  public restoreState(raw: unknown): void {
+    const s = asRecord(raw, "rpd");
+    const spatialMemoryMap = toMap<SpatialElementMemory[]>(s.spatialMemoryMap, "rpd.spatialMemoryMap");
+    this.spatialMemoryMap = spatialMemoryMap;
   }
 }
 

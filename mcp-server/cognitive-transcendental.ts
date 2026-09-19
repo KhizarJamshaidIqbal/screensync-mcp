@@ -18,75 +18,15 @@
 
 import { createHash } from "node:crypto";
 
-export interface ExecutionTrace {
-  id: string;
-  steps?: string[];
-  successCount?: number;
-  failureCount?: number;
-  hasExplicitWaits?: boolean;
-  usesShadowPiercing?: boolean;
-}
+import {
+  CATASTROPHIC, CHALLENGE_FINGERPRINTS, DESTRUCTIVE_RE, FAILURE_VECTORS, PERTURBATIONS, clean, round,
+  type ExecutionTrace, type ReflexPlaybook, type ThreatRecord,
+} from "./cognitive-transcendental-data.js";
+import { asRecord, toMap } from "./cognitive-serial.js";
 
-export interface ReflexPlaybook {
-  id: string;
-  steps: Array<{ action: string; selector?: string; value?: string }>;
-  successCount?: number;
-  wisdomScore?: number;
-}
-
-export interface ThreatRecord {
-  fearWeight: number;
-  consecutiveTrips: number;
-  breakerState: "ARMED" | "TRIPPED" | "EXTINGUISHING";
-  lastFingerprint: string | null;
-  lastTrippedAt: string | null;
-  cleanEncounters: number;
-}
-
-/** Challenge fingerprints that trip the subcortical "low road" on sight. */
-export const CHALLENGE_FINGERPRINTS = Object.freeze([
-  "cloudflare_turnstile",
-  "akamai_bot_manager",
-  "arkose_labs",
-  "datadome",
-  "recaptcha",
-  "hcaptcha",
-  "perimeterx",
-]);
-
-/** Counterfactual perturbations replayed during REM. Fixed, so dreams are reproducible. */
-const PERTURBATIONS = Object.freeze([
-  { id: "occluding_overlay", guard: "assert the target is unoccluded (web_actionable) before clicking" },
-  { id: "latency_spike_3000ms", guard: "wrap the step in an explicit web_wait_for instead of a fixed sleep" },
-  { id: "selector_drift", guard: "resolve by role/text before falling back to a brittle css selector" },
-  { id: "auth_expiry", guard: "re-check the session (web_expect on a logged-in marker) before acting" },
-  { id: "shadow_root_reparent", guard: "use a shadow-piercing locator (>>>) rather than a flat query" },
-]);
-
-/** Failure vectors the internal adversary raises against a candidate plan. */
-const FAILURE_VECTORS = Object.freeze([
-  { id: "unpierced_shadow_root", when: (s: string) => /css=|queryselector|^#|^\./.test(s), guard: "locator may sit inside a shadow root - use >>> or pierce/" },
-  { id: "disabled_until_in_view", when: (s: string) => /click|submit|press/.test(s), guard: "element may be disabled until scrolled into view - web_scroll_to then web_actionable" },
-  { id: "unsaved_state_dialog", when: (s: string) => /navigate|reload|goto|close/.test(s), guard: "navigation may raise beforeunload - run web_contract_check first" },
-  { id: "iframe_boundary", when: (s: string) => /click|fill|type/.test(s), guard: "target may live in an iframe - confirm with web_frame_tree, act via web_in_frame" },
-  { id: "lazy_mount_race", when: (s: string) => /fill|type|select/.test(s), guard: "control may mount after paint - web_wait_for the selector before input" },
-]);
-
-/** Catastrophic intents that dominate the somatic appraisal regardless of wording. */
-const CATASTROPHIC = Object.freeze([
-  "purge database", "drop database", "delete account", "close account",
-  "transfer funds", "wire transfer", "withdraw", "production dns", "rotate key", "revoke access",
-]);
-
-/**
- * Destructive-action vocabulary. Deliberately the same regex the page-side unit
- * already enforces (extension/lib/web-unit-interact.js isDestructiveAction) so
- * the hub and the page agree on what "destructive" means.
- */
-const DESTRUCTIVE_RE = /delete|remove|destroy|terminate|cancel\s*subscription|drop|pay|purchase|buy|charge/i;
-
-const round = (n: number, dp = 3): number => Math.round(n * 10 ** dp) / 10 ** dp;
-const clean = (d: string): string => String(d || "").toLowerCase().trim();
+// Kept importable from here so existing importers do not have to change.
+export { CHALLENGE_FINGERPRINTS };
+export type { ExecutionTrace, ReflexPlaybook, ThreatRecord };
 
 export class TranscendentalCognitionEngine {
   private threats: Map<string, ThreatRecord> = new Map();
@@ -501,6 +441,17 @@ export class TranscendentalCognitionEngine {
       return v;
     };
     return createHash("sha256").update(JSON.stringify(canonical(body))).digest("hex");
+  }
+
+  /** Durable state (see cognitive-persistence.ts): the per-domain threat breakers. */
+  public snapshotState(): unknown {
+    return { threats: [...this.threats.entries()] };
+  }
+
+  public restoreState(raw: unknown): void {
+    const s = asRecord(raw, "transcendental");
+    const threats = toMap<ThreatRecord>(s.threats, "transcendental.threats");
+    this.threats = threats;
   }
 }
 

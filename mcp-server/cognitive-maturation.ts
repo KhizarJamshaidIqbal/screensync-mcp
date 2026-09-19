@@ -5,6 +5,8 @@
 // 3. Epistemic Curiosity Frontier (Childhood Entropy Reduction & Safe Exploration)
 // 4. Biological Homeostatic Regulation & Allostatic Resilience
 
+import { asRecord, capTail, toArray, toMap } from "./cognitive-serial.js";
+
 export type CognitiveStage =
   | "STAGE_1_INFANT_SENSORIMOTOR"
   | "STAGE_2_CHILD_SYMBOLIC"
@@ -356,6 +358,25 @@ export class CognitiveMaturationEngine {
           : "System operating within healthy cognitive homeostasis."
       }`,
     };
+  }
+
+  /** Durable state (see cognitive-persistence.ts). Pristine, read-created profiles are omitted: they are recreated on demand. */
+  public snapshotState(): unknown {
+    return {
+      profiles: [...this.profiles.entries()].filter(([, p]) => p.cognitiveXp > 0 || p.successfulActions > 0 || p.traumaIncidents > 0 || p.stageLevel > 1),
+      graphNodes: [...this.graphNodes.entries()],
+      graphEdges: capTail(this.graphEdges, 5000),
+    };
+  }
+
+  public restoreState(raw: unknown): void {
+    const s = asRecord(raw, "maturation");
+    const profiles = toMap<OntogeneticProfile>(s.profiles, "maturation.profiles");
+    const graphNodes = toMap<GraphNode>(s.graphNodes, "maturation.graphNodes");
+    const graphEdges = toArray<GraphEdge>(s.graphEdges, "maturation.graphEdges");
+    this.profiles = profiles;
+    this.graphNodes = graphNodes;
+    this.graphEdges = graphEdges;
   }
 }
 

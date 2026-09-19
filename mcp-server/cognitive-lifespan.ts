@@ -5,6 +5,8 @@
 // 3. Infant Motor Babbling & DOM Physical Calibration
 // 4. Gentner's Structure-Mapping Analogical Metaphoric Transfer
 
+import { asRecord, toMap } from "./cognitive-serial.js";
+
 export type LifespanStage =
   | "LEVEL_1_INFANT_REFLEX"
   | "LEVEL_2_CHILD_SCAFFOLD"
@@ -294,6 +296,27 @@ export class CognitiveLifespanEngine {
     this.metaphoricMappings.set(tgt, existing);
 
     return mapping;
+  }
+
+  /** Durable state (see cognitive-persistence.ts). Pristine, read-created profiles are omitted: they are recreated on demand. */
+  public snapshotState(): unknown {
+    return {
+      lifespanProfiles: [...this.lifespanProfiles.entries()].filter(
+        ([, p]) => !(p.cognitiveAgeYears === 0.5 && p.successfulMilestones === 0 && p.nociceptiveBurns === 0),
+      ),
+      motorProfiles: [...this.motorProfiles.entries()],
+      metaphoricMappings: [...this.metaphoricMappings.entries()],
+    };
+  }
+
+  public restoreState(raw: unknown): void {
+    const s = asRecord(raw, "lifespan");
+    const lifespanProfiles = toMap<LifespanProfile>(s.lifespanProfiles, "lifespan.lifespanProfiles");
+    const motorProfiles = toMap<MotorCalibrationProfile>(s.motorProfiles, "lifespan.motorProfiles");
+    const metaphoricMappings = toMap<MetaphoricMapping[]>(s.metaphoricMappings, "lifespan.metaphoricMappings");
+    this.lifespanProfiles = lifespanProfiles;
+    this.motorProfiles = motorProfiles;
+    this.metaphoricMappings = metaphoricMappings;
   }
 }
 

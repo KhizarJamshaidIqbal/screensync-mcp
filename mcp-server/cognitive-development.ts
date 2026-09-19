@@ -2,6 +2,8 @@
 // Synthesizes Piaget's Cognitive Development Stages & Vygotsky's Zone of Proximal Development (ZPD)
 // Inspired by ML Best Practices continuous drift monitoring and model maturity progression.
 
+import { asRecord, toMap } from "./cognitive-serial.js";
+
 export type StageName =
   | "SENSORIMOTOR_INFANT"
   | "PREOPERATIONAL_TODDLER"
@@ -193,6 +195,21 @@ export class CognitiveDevelopmentEngine {
     m.stage = Math.max(1, Math.min(5, stage));
     m.updatedAt = new Date().toISOString();
     return m;
+  }
+
+  /** Durable state (see cognitive-persistence.ts). Pristine, read-created infant profiles are omitted: they are recreated on demand. */
+  public snapshotState(): unknown {
+    return {
+      domainMaturityMap: [...this.domainMaturityMap.entries()].filter(
+        ([, m]) => !(m.stage === 1 && m.xp === 0 && m.episodesCount === 0 && m.consecutiveFailures === 0),
+      ),
+    };
+  }
+
+  public restoreState(raw: unknown): void {
+    const s = asRecord(raw, "development");
+    const domainMaturityMap = toMap<DomainMaturity>(s.domainMaturityMap, "development.domainMaturityMap");
+    this.domainMaturityMap = domainMaturityMap;
   }
 }
 

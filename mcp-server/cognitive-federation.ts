@@ -2,6 +2,11 @@
 // Inspired by Google Cloud Lakehouse federated catalogs (federate_lakehouse_catalog)
 // Enables isolated browser profiles to share sanitized procedural wisdom without credential or token leakage.
 
+import { asRecord, toMap, toStringSet } from "./cognitive-serial.js";
+
+/** Marks the recipe that ships inside the build, as opposed to one an agent published. */
+const SEED_PROVENANCE = "federated_master_seed";
+
 export interface SharedPlaybookRecord {
   catalogId: string;
   domain: string;
@@ -34,7 +39,7 @@ export class FederatedCatalogEngine {
         stepsCount: 5,
         targetDurationSeconds: 15,
       },
-      provenance: "federated_master_seed",
+      provenance: SEED_PROVENANCE,
       publishedAt: "2026-09-18T10:43:12.000Z",
       timesInherited: 12,
     };
@@ -99,6 +104,28 @@ export class FederatedCatalogEngine {
 
   public getLinkedProfiles(): string[] {
     return Array.from(this.linkedProfiles.values());
+  }
+
+  /**
+   * Durable state (see cognitive-persistence.ts). The built-in seed recipe is left out on purpose: it is
+   * shipped code carrying site selectors that change, so a saved copy would pin an old one forever.
+   */
+  public snapshotState(): unknown {
+    return {
+      sharedPlaybooks: [...this.sharedPlaybooks.entries()].filter(([, r]) => r.provenance !== SEED_PROVENANCE),
+      linkedProfiles: [...this.linkedProfiles],
+    };
+  }
+
+  /** Loads saved recipes ON TOP of the built-in seeds, so a newer build's seed still wins. */
+  public restoreState(raw: unknown): void {
+    const s = asRecord(raw, "federation");
+    const saved = toMap<SharedPlaybookRecord>(s.sharedPlaybooks, "federation.sharedPlaybooks");
+    const linked = toStringSet(s.linkedProfiles, "federation.linkedProfiles");
+    // Never let a saved copy stand in for the shipped seed, even if a file carries one.
+    const learned = [...saved].filter(([, r]) => r.provenance !== SEED_PROVENANCE);
+    this.sharedPlaybooks = new Map([...this.sharedPlaybooks, ...learned]);
+    this.linkedProfiles = new Set([...this.linkedProfiles, ...linked]);
   }
 }
 

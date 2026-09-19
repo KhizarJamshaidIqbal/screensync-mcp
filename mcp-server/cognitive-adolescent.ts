@@ -9,6 +9,8 @@
 // 7. Infant Error Detection & Social Referencing (ERN first-error capture, caregiver checks)
 // 8. Adult Wisdom Calibration (Baltes: knowledge-rich + uncertainty-humble cognition)
 
+import { asRecord, toMap } from "./cognitive-serial.js";
+
 export type EriksonStage =
   | "TRUST_VS_MISTRUST"          // 0-1: does this domain respond reliably at all?
   | "AUTONOMY_VS_SHAME"          // 1-3: first independent actions, shame on repeated failure
@@ -234,6 +236,17 @@ export class AdolescentCognitionEngine {
         : measuredAccuracy > statedConfidence + 0.2 ? "IMPOSTER_CHILD: accuracy is high; allow more autonomy"
         : "DEVELOPING: keep gathering evidence",
     };
+  }
+
+  /** Durable state (see cognitive-persistence.ts). */
+  public snapshotState(): unknown {
+    return { profiles: [...this.profiles.entries()] };
+  }
+
+  public restoreState(raw: unknown): void {
+    const s = asRecord(raw, "adolescent");
+    const profiles = toMap<AdolescentProfile>(s.profiles, "adolescent.profiles");
+    this.profiles = profiles;
   }
 }
 

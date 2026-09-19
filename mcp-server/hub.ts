@@ -26,6 +26,7 @@ import {
   type FrameMetadata,
 } from "./storage.js";
 import { createWebBridge } from "./web.js";
+import { startCognitivePersistence, stopCognitivePersistence } from "./cognitive-engines.js";
 
 export type HubHandle = {
   server: HttpServer;
@@ -698,11 +699,15 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
       server.once("error", reject);
       server.listen(HTTP_PORT, HTTP_HOST, () => resolve());
     });
+    // Cognitive state is restored and persisted only by the process that owns the port, and only
+    // now that it does: a hub that lost the port race must not read or quarantine the owner's files.
+    startCognitivePersistence();
     // H6 fix: Start schedule timers only after successful server.listen().
     webBridge.startSchedules();
   } catch (listenErr) {
     clearInterval(keepalive);
     webBridge.stopSchedules();
+    stopCognitivePersistence(); // no-op unless persistence had already started
     if (extWatcher) extWatcher.close();
     if (extReloadTimer) clearTimeout(extReloadTimer);
     hubEvents.off("event", broadcast);
@@ -738,6 +743,7 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
       for (const client of sseClients) client.end();
       sseClients.clear();
       stopAdvertising();
+      stopCognitivePersistence();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
   };

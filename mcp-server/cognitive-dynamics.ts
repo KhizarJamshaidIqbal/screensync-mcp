@@ -9,6 +9,8 @@
 // 7. Dopaminergic Reward Prediction Error (Schultz: outcome - expectation modulates learning)
 // 8. Sweller Cognitive Load Theory budgeting (intrinsic + extraneous + germane vs capacity)
 
+import { asRecord, toMap } from "./cognitive-serial.js";
+
 export interface ForgettingItem {
   id: string;
   learnedAt: string;
@@ -231,6 +233,32 @@ export class CognitiveDynamicsEngine {
       ? "Reduce extraneous load: use web_page_digest or web_reader_mode before reasoning over raw DOM."
       : "Load within budget: spend remaining capacity on germane learning (schema building).";
     return { domain: clean, totalLoad: total, capacity, overloaded, verdict, simplificationAdvice };
+  }
+
+  /** Durable state (see cognitive-persistence.ts). */
+  public snapshotState(): unknown {
+    return {
+      intentions: [...this.intentions.entries()],
+      sourceTrust: [...this.sourceTrust.entries()].map(([domain, trust]) => [domain, [...trust.entries()]]),
+    };
+  }
+
+  public restoreState(raw: unknown): void {
+    const s = asRecord(raw, "dynamics");
+    const intentions = toMap<ProspectiveIntention[]>(s.intentions, "dynamics.intentions");
+    const sourceTrust = new Map<string, Map<string, number>>();
+    for (const [domain, entries] of toMap<Array<[string, number]>>(s.sourceTrust, "dynamics.sourceTrust")) {
+      const inner = new Map<string, number>();
+      for (const e of entries) {
+        if (!Array.isArray(e) || typeof e[0] !== "string" || typeof e[1] !== "number") {
+          throw new Error("dynamics.sourceTrust: malformed trust entry");
+        }
+        inner.set(e[0], e[1]);
+      }
+      sourceTrust.set(domain, inner);
+    }
+    this.intentions = intentions;
+    this.sourceTrust = sourceTrust;
   }
 }
 
