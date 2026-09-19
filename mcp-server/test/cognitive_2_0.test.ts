@@ -7,6 +7,8 @@
 // 5. Semantic VOM Heuristic Recovery & Self-Healing Playbook Auto-Patching
 // 6. Privacy-Safe Swarm Wisdom Sanitization
 
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CognitiveMemoryStore } from "../cognitive-memory.js";

@@ -5,6 +5,8 @@
 // 3. Cognitive Reversibility & Transactional Undo (accidental_data_loss_prevention)
 // 4. Gary Klein's Recognition-Primed Decision (RPD) Prototype Archetypes
 
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CognitiveRpdEngine } from "../cognitive-rpd.js";

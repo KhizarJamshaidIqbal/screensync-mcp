@@ -5,6 +5,8 @@
 // 3. Amygdala threat inoculation        7. Hegelian dialectical synthesis
 // 4. Vygotsky ZPD scaffolding           8. Erikson wisdom capsules
 
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { TranscendentalCognitionEngine, CHALLENGE_FINGERPRINTS } from "../cognitive-transcendental.js";

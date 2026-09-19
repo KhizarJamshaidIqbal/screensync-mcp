@@ -1,4 +1,6 @@
 ﻿import assert from "node:assert/strict";
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";

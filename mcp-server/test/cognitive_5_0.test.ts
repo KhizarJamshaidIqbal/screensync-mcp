@@ -1,6 +1,8 @@
 // ScreenSync Cognitive Memory Architecture 5.0 Test Suite (ND-MS)
 // Tests Neuro-Developmental Memory Stages: Infant -> Toddler -> Child -> Adult -> Sovereign Sage
 
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CognitiveDevelopmentEngine } from "../cognitive-development.js";

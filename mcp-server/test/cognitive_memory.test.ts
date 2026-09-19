@@ -1,4 +1,6 @@
 // ScreenSync Cognitive Memory & Auto-Learning Unit Tests
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { toolDefinitions } from "../catalog.js";

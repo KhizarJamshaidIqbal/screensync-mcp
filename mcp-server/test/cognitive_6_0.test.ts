@@ -4,6 +4,8 @@
 // 2. Autobiographical Episodic Memory Spatio-Temporal Queries
 // 3. Cognitive Store Profiling & Autocleaning Hygiene
 
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CognitiveReplayAndHygieneEngine } from "../cognitive-replay.js";

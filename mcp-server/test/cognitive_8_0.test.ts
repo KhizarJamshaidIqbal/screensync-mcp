@@ -5,6 +5,8 @@
 // 3. Epistemic Curiosity Frontier & Entropy Reduction
 // 4. Biological Homeostatic Regulation & Allostatic Resilience
 
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CognitiveMaturationEngine } from "../cognitive-maturation.js";

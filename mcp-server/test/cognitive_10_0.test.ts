@@ -9,6 +9,8 @@
 // 7. Infant Error-Related Negativity + Social Referencing
 // 8. Baltes Adult Wisdom Calibration
 
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AdolescentCognitionEngine } from "../cognitive-adolescent.js";

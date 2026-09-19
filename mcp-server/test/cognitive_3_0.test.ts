@@ -4,6 +4,8 @@
 // 2. Cognitive Data Safety Contracts (Dirty Form Auditing & Ephemeral Snapshots)
 // 3. Playbook DAG Lineage & Cryptographic Provenance Tracking
 
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CognitiveMemoryStore } from "../cognitive-memory.js";

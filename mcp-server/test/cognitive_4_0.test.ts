@@ -1,6 +1,8 @@
 // ScreenSync Cognitive Memory Architecture 4.0 Test Suite (CR-FLI)
 // Tests Metacognitive Reflex Calibration, Semantic Similarity Search, and Federated Multi-Profile Catalog.
 
+// Must stay the first import: see _isolate-data-dir.ts
+import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MetacognitiveReflexEngine } from "../cognitive-metacognition.js";
