@@ -14,12 +14,14 @@ import { CognitiveLifespanEngine } from "../cognitive-lifespan.js";
 test("LCO-EPG: Lifespan Cognitive Ontogeny & Milestone Progression", () => {
   const engine = new CognitiveLifespanEngine();
 
-  // Test 1: Seeded adult profile for x.com
-  const adult = engine.evaluateLifespan("x.com");
-  assert.equal(adult.stage, "LEVEL_4_ADULT_RPD");
-  assert.equal(adult.scaffoldingLevel, "AUTONOMOUS_ADULT");
-  assert.equal(adult.parameters.requireParentalConsent, false);
-  assert.equal(adult.parameters.allowMotorMacros, true);
+  // Test 1: x.com is NOT special. It used to be seeded as a 24.5-year-old adult with 240 invented
+  // milestones; a level is now earned from evidence the hub observed, so it starts as an infant.
+  const xcom = engine.evaluateLifespan("x.com");
+  assert.equal(xcom.stage, "LEVEL_1_INFANT_REFLEX");
+  assert.equal(xcom.scaffoldingLevel, "MAXIMAL_INFANT");
+  assert.equal(xcom.successfulMilestones, 0, "no invented milestones");
+  assert.equal(xcom.parameters.requireParentalConsent, true);
+  assert.equal(xcom.parameters.allowMotorMacros, false);
 
   // Test 2: Unvisited domain begins at Level 1 Infant with maximal scaffolding
   const infant = engine.evaluateLifespan("brand-new-platform.org");

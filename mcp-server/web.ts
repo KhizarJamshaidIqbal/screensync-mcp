@@ -9,6 +9,7 @@ import { generateFlow, generatePlaywright } from "./codegen.js";
 import { runTestSuite } from "./test-runner.js";
 import { createProfileRegistry, BrowserInstance, BrowserWindowInfo } from "./profile-registry.js";
 import { trackToolExecution } from "./cognitive-auto-tracker.js";
+import { sessionOf } from "./cognitive-spine-observer.js";
 import { handleCognitiveTool } from "./web-cognitive-handlers.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
@@ -345,6 +346,8 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       const b = (req.body ?? {}) as { tool?: string; args?: Record<string, unknown>; timeoutMs?: number };
       const tool = String(b.tool ?? "");
       const args = b.args && typeof b.args === "object" ? b.args : {};
+      // Which agent process is calling (the MCP relay sends its own id); competence needs distinct sessions.
+      const session = sessionOf(req.header("x-session-id"));
       if (!/^web_[a-z0-9_]+$/.test(tool)) {
         res.status(400).json({ success: false, error: `Invalid web tool name: ${tool}` });
         return;
@@ -420,7 +423,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
 
 
 // Cognitive & developmental tools (Architectures 1.0-11.0) live in their own module.
-      if (handleCognitiveTool(tool, args, res)) return;
+      if (handleCognitiveTool(tool, args, res, { session })) return;
 
       if (tool === "web_flow_save") {
         const name = String(args.name || "").trim();
@@ -862,7 +865,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         recorder.steps.push({ step: recorder.steps.length + 1, tool, args });
       }
       log("INFO", "Web tool round trip", { tool, ok: result.ok, durationMs: Date.now() - startedAt });
-      trackToolExecution(tool, args, result, Date.now() - startedAt);
+      trackToolExecution(tool, args, result, Date.now() - startedAt, session);
       res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error });
     });
 

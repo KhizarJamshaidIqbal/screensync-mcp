@@ -4,14 +4,30 @@
 import type { Response } from "express";
 import { globalMaturationEngine } from "./cognitive-maturation.js";
 import { globalLifespanEngine } from "./cognitive-lifespan.js";
+import { globalSpine } from "./cognitive-spine.js";
+import { competenceOf, syncViews, HUB_SESSION, type CognitiveContext } from "./cognitive-spine-views.js";
 
-export function handleEvolutionCognitiveTool(tool: string, args: Record<string, any>, res: Response): boolean {
+export function handleEvolutionCognitiveTool(tool: string, args: Record<string, any>, res: Response, ctx: CognitiveContext = { session: HUB_SESSION }): boolean {
       if (tool === "web_cognitive_maturation") {
         try {
           const domain = String(args.domain || "").trim();
+          if (!domain) {
+            res.json({ success: true, ok: false, data: { error: "domain is required (maturation is tracked per domain)." } });
+            return true;
+          }
           const event = typeof args.event === "object" && args.event ? (args.event as any) : undefined;
-          const profile = globalMaturationEngine.getOrEvolveProfile(domain, event);
-          res.json({ success: true, ok: true, data: profile });
+          const argsIgnored: string[] = [];
+          if (event) {
+            // A caller's own report is worth a tenth of a hub-verified success and is capped per session.
+            if (event.outcome === "success") globalSpine.record(domain, "reported", ctx.session);
+            else if (event.outcome === "trauma") globalSpine.record(domain, "failure", ctx.session);
+            if (event.xpGain !== undefined) argsIgnored.push("event.xpGain");
+          }
+          const views = syncViews(domain);
+          res.json({
+            success: true, ok: true,
+            data: { ...views.maturation, competence: competenceOf(views.evaluation), ...(argsIgnored.length ? { argsIgnored } : {}) },
+          });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Cognitive maturation failed: ${e.message}` } });
         }
@@ -79,9 +95,17 @@ export function handleEvolutionCognitiveTool(tool: string, args: Record<string, 
       if (tool === "web_cognitive_lifespan") {
         try {
           const domain = String(args.domain || "").trim();
+          if (!domain) {
+            res.json({ success: true, ok: false, data: { error: "domain is required (lifespan is tracked per domain)." } });
+            return true;
+          }
           const event = typeof args.event === "object" && args.event ? (args.event as any) : undefined;
-          const lifespan = globalLifespanEngine.evaluateLifespan(domain, event);
-          res.json({ success: true, ok: true, data: lifespan });
+          if (event) {
+            if (event.outcome === "success") globalSpine.record(domain, "reported", ctx.session);
+            else if (event.outcome === "burn") globalSpine.record(domain, "failure", ctx.session);
+          }
+          const views = syncViews(domain);
+          res.json({ success: true, ok: true, data: { ...views.lifespan, competence: competenceOf(views.evaluation) } });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Cognitive lifespan evaluation failed: ${e.message}` } });
         }

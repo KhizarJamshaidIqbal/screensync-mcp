@@ -53,6 +53,10 @@ import {
   typeText,
   uiHierarchy,
 } from "./control.js";
+import { randomUUID } from "node:crypto";
+
+/** One id per MCP process, so the hub can tell distinct agent sessions apart (competence needs several). */
+const SESSION_ID = `mcp-${randomUUID()}`;
 
 function textResult(value: unknown, isError = false) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }], isError };
@@ -75,7 +79,7 @@ async function callHubWebTool(tool: string, args: Record<string, unknown>): Prom
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${AUTH_TOKEN}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${AUTH_TOKEN}`, "X-Session-Id": SESSION_ID },
       body: JSON.stringify({ tool, args, timeoutMs }),
       signal: AbortSignal.timeout(abortTimeout),
     });

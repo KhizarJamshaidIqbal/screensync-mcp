@@ -10,12 +10,15 @@ import { CognitiveDevelopmentEngine } from "../cognitive-development.js";
 test("ND-MS: Initial Seed & Default Infant Scaffolding", () => {
   const engine = new CognitiveDevelopmentEngine();
 
-  // Test 1: x.com starts at Stage 5 (Sovereign Sage)
+  // Test 1: x.com is NOT special. It used to be seeded as a Sovereign Sage with 22 invented episodes;
+  // a level is now earned from evidence the hub observed (see cognitive_spine.test.ts), so it starts
+  // as an infant like every other domain.
   const xMaturity = engine.getMaturity("x.com");
-  assert.equal(xMaturity.stage, 5);
-  assert.equal(xMaturity.stageName, "SOVEREIGN_SAGE_MASTER");
-  assert.equal(xMaturity.scaffolding.requireHumanConfirm, false);
-  assert.equal(xMaturity.scaffolding.allowSystem1Reflex, true);
+  assert.equal(xMaturity.stage, 1);
+  assert.equal(xMaturity.stageName, "SENSORIMOTOR_INFANT");
+  assert.equal(xMaturity.episodesCount, 0, "no invented history");
+  assert.equal(xMaturity.scaffolding.requireHumanConfirm, true);
+  assert.equal(xMaturity.scaffolding.allowSystem1Reflex, false);
 
   // Test 2: Unseen domain starts at Stage 1 (Sensorimotor Infant)
   const newMaturity = engine.getMaturity("brand-new-site.org");

@@ -55,41 +55,26 @@ export interface MetaphoricMapping {
   componentAnalogies: Array<{ sourceRole: string; targetSelector: string }>;
 }
 
+/** Stage, scaffolding and parameters per level (index = level - 1): the one definition of them. */
+const LEVELS: Array<Pick<LifespanProfile, "stage" | "scaffoldingLevel" | "parameters">> = [
+  { stage: "LEVEL_1_INFANT_REFLEX", scaffoldingLevel: "MAXIMAL_INFANT", parameters: { deliberatePauseMs: 2500, requireParentalConsent: true, allowMotorMacros: false, theoryOfMindActive: false, graphReasoningActive: false } },
+  { stage: "LEVEL_2_CHILD_SCAFFOLD", scaffoldingLevel: "GUIDED_CHILD", parameters: { deliberatePauseMs: 1200, requireParentalConsent: true, allowMotorMacros: false, theoryOfMindActive: false, graphReasoningActive: false } },
+  { stage: "LEVEL_3_YOUTH_INFERENCE", scaffoldingLevel: "COLLABORATIVE_YOUTH", parameters: { deliberatePauseMs: 600, requireParentalConsent: false, allowMotorMacros: true, theoryOfMindActive: true, graphReasoningActive: false } },
+  { stage: "LEVEL_4_ADULT_RPD", scaffoldingLevel: "AUTONOMOUS_ADULT", parameters: { deliberatePauseMs: 150, requireParentalConsent: false, allowMotorMacros: true, theoryOfMindActive: true, graphReasoningActive: true } },
+  { stage: "LEVEL_5_SAGE_SYNTHESIS", scaffoldingLevel: "SOVEREIGN_SAGE", parameters: { deliberatePauseMs: 50, requireParentalConsent: false, allowMotorMacros: true, theoryOfMindActive: true, graphReasoningActive: true } },
+];
+
+function setLevel(profile: LifespanProfile, level: number): void {
+  const def = LEVELS[Math.max(1, Math.min(5, level)) - 1];
+  profile.stage = def.stage;
+  profile.scaffoldingLevel = def.scaffoldingLevel;
+  profile.parameters = { ...def.parameters };
+}
+
 export class CognitiveLifespanEngine {
   private lifespanProfiles: Map<string, LifespanProfile> = new Map();
   private motorProfiles: Map<string, MotorCalibrationProfile> = new Map();
   private metaphoricMappings: Map<string, MetaphoricMapping[]> = new Map();
-
-  constructor() {
-    this.seedLifespanData();
-  }
-
-  private seedLifespanData(): void {
-    this.lifespanProfiles.set("x.com", {
-      domain: "x.com",
-      stage: "LEVEL_4_ADULT_RPD",
-      cognitiveAgeYears: 24.5,
-      nociceptiveBurns: 2,
-      successfulMilestones: 240,
-      scaffoldingLevel: "AUTONOMOUS_ADULT",
-      parameters: {
-        deliberatePauseMs: 120,
-        requireParentalConsent: false,
-        allowMotorMacros: true,
-        theoryOfMindActive: true,
-        graphReasoningActive: true,
-      },
-    });
-
-    this.motorProfiles.set("x.com", {
-      domain: "x.com",
-      recommendedDispatchType: "native_execCommand",
-      inputLagMs: 45,
-      dprScale: 1.0,
-      coordinateAccuracy: 0.99,
-      verifiedAt: new Date().toISOString(),
-    });
-  }
 
   /**
    * 1. Lifespan Cognitive Ontogeny: Evaluate or advance domain developmental lifespan
@@ -101,18 +86,11 @@ export class CognitiveLifespanEngine {
     if (!profile) {
       profile = {
         domain: clean,
-        stage: "LEVEL_1_INFANT_REFLEX",
         cognitiveAgeYears: 0.5,
         nociceptiveBurns: 0,
         successfulMilestones: 0,
-        scaffoldingLevel: "MAXIMAL_INFANT",
-        parameters: {
-          deliberatePauseMs: 2500,
-          requireParentalConsent: true,
-          allowMotorMacros: false,
-          theoryOfMindActive: false,
-          graphReasoningActive: false,
-        },
+        ...LEVELS[0],
+        parameters: { ...LEVELS[0].parameters },
       };
       this.lifespanProfiles.set(clean, profile);
     }
@@ -129,29 +107,27 @@ export class CognitiveLifespanEngine {
 
       // Re-evaluate stage and Vygotskian scaffolding
       const age = profile.cognitiveAgeYears;
-      if (age >= 35.0 && profile.nociceptiveBurns < 4) {
-        profile.stage = "LEVEL_5_SAGE_SYNTHESIS";
-        profile.scaffoldingLevel = "SOVEREIGN_SAGE";
-        profile.parameters = { deliberatePauseMs: 50, requireParentalConsent: false, allowMotorMacros: true, theoryOfMindActive: true, graphReasoningActive: true };
-      } else if (age >= 18.0 && profile.nociceptiveBurns < 8) {
-        profile.stage = "LEVEL_4_ADULT_RPD";
-        profile.scaffoldingLevel = "AUTONOMOUS_ADULT";
-        profile.parameters = { deliberatePauseMs: 150, requireParentalConsent: false, allowMotorMacros: true, theoryOfMindActive: true, graphReasoningActive: true };
-      } else if (age >= 7.0) {
-        profile.stage = "LEVEL_3_YOUTH_INFERENCE";
-        profile.scaffoldingLevel = "COLLABORATIVE_YOUTH";
-        profile.parameters = { deliberatePauseMs: 600, requireParentalConsent: false, allowMotorMacros: true, theoryOfMindActive: true, graphReasoningActive: false };
-      } else if (age >= 2.0) {
-        profile.stage = "LEVEL_2_CHILD_SCAFFOLD";
-        profile.scaffoldingLevel = "GUIDED_CHILD";
-        profile.parameters = { deliberatePauseMs: 1200, requireParentalConsent: true, allowMotorMacros: false, theoryOfMindActive: false, graphReasoningActive: false };
-      } else {
-        profile.stage = "LEVEL_1_INFANT_REFLEX";
-        profile.scaffoldingLevel = "MAXIMAL_INFANT";
-        profile.parameters = { deliberatePauseMs: 2500, requireParentalConsent: true, allowMotorMacros: false, theoryOfMindActive: false, graphReasoningActive: false };
-      }
+      let level = 1;
+      if (age >= 35.0 && profile.nociceptiveBurns < 4) level = 5;
+      else if (age >= 18.0 && profile.nociceptiveBurns < 8) level = 4;
+      else if (age >= 7.0) level = 3;
+      else if (age >= 2.0) level = 2;
+      setLevel(profile, level);
     }
 
+    return profile;
+  }
+
+  /**
+   * The spine owns a domain's level; this engine only DISPLAYS it. Sets the stage and scaffolding from
+   * that level (not from the age, so a burn count cannot make the two disagree) and copies the evidence.
+   */
+  public applySpine(domain: string, view: { level: number; ageYears: number; milestones: number; burns: number }): LifespanProfile {
+    const profile = this.evaluateLifespan(domain);
+    profile.cognitiveAgeYears = view.ageYears;
+    profile.successfulMilestones = view.milestones;
+    profile.nociceptiveBurns = view.burns;
+    setLevel(profile, view.level);
     return profile;
   }
 
@@ -298,12 +274,13 @@ export class CognitiveLifespanEngine {
     return mapping;
   }
 
-  /** Durable state (see cognitive-persistence.ts). Pristine, read-created profiles are omitted: they are recreated on demand. */
+  /**
+   * Durable state (see cognitive-persistence.ts): motor calibration and learned metaphors, which tools
+   * really write. Profiles are NOT saved: they are derived from the spine on every read.
+   * A file from before that change still loads; its `lifespanProfiles` key is simply ignored.
+   */
   public snapshotState(): unknown {
     return {
-      lifespanProfiles: [...this.lifespanProfiles.entries()].filter(
-        ([, p]) => !(p.cognitiveAgeYears === 0.5 && p.successfulMilestones === 0 && p.nociceptiveBurns === 0),
-      ),
       motorProfiles: [...this.motorProfiles.entries()],
       metaphoricMappings: [...this.metaphoricMappings.entries()],
     };
@@ -311,10 +288,8 @@ export class CognitiveLifespanEngine {
 
   public restoreState(raw: unknown): void {
     const s = asRecord(raw, "lifespan");
-    const lifespanProfiles = toMap<LifespanProfile>(s.lifespanProfiles, "lifespan.lifespanProfiles");
     const motorProfiles = toMap<MotorCalibrationProfile>(s.motorProfiles, "lifespan.motorProfiles");
     const metaphoricMappings = toMap<MetaphoricMapping[]>(s.metaphoricMappings, "lifespan.metaphoricMappings");
-    this.lifespanProfiles = lifespanProfiles;
     this.motorProfiles = motorProfiles;
     this.metaphoricMappings = metaphoricMappings;
   }

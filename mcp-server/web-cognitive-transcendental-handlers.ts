@@ -4,6 +4,8 @@
 
 import type { Response } from "express";
 import { globalTranscendentalEngine } from "./cognitive-transcendental.js";
+import { globalSpine } from "./cognitive-spine.js";
+import { HUB_SESSION } from "./cognitive-spine-views.js";
 
 export function handleTranscendentalCognitiveTool(tool: string, args: Record<string, any>, res: Response): boolean {
   if (tool === "web_rem_dream_simulation") {
@@ -47,6 +49,8 @@ export function handleTranscendentalCognitiveTool(tool: string, args: Record<str
       }
       const signal = typeof args.signal === "object" && args.signal ? (args.signal as any) : {};
       const result = globalTranscendentalEngine.amygdalaThreatInoculation(domain, signal);
+      // A tripped breaker is the strongest failure the hub can see: it drops the domain a rung.
+      if (result.breakerState === "TRIPPED") globalSpine.record(domain, "breaker", HUB_SESSION);
       res.json({ success: true, ok: true, data: result });
     } catch (e: any) {
       res.json({ success: true, ok: false, data: { error: `Threat inoculation failed: ${e.message}` } });

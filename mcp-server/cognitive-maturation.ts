@@ -54,33 +54,21 @@ export interface FrontierElement {
   recommendedAction: "inspect" | "safe_click" | "skip_destructive";
 }
 
+const STAGE_NAMES: CognitiveStage[] = [
+  "STAGE_1_INFANT_SENSORIMOTOR",
+  "STAGE_2_CHILD_SYMBOLIC",
+  "STAGE_3_ADOLESCENT_FORMAL",
+  "STAGE_4_ADULT_RPD_MASTER",
+  "STAGE_5_SAGE_EPISTEMIC_FABRIC",
+];
+
+/** A caller-reported gain can never exceed this: AGENTS.md used to invite arbitrary values. */
+const MAX_XP_GAIN = 25;
+
 export class CognitiveMaturationEngine {
   private profiles: Map<string, OntogeneticProfile> = new Map();
   private graphNodes: Map<string, GraphNode> = new Map();
   private graphEdges: GraphEdge[] = [];
-
-  constructor() {
-    this.seedDefaultProfiles();
-  }
-
-  private seedDefaultProfiles(): void {
-    this.profiles.set("x.com", {
-      domain: "x.com",
-      stage: "STAGE_4_ADULT_RPD_MASTER",
-      stageLevel: 4,
-      cognitiveXp: 2850,
-      successfulActions: 184,
-      traumaIncidents: 2,
-      lastStageTransition: new Date().toISOString(),
-      policy: {
-        sensoryProbeRateMs: 500,
-        exploratoryCaution: "autonomous_high",
-        allowAutonomousBatching: true,
-        requireUndoPreflight: false,
-        recommendedDeliberationMs: 150,
-      },
-    });
-  }
 
   private computeStagePolicy(stageLevel: number): OntogeneticProfile["policy"] {
     switch (stageLevel) {
@@ -152,7 +140,7 @@ export class CognitiveMaturationEngine {
     if (event) {
       if (event.outcome === "success") {
         profile.successfulActions++;
-        profile.cognitiveXp += event.xpGain || 25;
+        profile.cognitiveXp += event.xpGain === undefined ? MAX_XP_GAIN : Math.max(0, Math.min(MAX_XP_GAIN, event.xpGain));
       } else if (event.outcome === "trauma") {
         profile.traumaIncidents++;
         // Nociceptive trauma penalty
@@ -174,19 +162,31 @@ export class CognitiveMaturationEngine {
 
       if (newLevel !== prevLevel) {
         profile.stageLevel = newLevel;
-        const stageNames: CognitiveStage[] = [
-          "STAGE_1_INFANT_SENSORIMOTOR",
-          "STAGE_2_CHILD_SYMBOLIC",
-          "STAGE_3_ADOLESCENT_FORMAL",
-          "STAGE_4_ADULT_RPD_MASTER",
-          "STAGE_5_SAGE_EPISTEMIC_FABRIC",
-        ];
-        profile.stage = stageNames[newLevel - 1];
+        profile.stage = STAGE_NAMES[newLevel - 1];
         profile.policy = this.computeStagePolicy(newLevel);
         profile.lastStageTransition = new Date().toISOString();
       }
     }
 
+    return profile;
+  }
+
+  /**
+   * The spine owns a domain's level; this engine only DISPLAYS it. Sets the stage and its policy from
+   * that level and copies the evidence, so maturation, lifespan and stage can never disagree.
+   */
+  public applySpine(domain: string, view: { level: number; xp: number; successes: number; traumas: number }): OntogeneticProfile {
+    const profile = this.getOrEvolveProfile(domain);
+    const level = Math.max(1, Math.min(5, Math.round(view.level)));
+    if (profile.stageLevel !== level) {
+      profile.stageLevel = level;
+      profile.stage = STAGE_NAMES[level - 1];
+      profile.policy = this.computeStagePolicy(level);
+      profile.lastStageTransition = new Date().toISOString();
+    }
+    profile.cognitiveXp = view.xp;
+    profile.successfulActions = view.successes;
+    profile.traumaIncidents = view.traumas;
     return profile;
   }
 
@@ -360,21 +360,19 @@ export class CognitiveMaturationEngine {
     };
   }
 
-  /** Durable state (see cognitive-persistence.ts). Pristine, read-created profiles are omitted: they are recreated on demand. */
+  /**
+   * Durable state (see cognitive-persistence.ts): the epistemic graph, which tools really write.
+   * Profiles are NOT saved: they are derived from the spine on every read (cognitive-spine-views.ts).
+   * A file from before that change still loads; its `profiles` key is simply ignored.
+   */
   public snapshotState(): unknown {
-    return {
-      profiles: [...this.profiles.entries()].filter(([, p]) => p.cognitiveXp > 0 || p.successfulActions > 0 || p.traumaIncidents > 0 || p.stageLevel > 1),
-      graphNodes: [...this.graphNodes.entries()],
-      graphEdges: capTail(this.graphEdges, 5000),
-    };
+    return { graphNodes: [...this.graphNodes.entries()], graphEdges: capTail(this.graphEdges, 5000) };
   }
 
   public restoreState(raw: unknown): void {
     const s = asRecord(raw, "maturation");
-    const profiles = toMap<OntogeneticProfile>(s.profiles, "maturation.profiles");
     const graphNodes = toMap<GraphNode>(s.graphNodes, "maturation.graphNodes");
     const graphEdges = toArray<GraphEdge>(s.graphEdges, "maturation.graphEdges");
-    this.profiles = profiles;
     this.graphNodes = graphNodes;
     this.graphEdges = graphEdges;
   }

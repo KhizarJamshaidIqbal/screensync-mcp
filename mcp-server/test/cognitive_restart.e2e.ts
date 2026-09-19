@@ -89,14 +89,12 @@ try {
   const trip = data(await call("web_amygdala_threat_inoculation", { domain: "restart-guarded.test", signal: { fingerprint: "cloudflare_turnstile" } }));
   assert.equal(trip.breakerState, "TRIPPED");
 
-  let grown: any;
-  for (let i = 0; i < 3; i += 1) {
-    grown = data(await call("web_cognitive_maturation", { domain: "restart-grown.test", event: { outcome: "success", xpGain: 25 } }));
-  }
-  assert.equal(grown.successfulActions, 3);
-  assert.equal(grown.cognitiveXp, 75);
-
+  // Competence lives in the spine: reported successes and a human vouch are its evidence here (there is
+  // no browser in this test, so no hub-verified evidence can exist).
+  for (let i = 0; i < 3; i += 1) await call("web_cognitive_maturation", { domain: "restart-grown.test", event: { outcome: "success", xpGain: 25 } });
   for (let i = 0; i < 2; i += 1) await call("web_cognitive_lifespan", { domain: "restart-grown.test", event: { outcome: "success" } });
+  const vouched = data(await call("web_cognitive_stage", { domain: "restart-grown.test", action: "override", stage: 5, reason: "e2e restart check" }));
+  assert.equal(vouched.vouchApplied.appliedLevel, 3, "a vouch is capped at COMPETENT");
 
   const reg = data(await call("web_prospective_memory", {
     domain: "restart-grown.test", action: "register", intention: { triggerEvent: "login_wall", actionPlan: "re-auth then retry" },
@@ -105,12 +103,12 @@ try {
 
   // 2. Wait until the periodic flush has written the FINAL state of each engine (a tick can land
   //    between two of the calls above, so "the file exists" is not enough).
-  await until("all four engines to be flushed", () =>
-    ["transcendental", "maturation", "lifespan", "dynamics"].every((ns) => existsSync(stateFile(ns))) &&
+  await until("the spine, the breaker and the intention to be flushed", () =>
+    ["transcendental", "spine", "dynamics"].every((ns) => existsSync(stateFile(ns))) &&
     readState("transcendental").threats.some(([d]: [string]) => d === "restart-guarded.test") &&
-    readState("maturation").profiles.some(([d, p]: [string, any]) => d === "restart-grown.test" && p.successfulActions === 3) &&
-    readState("lifespan").lifespanProfiles.some(([d, p]: [string, any]) => d === "restart-grown.test" && p.successfulMilestones === 2) &&
+    readState("spine").records.some(([d, r]: [string, any]) => d === "restart-grown.test" && r.totals.reported === 5 && r.vouches.length === 1) &&
     readState("dynamics").intentions.some(([d]: [string]) => d === "restart-grown.test"));
+  assert.ok(!existsSync(stateFile("development")), "development is a view of the spine and has no state file of its own");
 
   // 3. Crash the hub, start a new process on the same data directory.
   await crash(hub);
@@ -125,12 +123,16 @@ try {
   assert.equal(breaker.breakerState, "TRIPPED");
   assert.equal(breaker.consecutiveTrips, 1);
 
-  const profile = data(await call("web_cognitive_maturation", { domain: "restart-grown.test" }));
-  assert.equal(profile.successfulActions, 3, "learned maturation must survive");
-  assert.equal(profile.cognitiveXp, 75);
+  const stage = data(await call("web_cognitive_stage", { domain: "restart-grown.test", action: "evaluate" }));
+  assert.equal(stage.competence.evidence.reported, 5, "the spine's evidence must survive a crash");
+  assert.equal(stage.competence.level, 1, "and it is still only reported evidence: the EARNED level has not moved");
+  assert.equal(stage.competence.source, "vouched", "the audited vouch must survive too");
+  assert.equal(stage.competence.effectiveLevel, 3);
+  assert.equal(stage.stage, 3);
 
-  const lifespan = data(await call("web_cognitive_lifespan", { domain: "restart-grown.test" }));
-  assert.equal(lifespan.successfulMilestones, 2, "learned lifespan must survive");
+  // Every level tool agrees with the spine after the restart.
+  assert.equal(data(await call("web_cognitive_maturation", { domain: "restart-grown.test" })).stageLevel, 3);
+  assert.match(data(await call("web_cognitive_lifespan", { domain: "restart-grown.test" })).stage, /LEVEL_3/);
 
   const fired = data(await call("web_prospective_memory", { domain: "restart-grown.test", action: "check", observedEvent: "login_wall" }));
   assert.equal(fired.fired?.length, 1, "a registered implementation intention must still fire after a restart");

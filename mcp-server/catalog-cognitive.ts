@@ -269,7 +269,7 @@ export function cognitiveToolDefinitions(): Tool[] {
           action: {
             type: "string",
             enum: ["get", "evaluate", "override"],
-            description: "Stage action: 'get' (retrieve current maturity & scaffolding), 'evaluate' (test level-up criteria), 'override' (manually force stage 1-5)."
+            description: "Stage action: 'get' (retrieve current maturity & scaffolding), 'evaluate' (what the earned level is and what it would take to rise), 'override' (an audited human vouch: capped at COMPETENT, shown as source \"vouched\", never counts as earned evidence)."
           },
           stage: {
             type: "integer",

@@ -9,11 +9,12 @@ import { globalLineageEngine } from "./cognitive-lineage.js";
 import { globalMetacognitiveEngine } from "./cognitive-metacognition.js";
 import { globalSimilarityEngine } from "./cognitive-similarity.js";
 import { globalFederatedCatalog } from "./cognitive-federation.js";
-import { globalDevelopmentEngine } from "./cognitive-development.js";
+import { globalSpine } from "./cognitive-spine.js";
+import { competenceOf, syncViews, HUB_SESSION, type CognitiveContext } from "./cognitive-spine-views.js";
 import { globalReplayAndHygieneEngine } from "./cognitive-replay.js";
 import { globalRpdEngine } from "./cognitive-rpd.js";
 
-export function handleCoreCognitiveTool(tool: string, args: Record<string, any>, res: Response): boolean {
+export function handleCoreCognitiveTool(tool: string, args: Record<string, any>, res: Response, ctx: CognitiveContext = { session: HUB_SESSION }): boolean {
       if (tool === "web_recall") {
         try {
           const resData = cognitiveStore.recall({
@@ -220,17 +221,35 @@ export function handleCoreCognitiveTool(tool: string, args: Record<string, any>,
       if (tool === "web_cognitive_stage") {
         try {
           const domain = String(args.domain || "").trim();
+          if (!domain) {
+            res.json({ success: true, ok: false, data: { error: "domain is required (a stage is tracked per domain)." } });
+            return true;
+          }
           const action = String(args.action || "get").toLowerCase();
           const stage = typeof args.stage === "number" ? args.stage : undefined;
 
+          // 'override' used to let ANY caller force a domain to stage 5. It is now an audited human vouch:
+          // capped at COMPETENT, shown as source:"vouched", and never counted as earned evidence.
+          let vouchApplied: Record<string, unknown> | undefined;
           if (action === "override" && stage !== undefined) {
-            const overridden = globalDevelopmentEngine.overrideStage(domain, stage);
-            res.json({ success: true, ok: true, data: overridden });
-            return true;
+            const entry = globalSpine.vouch(domain, stage, String(args.reason || "manual override via web_cognitive_stage"), ctx.session);
+            vouchApplied = {
+              requestedStage: entry.requested, appliedLevel: entry.level, cappedAtCompetent: entry.requested > entry.level,
+              note: "A vouch changes the advisory view only. It is audited and never counts as earned evidence.",
+            };
           }
 
-          const maturity = globalDevelopmentEngine.getMaturity(domain);
-          res.json({ success: true, ok: true, data: maturity });
+          const views = syncViews(domain);
+          const next = views.evaluation.next;
+          res.json({
+            success: true, ok: true,
+            data: {
+              ...views.development,
+              competence: competenceOf(views.evaluation),
+              ...(action === "evaluate" ? { evaluated: true, promotable: next !== null && next.needs.length === 0 } : {}),
+              ...(vouchApplied ? { vouchApplied } : {}),
+            },
+          });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Cognitive stage query failed: ${e.message}` } });
         }

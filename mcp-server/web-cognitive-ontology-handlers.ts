@@ -4,6 +4,8 @@
 import type { Response } from "express";
 import { globalAdolescentEngine } from "./cognitive-adolescent.js";
 import { globalDynamicsEngine } from "./cognitive-dynamics.js";
+import { globalSpine } from "./cognitive-spine.js";
+import { hubWisdomInputs, spineAgeYears } from "./cognitive-spine-views.js";
 
 export function handleOntologyCognitiveTool(tool: string, args: Record<string, any>, res: Response): boolean {
       if (tool === "web_synaptic_pruning") {
@@ -33,7 +35,7 @@ export function handleOntologyCognitiveTool(tool: string, args: Record<string, a
       if (tool === "web_working_memory_span") {
         try {
           const domain = String(args.domain || "").trim();
-          const cognitiveAgeYears = typeof args.cognitiveAgeYears === "number" ? args.cognitiveAgeYears : 0.5;
+          const cognitiveAgeYears = typeof args.cognitiveAgeYears === "number" ? args.cognitiveAgeYears : domain ? spineAgeYears(domain) : 0.5;
           const result = globalAdolescentEngine.workingMemorySpan(domain, cognitiveAgeYears);
           res.json({ success: true, ok: true, data: result });
         } catch (e: any) {
@@ -57,7 +59,7 @@ export function handleOntologyCognitiveTool(tool: string, args: Record<string, a
       if (tool === "web_erikson_identity") {
         try {
           const domain = String(args.domain || "").trim();
-          const cognitiveAgeYears = typeof args.cognitiveAgeYears === "number" ? args.cognitiveAgeYears : 0.5;
+          const cognitiveAgeYears = typeof args.cognitiveAgeYears === "number" ? args.cognitiveAgeYears : domain ? spineAgeYears(domain) : 0.5;
           const knowledgePieces = typeof args.knowledgePieces === "number" ? args.knowledgePieces : 0;
           const contradictions = typeof args.contradictions === "number" ? args.contradictions : 0;
           const result = globalAdolescentEngine.eriksonIdentity(domain, cognitiveAgeYears, knowledgePieces, contradictions);
@@ -96,11 +98,25 @@ export function handleOntologyCognitiveTool(tool: string, args: Record<string, a
       if (tool === "web_wisdom_calibration") {
         try {
           const domain = String(args.domain || "").trim();
-          const knowledgeDepth = typeof args.knowledgeDepth === "number" ? args.knowledgeDepth : 0.5;
+          let knowledgeDepth = typeof args.knowledgeDepth === "number" ? args.knowledgeDepth : 0.5;
           const statedConfidence = typeof args.statedConfidence === "number" ? args.statedConfidence : 0.5;
-          const measuredAccuracy = typeof args.measuredAccuracy === "number" ? args.measuredAccuracy : 0.5;
+          let measuredAccuracy = typeof args.measuredAccuracy === "number" ? args.measuredAccuracy : 0.5;
+
+          // With enough evidence the HUB measures depth and accuracy, so a caller cannot talk its way to
+          // a high wisdom score. Only that hub-measured score is stored for the reflex gate to read.
+          const held = domain ? hubWisdomInputs(domain) : null;
+          const argsIgnored: string[] = [];
+          if (held) {
+            if (typeof args.knowledgeDepth === "number") argsIgnored.push("knowledgeDepth");
+            if (typeof args.measuredAccuracy === "number") argsIgnored.push("measuredAccuracy");
+            ({ knowledgeDepth, measuredAccuracy } = held);
+          }
           const result = globalAdolescentEngine.wisdomCalibration(domain, knowledgeDepth, statedConfidence, measuredAccuracy);
-          res.json({ success: true, ok: true, data: result });
+          if (held) globalSpine.setWisdom(domain, result.wisdomScore);
+          res.json({
+            success: true, ok: true,
+            data: { ...result, source: held ? "spine" : "caller", stored: held !== null, ...(argsIgnored.length ? { argsIgnored } : {}) },
+          });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Wisdom calibration failed: ${e.message}` } });
         }

@@ -2,8 +2,6 @@
 // Synthesizes Piaget's Cognitive Development Stages & Vygotsky's Zone of Proximal Development (ZPD)
 // Inspired by ML Best Practices continuous drift monitoring and model maturity progression.
 
-import { asRecord, toMap } from "./cognitive-serial.js";
-
 export type StageName =
   | "SENSORIMOTOR_INFANT"
   | "PREOPERATIONAL_TODDLER"
@@ -35,43 +33,56 @@ export interface DomainMaturity {
   updatedAt: string;
 }
 
+interface StageDef {
+  name: StageName;
+  analogy: string;
+  scaffolding: StageScaffolding;
+  capabilities: string[];
+}
+
+/** The one place a stage's name, autonomy limits and unlocked capabilities are defined (index = stage - 1). */
+const STAGES: StageDef[] = [
+  {
+    name: "SENSORIMOTOR_INFANT",
+    analogy: "Infant (Sensorimotor: Basic exploratory reflex, maximum safety scaffolding)",
+    scaffolding: { requireHumanConfirm: true, perceptionPauseMs: 3000, allowFastBranchSkip: false, allowSystem1Reflex: false, crossDomainTransferEnabled: false, maxExecutionTimeoutMs: 30000 },
+    capabilities: ["sensory_probes", "raw_clicks", "perception_recording"],
+  },
+  {
+    name: "PREOPERATIONAL_TODDLER",
+    analogy: "Toddler (Preoperational: Basic linear playback, pitfall imprinting)",
+    scaffolding: { requireHumanConfirm: true, perceptionPauseMs: 2500, allowFastBranchSkip: false, allowSystem1Reflex: false, crossDomainTransferEnabled: false, maxExecutionTimeoutMs: 30000 },
+    capabilities: ["sensory_probes", "raw_clicks", "perception_recording", "linear_playback", "pitfall_imprinting"],
+  },
+  {
+    name: "CONCRETE_OPERATIONAL_CHILD",
+    analogy: "Child (Concrete Operational: Structured branch skipping, form contracts)",
+    scaffolding: { requireHumanConfirm: false, perceptionPauseMs: 1500, allowFastBranchSkip: true, allowSystem1Reflex: false, crossDomainTransferEnabled: false, maxExecutionTimeoutMs: 25000 },
+    capabilities: ["sensory_probes", "raw_clicks", "perception_recording", "linear_playback", "pitfall_imprinting", "fast_path_branch_skipping", "form_contracts"],
+  },
+  {
+    name: "FORMAL_OPERATIONAL_ADULT",
+    analogy: "Adult (Formal Operational: Metacognitive confidence, cross-domain transfer)",
+    scaffolding: { requireHumanConfirm: false, perceptionPauseMs: 500, allowFastBranchSkip: true, allowSystem1Reflex: true, crossDomainTransferEnabled: true, maxExecutionTimeoutMs: 20000 },
+    capabilities: ["sensory_probes", "raw_clicks", "perception_recording", "linear_playback", "pitfall_imprinting", "fast_path_branch_skipping", "form_contracts", "dom_self_healing", "cross_domain_transfer"],
+  },
+  {
+    name: "SOVEREIGN_SAGE_MASTER",
+    analogy: "Master Adult / Sovereign Sage (Full autonomy, atomic reflex, zero amnesia)",
+    scaffolding: { requireHumanConfirm: false, perceptionPauseMs: 0, allowFastBranchSkip: true, allowSystem1Reflex: true, crossDomainTransferEnabled: true, maxExecutionTimeoutMs: 15000 },
+    capabilities: ["sub_second_atomic_execCommand", "fast_path_branch_skipping", "dom_self_healing", "cross_domain_export", "federated_lakehouse_sync"],
+  },
+];
+
+/** The stage-derived fields of a DomainMaturity (fresh copies, safe to assign). */
+function stageFields(stage: number): Pick<DomainMaturity, "stage" | "stageName" | "humanAnalogy" | "scaffolding" | "unlockedCapabilities"> {
+  const level = Math.max(1, Math.min(5, Math.round(stage)));
+  const def = STAGES[level - 1];
+  return { stage: level, stageName: def.name, humanAnalogy: def.analogy, scaffolding: { ...def.scaffolding }, unlockedCapabilities: [...def.capabilities] };
+}
+
 export class CognitiveDevelopmentEngine {
   private domainMaturityMap: Map<string, DomainMaturity> = new Map();
-
-  constructor() {
-    this.seedDefaultMaturities();
-  }
-
-  private seedDefaultMaturities(): void {
-    // x.com has high mastery
-    this.domainMaturityMap.set("x.com", {
-      domain: "x.com",
-      stage: 5,
-      stageName: "SOVEREIGN_SAGE_MASTER",
-      humanAnalogy: "Master Adult / Sovereign Sage (Intuitive habituation, sub-3s atomic execution)",
-      xp: 320,
-      episodesCount: 22,
-      successCount: 22,
-      consecutiveFailures: 0,
-      scaffolding: {
-        requireHumanConfirm: false,
-        perceptionPauseMs: 0,
-        allowFastBranchSkip: true,
-        allowSystem1Reflex: true,
-        crossDomainTransferEnabled: true,
-        maxExecutionTimeoutMs: 15000,
-      },
-      unlockedCapabilities: [
-        "sub_second_atomic_execCommand",
-        "fast_path_branch_skipping",
-        "dom_self_healing",
-        "cross_domain_export",
-        "federated_lakehouse_sync",
-      ],
-      recentRegression: false,
-      updatedAt: "2026-09-18T10:43:12.000Z",
-    });
-  }
 
   public getMaturity(domain: string): DomainMaturity {
     const cleanDomain = domain.toLowerCase().trim();
@@ -81,22 +92,11 @@ export class CognitiveDevelopmentEngine {
     // Default Level 1: SENSORIMOTOR (Infant)
     const infant: DomainMaturity = {
       domain: cleanDomain,
-      stage: 1,
-      stageName: "SENSORIMOTOR_INFANT",
-      humanAnalogy: "Infant (Sensorimotor: Basic exploratory reflex, maximum safety scaffolding)",
+      ...stageFields(1),
       xp: 0,
       episodesCount: 0,
       successCount: 0,
       consecutiveFailures: 0,
-      scaffolding: {
-        requireHumanConfirm: true,
-        perceptionPauseMs: 3000,
-        allowFastBranchSkip: false,
-        allowSystem1Reflex: false,
-        crossDomainTransferEnabled: false,
-        maxExecutionTimeoutMs: 30000,
-      },
-      unlockedCapabilities: ["sensory_probes", "raw_clicks", "perception_recording"],
       recentRegression: false,
       updatedAt: new Date().toISOString(),
     };
@@ -125,55 +125,12 @@ export class CognitiveDevelopmentEngine {
 
       // Check Level Up criteria
       const successRate = m.successCount / m.episodesCount;
-      if (m.xp >= 200 && successRate >= 0.95 && m.episodesCount >= 15) {
-        m.stage = 5;
-        m.stageName = "SOVEREIGN_SAGE_MASTER";
-        m.humanAnalogy = "Master Adult / Sovereign Sage (Full autonomy, atomic reflex, zero amnesia)";
-        m.scaffolding = {
-          requireHumanConfirm: false,
-          perceptionPauseMs: 0,
-          allowFastBranchSkip: true,
-          allowSystem1Reflex: true,
-          crossDomainTransferEnabled: true,
-          maxExecutionTimeoutMs: 15000,
-        };
-      } else if (m.xp >= 100 && successRate >= 0.88 && m.episodesCount >= 7) {
-        m.stage = 4;
-        m.stageName = "FORMAL_OPERATIONAL_ADULT";
-        m.humanAnalogy = "Adult (Formal Operational: Metacognitive confidence, cross-domain transfer)";
-        m.scaffolding = {
-          requireHumanConfirm: false,
-          perceptionPauseMs: 500,
-          allowFastBranchSkip: true,
-          allowSystem1Reflex: true,
-          crossDomainTransferEnabled: true,
-          maxExecutionTimeoutMs: 20000,
-        };
-      } else if (m.xp >= 50 && successRate >= 0.75 && m.episodesCount >= 3) {
-        m.stage = 3;
-        m.stageName = "CONCRETE_OPERATIONAL_CHILD";
-        m.humanAnalogy = "Child (Concrete Operational: Structured branch skipping, form contracts)";
-        m.scaffolding = {
-          requireHumanConfirm: false,
-          perceptionPauseMs: 1500,
-          allowFastBranchSkip: true,
-          allowSystem1Reflex: false,
-          crossDomainTransferEnabled: false,
-          maxExecutionTimeoutMs: 25000,
-        };
-      } else if (m.xp >= 15) {
-        m.stage = 2;
-        m.stageName = "PREOPERATIONAL_TODDLER";
-        m.humanAnalogy = "Toddler (Preoperational: Basic linear playback, pitfall imprinting)";
-        m.scaffolding = {
-          requireHumanConfirm: true,
-          perceptionPauseMs: 2500,
-          allowFastBranchSkip: false,
-          allowSystem1Reflex: false,
-          crossDomainTransferEnabled: false,
-          maxExecutionTimeoutMs: 30000,
-        };
-      }
+      let earned: number | null = null;
+      if (m.xp >= 200 && successRate >= 0.95 && m.episodesCount >= 15) earned = 5;
+      else if (m.xp >= 100 && successRate >= 0.88 && m.episodesCount >= 7) earned = 4;
+      else if (m.xp >= 50 && successRate >= 0.75 && m.episodesCount >= 3) earned = 3;
+      else if (m.xp >= 15) earned = 2;
+      if (earned !== null) Object.assign(m, stageFields(earned));
     } else {
       m.consecutiveFailures++;
       // Stress Regression under repeated failure (Down-level autonomy to protect user data)
@@ -197,19 +154,20 @@ export class CognitiveDevelopmentEngine {
     return m;
   }
 
-  /** Durable state (see cognitive-persistence.ts). Pristine, read-created infant profiles are omitted: they are recreated on demand. */
-  public snapshotState(): unknown {
-    return {
-      domainMaturityMap: [...this.domainMaturityMap.entries()].filter(
-        ([, m]) => !(m.stage === 1 && m.xp === 0 && m.episodesCount === 0 && m.consecutiveFailures === 0),
-      ),
-    };
-  }
-
-  public restoreState(raw: unknown): void {
-    const s = asRecord(raw, "development");
-    const domainMaturityMap = toMap<DomainMaturity>(s.domainMaturityMap, "development.domainMaturityMap");
-    this.domainMaturityMap = domainMaturityMap;
+  /**
+   * The spine (cognitive-spine.ts) owns a domain's level; this engine only DISPLAYS it. Sets the stage
+   * and its scaffolding from that level and copies the evidence counters, so every level tool agrees.
+   */
+  public applySpine(domain: string, view: { level: number; xp: number; episodes: number; successes: number; consecutiveFailures: number; regressed: boolean }): DomainMaturity {
+    const m = this.getMaturity(domain);
+    Object.assign(m, stageFields(view.level));
+    m.xp = view.xp;
+    m.episodesCount = view.episodes;
+    m.successCount = view.successes;
+    m.consecutiveFailures = view.consecutiveFailures;
+    m.recentRegression = view.regressed;
+    m.updatedAt = new Date().toISOString();
+    return m;
   }
 }
 

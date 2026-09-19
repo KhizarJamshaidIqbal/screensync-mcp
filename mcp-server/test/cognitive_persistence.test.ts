@@ -19,7 +19,7 @@ import { CognitiveLifespanEngine } from "../cognitive-lifespan.js";
 import { AdolescentCognitionEngine } from "../cognitive-adolescent.js";
 import { CognitiveDynamicsEngine } from "../cognitive-dynamics.js";
 import { TranscendentalCognitionEngine, globalTranscendentalEngine } from "../cognitive-transcendental.js";
-import { CognitiveDevelopmentEngine } from "../cognitive-development.js";
+import { CognitiveSpine } from "../cognitive-spine.js";
 import { CognitiveRpdEngine } from "../cognitive-rpd.js";
 import { FederatedCatalogEngine } from "../cognitive-federation.js";
 
@@ -249,7 +249,6 @@ const DRIVERS: Driver[] = [
   {
     ns: "maturation", make: () => new CognitiveMaturationEngine(),
     drive: (e, t) => {
-      e.getOrEvolveProfile(t, { outcome: "success", xpGain: 25 });
       e.addNode({ id: `${t}-n1`, label: "PAGE", properties: { url: "/a" } });
       e.addNode({ id: `${t}-n2`, label: "ACTION", properties: {} });
       e.addEdge({ fromId: `${t}-n1`, toId: `${t}-n2`, label: "NAVIGATES_TO", weight: 0.5 });
@@ -257,7 +256,7 @@ const DRIVERS: Driver[] = [
   },
   {
     ns: "lifespan", make: () => new CognitiveLifespanEngine(),
-    drive: (e, t) => { e.evaluateLifespan(t, { outcome: "success" }); e.transferMetaphor(t, `${t}.other`); },
+    drive: (e, t) => { e.transferMetaphor(t, `${t}.other`); e.calibrateMotorBabbling({ domain: t, sampleLatencyMs: 40, targetElementType: "contenteditable" }); },
   },
   { ns: "adolescent", make: () => new AdolescentCognitionEngine(), drive: (e, t) => { e.eriksonIdentity(t, 15, 10, 1); } },
   {
@@ -271,7 +270,16 @@ const DRIVERS: Driver[] = [
     ns: "transcendental", make: () => new TranscendentalCognitionEngine(),
     drive: (e, t) => { e.amygdalaThreatInoculation(`${t}.com`, { httpStatus: 429, challengeDetected: true }); },
   },
-  { ns: "development", make: () => new CognitiveDevelopmentEngine(), drive: (e, t) => { e.overrideStage(t, 3); } },
+  {
+    ns: "spine", make: () => new CognitiveSpine(() => 1_700_000_000_000),
+    drive: (e, t) => {
+      e.record(t, "verified", `s-${t}`, 1_700_000_000_000);
+      e.record(t, "weak", `s-${t}`, 1_700_000_001_000);
+      e.record(t, "failure", `s2-${t}`, 1_700_000_002_000);
+      e.vouch(t, 2, "trusted by the operator", `s-${t}`, 1_700_000_003_000);
+      e.setWisdom(t, 0.8, 1_700_000_004_000);
+    },
+  },
   {
     ns: "rpd", make: () => new CognitiveRpdEngine(),
     drive: (e, t) => { e.registerSpatialLocation(t, { selector: "#a", lastSeenRect: rect, scrollOffsetWhenSeen: { x: 0, y: 5 }, observedAt: "2026-09-19T00:00:00Z" }); },
@@ -290,7 +298,7 @@ const disk = (v: unknown) => JSON.parse(JSON.stringify(v)); // what a restart re
 test("every durable engine has a driver, and the durable set is exactly what we mean it to be", () => {
   assert.deepEqual(
     DURABLE_ENGINES.map(([ns]) => ns).sort(),
-    ["adolescent", "development", "dynamics", "federation", "lifespan", "maturation", "rpd", "transcendental"],
+    ["adolescent", "dynamics", "federation", "lifespan", "maturation", "rpd", "spine", "transcendental"],
   );
   assert.deepEqual(DRIVERS.map((d) => d.ns).sort(), DURABLE_ENGINES.map(([ns]) => ns).sort());
 });

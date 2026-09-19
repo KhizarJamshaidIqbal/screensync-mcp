@@ -1,32 +1,33 @@
-// ScreenSync Cognitive Auto-Tracker: Instant Inline Telemetry & Lifespan Maturation
-// Automatically tracks every tool execution, updates domain maturity XP,
-// logs execution episodes, and penalizes failures with trauma burns.
+// ScreenSync Cognitive Auto-Tracker: instant inline telemetry for every relayed tool result.
+//
+// Two things happen to each result:
+//   1. The competence spine observes it (cognitive-spine-observer.ts). That is the ONLY way a domain's
+//      level can move from hub-seen behaviour, and it is stricter than this file used to be: it used to
+//      hand out +5 XP and +1.2 "cognitive years" for any ok:true, including a web_expect that FAILED
+//      (which returns ok:true with passed:false), and it scored the safety layer's own refusals as trauma.
+//   2. The execution is logged as an episode in the durable memory store, as before.
 
 import { cognitiveStore } from "./cognitive-memory.js";
-import { globalMaturationEngine } from "./cognitive-maturation.js";
-import { globalLifespanEngine } from "./cognitive-lifespan.js";
+import { hostOf, observeToolResult } from "./cognitive-spine-observer.js";
 import type { WebToolResult } from "./web.js";
 
 export function trackToolExecution(
   tool: string,
   args: Record<string, unknown>,
   result: WebToolResult,
-  durationMs: number
+  durationMs: number,
+  session: string = "http",
 ): void {
   try {
-    const rawTarget = String(args.url || args.origin || (result.data as any)?.url || args.domain || "");
-    let domain = "";
-    if (rawTarget.startsWith("http://") || rawTarget.startsWith("https://")) {
-      try {
-        domain = new URL(rawTarget).hostname.replace(/^www\./, "").toLowerCase();
-      } catch {}
-    } else if (rawTarget.includes(".") && !rawTarget.includes(" ") && !rawTarget.includes("/")) {
-      domain = rawTarget.replace(/^www\./, "").toLowerCase();
-    }
+    observeToolResult(tool, args, result, session);
+  } catch {
+    // Non-blocking inline telemetry
+  }
 
-    if (!domain || domain === "localhost" || domain === "127.0.0.1") return;
+  try {
+    const domain = hostOf(args.url) || hostOf(args.origin) || hostOf((result.data as { url?: unknown } | null | undefined)?.url) || hostOf(args.domain);
+    if (!domain) return;
 
-    // 1. Auto-record execution episode into cognitiveStore
     cognitiveStore.learn({
       action: "episode",
       domain,
@@ -40,15 +41,6 @@ export function trackToolExecution(
           : `Instant telemetry: ${tool} failed: ${result.error || "unknown"}`
       }
     });
-
-    // 2. Instant maturation & lifespan progression
-    if (result.ok) {
-      globalMaturationEngine.getOrEvolveProfile(domain, { outcome: "success", xpGain: 5 });
-      globalLifespanEngine.evaluateLifespan(domain, { outcome: "success" });
-    } else {
-      globalMaturationEngine.getOrEvolveProfile(domain, { outcome: "trauma", xpGain: 0 });
-      globalLifespanEngine.evaluateLifespan(domain, { outcome: "burn" });
-    }
   } catch {
     // Non-blocking inline telemetry
   }

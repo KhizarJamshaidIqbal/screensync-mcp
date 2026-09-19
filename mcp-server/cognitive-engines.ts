@@ -19,26 +19,30 @@
 //                  whatever the user had typed into a form, so writing them to disk would turn a
 //                  safety net into a privacy leak. Losing them on restart is the correct behaviour.
 //   cognitiveStore already durable on its own (cognitive-memory.json), with its own migrations.
+//   development    a pure VIEW of the spine (its stage, scaffolding and counters are recomputed on every
+//                  read), so there is nothing of its own to save. maturation and lifespan save only the
+//                  state tools really write (the epistemic graph; motor calibration and metaphors); their
+//                  per-domain profiles are views too.
 
 import { log } from "./config.js";
 import { cognitiveRegistry, type HydrateReport, type PersistableEngine } from "./cognitive-persistence.js";
 import { globalAdolescentEngine } from "./cognitive-adolescent.js";
-import { globalDevelopmentEngine } from "./cognitive-development.js";
 import { globalDynamicsEngine } from "./cognitive-dynamics.js";
 import { globalFederatedCatalog } from "./cognitive-federation.js";
 import { globalLifespanEngine } from "./cognitive-lifespan.js";
 import { globalMaturationEngine } from "./cognitive-maturation.js";
 import { globalRpdEngine } from "./cognitive-rpd.js";
+import { globalSpine } from "./cognitive-spine.js";
 import { globalTranscendentalEngine } from "./cognitive-transcendental.js";
 
 /** Namespace -> engine. The namespace is the file name (cognitive/<ns>.json); never rename one. */
 export const DURABLE_ENGINES: ReadonlyArray<readonly [string, PersistableEngine]> = [
+  ["spine", globalSpine],
   ["maturation", globalMaturationEngine],
   ["lifespan", globalLifespanEngine],
   ["adolescent", globalAdolescentEngine],
   ["dynamics", globalDynamicsEngine],
   ["transcendental", globalTranscendentalEngine],
-  ["development", globalDevelopmentEngine],
   ["rpd", globalRpdEngine],
   ["federation", globalFederatedCatalog],
 ];

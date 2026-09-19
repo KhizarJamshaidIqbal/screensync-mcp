@@ -14,12 +14,12 @@ import { CognitiveMaturationEngine } from "../cognitive-maturation.js";
 test("OCM-PGL: Ontogenetic Cognitive Maturation & Stage Transitions", () => {
   const engine = new CognitiveMaturationEngine();
 
-  // Test 1: Seeded adult profile for x.com
+  // Test 1: x.com is NOT special. It used to be seeded as a stage-4 adult with 2850 invented XP; a level
+  // is now earned from evidence the hub observed, so it starts as an infant like every other domain.
   const xProfile = engine.getOrEvolveProfile("x.com");
-  assert.equal(xProfile.stage, "STAGE_4_ADULT_RPD_MASTER");
-  assert.equal(xProfile.stageLevel, 4);
-  assert.equal(xProfile.policy.allowAutonomousBatching, true);
-  assert.equal(xProfile.policy.exploratoryCaution, "autonomous_high");
+  assert.equal(xProfile.stage, "STAGE_1_INFANT_SENSORIMOTOR");
+  assert.equal(xProfile.stageLevel, 1);
+  assert.equal(xProfile.cognitiveXp, 0, "no invented XP");
 
   // Test 2: Brand new domain starts as Infant (Sensorimotor / Hot-stove caution)
   const newDomain = engine.getOrEvolveProfile("new-ecommerce-site.com");
@@ -29,8 +29,17 @@ test("OCM-PGL: Ontogenetic Cognitive Maturation & Stage Transitions", () => {
   assert.equal(newDomain.policy.exploratoryCaution, "extreme_nociceptive");
   assert.equal(newDomain.policy.requireUndoPreflight, true);
 
-  // Test 3: Evolve maturity with successful interactions (Gaining XP -> Child -> Adolescent)
+  // Test 3a: a caller-claimed gain is clamped to 25, so one large claim cannot promote a domain
   engine.getOrEvolveProfile("new-ecommerce-site.com", { outcome: "success", xpGain: 150 });
+  const claimed = engine.getOrEvolveProfile("new-ecommerce-site.com");
+  assert.equal(claimed.cognitiveXp, 25);
+  assert.equal(claimed.stageLevel, 1);
+  // ...and a claimed gain of 0 is 0, not the 25 it used to silently become
+  engine.getOrEvolveProfile("new-ecommerce-site.com", { outcome: "success", xpGain: 0 });
+  assert.equal(engine.getOrEvolveProfile("new-ecommerce-site.com").cognitiveXp, 25);
+
+  // Test 3b: Evolve maturity with successful interactions (three more honest gains reach 100 XP -> Child)
+  for (let i = 0; i < 3; i += 1) engine.getOrEvolveProfile("new-ecommerce-site.com", { outcome: "success", xpGain: 25 });
   const childDomain = engine.getOrEvolveProfile("new-ecommerce-site.com");
   assert.equal(childDomain.stage, "STAGE_2_CHILD_SYMBOLIC");
   assert.equal(childDomain.stageLevel, 2);
