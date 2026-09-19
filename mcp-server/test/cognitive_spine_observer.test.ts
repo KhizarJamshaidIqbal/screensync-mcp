@@ -109,6 +109,11 @@ test("policy refusals and outages are neutral; a genuine page failure is a failu
     "Web access is disabled in the ScreenSync extension.",
     "Timed out after 45000ms waiting for the browser extension.",
     "No connected browser matches the requested set.",
+    // The extension's origin grants (consent.js): the guard doing its job, found by driving a real tab.
+    "Read access not granted for origin https://example.com. Grant read permission in extension dashboard.",
+    "Action access not granted for origin https://example.com. Grant action permission in extension dashboard.",
+    "Cookie access not granted for origin https://example.com. Grant cookie permission in extension dashboard.",
+    "Rate limit exceeded for origin https://example.com",
   ]) {
     r.tick(100);
     assert.equal(r.see("web_click", { selector: "#again" }, fail(error)).outcome, "neutral", error);
