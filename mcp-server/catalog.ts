@@ -4,6 +4,7 @@ import { cognitiveToolDefinitions } from "./catalog-cognitive.js";
 import { lifespanToolDefinitions } from "./catalog-lifespan.js";
 import { adolescentToolDefinitions } from "./catalog-adolescent.js";
 import { dynamicsToolDefinitions } from "./catalog-dynamics.js";
+import { transcendentalToolDefinitions } from "./catalog-transcendental.js";
 export { consolidatedToolDefinitions, isConsolidatedMode, getToolsForMode, resolveConsolidatedCall } from "./catalog-consolidated.js";
 import { getToolsForMode } from "./catalog-consolidated.js";
 
@@ -362,6 +363,7 @@ export function toolDefinitions() {
     ...lifespanToolDefinitions(),
     ...adolescentToolDefinitions(),
     ...dynamicsToolDefinitions(),
+    ...transcendentalToolDefinitions(),
   ];
 }
 

@@ -7,6 +7,7 @@ import { mountWebAccess } from '../components/web-access.js';
 import { renderViewers } from '../components/inspection-viewer.js';
 import { mountAgentConsole } from '../components/agent-console.js';
 import { mountDiagnosticsView } from '../components/diagnostics-view.js';
+import { mountThreatStateView } from '../components/threat-state-view.js';
 
 const send = (msg) => chrome.runtime.sendMessage(msg);
 
@@ -90,6 +91,7 @@ mountWebAccess(document.getElementById('web-access'), send);
 renderViewers(document.getElementById('viewers-top'), send);
 mountAgentConsole(document.getElementById('agent-console'), send, toast);
 mountDiagnosticsView(document.getElementById('diagnostics-panel'), send, toast);
+mountThreatStateView(document.getElementById('threat-state-panel'), send, toast);
 
 // ── Header buttons ──
 const reloadBtn = document.getElementById('btn-reload');

@@ -15,6 +15,8 @@ const TARGETS = [
   "website/about.html",
   "website/extension.html",
   "website/index.html",
+  // Was omitted until 12.0 and had silently drifted to 171 as a result.
+  "website/goal.html",
 ];
 
 const count = toolDefinitions().length;

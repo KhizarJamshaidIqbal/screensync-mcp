@@ -8,6 +8,11 @@
 // 6. Proactive/Retroactive Interference
 // 7. Dopaminergic Reward Prediction Error
 // 8. Sweller Cognitive Load Budgeting
+//
+// Last link but one in the cognitive chain: anything this unit does not own
+// falls through to the Architecture 12.0 transcendental unit.
+
+import { execCognitiveTranscendentalTool } from './cognitive-transcendental-ext.js';
 
 function normalizeDomain(input) {
   if (!input) return '';
@@ -173,6 +178,6 @@ export async function execCognitiveDynamicsTool(tool, args = {}) {
     case 'web_interference_check': return execWebInterferenceCheck(args);
     case 'web_reward_prediction_error': return execWebRewardPredictionError(args);
     case 'web_cognitive_load_budget': return execWebCognitiveLoadBudget(args);
-    default: return { ok: false, error: `Unknown cognitive dynamics tool: ${tool}` };
+    default: return execCognitiveTranscendentalTool(tool, args);
   }
 }

@@ -8,6 +8,7 @@ import { getAuditLog, exportAuditLog } from './lib/audit.js';
 import { getTakeoverStatus, resumeTakeover } from './lib/takeover.js';
 import { listJobs, cancelJob } from './lib/jobs.js';
 import { execExtensionDiagnostics } from './lib/web-diag.js';
+import { getThreatState } from './lib/cognitive-transcendental-ext.js';
 import {
   GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, EVENT_LOG_CAP,
 } from './lib/constants.js';
@@ -477,6 +478,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           break;
         case 'get-diagnostics':
           sendResponse(await execExtensionDiagnostics());
+          break;
+        case 'get-threat-state':
+          sendResponse({ ok: true, threats: getThreatState(msg.domain) });
           break;
         default:
           sendResponse({ ok: false, error: `unknown message ${msg.type}` });
