@@ -180,16 +180,21 @@ The public changelog is **generated, never hand-written**. Two tools own it:
 
 1. **Pre-Flight Cue Recall (`web_recall`)**:
    - Before interacting with ANY domain or web task (e.g. `x.com`, `linkedin.com`, `wordpress`, `github.com`), the agent MUST call `web_recall({ domain })` (and `web_warm` if evaluating condition signals).
-   - If a verified playbook is returned and conditions match, execute the fast-path directly (< 15–30s). Never reinvent an already-mastered sequence.
+   - Check `fastPathAvailable` and `playbookStatus` in the reply. Only a **verified** playbook is a fast path — execute it directly (< 15–30s) and never reinvent an already-mastered sequence.
+   - A **candidate** playbook is an unverified draft: run its steps deliberately, confirm each one with `web_expect`, and do not trust it blindly. `guidance` in the reply says which case you are in.
 
 2. **Instant Inline Recording ("Learn-As-You-Go", NO DEFERRAL)**:
    - **On DOM/Framework Discovery**: The instant an agent detects a site's framework, Shadow DOM root (e.g. `div.theme--light`), or editor primitive (Quill, Lexical, Draft.js, Slate), immediately call `web_learn({ action: "fact", domain, data })`.
    - **On Trap / Pitfall Discovery**: The instant an error occurs, an element is unclickable, a button remains disabled, a modal hangs on background tabs, or a rich-text paste duplicates text, DO NOT just fix it silently — immediately call `web_learn({ action: "pitfall", domain, data: { symptom, rootCause, antiPattern, provenSolution, codeSnippet } })`.
-   - **On Workflow Mastery**: Once a sequential action completes successfully (e.g. creating/editing a post, uploading media, checking out), immediately synthesize and store the playbook via `web_learn({ action: "playbook", domain, intent, data })`.
+   - **On Workflow Mastery**: Once a sequential action completes successfully (e.g. creating/editing a post, uploading media, checking out), immediately synthesize and store the playbook via `web_learn({ action: "playbook", domain, intent, data })`. It is stored as an unverified **candidate** — storing it does not make it trusted.
+   - **On Re-running a Playbook**: report the run with `web_learn({ action: "outcome", domain, data: { playbook, success } })`. The report only counts when the hub itself saw a passing `web_expect`/`web_assert` after your action on that domain in this session, so **act, then verify, then report**. Two such runs in two different sessions promote the playbook to verified, which is what makes it a fast path and lets it become a System-1 reflex.
 
 3. **Cognitive Maturation & Lifespan Progression**:
-   - Every successful operation advances domain maturation: call `web_cognitive_maturation({ domain, event: { outcome: "success", xpGain: number } })` and check `web_cognitive_lifespan`.
-   - When hitting unexpected barriers or security challenges, record `{ outcome: "trauma" }` (hot-stove burn) so protective safety scaffolding is immediately established.
+   - Levels are **earned from what the hub observes, not from numbers you send**. `web_cognitive_stage`, `web_cognitive_maturation` and `web_cognitive_lifespan` are three views of one competence level per domain; they always agree. Read them; do not try to drive them.
+   - A full-weight success is an **action followed by a passing, non-trivial assertion** (`web_expect`/`web_assert`) — the act-then-verify loop. A bare `ok` counts for a fifth of one, capped per session; an outcome you merely report counts for a tenth. `xpGain` is ignored and reported back in `argsIgnored`. Reporting `{ outcome: "trauma" }` / `{ outcome: "burn" }` still records a failure.
+   - Promotion needs several distinct sessions over several days with a low recent failure rate, so one session cannot farm a level. Two failures in a row or a breaker trip drop a rung. `web_cognitive_stage({ action: "evaluate" })` tells you exactly what is still missing.
+   - `action: "override"` is an audited **human vouch**, capped at COMPETENT and marked `source: "vouched"`. It never counts as earned evidence and never lifts the safety gate below.
+   - **The gate:** a destructive-looking mutation on a domain below COMPETENT is flagged (`cognitiveGate` in the response) and, where the operator set `SCREEN_SYNC_COGNITIVE_GATE=enforce`, refused with `USER_CONFIRMATION_REQUIRED`. Passing `confirmed`/`force` yourself does nothing — ask the human, or have them allowlist the domain.
 
 4. **Hippocampal Consolidation (`web_consolidate`)**:
    - After completing a task or registering new facts/pitfalls/playbooks, call `web_consolidate` to compact Bronze telemetry into Silver/Gold Lakehouse storage, trigger Long-Term Potentiation (LTP) on proven playbooks, and sanitize wisdom entries.

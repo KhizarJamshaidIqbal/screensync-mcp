@@ -15,14 +15,42 @@
 
 import type { CognitiveMemoryData } from "./cognitive-memory.js";
 
-export const CURRENT_MEMORY_VERSION = "1.1.0" as const;
+export const CURRENT_MEMORY_VERSION = "1.2.0" as const;
 
 type Raw = Record<string, unknown>;
 
-/** One entry per schema step. A future format change adds "1.1.0": (d) => ({ ...d, ... }) here. */
-const UPGRADES: Record<string, (d: Raw) => Raw> = {};
-
 const isObj = (v: unknown): v is Raw => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * One entry per schema step, keyed by the version it upgrades FROM.
+ *
+ * 1.1.0 -> 1.2.0 gives every playbook a lifecycle status (cognitive-skills.ts). A playbook that had already
+ * earned its keep (two or more successes) migrates as VERIFIED with provenance "legacy", so nothing that
+ * worked stops working; anything less becomes a candidate that must earn verification.
+ */
+const UPGRADES: Record<string, (d: Raw) => Raw> = {
+  "1.0.0": (d) => UPGRADES["1.1.0"]({ ...d, version: "1.1.0" }),
+  "1.1.0": (d) => {
+    // structurallySound() has already proved playbooks is an object of objects. Coercing here instead
+    // (`isObj(d.playbooks) ? d.playbooks : {}`) would have REPLACED a wrong-typed collection with an empty
+    // one, which then passed the wrong-type guard below and was saved over the user's file: every learned
+    // playbook silently destroyed, with no quarantine copy. Never let an upgrade step invent data.
+    const playbooks: Raw = {};
+    for (const [key, value] of Object.entries(d.playbooks as Raw)) {
+      const entry = value as Raw;
+      const count = typeof entry.successCount === "number" ? entry.successCount : 0;
+      playbooks[key] = {
+        ...entry,
+        status: entry.status ?? (count >= 2 ? "verified" : "candidate"),
+        provenance: entry.provenance ?? "legacy",
+        verifications: Array.isArray(entry.verifications) ? entry.verifications : [],
+        createdAt: entry.createdAt ?? entry.lastExecutedAt,
+      };
+    }
+    return { ...d, playbooks, version: "1.2.0" };
+  },
+};
+
 
 function parseVersion(v: string): number[] | null {
   const parts = v.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : NaN));
@@ -47,8 +75,24 @@ const COLLECTIONS: Array<[key: "domains" | "playbooks" | "pitfalls", empty: () =
   ["pitfalls", () => ({})],
 ];
 
+/**
+ * Is this file shaped like a memory store, whatever version it claims? Checked BEFORE any upgrade runs,
+ * because an upgrade that rewrites a collection can hide the very corruption the wrong-type guard exists
+ * to catch. Returning false means "quarantine the bytes", never "fix them up".
+ */
+function structurallySound(d: Raw): boolean {
+  for (const [key] of COLLECTIONS) {
+    if (d[key] !== undefined && !isObj(d[key])) return false;
+  }
+  if (d.episodes !== undefined && !Array.isArray(d.episodes)) return false;
+  // Every playbook must be an object: recall() reads .status on each one and would throw on null.
+  if (isObj(d.playbooks) && Object.values(d.playbooks).some((v) => !isObj(v))) return false;
+  return true;
+}
+
 export function migrateMemory(raw: unknown): { data: CognitiveMemoryData; changed: boolean } | null {
   if (!isObj(raw)) return null;
+  if (!structurallySound(raw)) return null;
 
   const looksLikeMemory =
     isObj(raw.playbooks) || isObj(raw.domains) || isObj(raw.pitfalls) || Array.isArray(raw.episodes);
@@ -68,7 +112,7 @@ export function migrateMemory(raw: unknown): { data: CognitiveMemoryData; change
   let changed = false;
   let data: Raw = { ...raw };
 
-  // Walk the explicit upgrade steps (none exist yet), then fall through to tolerant normalisation.
+  // Walk the explicit upgrade steps, then fall through to tolerant normalisation.
   let guard = 0;
   while (compareVersions(version, CURRENT_MEMORY_VERSION)! < 0 && UPGRADES[version] && guard < 16) {
     data = UPGRADES[version](data);

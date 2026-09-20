@@ -42,8 +42,8 @@ export function cognitiveToolDefinitions(): Tool[] {
         properties: {
           action: {
             type: "string",
-            enum: ["playbook", "pitfall", "fact", "episode"],
-            description: "Learning category: 'playbook' (proven multi-step recipe), 'pitfall' (mistake to avoid + solution), 'fact' (site framework/metadata), 'episode' (execution run record)."
+            enum: ["playbook", "pitfall", "fact", "episode", "outcome"],
+            description: "Learning category: 'playbook' (a recipe; stored as an UNVERIFIED candidate), 'pitfall' (mistake to avoid + solution), 'fact' (site framework/metadata), 'episode' (execution run record), 'outcome' (report a playbook run: data {playbook, success}; it counts only when the hub saw a passing web_expect after your action in this session; two such runs in two sessions verify the playbook)."
           },
           domain: {
             type: "string",

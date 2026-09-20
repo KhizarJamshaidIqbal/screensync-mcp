@@ -8,7 +8,7 @@ import type { CognitiveMemoryData } from "./cognitive-memory.js";
 
 export function getDefaultSeededMemory(): CognitiveMemoryData {
   return {
-    version: "1.1.0",
+    version: "1.2.0",
     updatedAt: new Date().toISOString(),
     domains: {
       "x.com": {
@@ -134,6 +134,10 @@ export function getDefaultSeededMemory(): CognitiveMemoryData {
           }
         ],
         successCount: 2,
+        // Shipped with the build and hand-verified, so it is a fast path from the first run.
+        status: "verified",
+        provenance: "seed",
+        verifications: [],
         lastExecutedAt: "2026-09-18T10:43:12.000Z",
         targetDurationSeconds: 15
       }

@@ -21,8 +21,10 @@ Human minds don't solve the same puzzle from scratch twice: once a motor skill o
 
 2. **Pre-Flight Memory Recall (`web_recall`)**:
    - Call `web_recall { domain: "x.com", intent: "post" }` before unfamiliar operations.
-   - Returns: `{ fastPathAvailable, recommendedPlaybook, selectedBranch, pitfalls, environmentalProbes }`.
-   - **If a playbook is returned, EXECUTE IT DIRECTLY.** Do not guess, do not trial-and-error. Execution takes **< 15 seconds**.
+   - Returns: `{ fastPathAvailable, playbookStatus, recommendedPlaybook, selectedBranch, guidance, alternatives, pitfalls, environmentalProbes }`.
+   - **If `fastPathAvailable` is true the playbook is verified: EXECUTE IT DIRECTLY.** Do not guess, do not trial-and-error. Execution takes **< 15 seconds**.
+   - If `playbookStatus` is `"candidate"` it is an unverified draft: run it deliberately, confirm each step with `web_expect`, then report the run with
+     `web_learn { action: "outcome", domain, data: { playbook, success } }`. Two hub-confirmed runs in two sessions promote it to a fast path.
    - Avoid known traps (e.g. Draft.js requiring `execCommand('insertText')`, CSP blocking main-world eval, inactive window screenshot failures).
 
 3. **Cognitive Associative Knowledge Graph & Skill Transfer (`web_graph_query`)**:
@@ -67,8 +69,9 @@ Human minds don't solve the same puzzle from scratch twice: once a motor skill o
 
 11. **Instant Inline Learning Protocol (NO DEFERRAL — User-Ordered 2026-09-19)**:
     - **Never wait for session end**: The moment an agent encounters or solves a DOM quirk, shadow DOM root, disabled button state, or timing trap, IMMEDIATELY call `web_learn` (`action: "fact"` or `"pitfall"`).
-    - **Immediate Playbook Synthesis**: When a new multi-step flow succeeds, immediately call `web_learn` (`action: "playbook"`).
-    - **Immediate Consolidation**: Call `web_cognitive_maturation` with `{ outcome: "success", xpGain: 25 }` and `web_consolidate` to lock memories into Gold tier before finishing the turn.
+    - **Immediate Playbook Synthesis**: When a new multi-step flow succeeds, immediately call `web_learn` (`action: "playbook"`). It is stored as an unverified **candidate**.
+    - **Verify what you stored**: re-run it, confirm the result with `web_expect`, and report `web_learn { action: "outcome", domain, data: { playbook, success: true } }`. The report counts only when the hub itself saw the passing assertion, so **act, then verify, then report**.
+    - **Immediate Consolidation**: Call `web_consolidate` to lock memories into Gold tier before finishing the turn. Levels are earned from what the hub observes: `xpGain` is ignored, and `web_cognitive_stage({ action: "evaluate" })` reports what is still missing.
 
 ### -1b · Cognitive Architecture 8.0 → 11.0: Developmental Levels (child → adult memory system)
 

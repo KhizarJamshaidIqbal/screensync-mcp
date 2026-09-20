@@ -5,6 +5,8 @@
 import type { Response } from "express";
 import { globalTranscendentalEngine } from "./cognitive-transcendental.js";
 import { globalSpine } from "./cognitive-spine.js";
+import { cognitiveStore } from "./cognitive-memory.js";
+import { isFastPath, statusOf } from "./cognitive-skills.js";
 import { HUB_SESSION } from "./cognitive-spine-views.js";
 
 export function handleTranscendentalCognitiveTool(tool: string, args: Record<string, any>, res: Response): boolean {
@@ -38,8 +40,15 @@ export function handleTranscendentalCognitiveTool(tool: string, args: Record<str
         effective = { ...playbook, successCount: globalSpine.evaluate(domain).evidence.verified, wisdomScore: globalSpine.wisdom(domain)?.score ?? 0 };
         source = "spine";
       }
-      const result = globalTranscendentalEngine.system1ReflexCompile(domain, effective);
-      res.json({ success: true, ok: true, data: { ...result, source, ...(argsIgnored.length ? { argsIgnored } : {}) } });
+      // A stored playbook must also be VERIFIED (cognitive-skills.ts) to become a reflex: a draft the model
+      // has never had confirmed is never automated, however well the domain as a whole has been doing.
+      const stored = domain && typeof playbook.id === "string" && playbook.id ? cognitiveStore.findPlaybook(domain, playbook.id) : null;
+      const unverified = stored !== null && !isFastPath(stored);
+      const result = globalTranscendentalEngine.system1ReflexCompile(domain, unverified ? { ...effective, successCount: 0 } : effective);
+      const data = unverified
+        ? { ...result, reason: `Playbook "${stored.name}" is ${statusOf(stored) === "verified" ? "on a run of reported failures" : `an unverified ${statusOf(stored)}`}: it must be verified (two hub-confirmed runs in two sessions) before it can become a reflex.` }
+        : result;
+      res.json({ success: true, ok: true, data: { ...data, source, ...(argsIgnored.length ? { argsIgnored } : {}) } });
     } catch (e: any) {
       res.json({ success: true, ok: false, data: { error: `Reflex compilation failed: ${e.message}` } });
     }

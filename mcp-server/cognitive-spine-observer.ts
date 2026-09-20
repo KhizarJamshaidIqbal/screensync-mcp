@@ -31,6 +31,8 @@ export const VERIFIER_TOOLS: ReadonlySet<string> = new Set(["web_expect", "web_a
 
 const PENDING_TTL_MS = 60_000;
 const CONTEXT_TTL_MS = 120_000;
+/** How long a verified success can back a playbook outcome report. */
+const CREDIT_TTL_MS = 600_000;
 const MAX_CONTEXT = 300;
 
 /**
@@ -79,6 +81,8 @@ export class SpineObserver {
   private tabDomain = new Map<string, { domain: string; t: number }>();
   private sessionDomain = new Map<string, { domain: string; t: number }>();
   private pending = new Map<string, { tool: string; t: number }>();
+  /** Verified successes not yet claimed by a playbook outcome report, per session and domain. */
+  private credits = new Map<string, number[]>();
 
   constructor(private readonly spine: CognitiveSpine, private readonly clock: () => number = Date.now) {}
 
@@ -87,6 +91,21 @@ export class SpineObserver {
       if (m.size > MAX_CONTEXT) for (const [k, v] of m) if (now - v.t > CONTEXT_TTL_MS) m.delete(k);
     }
     if (this.pending.size > MAX_CONTEXT) for (const [k, v] of this.pending) if (now - v.t > PENDING_TTL_MS) this.pending.delete(k);
+    if (this.credits.size > MAX_CONTEXT) for (const [k, v] of this.credits) if (v.every((t) => now - t > CREDIT_TTL_MS)) this.credits.delete(k);
+  }
+
+  /**
+   * Spends one verified success the hub observed for this session on this domain, if there is a fresh one.
+   * This is what makes a playbook outcome report more than a claim: an agent can say it succeeded, but only
+   * the hub can have SEEN an act followed by a passing assertion, and each sighting backs one report.
+   */
+  public claimVerifiedCredit(session: string, domain: string, now: number = this.clock()): boolean {
+    const key = `${session}|${normalizeDomain(domain)}`;
+    const fresh = (this.credits.get(key) ?? []).filter((t) => now - t <= CREDIT_TTL_MS);
+    if (fresh.length === 0) { this.credits.delete(key); return false; }
+    fresh.shift();
+    if (fresh.length > 0) this.credits.set(key, fresh); else this.credits.delete(key);
+    return true;
   }
 
   /**
@@ -154,6 +173,7 @@ export class SpineObserver {
 
     const kind: EvidenceKind = passed ? "verified" : "failure";
     this.spine.record(domain, kind, session, now);
+    if (passed) this.credits.set(key, [...(this.credits.get(key) ?? []), now]);
     return kind;
   }
 }

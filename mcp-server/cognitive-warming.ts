@@ -15,6 +15,9 @@ export interface SpeculativeWarmResult {
   domain: string;
   intent: string;
   fastPathAvailable: boolean;
+  /** The recalled playbook's lifecycle status, so a caller can see WHY there is no fast path. */
+  playbookStatus?: "candidate" | "verified" | "deprecated" | null;
+  guidance?: string;
   recommendedPlaybookId?: string;
   selectedBranch?: PlaybookBranch | null;
   estimatedSeconds: number;
@@ -168,13 +171,26 @@ export function speculativeWarm(params: {
     });
   }
 
-  const fastPathAvailable = Boolean(recallResult.recommendedPlaybook && circuitState.status !== "OPEN");
+  // Defer to recall's verdict rather than re-deriving it from "a playbook exists". recall() only calls a
+  // playbook a fast path once it is VERIFIED (cognitive-skills.ts); asking merely whether one was returned
+  // would advertise a draft the model has just invented as a proven recipe, which is the exact thing the
+  // lifecycle exists to prevent - and this tool is what agents are told to call before acting.
+  const fastPathAvailable = recallResult.fastPathAvailable && circuitState.status !== "OPEN";
+  if (recallResult.recommendedPlaybook && !recallResult.fastPathAvailable) {
+    checks.push({
+      probe: "playbook_verified",
+      status: "warning",
+      details: recallResult.guidance ?? "The recalled playbook is not verified; run it deliberately and confirm each step.",
+    });
+  }
 
   return {
     ready: circuitState.status !== "OPEN",
     domain: normalizedDomain,
     intent,
     fastPathAvailable,
+    playbookStatus: recallResult.playbookStatus,
+    ...(recallResult.guidance ? { guidance: recallResult.guidance } : {}),
     recommendedPlaybookId: recallResult.recommendedPlaybook?.id,
     selectedBranch: recallResult.selectedBranch,
     estimatedSeconds: recallResult.estimatedSeconds,

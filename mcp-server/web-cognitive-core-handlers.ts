@@ -10,6 +10,7 @@ import { globalMetacognitiveEngine } from "./cognitive-metacognition.js";
 import { globalSimilarityEngine } from "./cognitive-similarity.js";
 import { globalFederatedCatalog } from "./cognitive-federation.js";
 import { globalSpine } from "./cognitive-spine.js";
+import { globalObserver } from "./cognitive-spine-observer.js";
 import { competenceOf, syncViews, HUB_SESSION, type CognitiveContext } from "./cognitive-spine-views.js";
 import { globalReplayAndHygieneEngine } from "./cognitive-replay.js";
 import { globalRpdEngine } from "./cognitive-rpd.js";
@@ -32,13 +33,33 @@ export function handleCoreCognitiveTool(tool: string, args: Record<string, any>,
 
       if (tool === "web_learn") {
         try {
-          const action = String(args.action || "").toLowerCase() as "playbook" | "pitfall" | "fact" | "episode";
+          const action = String(args.action || "").toLowerCase() as "playbook" | "pitfall" | "fact" | "episode" | "outcome";
           const domain = String(args.domain || "").trim();
           if (!domain) {
             res.status(400).json({ success: false, ok: false, error: "web_learn requires domain" });
             return true;
           }
           const learnData = (args.data && typeof args.data === "object" ? args.data : {}) as Record<string, any>;
+
+          // A playbook run reported by the agent. It counts only if the HUB saw a verified success (an
+          // action followed by a passing assertion) on this domain in this session: an agent saying so
+          // proves nothing, and each sighting backs exactly one report.
+          if (action === "outcome") {
+            const key = String(learnData.playbook ?? learnData.playbookId ?? learnData.name ?? "").trim();
+            if (!key) {
+              res.json({ success: true, ok: false, data: { error: "web_learn outcome needs data.playbook (an id or a name)." } });
+              return true;
+            }
+            if (!cognitiveStore.findPlaybook(domain, key)) {
+              res.json({ success: true, ok: false, data: { error: `no playbook "${key}" is stored for ${domain}. Save it first with web_learn {action:'playbook'}.` } });
+              return true;
+            }
+            const success = learnData.success !== false;
+            const hubConfirmed = success && globalObserver.claimVerifiedCredit(ctx.session, domain);
+            res.json({ success: true, ok: true, data: cognitiveStore.recordOutcome({ domain, playbook: key, success, session: ctx.session, hubConfirmed }) });
+            return true;
+          }
+
           const learned = cognitiveStore.learn({
             action,
             domain,

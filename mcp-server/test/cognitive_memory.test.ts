@@ -84,7 +84,7 @@ test("CognitiveMemoryStore: learn new pitfall and immediately recall it", () => 
   assert.ok(recallRes.pitfalls[0].rootCause.includes("Shadow DOM"));
 });
 
-test("CognitiveMemoryStore: learn new procedural playbook and retrieve fast-path", () => {
+test("CognitiveMemoryStore: a learned playbook is a draft until two hub-confirmed runs in two sessions verify it", () => {
   const store = new CognitiveMemoryStore();
   const testDomain = "cms-example-" + Date.now() + ".org";
 
@@ -104,13 +104,25 @@ test("CognitiveMemoryStore: learn new procedural playbook and retrieve fast-path
   });
 
   assert.equal(learnRes.learned, true);
+  assert.equal(learnRes.status, "candidate");
 
+  // It comes back, but as an unverified DRAFT: it used to be offered as a fast path the moment it was stored.
   const recallRes = store.recall({ domain: testDomain, intent: "publish_article" });
   assert.equal(recallRes.found, true);
-  assert.equal(recallRes.fastPathAvailable, true);
+  assert.equal(recallRes.fastPathAvailable, false);
+  assert.equal(recallRes.playbookStatus, "candidate");
+  assert.match(String(recallRes.guidance), /UNVERIFIED draft/);
   assert.equal(recallRes.recommendedPlaybook?.name, "quick_publish");
   assert.equal(recallRes.recommendedPlaybook?.steps.length, 2);
   assert.equal(recallRes.estimatedSeconds, 10);
+
+  // Two hub-confirmed runs in two DISTINCT sessions verify it, and only then is it a fast path.
+  store.recordOutcome({ domain: testDomain, playbook: "quick_publish", success: true, session: "s1", hubConfirmed: true });
+  assert.equal(store.recall({ domain: testDomain, intent: "publish_article" }).fastPathAvailable, false, "one session is not enough");
+  store.recordOutcome({ domain: testDomain, playbook: "quick_publish", success: true, session: "s2", hubConfirmed: true });
+  const verified = store.recall({ domain: testDomain, intent: "publish_article" });
+  assert.equal(verified.fastPathAvailable, true);
+  assert.equal(verified.playbookStatus, "verified");
 });
 
 test("CognitiveMemoryStore: condition probing & adaptive branching", () => {

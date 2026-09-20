@@ -299,9 +299,12 @@ const maturity = await callTool('web_cognitive_maturation', { domain: 'new-site.
 // Step 2: Evolve upon success or demote upon hot-stove burns (trauma)
 await callTool('web_cognitive_maturation', {
   domain: 'new-site.com',
-  event: { outcome: 'success', xpGain: 150 }
+  event: { outcome: 'success' }
 });
-// Levels up to 'STAGE_2_CHILD_SYMBOLIC' with relaxed perception pauses!
+// The level is EARNED from what the hub observed, not from this call: a reported success is worth a
+// tenth of a hub-verified one (an action followed by a passing web_expect) and is capped per session.
+// `xpGain` is ignored and returned in `argsIgnored`. web_cognitive_stage({action:'evaluate'}) says
+// exactly what is still missing to reach the next level.
 ```
 
 #### B. Epistemic Property Graph & Causal Lineage (`web_epistemic_graph`)
