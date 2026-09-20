@@ -88,19 +88,27 @@ try {
   assert.ok(names.length >= 210, `expected >=210 tools, got ${names.length}`);
 
   // 2. Architecture 10.0 round trips (MCP -> hub -> engine), no extension present.
+  //    Pruning judges the playbooks actually STORED for the domain; a list the caller invents is ignored
+  //    (it used to "prune" ids that existed nowhere and change nothing real). A draft saved seconds ago has
+  //    had no time to be verified, so it is never "weak": nothing is pruned and apply:true archives
+  //    nothing. (Archiving an abandoned draft is pinned in cognitive_hygiene.test.ts, which can backdate one.)
+  const PRUNE_DOMAIN = "e2e-prune.com";
+  await client.callTool({ name: "web_learn", arguments: { action: "playbook", domain: PRUNE_DOMAIN, intent: "post", data: { name: "pb_fresh", steps: [{ step: 1, name: "go", tool: "web_navigate" }] } } });
+
   const prune = payload(await client.callTool({
     name: "web_synaptic_pruning",
-    arguments: {
-      domain: "e2e-cognitive.com",
-      playbooks: [
-        { id: "pb_proven", successCount: 9 },
-        { id: "pb_weak", successCount: 0 },
-      ],
-    },
+    arguments: { domain: PRUNE_DOMAIN, playbooks: [{ id: "invented_by_the_caller", successCount: 0 }] },
   }));
   assert.equal(prune.success, true, "web_synaptic_pruning must succeed");
-  assert.deepEqual(prune.pruned, ["pb_weak"]);
-  assert.deepEqual(prune.myelinated, ["pb_proven"]);
+  assert.deepEqual(prune.argsIgnored, ["playbooks"], "a caller cannot prune playbooks it made up");
+  assert.deepEqual(prune.pruned, [], `a draft saved seconds ago is not abandoned, got ${JSON.stringify(prune.pruned)}`);
+  assert.equal(prune.applied, false, "and it is a dry run unless apply:true");
+  assert.match(String(prune.rule), /unproven draft/, "the reply states the rule it applied");
+
+  const applied = payload(await client.callTool({ name: "web_synaptic_pruning", arguments: { domain: PRUNE_DOMAIN, apply: true } }));
+  assert.deepEqual(applied.archived, [], "apply:true has nothing to archive");
+  const afterPrune = payload(await client.callTool({ name: "web_recall", arguments: { domain: PRUNE_DOMAIN, intent: "post" } }));
+  assert.equal(afterPrune.recommendedPlaybook?.name, "pb_fresh", "and the draft is still offered");
 
   const wisdom = payload(await client.callTool({
     name: "web_wisdom_calibration",

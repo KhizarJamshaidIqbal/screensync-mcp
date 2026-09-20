@@ -40,7 +40,7 @@ const MAX_CONTEXT = 300;
  * consent.js: "Read/Action/Cookie access not granted for origin ...", the rate limiter, the human's
  * confirmation) and the plumbing (no browser, timed out waiting for it). Strings taken from the code.
  */
-const NEUTRAL_ERROR_RE = /web access is disabled|USER_CONFIRMATION_REQUIRED|access not granted for origin|rate.?limit|waiting for the browser extension|no connected browser|not reachable|extension not connected/i;
+export const NEUTRAL_ERROR_RE = /web access is disabled|USER_CONFIRMATION_REQUIRED|access not granted for origin|rate.?limit|waiting for the browser extension|no connected browser|not reachable|extension not connected/i;
 const TRIVIAL_SELECTORS = new Set(["body", "html", ":root", "*", "document", "css=body", "css=html", "css=:root"]);
 
 export interface ToolResultLike { ok: boolean; data?: unknown; error?: string }

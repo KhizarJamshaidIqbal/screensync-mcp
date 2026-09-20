@@ -178,10 +178,21 @@ export function runHippocampalConsolidation(
     goldMetaStore[pbId] = meta;
   }
 
-  // 3. Synaptic Pruning of Dead Playbooks
+  // 3. Synaptic pruning of dead playbooks - by ARCHIVING them, never by deleting.
+  //    This used to `delete playbooks[pbId]`, destroying a recipe a human may have spent real effort on,
+  //    with no way back. It was reachable only because goldMetaStore is rebuilt empty on every call, so
+  //    no playbook ever accumulated enough failures to qualify; a persisted store would have started
+  //    erasing them. Deprecated is the honest state: kept, never offered (cognitive-skills.ts).
   for (const [pbId, meta] of Object.entries(goldMetaStore)) {
+    const pb = playbooks[pbId];
+    if (!pb || pb.status === "deprecated") continue;
     if (meta.status === "deprecated" && meta.confidenceScore <= 0.1) {
-      delete playbooks[pbId];
+      playbooks[pbId] = {
+        ...pb,
+        status: "deprecated",
+        deprecatedAt: new Date().toISOString(),
+        deprecatedReason: `consolidation: confidence fell to ${meta.confidenceScore} after ${meta.consecutiveFailures} consecutive failing passes`,
+      };
       pruned.push(pbId);
     }
   }

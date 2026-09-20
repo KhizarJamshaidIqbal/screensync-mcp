@@ -12,6 +12,7 @@ import { globalFederatedCatalog } from "./cognitive-federation.js";
 import { globalSpine } from "./cognitive-spine.js";
 import { globalObserver } from "./cognitive-spine-observer.js";
 import { competenceOf, syncViews, HUB_SESSION, type CognitiveContext } from "./cognitive-spine-views.js";
+import { nextSteps } from "./cognitive-curriculum.js";
 import { globalReplayAndHygieneEngine } from "./cognitive-replay.js";
 import { globalRpdEngine } from "./cognitive-rpd.js";
 
@@ -96,8 +97,13 @@ export function handleCoreCognitiveTool(tool: string, args: Record<string, any>,
 
       if (tool === "web_consolidate") {
         try {
+          // reflect:true asks the hub what it has worked out since the last pass (cognitive-reflection.ts).
+          const wantsReflection = args.reflect === true || String(args.action || "").toLowerCase() === "reflect";
+          const reflection = wantsReflection
+            ? cognitiveStore.reflect({ domain: args.domain ? String(args.domain) : undefined, force: args.force === true })
+            : null;
           const report = cognitiveStore.consolidate();
-          res.json({ success: true, ok: true, data: report });
+          res.json({ success: true, ok: true, data: { ...report, ...(reflection ? { reflection } : {}) } });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Consolidation failed: ${e.message}` } });
         }
@@ -241,13 +247,25 @@ export function handleCoreCognitiveTool(tool: string, args: Record<string, any>,
 
       if (tool === "web_cognitive_stage") {
         try {
-          const domain = String(args.domain || "").trim();
+          // The host, whatever the caller called it. Evidence is recorded under a bare host, so a URL or a
+          // "www." spelling used to evaluate as a different, empty domain: a COMPETENT domain read as NOVICE
+          // in the very response whose steps were computed for the right one.
+          const domain = cognitiveStore.normalizeDomain(String(args.domain || ""));
           if (!domain) {
             res.json({ success: true, ok: false, data: { error: "domain is required (a stage is tracked per domain)." } });
             return true;
           }
           const action = String(args.action || "get").toLowerCase();
           const stage = typeof args.stage === "number" ? args.stage : undefined;
+
+          // 'next' is the automatic curriculum (Voyager/Vygotsky): what is worth doing at the edge of
+          // what this domain can already do. Advisory only - it proposes, the agent or the human chooses.
+          // It is read-only: the spine is evaluated directly, because syncViews also writes the derived
+          // level into three legacy engines and this action has no business changing state.
+          if (action === "next") {
+            res.json({ success: true, ok: true, data: { ...nextSteps(domain, cognitiveStore.load()), competence: competenceOf(globalSpine.evaluate(domain)) } });
+            return true;
+          }
 
           // 'override' used to let ANY caller force a domain to stage 5. It is now an audited human vouch:
           // capped at COMPETENT, shown as source:"vouched", and never counted as earned evidence.

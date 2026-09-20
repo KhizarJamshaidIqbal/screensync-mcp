@@ -16,15 +16,19 @@ export function adolescentToolDefinitions(): Tool[] {
     {
       name: "web_synaptic_pruning",
       description:
-        "Adolescent Synaptic Pruning engine (Architecture 10.0). Applies the use-it-or-lose-it principle to a domain's playbooks: weak or 30-day-stale procedures are competitively eliminated while proven ones (5+ successes) myelinate into fast reflexes. Sharpens domain identity coherence like the adolescent brain.",
+        "Adolescent Synaptic Pruning engine (Architecture 10.0). Judges the playbooks stored for a domain by use-it-or-lose-it: an unproven draft left unused for over 30 days is abandoned and can be archived, while a verified playbook is never pruned and one with 5+ successes myelinates into a fast reflex. A dry run (the default) changes nothing; apply:true archives.",
       inputSchema: {
         type: "object",
-        required: ["domain", "playbooks"],
+        required: ["domain"],
         properties: {
           domain: { type: "string", description: "Target domain (e.g. 'x.com')." },
+          apply: {
+            type: "boolean",
+            description: "Archive the playbooks judged abandoned. Default false: a dry run that only reports. Archiving marks them deprecated (kept in the store, never offered by web_recall); nothing is deleted.",
+          },
           playbooks: {
             type: "array",
-            description: "Candidate playbooks with usage stats ({ id, successCount, lastExecutedAt }).",
+            description: "Ignored. The hub judges the playbooks actually STORED for the domain, so a list a caller invents cannot 'prune' anything. Still accepted so existing callers do not break; the reply says argsIgnored when it was sent.",
           },
         },
       },

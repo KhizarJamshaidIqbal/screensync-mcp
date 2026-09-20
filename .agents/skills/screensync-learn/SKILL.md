@@ -232,7 +232,7 @@ const history = await callTool('web_episodic_query', {
 ```
 
 #### C. Cognitive Store Hygiene & Autocleaning (`web_cognitive_hygiene`)
-Profile data quality and prune orphan branches while strictly honoring `accidental_data_loss_prevention`:
+Profile data quality, merge duplicate pitfalls and take orphan branches off unverified drafts while strictly honoring `accidental_data_loss_prevention`. Autoclean never edits a verified playbook, never removes a pitfall for being old, and never merges two pitfalls that disagree about the fix:
 ```javascript
 // Step 1: Health audit
 const audit = await callTool('web_cognitive_hygiene', { domain: 'x.com', action: 'profile' });
@@ -404,13 +404,10 @@ const transfer = await callTool('web_metaphoric_transfer', {
 ### 15. Architecture 10.0: Adolescent Identity & Adult Executive Cognition (AIE-EC)
 
 #### A. Adolescent Synaptic Pruning (`web_synaptic_pruning`)
-Use-it-or-lose-it competitive elimination: weak (<=1 success) or 30-day-stale playbooks are pruned so proven ones (5+ successes) myelinate into fast reflexes:
+Use-it-or-lose-it, judged on the playbooks the hub actually STORES for the domain (a `playbooks` list you pass is ignored). Only an **unproven draft left unused for over 30 days** is pruned; a verified playbook never is, however long it sits idle, and one with 5+ successes myelinates into a fast reflex. A dry run is the default and changes nothing; `apply: true` archives (marks deprecated and keeps it, never deletes):
 ```javascript
-const prune = await callTool('web_synaptic_pruning', {
-  domain: 'x.com',
-  playbooks: [{ id: 'pb_post', successCount: 12, lastExecutedAt: '2026-09-19' }, { id: 'pb_old', successCount: 1 }]
-});
-// pb_old pruned; pb_post myelinated; identityCoherence sharpens.
+const dry = await callTool('web_synaptic_pruning', { domain: 'x.com' });   // { pruned, myelinated, rule }
+await callTool('web_synaptic_pruning', { domain: 'x.com', apply: true }); // archives what `pruned` listed
 ```
 
 #### B. Critical Periods (`web_critical_period`)

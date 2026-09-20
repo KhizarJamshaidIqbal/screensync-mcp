@@ -96,7 +96,6 @@ export class AdolescentCognitionEngine {
   public synapticPrune(domain: string, playbooks: Array<{ id: string; successCount: number; lastExecutedAt?: string }>): {
     domain: string; pruned: string[]; myelinated: string[]; pruningIntensity: number;
   } {
-    const p = this.getOrCreate(domain);
     const now = Date.now();
     const pruned: string[] = [];
     const myelinated: string[] = [];
@@ -109,15 +108,25 @@ export class AdolescentCognitionEngine {
       if (isWeak || isStale) pruned.push(pb.id);
       else if (pb.successCount >= 5) myelinated.push(pb.id);
     }
-    p.prunedPlaybooks = Array.from(new Set([...p.prunedPlaybooks, ...pruned]));
-    p.identityCoherence = Math.min(1, p.identityCoherence + pruned.length * 0.05 + myelinated.length * 0.02);
-    p.updatedAt = new Date().toISOString();
+    this.recordPruning(domain, pruned, myelinated);
     return {
-      domain: p.domain,
+      domain: this.getOrCreate(domain).domain,
       pruned,
       myelinated,
       pruningIntensity: playbooks.length ? pruned.length / playbooks.length : 0,
     };
+  }
+
+  /**
+   * Writes what pruning decided onto the profile. Kept apart from the judgement so a DRY RUN can judge
+   * without touching anything: it used to raise identityCoherence on every call while reporting "nothing
+   * was changed", so repeating a harmless-looking dry run inflated the number.
+   */
+  public recordPruning(domain: string, pruned: string[], myelinated: string[]): void {
+    const p = this.getOrCreate(domain);
+    p.prunedPlaybooks = Array.from(new Set([...p.prunedPlaybooks, ...pruned]));
+    p.identityCoherence = Math.min(1, p.identityCoherence + pruned.length * 0.05 + myelinated.length * 0.02);
+    p.updatedAt = new Date().toISOString();
   }
 
   /** 2. Critical period gating: XP earned inside a sensitive window is amplified. */

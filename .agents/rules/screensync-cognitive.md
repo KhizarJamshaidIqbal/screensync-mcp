@@ -5,7 +5,7 @@ Before interacting with or automating any complex, interactive, or stateful web 
 - **ALWAYS** call `web_recall { domain, intent }` first.
 - Check `playbookStatus` and `fastPathAvailable`. A **verified** playbook is a fast path: **DO NOT explore or guess from scratch**, execute it directly.
 - A **candidate** playbook is an unverified draft: run its steps deliberately and confirm each with `web_expect`. Report the run with
-  `web_learn { action: "outcome", domain, data: { playbook, success } }` — two hub-confirmed runs in two sessions make it a fast path.
+  `web_learn { action: "outcome", domain, data: { playbook, success } }` (name it by the id `web_learn` returned) — two hub-confirmed runs in two sessions make it a fast path.
 - Target execution time for recurring learned tasks: **under 1 minute**.
 - Inspect retrieved `pitfalls` and `antiPattern` warnings before executing any script or DOM manipulation.
 

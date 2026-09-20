@@ -8,7 +8,7 @@ import type { CognitiveMemoryData } from "./cognitive-memory.js";
 
 export function getDefaultSeededMemory(): CognitiveMemoryData {
   return {
-    version: "1.2.0",
+    version: "1.3.0",
     updatedAt: new Date().toISOString(),
     domains: {
       "x.com": {
@@ -186,6 +186,7 @@ export function getDefaultSeededMemory(): CognitiveMemoryData {
         }
       ]
     },
+    reflections: {},
     episodes: [
       {
         id: "ep_20260918_x_post_v19",

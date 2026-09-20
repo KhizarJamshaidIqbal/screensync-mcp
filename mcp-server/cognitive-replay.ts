@@ -4,7 +4,8 @@
 // 2. Endel Tulving's Episodic Memory (Autobiographical context & spatio-temporal recall)
 // 3. Data-Agent-Kit: data_autocleaning, accidental_data_loss_prevention & bigquery_graph
 
-import { cognitiveStore, type ProceduralPlaybook, type PlaybookStep, type PlaybookBranch, type StateProbe } from "./cognitive-memory.js";
+import { cognitiveStore, type DomainPitfall, type ProceduralPlaybook, type PlaybookStep, type PlaybookBranch, type StateProbe } from "./cognitive-memory.js";
+import { statusOf } from "./cognitive-skills.js";
 
 export interface CounterfactualScenario {
   type: "dom_mutation" | "network_spike" | "unexpected_modal";
@@ -57,6 +58,34 @@ export interface HygieneProfileReport {
   healthy: boolean;
   recommendations: string[];
 }
+
+/** The fields that carry what a pitfall KNOWS. Copies may merge only while they never contradict on these. */
+const CONTENT_FIELDS = ["provenSolution", "antiPattern", "conditionTrigger", "codeSnippet"] as const;
+type ContentField = (typeof CONTENT_FIELDS)[number];
+interface PitfallCluster { members: DomainPitfall[]; merged: Record<ContentField, string> }
+
+const squash = (v: unknown): string => String(v ?? "").trim().replace(/\s+/g, " ");
+const contentOf = (pf: DomainPitfall): Record<ContentField, string> => ({
+  provenSolution: squash(pf.provenSolution), antiPattern: squash(pf.antiPattern), conditionTrigger: squash(pf.conditionTrigger), codeSnippet: squash(pf.codeSnippet),
+});
+const detail = (pf: DomainPitfall): number => CONTENT_FIELDS.reduce((n, f) => n + squash(pf[f]).length, 0);
+
+/** True when `pf` adds to the cluster without contradicting it: each field is empty on one side or equal on both. */
+const agrees = (merged: Record<ContentField, string>, pf: DomainPitfall): boolean => {
+  const c = contentOf(pf);
+  return CONTENT_FIELDS.every((f) => !merged[f] || !c[f] || merged[f].toLowerCase() === c[f].toLowerCase());
+};
+
+/**
+ * Branches whose signal no probe of the playbook checks. `food_burning*` branches are the hub's own
+ * interrupt branches (offline replay adds one to any playbook) and are never orphans - the profile and the
+ * cleaner both use THIS, because two definitions left a branch the profile counted and the cleaner never
+ * touched, so a domain could never become healthy.
+ */
+const orphansOf = (pb: ProceduralPlaybook): PlaybookBranch[] => {
+  const probed = new Set((pb.environmentalProbes ?? []).map((p: StateProbe) => p.signal));
+  return (pb.branches ?? []).filter((b) => !probed.has(b.whenSignal) && !String(b.whenSignal).startsWith("food_burning"));
+};
 
 export class CognitiveReplayAndHygieneEngine {
   private episodicLog: EpisodicRecord[] = [];
@@ -293,75 +322,120 @@ export class CognitiveReplayAndHygieneEngine {
     return full;
   }
 
+  /**
+   * Pitfalls that are genuinely the same pitfall: same symptom and root cause AND no disagreement about the
+   * fix. Two pitfalls with one symptom but different proven solutions are two pieces of knowledge, not a
+   * duplicate - merging them used to throw one solution away. (learn() fills a missing symptom or root cause
+   * with a default string, so unrelated pitfalls saved with only a solution share one until this check.)
+   */
+  private pitfallClusters(domain: string): PitfallCluster[] {
+    const pitfalls = (cognitiveStore.load().pitfalls || {})[domain] || [];
+    const buckets = new Map<string, DomainPitfall[]>();
+    for (const pf of pitfalls) {
+      const key = `${squash(pf.symptom).toLowerCase()}||${squash(pf.rootCause).toLowerCase()}`;
+      buckets.set(key, [...(buckets.get(key) ?? []), pf]);
+    }
+    const clusters: PitfallCluster[] = [];
+    for (const bucket of buckets.values()) {
+      // Richest first, so the copy carrying the most detail anchors a cluster and thinner ones fold into it.
+      const ordered = [...bucket].sort((x, y) => detail(y) - detail(x) || String(x.discoveredAt).localeCompare(String(y.discoveredAt)) || String(x.id).localeCompare(String(y.id)));
+      const local: PitfallCluster[] = [];
+      for (const pf of ordered) {
+        const home = local.find((c) => agrees(c.merged, pf));
+        if (!home) { local.push({ members: [pf], merged: contentOf(pf) }); continue; }
+        home.members.push(pf);
+        for (const f of CONTENT_FIELDS) home.merged[f] ||= squash(pf[f]);
+      }
+      clusters.push(...local);
+    }
+    return clusters;
+  }
+
   public profileHygiene(domain: string): HygieneProfileReport {
     const data = cognitiveStore.load();
-    const playbooks = Object.values(data.playbooks || {}).filter((p) => p.domain === domain) as ProceduralPlaybook[];
-    const pitfalls = (data.pitfalls && data.pitfalls[domain]) || [];
+    const d = cognitiveStore.normalizeDomain(domain);
+    const playbooks = Object.values(data.playbooks || {}).filter((p) => cognitiveStore.normalizeDomain(p.domain) === d && statusOf(p) !== "deprecated") as ProceduralPlaybook[];
+    const pitfalls = (data.pitfalls && data.pitfalls[d]) || [];
 
-    let orphanBranchesCount = 0;
-    for (const pb of playbooks) {
-      const branches = pb.branches || [];
-      const probeSignals = new Set(pb.environmentalProbes.map((p: StateProbe) => p.signal));
-      for (const b of branches) {
-        if (!probeSignals.has(b.whenSignal)) {
-          orphanBranchesCount++;
-        }
-      }
-    }
+    // Only unproven drafts are judged. A verified playbook earned its branches through runs, and an
+    // "orphan" (a signal no probe checks) can still be selected by a caller that supplies the signal, so
+    // hygiene never edits one: it is mentioned below and never counted against the domain's health.
+    const drafts = playbooks.filter((p) => statusOf(p) === "candidate");
+    const orphanBranchesCount = drafts.reduce((n, pb) => n + orphansOf(pb).length, 0);
+    const draftBranches = drafts.reduce((n, pb) => n + (pb.branches?.length ?? 0), 0);
+    const unprobedOnVerified = playbooks.filter((p) => statusOf(p) === "verified").reduce((n, pb) => n + orphansOf(pb).length, 0);
 
-    let duplicatePitfallsDetected = 0;
-    for (let i = 0; i < pitfalls.length; i++) {
-      for (let j = i + 1; j < pitfalls.length; j++) {
-        if (pitfalls[i].symptom.toLowerCase() === pitfalls[j].symptom.toLowerCase()) {
-          duplicatePitfallsDetected++;
-        }
-      }
-    }
+    // Redundant COPIES, not pairs: three identical pitfalls are two copies too many, not three.
+    const duplicatePitfallsDetected = this.pitfallClusters(d).reduce((n, c) => n + c.members.length - 1, 0);
 
     const recommendations: string[] = [];
-    if (orphanBranchesCount > 0) {
-      recommendations.push("Autoclean recommendation: Prune " + orphanBranchesCount + " orphan branch(es) whose signals are no longer probed.");
-    }
-    if (duplicatePitfallsDetected > 0) {
-      recommendations.push("Autoclean recommendation: Merge " + duplicatePitfallsDetected + " duplicate pitfall(s) to optimize recall latency.");
-    }
-    if (recommendations.length === 0) {
-      recommendations.push("Cognitive memory store is clean, highly indexed, and free of redundant branches.");
-    }
+    if (orphanBranchesCount > 0) recommendations.push(`Autoclean recommendation: Take ${orphanBranchesCount} orphan branch(es) off unverified drafts (their signals are not probed; the branches are kept under prunedBranches).`);
+    if (duplicatePitfallsDetected > 0) recommendations.push(`Autoclean recommendation: Merge ${duplicatePitfallsDetected} redundant pitfall copy/copies to optimize recall latency.`);
+    if (unprobedOnVerified > 0) recommendations.push(`Note: ${unprobedOnVerified} branch(es) on verified playbooks reference a signal no probe checks. Verified playbooks are never edited automatically; re-save the playbook with the probe declared.`);
+    if (recommendations.length === 0) recommendations.push("Cognitive memory store is clean, highly indexed, and free of redundant branches.");
 
     return {
-      domain,
+      domain: d,
       playbookCount: playbooks.length,
       pitfallCount: pitfalls.length,
-      staleSelectorRate: 0.05,
+      staleSelectorRate: draftBranches ? Number((orphanBranchesCount / draftBranches).toFixed(3)) : 0,
       orphanBranchesCount,
       duplicatePitfallsDetected,
-      bronzeTracesCount: this.episodicLog.filter((e) => e.domain === domain).length,
+      bronzeTracesCount: data.episodes.filter((e) => cognitiveStore.normalizeDomain(e.domain) === d).length,
       healthy: orphanBranchesCount === 0 && duplicatePitfallsDetected === 0,
       recommendations,
     };
   }
 
+  /**
+   * Cleans, and saves. It never deletes what a person wrote:
+   *   - orphan branches come off UNPROVEN drafts only, and are kept under `prunedBranches`;
+   *   - duplicate pitfalls fold into the richest copy, but only copies that never contradict each other,
+   *     so a second solution to the same symptom is kept as its own pitfall;
+   *   - a pitfall is never removed for being old. Nothing records when a pitfall is avoided or applied
+   *     (the tracker cites none), so "not seen for 90 days" cannot tell an obsolete pitfall from one that
+   *     is working - the better it is followed, the quieter it looks.
+   */
   public runAutocleaning(domain: string): { cleaned: boolean; prunedOrphans: number; mergedDuplicates: number; message: string } {
-    const profile = this.profileHygiene(domain);
     const data = cognitiveStore.load();
+    const d = cognitiveStore.normalizeDomain(domain);
 
     let prunedOrphans = 0;
-    const playbooks = Object.values(data.playbooks || {}).filter((p) => p.domain === domain) as ProceduralPlaybook[];
-    for (const pb of playbooks) {
-      if (pb.branches) {
-        const probeSignals = new Set(pb.environmentalProbes.map((p: StateProbe) => p.signal));
-        const initialCount = pb.branches.length;
-        pb.branches = pb.branches.filter((b: PlaybookBranch) => probeSignals.has(b.whenSignal) || b.whenSignal.startsWith("food_burning"));
-        prunedOrphans += (initialCount - pb.branches.length);
+    for (const pb of Object.values(data.playbooks || {}) as ProceduralPlaybook[]) {
+      if (cognitiveStore.normalizeDomain(pb.domain) !== d || statusOf(pb) !== "candidate") continue;
+      const orphans = orphansOf(pb);
+      if (orphans.length === 0) continue;
+      pb.branches = (pb.branches ?? []).filter((b) => !orphans.includes(b));
+      pb.prunedBranches = [...(pb.prunedBranches ?? []), ...orphans];
+      prunedOrphans += orphans.length;
+    }
+
+    // Dropped by IDENTITY, not by id: two pitfalls that shared an id used to be deleted together, the
+    // survivor included.
+    let mergedDuplicates = 0;
+    const dropped = new Set<DomainPitfall>();
+    for (const { members } of this.pitfallClusters(d)) {
+      const [keep, ...rest] = members;
+      for (const dup of rest) {
+        for (const f of CONTENT_FIELDS) {
+          if (!squash(keep[f]) && squash(dup[f])) (keep as unknown as Record<ContentField, string | undefined>)[f] = dup[f];
+        }
+        if (String(dup.discoveredAt) < String(keep.discoveredAt)) keep.discoveredAt = dup.discoveredAt; // first discovered stays first
+        // Inherit the id, so episodes that cited the duplicate still resolve to this pitfall.
+        keep.mergedFrom = [...new Set([...(keep.mergedFrom ?? []), ...(dup.mergedFrom ?? []), dup.id])].filter((id) => id !== keep.id);
+        dropped.add(dup);
+        mergedDuplicates += 1;
       }
     }
+    if (dropped.size > 0) data.pitfalls[d] = (data.pitfalls[d] || []).filter((pf) => !dropped.has(pf));
+
+    if (prunedOrphans > 0 || dropped.size > 0) cognitiveStore.save();
 
     return {
       cleaned: true,
       prunedOrphans,
-      mergedDuplicates: profile.duplicatePitfallsDetected,
-      message: "Autocleaning completed for " + domain + ". Pruned " + prunedOrphans + " orphan branch(es) while preserving all Gold playbooks and safety contracts.",
+      mergedDuplicates,
+      message: `Autocleaning completed for ${d}. Took ${prunedOrphans} orphan branch(es) off unverified drafts (kept under prunedBranches) and merged ${mergedDuplicates} duplicate pitfall copy/copies. Verified playbooks, and every pitfall that was not a true duplicate, were left untouched.`,
     };
   }
 }

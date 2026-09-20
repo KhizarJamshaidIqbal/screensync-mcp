@@ -13,111 +13,13 @@ import { getDefaultSeededMemory } from "./cognitive-memory-seed.js";
 import { runHippocampalConsolidation, type ConsolidationReport } from "./cognitive-consolidation.js";
 import { speculativeWarm, globalCircuitBreaker, type SpeculativeWarmResult } from "./cognitive-warming.js";
 import { healPlaybookStep, type HealCandidate, type HealResult } from "./cognitive-healer.js";
-import { HUB_OWNED_FIELDS, applyOutcome, asCandidate, isFastPath, statusOf, type OutcomeResult, type Provenance, type SkillStatus, type Verification } from "./cognitive-skills.js";
+import { HUB_OWNED_FIELDS, applyOutcome, asCandidate, isFastPath, statusOf, type OutcomeResult, type SkillStatus } from "./cognitive-skills.js";
 import { scorePlaybooks } from "./cognitive-recall-score.js";
 import { freeEditKey, keyOf, storageKey, uniqueId } from "./cognitive-playbook-keys.js";
+import { runReflectionPass, type ReflectionPassResult } from "./cognitive-reflection.js";
 
-export interface PlaybookStep {
-  step: number;
-  name: string;
-  tool: string;
-  args?: Record<string, unknown>;
-  codeSnippet?: string;
-  expectedOutcome?: string;
-}
-
-export interface StateProbe {
-  signal: string;
-  selector?: string;
-  expected: "present" | "absent" | "matches";
-  pattern?: string;
-  humanAnalogy: string;
-}
-
-export interface PlaybookBranch {
-  name: string;
-  conditionDescription: string;
-  whenSignal: string;
-  skipToStep?: number;
-  alternateSteps?: PlaybookStep[];
-}
-
-export interface ProceduralPlaybook {
-  id: string;
-  name: string;
-  domain: string;
-  intent: string;
-  description: string;
-  environmentalProbes: StateProbe[];
-  preconditions: string[];
-  steps: PlaybookStep[];
-  branches?: PlaybookBranch[];
-  successCount: number;
-  lastExecutedAt?: string;
-  targetDurationSeconds?: number;
-  // Lifecycle (cognitive-skills.ts). All hub-owned: a caller cannot set them. Absent on a playbook saved
-  // before they existed; statusOf() then derives the status from successCount.
-  status?: SkillStatus;
-  provenance?: Provenance;
-  createdAt?: string;
-  verifications?: Verification[];
-  verifiedAt?: string;
-  failureCount?: number;
-  consecutiveFailures?: number;
-  deprecatedAt?: string;
-  deprecatedReason?: string;
-  /**
-   * Storage key of the verified playbook this one is an edit of. Set by the hub when an edit is stored,
-   * and the ONLY thing supersede() trusts. It used to be inferred from a "~candidate" suffix on the name,
-   * which a caller could simply type: naming a playbook "flow~candidate" evicted the real "flow", even on
-   * another domain. A relationship between records belongs in a field, never in a string a caller writes.
-   */
-  supersedes?: string;
-}
-
-export interface DomainPitfall {
-  id: string;
-  domain: string;
-  symptom: string;
-  rootCause: string;
-  conditionTrigger?: string;
-  antiPattern: string;
-  provenSolution: string;
-  codeSnippet?: string;
-  discoveredAt: string;
-}
-
-export interface DomainSemanticMemory {
-  domain: string;
-  framework?: string;
-  authRequired?: boolean;
-  cspRestricted?: boolean;
-  preferredInputMethod?: "execCommand" | "fill" | "type" | "cdp";
-  keySelectors?: Record<string, string>;
-  lastVerifiedAt?: string;
-}
-
-export interface ExecutionEpisode {
-  id: string;
-  timestamp: string;
-  domain: string;
-  intent: string;
-  profile?: string;
-  conditionSignals?: Record<string, boolean>;
-  success: boolean;
-  durationMs: number;
-  pitfallsEncountered?: string[];
-  notes?: string;
-}
-
-export interface CognitiveMemoryData {
-  version: "1.2.0";
-  updatedAt: string;
-  domains: Record<string, DomainSemanticMemory>;
-  playbooks: Record<string, ProceduralPlaybook>;
-  pitfalls: Record<string, DomainPitfall[]>;
-  episodes: ExecutionEpisode[];
-}
+import type { CognitiveMemoryData, DomainPitfall, ExecutionEpisode, PlaybookBranch, PlaybookStep, ProceduralPlaybook } from "./cognitive-memory-types.js";
+export type { CognitiveMemoryData, DomainPitfall, DomainSemanticMemory, ExecutionEpisode, PlaybookBranch, PlaybookStep, ProceduralPlaybook, StateProbe } from "./cognitive-memory-types.js";
 
 const MEMORY_FILE = path.join(DATA_DIR, "cognitive-memory.json");
 
@@ -125,7 +27,7 @@ export class CognitiveMemoryStore {
   private data: CognitiveMemoryData | null = null;
 
   /** `file` is injectable so tests can point a store at a scratch path instead of the real one. */
-  constructor(private readonly file: string = MEMORY_FILE) {}
+  constructor(public readonly file: string = MEMORY_FILE) {}
 
   /**
    * Loads the store, lazily and once.
@@ -169,13 +71,14 @@ export class CognitiveMemoryStore {
     }
   }
 
-  public normalizeDomain(input?: string): string {
+  public normalizeDomain(raw?: string): string {
+    const input = String(raw ?? "").trim();
     if (!input) return "";
     try {
       const u = new URL(input.startsWith("http") ? input : `https://${input}`);
       return u.hostname.replace(/^www\./, "").toLowerCase();
     } catch {
-      return String(input).replace(/^www\./, "").toLowerCase();
+      return input.replace(/^www\./, "").toLowerCase();
     }
   }
 
@@ -242,6 +145,9 @@ export class CognitiveMemoryStore {
       fastPathAvailable,
       ...(guidance ? { guidance } : {}),
       alternatives: ranked.slice(0, 3).map((r) => ({ id: r.playbook.id, name: r.playbook.name, status: statusOf(r.playbook), score: r.score, components: r.components })),
+      // Reflections are memories too (Generative Agents): what the hub worked out is recalled alongside
+      // what it was told. Newest first, and only the ones worth reading at the point of action.
+      reflections: (domain ? data.reflections[domain] ?? [] : []).slice(0, 5).map((r) => ({ insight: r.insight, advice: r.advice, kind: r.kind, intent: r.intent })),
       estimatedSeconds: selectedBranch?.skipToStep ? 5 : (recommendedPlaybook?.targetDurationSeconds || 15)
     };
   }
@@ -308,7 +214,14 @@ export class CognitiveMemoryStore {
       }
       case "pitfall": {
         const pf = params.data;
-        const id = pf.id || `pitfall_${domain.replace(/\./g, "_")}_${Date.now()}`;
+        // Unique within the domain. A caller-chosen id can repeat and so can the default (two learns in
+        // one millisecond), and hygiene acts on pitfalls by id: a shared id made a merge delete both. The
+        // ids of pitfalls already merged away count as taken too, because episodes still cite them.
+        const wanted = String(pf.id || `pitfall_${domain.replace(/\./g, "_")}_${Date.now()}`);
+        const taken = new Set((mem.pitfalls[domain] ?? []).flatMap((p) => [p.id, ...(p.mergedFrom ?? [])]));
+        let id = wanted;
+        for (let i = 2; taken.has(id); i += 1) id = `${wanted}#${i}`;
+        if (id !== wanted) note = `The id "${wanted}" is already used on this domain, so this pitfall was stored as "${id}".`;
         const pitfall: DomainPitfall = {
           id,
           domain,
@@ -349,7 +262,10 @@ export class CognitiveMemoryStore {
           success: Boolean(ep.success),
           durationMs: Number(ep.durationMs) || 0,
           pitfallsEncountered: Array.isArray(ep.pitfallsEncountered) ? ep.pitfallsEncountered : [],
-          notes: ep.notes
+          notes: ep.notes,
+          // The hub's own classification of the run. Dropping it here made every stored episode fall back
+          // to matching error prose, quietly undoing the point of recording it.
+          ...(typeof ep.outcome === "string" ? { outcome: ep.outcome as ExecutionEpisode["outcome"] } : {}),
         };
         mem.episodes.push(episode);
         if (mem.episodes.length > 200) mem.episodes.shift();
@@ -421,6 +337,32 @@ export class CognitiveMemoryStore {
     mem.playbooks[targetKey] = { ...old, status: "deprecated", deprecatedAt: now, deprecatedReason: `superseded by ${pb.id}` };
     // Any other pending edit of the same target is now an edit of nothing in particular.
     for (const other of Object.values(mem.playbooks)) if (other !== pb && other.supersedes === targetKey) delete other.supersedes;
+  }
+
+  /** Thinks about what has happened since the last pass and records it (cognitive-reflection.ts). */
+  public reflect(params: { domain?: string; force?: boolean } = {}): ReflectionPassResult[] {
+    const mem = this.load();
+    const { results, changed } = runReflectionPass(mem, { ...params, normalize: (d) => this.normalizeDomain(d) });
+    if (changed) this.save();
+    return results;
+  }
+
+  /**
+   * Marks playbooks deprecated: kept and restorable, never deleted. Returns the ids actually archived.
+   */
+  public archivePlaybooks(domain: string, ids: string[], reason: string): string[] {
+    const mem = this.load();
+    const d = this.normalizeDomain(domain);
+    const now = new Date().toISOString();
+    const archived: string[] = [];
+    for (const [key, pb] of Object.entries(mem.playbooks)) {
+      if (this.normalizeDomain(pb.domain) !== d || statusOf(pb) === "deprecated") continue;
+      if (!ids.includes(pb.id)) continue;
+      mem.playbooks[key] = { ...pb, status: "deprecated", deprecatedAt: now, deprecatedReason: reason };
+      archived.push(pb.id);
+    }
+    if (archived.length > 0) this.save();
+    return archived;
   }
 
   public consolidate(): ConsolidationReport {

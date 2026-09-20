@@ -15,7 +15,7 @@
 
 import type { CognitiveMemoryData } from "./cognitive-memory.js";
 
-export const CURRENT_MEMORY_VERSION = "1.2.0" as const;
+export const CURRENT_MEMORY_VERSION = "1.3.0" as const;
 
 type Raw = Record<string, unknown>;
 
@@ -47,8 +47,11 @@ const UPGRADES: Record<string, (d: Raw) => Raw> = {
         createdAt: entry.createdAt ?? entry.lastExecutedAt,
       };
     }
-    return { ...d, playbooks, version: "1.2.0" };
+    return UPGRADES["1.2.0"]({ ...d, playbooks, version: "1.2.0" });
   },
+  // 1.2.0 -> 1.3.0 adds the reflections collection (cognitive-reflection.ts). Nothing else moves: an
+  // older store simply has not worked anything out yet.
+  "1.2.0": (d) => ({ ...d, reflections: isObj(d.reflections) ? d.reflections : {}, version: "1.3.0" }),
 };
 
 
@@ -69,10 +72,11 @@ function compareVersions(a: string, b: string): number | null {
   return 0;
 }
 
-const COLLECTIONS: Array<[key: "domains" | "playbooks" | "pitfalls", empty: () => unknown]> = [
+const COLLECTIONS: Array<[key: "domains" | "playbooks" | "pitfalls" | "reflections", empty: () => unknown]> = [
   ["domains", () => ({})],
   ["playbooks", () => ({})],
   ["pitfalls", () => ({})],
+  ["reflections", () => ({})],
 ];
 
 /**

@@ -18,8 +18,9 @@ export function trackToolExecution(
   durationMs: number,
   session: string = "http",
 ): void {
+  let outcome: string | null = null;
   try {
-    observeToolResult(tool, args, result, session);
+    outcome = observeToolResult(tool, args, result, session).outcome;
   } catch {
     // Non-blocking inline telemetry
   }
@@ -38,7 +39,9 @@ export function trackToolExecution(
         profile: typeof args.profile === "string" ? args.profile : undefined,
         notes: result.ok
           ? `Instant telemetry: ${tool} completed in ${durationMs}ms`
-          : `Instant telemetry: ${tool} failed: ${result.error || "unknown"}`
+          : `Instant telemetry: ${tool} failed: ${result.error || "unknown"}`,
+        // Kept so reflection can tell a real failure from the safety layer declining (see ExecutionEpisode).
+        ...(outcome ? { outcome } : {}),
       }
     });
   } catch {

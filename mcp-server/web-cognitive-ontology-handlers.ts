@@ -3,6 +3,8 @@
 
 import type { Response } from "express";
 import { globalAdolescentEngine } from "./cognitive-adolescent.js";
+import { cognitiveStore } from "./cognitive-memory.js";
+import { DRAFT_GRACE_DAYS, pruneVerdict, statusOf } from "./cognitive-skills.js";
 import { globalDynamicsEngine } from "./cognitive-dynamics.js";
 import { globalSpine } from "./cognitive-spine.js";
 import { hubWisdomInputs, spineAgeYears } from "./cognitive-spine-views.js";
@@ -10,10 +12,41 @@ import { hubWisdomInputs, spineAgeYears } from "./cognitive-spine-views.js";
 export function handleOntologyCognitiveTool(tool: string, args: Record<string, any>, res: Response): boolean {
       if (tool === "web_synaptic_pruning") {
         try {
-          const domain = String(args.domain || "").trim();
-          const playbooks = Array.isArray(args.playbooks) ? (args.playbooks as any) : [];
-          const result = globalAdolescentEngine.synapticPrune(domain, playbooks);
-          res.json({ success: true, ok: true, data: result });
+          const domain = cognitiveStore.normalizeDomain(String(args.domain || ""));
+          if (!domain) {
+            res.json({ success: true, ok: false, data: { error: "domain is required (pruning judges one domain's playbooks)." } });
+            return true;
+          }
+          // The playbooks are the ones actually STORED for this domain, not a list the caller made up.
+          // A caller could previously "prune" any ids it invented, and the result changed nothing real.
+          const live = Object.values(cognitiveStore.load().playbooks).filter((p) => cognitiveStore.normalizeDomain(p.domain) === domain && statusOf(p) !== "deprecated");
+          const argsIgnored = Array.isArray(args.playbooks) && args.playbooks.length > 0 ? ["playbooks"] : [];
+
+          // The verdict is judged from what the store knows (cognitive-skills.ts): an unproven draft left
+          // alone for a month is abandoned; a verified playbook is never pruned. Judging is pure, so a dry
+          // run really does leave everything alone - it used to raise identityCoherence on every call.
+          const now = Date.now();
+          const verdicts = live.map((p) => ({ id: p.id, verdict: pruneVerdict(p, now) }));
+          const pruned = verdicts.filter((v) => v.verdict === "prune").map((v) => v.id);
+          const myelinated = verdicts.filter((v) => v.verdict === "myelinate").map((v) => v.id);
+          const apply = args.apply === true;
+
+          // Archiving marks a playbook deprecated: kept in the store, never deleted, never offered again.
+          const archived = apply ? cognitiveStore.archivePlaybooks(domain, pruned, `synaptic pruning: unproven draft unused for over ${DRAFT_GRACE_DAYS} days`) : [];
+          // Only what was really archived counts toward identity. An archived playbook cannot be archived
+          // twice, so repeating the call cannot inflate the number.
+          if (archived.length > 0) globalAdolescentEngine.recordPruning(domain, archived, []);
+          res.json({
+            success: true, ok: true,
+            data: {
+              domain, pruned, myelinated, archived,
+              pruningIntensity: live.length ? pruned.length / live.length : 0,
+              applied: apply,
+              rule: `Only an unproven draft left unused for more than ${DRAFT_GRACE_DAYS} days is pruned. A verified playbook never is, and a draft with no dated activity is kept.`,
+              ...(apply ? {} : { note: "Dry run: nothing was changed. Pass apply:true to archive the playbooks listed in `pruned` (they are marked deprecated and kept, never deleted)." }),
+              ...(argsIgnored.length ? { argsIgnored } : {}),
+            },
+          });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Synaptic pruning failed: ${e.message}` } });
         }

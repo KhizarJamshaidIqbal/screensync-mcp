@@ -38,6 +38,29 @@ export function isFastPath(pb: ProceduralPlaybook): boolean {
   return statusOf(pb) === "verified" && (pb.consecutiveFailures ?? 0) < SUSPECT_AFTER_FAILURES;
 }
 
+/** How long an unproven draft is left alone before pruning may call it abandoned. */
+export const DRAFT_GRACE_DAYS = 30;
+
+export type PruneVerdict = "prune" | "myelinate" | "keep";
+
+/**
+ * What synaptic pruning may do with a STORED playbook.
+ *
+ * Only an abandoned draft is ever pruned. A verified playbook earned its place through hub-confirmed
+ * runs: a month without one is not evidence it is wrong (the curriculum asks for a re-run instead), and
+ * archiving it would take away the fast path somebody relies on. A draft is judged only on DATED evidence
+ * that it was left alone - a playbook with no usable timestamp is kept, because the absence of data is
+ * not staleness - and one saved seconds ago has had no time to be verified, so it is never "weak".
+ */
+export function pruneVerdict(pb: ProceduralPlaybook, now: number): PruneVerdict {
+  const status = statusOf(pb);
+  if (status === "deprecated") return "keep";
+  if (status === "verified") return isFastPath(pb) && (pb.successCount ?? 0) >= 5 ? "myelinate" : "keep";
+  const last = Date.parse(pb.lastExecutedAt ?? pb.createdAt ?? "");
+  if (!Number.isFinite(last)) return "keep";
+  return (now - last) / 86_400_000 > DRAFT_GRACE_DAYS ? "prune" : "keep";
+}
+
 /** What a caller may NOT set on a playbook it submits: the hub decides all of it. */
 export const HUB_OWNED_FIELDS = ["status", "successCount", "verifications", "provenance", "verifiedAt", "deprecatedAt", "deprecatedReason", "failureCount", "consecutiveFailures"] as const;
 

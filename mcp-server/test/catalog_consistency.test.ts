@@ -17,7 +17,7 @@ import { toolDefinitions } from "../catalog.js";
 
 const HUB_TOOL_RE = /tool\s*===?\s*["'](web_[a-z0-9_]+)["']/g;
 const COGNITIVE_CATALOGS = [
-  "catalog-cognitive.ts", "catalog-lifespan.ts", "catalog-adolescent.ts", "catalog-dynamics.ts", "catalog-transcendental.ts",
+  "catalog-cognitive.ts", "catalog-cognitive-extended.ts", "catalog-lifespan.ts", "catalog-adolescent.ts", "catalog-dynamics.ts", "catalog-transcendental.ts",
 ];
 
 /** The extracted hub handler modules (the barrel web-cognitive-handlers.ts holds no handlers). */

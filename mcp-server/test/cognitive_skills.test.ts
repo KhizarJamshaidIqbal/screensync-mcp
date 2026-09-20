@@ -249,7 +249,7 @@ test("recall prefers a verified playbook over a fresher draft, and ranks by the 
 
 // ── the migration ───────────────────────────────────────────────────────────
 
-test("1.1.0 -> 1.2.0: a playbook that had earned its keep migrates as verified, the rest as candidates, and nothing is lost", () => {
+test("1.1.0 onward: a playbook that had earned its keep migrates as verified, the rest as candidates, and nothing is lost", () => {
   const before = {
     version: "1.1.0", updatedAt: "2026-01-01T00:00:00Z", domains: {}, pitfalls: {}, episodes: [],
     playbooks: {
@@ -260,7 +260,7 @@ test("1.1.0 -> 1.2.0: a playbook that had earned its keep migrates as verified, 
   };
   const out = migrateMemory(JSON.parse(JSON.stringify(before)))!;
   assert.equal(out.changed, true);
-  assert.equal(out.data.version, "1.2.0");
+  assert.equal(out.data.version, "1.3.0", "the chain runs all the way to the current version");
   const pbs = out.data.playbooks as Record<string, any>;
   assert.deepEqual([pbs.proven.status, pbs.proven.provenance], ["verified", "legacy"]);
   assert.equal(pbs.shaky.status, "candidate");
