@@ -1,7 +1,34 @@
 {
-  "generatedAt": "2026-09-19T13:39:29Z",
+  "generatedAt": "2026-09-21T08:21:37Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
+    {
+      "sha": "a196bda",
+      "date": "2026-09-21",
+      "ts": 1789978887,
+      "parts": [
+        {
+          "stream": "extension",
+          "streamLabel": "Extension",
+          "version": "1.11.0",
+          "build": "",
+          "display": "1.11.0",
+          "date": "2026-09-21",
+          "ts": 1789978887,
+          "sha": "a196bda",
+          "groups": {
+            "NEW": [
+              "A person approves what looks destructive, not the agent"
+            ],
+            "IMPROVED": [],
+            "FIXED": []
+          },
+          "count": 1
+        }
+      ],
+      "count": 1,
+      "title": "Extension 1.11.0"
+    },
     {
       "sha": "ed55a93",
       "date": "2026-09-19",
@@ -372,9 +399,9 @@
     }
   ],
   "stats": {
-    "releases": 11,
+    "releases": 12,
     "appReleases": 6,
-    "extensionReleases": 5,
-    "changes": 74
+    "extensionReleases": 6,
+    "changes": 75
   }
 }
