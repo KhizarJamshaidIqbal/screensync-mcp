@@ -7,6 +7,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { toolDefinitions } from "../catalog.js";
+import { quoted, rewrite } from "./tool-count-text.js";
 
 const ROOT = resolve(import.meta.dirname, "..", "..");
 const TARGETS = [
@@ -22,20 +23,7 @@ const TARGETS = [
 const count = toolDefinitions().length;
 const checkOnly = process.argv.includes("--check");
 
-// Rewrite every place the count is quoted. Anything that is not the current count is drift.
-const rewrite = (text: string): string =>
-  text
-    .replace(/(\d{2,4})(?= MCP tools)/g, String(count))
-    .replace(/(\d{2,4})(?= tools)/g, String(count))
-    // Only the tool-count counter: the latency and percentage counters carry data-suffix.
-    .replace(/data-count="\d+"(?! data-suffix)/g, `data-count="${count}"`);
-
-// Extract the quoted counts so --check can report exactly what is wrong.
-const quoted = (text: string): string[] => [
-  ...[...text.matchAll(/(\d{2,4})(?= MCP tools)/g)].map((m) => m[1]),
-  ...[...text.matchAll(/(\d{2,4})(?= tools)/g)].map((m) => m[1]),
-  ...[...text.matchAll(/data-count="(\d+)"(?! data-suffix)/g)].map((m) => m[1]),
-];
+// The text rules live in tool-count-text.ts (pure, and pinned by test/tool_count_sync.test.ts).
 
 let drift = 0;
 for (const rel of TARGETS) {
@@ -49,7 +37,7 @@ for (const rel of TARGETS) {
     else console.log("  ok    " + rel);
     continue;
   }
-  const after = rewrite(before);
+  const after = rewrite(before, count);
   if (after !== before) { writeFileSync(file, after, "utf8"); console.log("  updated " + rel + "  (" + found.length + " refs)"); }
   else console.log("  ok      " + rel);
 }
