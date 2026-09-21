@@ -1,12 +1,14 @@
 /**
  * Soft-gate E2E (Phase 3 of the cognitive spine): the gate is wired into the hub's relay path.
  *
- * Two real hub processes, no browser extension connected, so any call that gets PAST the gate simply
+ * Three real hub processes, no browser extension connected, so any call that gets PAST the gate simply
  * fails at the "extension not connected" check. That makes the gate observable without a browser:
- *   enforce  a destructive-looking click on a NOVICE domain is refused with USER_CONFIRMATION_REQUIRED,
- *            even with no browser attached; everything else reaches the connection check.
- *   warn     (the default) the same click is never refused. The advisory that rides on the RESPONSE of
- *            a relayed call needs a real extension, so it is checked live rather than here.
+ *   enforce  (the default) a destructive-looking click on a NOVICE domain is refused with
+ *            USER_CONFIRMATION_REQUIRED when nobody can be asked - here, no browser at all - and
+ *            everything else reaches the connection check. With an extension that CAN ask, the call is
+ *            relayed to a person instead: that is approval_relay.e2e.ts.
+ *   warn     the same click is never refused. The advisory that rides on the RESPONSE of a relayed call
+ *            needs a real extension, so it is checked in approval_relay.e2e.ts.
  *
  * Prereq: `npm run build` (spawns dist/index.js).
  */
@@ -19,8 +21,10 @@ import path from "node:path";
 const TOKEN = "e2e-gate-token";
 const ENFORCE_PORT = 3006;
 const WARN_PORT = 3007;
+const DEFAULT_PORT = 3009;
 const enforceDir = mkdtempSync(path.join(tmpdir(), "screensync-e2e-gate-enforce-"));
 const warnDir = mkdtempSync(path.join(tmpdir(), "screensync-e2e-gate-warn-"));
+const defaultDir = mkdtempSync(path.join(tmpdir(), "screensync-e2e-gate-default-"));
 const authHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}` };
 
 // A human allowlisted this domain BEFORE the hub started, the way an operator would.
@@ -54,10 +58,11 @@ const DANGEROUS = { url: "https://gated.example/account", selector: "button.dele
 const gateRefusal = /^USER_CONFIRMATION_REQUIRED \(cognitive gate\)/;
 
 const enforceHub = spawnHub(ENFORCE_PORT, enforceDir, "enforce");
-const warnHub = spawnHub(WARN_PORT, warnDir);
+const warnHub = spawnHub(WARN_PORT, warnDir, "warn");
+const defaultHub = spawnHub(DEFAULT_PORT, defaultDir); // no SCREEN_SYNC_COGNITIVE_GATE at all
 let failed = false;
 try {
-  await Promise.all([healthy(ENFORCE_PORT), healthy(WARN_PORT)]);
+  await Promise.all([healthy(ENFORCE_PORT), healthy(WARN_PORT), healthy(DEFAULT_PORT)]);
 
   // ── enforce ──
   const blocked = await call(ENFORCE_PORT, "web_click", DANGEROUS);
@@ -80,18 +85,23 @@ try {
   const allowed = await call(ENFORCE_PORT, "web_click", { url: "https://allowed.example/account", selector: "button.delete-account" });
   assert.doesNotMatch(String(allowed.error), gateRefusal, "an allowlisted domain passes");
 
-  // ── warn (the default) ──
+  // ── the default is enforce: a hub nobody configured refuses too ──
+  const byDefault = await call(DEFAULT_PORT, "web_click", DANGEROUS);
+  assert.match(String(byDefault.error), gateRefusal, "with no configuration the gate enforces");
+  assert.match(String(byDefault.error), /1\.11\.0/, "and says which extension can ask a person instead");
+
+  // ── warn ──
   const warned = await call(WARN_PORT, "web_click", DANGEROUS);
   assert.doesNotMatch(String(warned.error), gateRefusal, "warn mode never refuses");
   assert.match(String(warned.error), /not connected/i, "the call went on to the relay path, which fails only because no browser is attached");
 
-  console.log("PASS cognitive gate e2e (enforce refuses even with no browser; warn never refuses; reads, harmless calls and allowlisted domains pass)");
+  console.log("PASS cognitive gate e2e (enforce is the default and refuses when nobody can be asked; warn never refuses; reads, harmless calls and allowlisted domains pass)");
 } catch (err) {
   failed = true;
   console.error("FAIL cognitive gate e2e:", err);
 } finally {
-  for (const p of [enforceHub, warnHub]) { try { p.kill("SIGKILL"); } catch { /* already gone */ } }
+  for (const p of [enforceHub, warnHub, defaultHub]) { try { p.kill("SIGKILL"); } catch { /* already gone */ } }
   await new Promise((r) => setTimeout(r, 500));
-  for (const d of [enforceDir, warnDir]) { try { rmSync(d, { recursive: true, force: true }); } catch { /* temp dir */ } }
+  for (const d of [enforceDir, warnDir, defaultDir]) { try { rmSync(d, { recursive: true, force: true }); } catch { /* temp dir */ } }
 }
 process.exit(failed ? 1 : 0);

@@ -24,6 +24,8 @@ export type BrowserInstance = {
   profileName: string | null;
   profileDir: string | null;
   webAccessEnabled: boolean;
+  /** The extension can put a request in front of a person before a risky action runs (1.11.0+). */
+  approvals: boolean;
   lastSeenAt: string;
   tab: { url?: string; title?: string } | null;
   windows: BrowserWindowInfo[];
@@ -123,6 +125,7 @@ export function createProfileRegistry() {
       profileName: profName,
       profileDir: profDir,
       webAccessEnabled: body.webAccessEnabled === true,
+      approvals: body.approvals === true,
       lastSeenAt: new Date().toISOString(),
       tab: body.tab && typeof body.tab === "object" ? (body.tab as { url?: string; title?: string }) : null,
       windows,
@@ -204,6 +207,7 @@ export function createProfileRegistry() {
         profileDir: b.profileDir,
         online: isOnline(b),
         webAccessEnabled: b.webAccessEnabled,
+        approvals: b.approvals,
         lastSeenAt: b.lastSeenAt,
         activeTab: b.tab,
         windowCount: b.windows.length,

@@ -15,10 +15,16 @@
 // not a defence against a caller that lies about its arguments. It composes with, and does not replace,
 // the extension's origin grants and precise page-side check, and it never trusts `confirmed` or `force`.
 //
-// Modes (SCREEN_SYNC_COGNITIVE_GATE): "warn" (default) annotates the response and logs, but lets the call
-// through; "enforce" refuses it with USER_CONFIRMATION_REQUIRED; "off" does nothing. It ships as "warn"
-// because until the extension's approval queue is wired there is no human to ask, and a refusal would
-// just be an error the agent argues around.
+// Modes (SCREEN_SYNC_COGNITIVE_GATE):
+//   "enforce" (default)  a gated call is handed to a PERSON. It is relayed to the extension marked as needing
+//                        one (`__gate`), and the extension's approval queue holds it until they approve. It
+//                        runs only then; a decline or silence refuses it. If no connected browser can ask
+//                        (an extension older than 1.11.0, or none) there is nobody to ask, so the call is
+//                        refused with USER_CONFIRMATION_REQUIRED.
+//   "warn"               annotates the response and logs, but lets the call through.
+//   "off"                does nothing.
+// It shipped as "warn" while the approval queue had no caller: a refusal with no one to ask is only an
+// error the agent argues around. An unrecognised value fails closed, to "enforce".
 
 import path from "node:path";
 import { statSync } from "node:fs";
@@ -28,6 +34,7 @@ import { globalSpine, normalizeDomain } from "./cognitive-spine.js";
 import { ACTION_TOOLS, globalObserver } from "./cognitive-spine-observer.js";
 import { LEVEL_NAMES } from "./cognitive-spine-ladder.js";
 import { globalTranscendentalEngine } from "./cognitive-transcendental.js";
+import type { createProfileRegistry } from "./profile-registry.js";
 
 export type GateMode = "off" | "warn" | "enforce";
 
@@ -45,7 +52,8 @@ export const GATED_TOOLS: ReadonlySet<string> = new Set([
 
 export interface GateDecision {
   mode: Exclude<GateMode, "off">;
-  verdict: "warn" | "block";
+  /** "block": needs a person. "asked": it was relayed and a person was asked. "warn": logged only. */
+  verdict: "warn" | "block" | "asked";
   tool: string;
   domain: string | null;
   earnedLevel: number;
@@ -61,7 +69,7 @@ export interface GateOutcome { decision: GateDecision; block: boolean; message: 
 
 export function gateMode(): GateMode {
   const v = String(process.env.SCREEN_SYNC_COGNITIVE_GATE ?? "").trim().toLowerCase();
-  return v === "off" || v === "enforce" ? v : "warn";
+  return v === "off" || v === "warn" ? v : "enforce";
 }
 
 // ── per-domain allowlist (data/cognitive/policy.json: { "allowDomains": ["example.com"] }) ──
@@ -145,7 +153,62 @@ export function gateBeforeRelay(tool: string, args: Record<string, unknown>, ses
     decision,
     block,
     message: block
-      ? `USER_CONFIRMATION_REQUIRED (cognitive gate): ${decision.reason} Ask the human to approve this specific action, or to allowlist the domain in data/cognitive/policy.json.`
+      ? `USER_CONFIRMATION_REQUIRED (cognitive gate): ${decision.reason} No connected browser extension can ask the human (ScreenSync extension 1.11.0 or later is needed to approve an action from the toolbar): update it, or allowlist the domain in data/cognitive/policy.json.`
       : null,
+  };
+}
+
+// ── asking a person: who can, and what the extension is told ────────────────
+
+/** The routing hint a call carries, in the precedence web.ts uses to choose a browser. */
+function hintOf(args: Record<string, unknown>): string | null {
+  for (const key of ["__profile", "profile", "__email", "email", "__instance", "instanceId", "__browser"]) {
+    if (typeof args[key] === "string") return args[key] as string;
+  }
+  return null;
+}
+
+/**
+ * True when the browser this call will reach can put a request in front of a person: web access is on and
+ * its extension says it has an approval queue. Handing a gated call to one that cannot would simply run it.
+ */
+export function humanCanBeAsked(registry: Pick<ReturnType<typeof createProfileRegistry>, "resolveTarget">, args: Record<string, unknown>): boolean {
+  const target = registry.resolveTarget(hintOf(args));
+  return Boolean(target && target.webAccessEnabled && target.approvals);
+}
+
+/** Flags only the hub or the extension may set. Whatever a caller sends under these names is dropped. */
+const INTERNAL_KEYS: ReadonlySet<string> = new Set(["__humanApproved", "__actGranted", "__gate"]);
+const MAX_SCRUB_DEPTH = 8;
+
+function scrub(value: unknown, depth = 0): unknown {
+  if (depth > MAX_SCRUB_DEPTH || value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((v) => scrub(v, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+    if (!INTERNAL_KEYS.has(key)) out[key] = scrub(inner, depth + 1);
+  }
+  return out;
+}
+
+/**
+ * The arguments as the extension should receive them. Anything a caller put under an internal name is
+ * removed FIRST - an agent must not be able to send `__humanApproved`, or forge the hub's own request for a
+ * person - and only then does the hub add its own `__gate`, when the gate decided a person must be asked.
+ * The extension strips the same keys on arrival, so this is not the only line of defence.
+ */
+export function forRelay(args: Record<string, unknown>, gate?: GateDecision): Record<string, unknown> {
+  const clean = scrub(args) as Record<string, unknown>;
+  if (!gate || gate.verdict !== "block") return clean;
+  return {
+    ...clean,
+    __gate: {
+      needsHuman: true,
+      reason: gate.reason.slice(0, 300),
+      riskScore: gate.riskScore,
+      markers: gate.markers.slice(0, 6),
+      domain: gate.domain,
+      level: gate.earnedName,
+    },
   };
 }

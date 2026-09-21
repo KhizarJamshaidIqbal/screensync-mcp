@@ -10,7 +10,8 @@ import { runTestSuite } from "./test-runner.js";
 import { createProfileRegistry, BrowserInstance, BrowserWindowInfo } from "./profile-registry.js";
 import { trackToolExecution } from "./cognitive-auto-tracker.js";
 import { sessionOf } from "./cognitive-spine-observer.js";
-import { gateBeforeRelay } from "./cognitive-policy.js";
+import { forRelay, gateBeforeRelay, humanCanBeAsked, type GateDecision } from "./cognitive-policy.js";
+import { mountExtensionRoutes } from "./web-ext-routes.js";
 import { handleCognitiveTool } from "./web-cognitive-handlers.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
@@ -24,6 +25,7 @@ export type WebToolResult = { ok: boolean; data?: unknown; error?: string };
 type Pending = {
   resolve: (r: WebToolResult) => void;
   timer: ReturnType<typeof setTimeout>;
+  extended?: boolean;
   targetBrowser?: string | null;
   targetInstanceId?: string | null;
   targetEmail?: string | null;
@@ -84,7 +86,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
     return registry.statusPayload(sseClients);
   };
 
-  const request = (tool: string, args: Record<string, unknown>, timeoutMs: number): Promise<WebToolResult> =>
+  const request = (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision): Promise<WebToolResult> =>
     new Promise((resolve) => {
       const id = randomUUID();
       const timer = setTimeout(() => {
@@ -113,7 +115,9 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         type: "web_request",
         id,
         tool,
-        args,
+        // Internal flags are dropped HERE, the one place every relay passes through, and the gate's request for a
+        // person is added only after. deadlineAt tells the extension how long the hub will wait.
+        args: forRelay(args, gate), deadlineAt: Date.now() + timeoutMs,
         targetBrowser,
         targetInstanceId,
         targetEmail,
@@ -312,23 +316,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       });
     });
 
-    // Ambient browser events from the extension (navigations, tab switches,
-    // page loads) — recorded into the sequenced SSE ring and fanned out live.
-    app.post("/api/web/event", (req: Request, res: Response) => {
-      if (!isAuthorized(req.header("authorization"))) {
-        res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
-        return;
-      }
-      const b = (req.body ?? {}) as Record<string, unknown>;
-      const type = typeof b.type === "string" && /^web_[a-z0-9_]+$/.test(b.type) ? b.type : "web_event";
-      broadcast({
-        type,
-        at: new Date().toISOString(),
-        source: typeof b.source === "string" ? b.source : "browser",
-        data: b.data && typeof b.data === "object" ? b.data : {},
-      });
-      res.json({ success: true });
-    });
+    mountExtensionRoutes(app, { isAuthorized, broadcast, pending });
 
     app.get("/api/web/status", (req: Request, res: Response) => {
       if (!isAuthorized(req.header("authorization"))) {
@@ -822,10 +810,11 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         return;
       }
 
-      // Soft gate: a destructive-looking mutation on a domain that has not earned COMPETENT (cognitive-policy.ts). Before the
-      // connection checks: a refusal must not depend on whether a browser happens to be attached.
+      // Soft gate: a destructive-looking mutation on a domain that has not earned COMPETENT (cognitive-policy.ts).
+      // In enforce mode it goes to a person (the extension asks); it is refused here only when nobody can be
+      // asked. Before the connection checks: that refusal must not depend on whether a browser is attached.
       const gate = gateBeforeRelay(tool, args, session);
-      if (gate?.block) {
+      if (gate?.block && !humanCanBeAsked(registry, args)) {
         res.json({ success: false, ok: false, error: gate.message, data: { gate: gate.decision } });
         return;
       }
@@ -867,14 +856,14 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       }
       const timeoutMs = Math.min(Math.max(Number(b.timeoutMs) || 45_000, 5_000), 60_000);
       const startedAt = Date.now();
-      const result = await request(tool, args, timeoutMs);
+      const result = await request(tool, args, timeoutMs, gate?.block ? gate.decision : undefined);
       emitHubEvent("tool", tool, result.ok);
       if (recorder.active && !RECORD_SKIP.has(tool)) {
         recorder.steps.push({ step: recorder.steps.length + 1, tool, args });
       }
       log("INFO", "Web tool round trip", { tool, ok: result.ok, durationMs: Date.now() - startedAt });
       trackToolExecution(tool, args, result, Date.now() - startedAt, session);
-      res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error, ...(gate ? { cognitiveGate: gate.decision } : {}) });
+      res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error, ...(gate ? { cognitiveGate: gate.block ? { ...gate.decision, verdict: "asked" } : gate.decision } : {}) });
     });
 
     app.post("/api/web/result", (req: Request, res: Response) => {

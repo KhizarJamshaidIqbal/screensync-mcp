@@ -114,6 +114,9 @@ test("policy refusals and outages are neutral; a genuine page failure is a failu
     "Action access not granted for origin https://example.com. Grant action permission in extension dashboard.",
     "Cookie access not granted for origin https://example.com. Grant cookie permission in extension dashboard.",
     "Rate limit exceeded for origin https://example.com",
+    // A person's answer at the extension's approval queue (approval-gate.js): the human saying no, or not answering.
+    "The user declined the approval request for web_click on https://example.com. Do not retry it; ask the user what they want instead.",
+    "No answer to the approval request for web_click on https://example.com within 60s, so it was declined by default. Ask the user to approve it, then try again.",
   ]) {
     r.tick(100);
     assert.equal(r.see("web_click", { selector: "#again" }, fail(error)).outcome, "neutral", error);

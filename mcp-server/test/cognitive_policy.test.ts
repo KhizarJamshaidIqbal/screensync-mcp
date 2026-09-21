@@ -12,7 +12,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Response } from "express";
 import { toolDefinitions } from "../catalog.js";
-import { GATED_TOOLS, REQUIRED_LEVEL, gateBeforeRelay, gateMode, resetPolicyCache } from "../cognitive-policy.js";
+import { GATED_TOOLS, REQUIRED_LEVEL, forRelay, gateBeforeRelay, gateMode, humanCanBeAsked, resetPolicyCache } from "../cognitive-policy.js";
 import { globalSpine } from "../cognitive-spine.js";
 import { observeToolResult } from "../cognitive-spine-observer.js";
 import { AdolescentCognitionEngine } from "../cognitive-adolescent.js";
@@ -38,13 +38,14 @@ function earn(domain: string, sessions: number, per = 3): void {
 
 const DANGEROUS = { url: "https://gate-fresh.example/account", selector: "button.delete-account" };
 
-test("the mode defaults to warn, and only 'off' and 'enforce' change it", () => {
-  assert.equal(withMode(undefined, gateMode), "warn");
+test("the mode defaults to enforce (a person is asked), and only 'warn' and 'off' relax it", () => {
+  assert.equal(withMode(undefined, gateMode), "enforce");
   assert.equal(withMode("enforce", gateMode), "enforce");
   assert.equal(withMode(" ENFORCE ", gateMode), "enforce");
+  assert.equal(withMode("warn", gateMode), "warn");
   assert.equal(withMode("off", gateMode), "off");
-  assert.equal(withMode("banana", gateMode), "warn", "an unknown value must not silently disable the gate");
-  assert.equal(withMode("", gateMode), "warn");
+  assert.equal(withMode("banana", gateMode), "enforce", "an unknown value must fail closed, never silently loosen the gate");
+  assert.equal(withMode("", gateMode), "enforce");
 });
 
 test("every gated tool is a real tool in the catalogue", () => {
@@ -211,4 +212,52 @@ test("the tool uses the level the hub earned, and ignores an earnedLevel the cal
   earn(dom, 4, 3);
   const earned = call("web_infant_error_signature", { domain: dom, event: { errorOccurred: false, riskyActionPlanned: true } });
   assert.equal(earned.data.socialReferencingAdvised, false, "earned COMPETENT stops the advice");
+});
+
+// ── asking a person (Phase 5) ───────────────────────────────────────────────
+
+type FakeBrowser = { instanceId: string; name: string; webAccessEnabled: boolean; approvals: boolean };
+const browser = (over: Partial<FakeBrowser> = {}): FakeBrowser => ({ instanceId: "i1", name: "chrome", webAccessEnabled: true, approvals: true, ...over });
+/** Resolves a hint the way the real registry does: an exact instance or browser name, else the first browser. */
+const registryOf = (...browsers: FakeBrowser[]) => ({
+  resolveTarget: (hint?: string | null) => (hint ? browsers.find((b) => b.instanceId === hint || b.name === hint) ?? null : browsers[0] ?? null),
+}) as unknown as Parameters<typeof humanCanBeAsked>[0];
+
+test("a person can be asked only when the browser this call will reach says it can ask", () => {
+  assert.equal(humanCanBeAsked(registryOf(browser()), {}), true);
+  assert.equal(humanCanBeAsked(registryOf(browser({ approvals: false })), {}), false, "an older extension would simply run the call");
+  assert.equal(humanCanBeAsked(registryOf(browser({ webAccessEnabled: false })), {}), false);
+  assert.equal(humanCanBeAsked(registryOf(), {}), false, "no browser at all");
+
+  // The hint decides WHICH browser is asked: a capable one elsewhere does not cover an incapable target.
+  const mixed = registryOf(browser({ instanceId: "new" }), browser({ instanceId: "old", name: "edge", approvals: false }));
+  assert.equal(humanCanBeAsked(mixed, { __instance: "new" }), true);
+  assert.equal(humanCanBeAsked(mixed, { __instance: "old" }), false);
+  assert.equal(humanCanBeAsked(mixed, { __browser: "edge" }), false);
+  assert.equal(humanCanBeAsked(mixed, { profile: "old", __browser: "new" }), false, "profile outranks __browser, exactly as in web.ts");
+});
+
+test("forRelay drops every internal flag a caller sent, at any depth, and adds the hub's own only when a person must be asked", () => {
+  const args = { selector: "#x", confirmed: true, __humanApproved: true, __actGranted: true, __gate: { needsHuman: false }, args: { __humanApproved: true, keep: 1, deeper: [{ __actGranted: true }] } };
+  const plain = forRelay(args);
+  assert.deepEqual(Object.keys(plain).sort(), ["args", "confirmed", "selector"]);
+  assert.deepEqual(plain.args, { keep: 1, deeper: [{}] });
+  assert.equal(args.__humanApproved, true, "the caller's own object is left as it was");
+
+  const decision = (verdict: string) => ({
+    mode: "enforce", verdict, tool: "web_click", domain: "shop.example", earnedLevel: 1, earnedName: "NOVICE", requiredLevel: 3, requiredName: "COMPETENT",
+    riskScore: 0.5, markers: ["destructive_keyword"], reason: "r".repeat(500),
+  }) as unknown as Parameters<typeof forRelay>[1];
+  const asked = forRelay(args, decision("block"));
+  assert.equal(asked.__humanApproved, undefined, "the caller's flag is gone even though the hub added its own");
+  assert.deepEqual(asked.__gate, { needsHuman: true, reason: "r".repeat(300), riskScore: 0.5, markers: ["destructive_keyword"], domain: "shop.example", level: "NOVICE" });
+  assert.equal(forRelay(args, decision("warn")).__gate, undefined, "warn only annotates: nobody is asked");
+  assert.equal(forRelay(args).__gate, undefined);
+});
+
+test("when nobody can be asked the refusal says how to fix that", () => {
+  const out = withMode("enforce", () => gateBeforeRelay("web_click", DANGEROUS, "s-refusal"))!;
+  assert.match(out.message!, /^USER_CONFIRMATION_REQUIRED \(cognitive gate\)/);
+  assert.match(out.message!, /1\.11\.0/, "names the extension version that can ask");
+  assert.match(out.message!, /policy\.json/, "and the other way out");
 });
