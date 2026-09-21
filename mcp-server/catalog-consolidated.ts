@@ -1,9 +1,33 @@
-// ScreenSync Consolidated Meta-Tooling (Phase 6)
-// Wraps 175 granular tools into 8 high-level action-routed meta-tools
-// for smaller LLMs that choke on large tool schemas.
-// Activated via TOOL_MODE=consolidated environment variable.
+// ScreenSync Consolidated Meta-Tooling
+// Wraps the granular catalogue in a handful of action-routed meta-tools, for smaller LLMs that choke on
+// large tool schemas. Activated via the TOOL_MODE=consolidated environment variable.
+//
+// No tool count is typed here: this header once carried one, and it fell far behind the catalogue.
+// `web_mind` is BUILT from the cognitive catalogues, so a new cognitive tool is reachable the moment it
+// is declared, and a test asserts that the map and the catalogues agree.
 
-import { toolDefinitions as granularToolDefinitions } from "./catalog.js";
+import { buildCatalog, toolDefinitions as granularToolDefinitions } from "./catalog.js";
+import { cognitiveToolDefinitions } from "./catalog-cognitive.js";
+import { lifespanToolDefinitions } from "./catalog-lifespan.js";
+import { adolescentToolDefinitions } from "./catalog-adolescent.js";
+import { dynamicsToolDefinitions } from "./catalog-dynamics.js";
+import { transcendentalToolDefinitions } from "./catalog-transcendental.js";
+
+/**
+ * Every cognitive tool, in catalogue order. `web_recall` becomes the action `recall` and
+ * `web_cognitive_stage` becomes `stage`: the meta-tool is already "mind", so the prefixes say nothing.
+ */
+function mindActions(): Record<string, string> {
+  const tools = [...cognitiveToolDefinitions(), ...lifespanToolDefinitions(), ...adolescentToolDefinitions(), ...dynamicsToolDefinitions(), ...transcendentalToolDefinitions()];
+  // `help` is answered by get_mcp_catalog: the exact schema of one tool, on demand.
+  const map: Record<string, string> = { help: "get_mcp_catalog" };
+  for (const { name } of tools) {
+    const action = name.replace(/^web_/, "").replace(/^cognitive_/, "");
+    if (map[action]) throw new Error(`web_mind: "${map[action]}" and "${name}" would share the action "${action}"`);
+    map[action] = name;
+  }
+  return map;
+}
 
 // Meta-tool action -> granular tool name mapping
 const ACTION_MAP: Record<string, Record<string, string>> = {
@@ -104,6 +128,8 @@ const ACTION_MAP: Record<string, Record<string, string>> = {
     scroll: "control_scroll",
     ui_hierarchy: "get_ui_hierarchy",
   },
+  // Built, not typed: see mindActions().
+  web_mind: mindActions(),
 };
 
 export function consolidatedToolDefinitions() {
@@ -249,6 +275,23 @@ export function consolidatedToolDefinitions() {
         additionalProperties: false,
       },
     },
+    {
+      name: "web_mind",
+      description:
+        "ScreenSync's cognitive memory: what the hub has learned about sites, and how it grows. The loop: recall (before acting on a domain) -> act, then check the result with web_evidence expect -> learn (record a playbook, pitfall or fact) -> consolidate. stage shows a domain's earned level and, with args {action:'next'}, what to do next. Every other action is an advanced cognitive tool. Call help with args {action:'<name>'} for the exact arguments of any action, or with no args for every action in one line each.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          action: {
+            type: "string",
+            enum: Object.keys(ACTION_MAP.web_mind),
+          },
+          args: { type: "object", additionalProperties: true },
+        },
+        required: ["action"],
+        additionalProperties: false,
+      },
+    },
   ];
 }
 
@@ -260,7 +303,11 @@ export function resolveConsolidatedCall(
   params: { action: string; args?: Record<string, unknown> }
 ): { toolName: string; args: Record<string, unknown> } | { error: string } {
   const map = ACTION_MAP[metaToolName];
-  if (!map) return { error: `Unknown meta-tool: ${metaToolName}` };
+  if (!map) {
+    // A granular name reaches here when a client calls a tool the mode does not list. Say where it went.
+    const via = viaOf(metaToolName);
+    return { error: `Unknown meta-tool: ${metaToolName}.${via ? ` In this mode it is ${via.tool} with action "${via.action}".` : ""}` };
+  }
 
   const granularName = map[params.action];
   if (!granularName) {
@@ -277,6 +324,12 @@ export function resolveConsolidatedCall(
   if (metaToolName === "web_page") {
     if (params.action === "back") args.code = args.code || "history.back()";
     if (params.action === "forward") args.code = args.code || "history.forward()";
+  }
+  if (metaToolName === "web_mind" && params.action === "help") {
+    // The target is an action name ("learn") or a granular tool name ("web_learn"); with neither, the
+    // overview. catalogFor is the one place that knows how to look either up.
+    args.tool = String(args.action ?? args.tool ?? "web_mind").trim();
+    delete args.action;
   }
 
   return { toolName: granularName, args };
@@ -297,4 +350,57 @@ export function getToolsForMode() {
     return consolidatedToolDefinitions();
   }
   return granularToolDefinitions();
+}
+
+/** The meta-tool and action that reach a granular tool in this mode, or null when none does. */
+function viaOf(granular: string): { tool: string; action: string } | null {
+  for (const [tool, actions] of Object.entries(ACTION_MAP)) {
+    for (const [action, name] of Object.entries(actions)) {
+      if (name === granular && !(tool === "web_mind" && action === "help")) return { tool, action };
+    }
+  }
+  return null;
+}
+
+/**
+ * The opening of a description, enough to tell what an action is for: one sentence, or two when the
+ * first is too short to say anything ("Cognitive cue-dependent memory recall.").
+ */
+const oneLine = (text: string | undefined): string => {
+  const flat = (text ?? "").replace(/\s+/g, " ").trim();
+  let line = "";
+  // Split where punctuation is followed by whitespace - so "Architecture 5.0)." is not cut at the 5 - but
+  // not after an abbreviation ("e.g. x.com").
+  for (const sentence of flat.split(/(?<!\b(?:e\.g|i\.e|etc|vs)\.)(?<=[.!?])\s+/).slice(0, 2)) {
+    line = line ? `${line} ${sentence}` : sentence;
+    if (line.length >= 40) break;
+  }
+  return line.length > 160 ? `${line.slice(0, 157)}...` : line;
+};
+
+/**
+ * `get_mcp_catalog`, optionally for ONE tool. The meta-tools wrap granular tools whose schemas they
+ * deliberately do not list - that is the point of the mode - so an agent needs a way to ask for one exact
+ * schema when it needs it. This is it, and it works in the default mode too: one definition instead of
+ * the whole catalogue. Asking for a meta-tool returns every one of its actions in a line each.
+ */
+export function catalogFor(args?: { tool?: unknown } | null) {
+  const wanted = typeof args?.tool === "string" ? args.tool.trim() : "";
+  if (!wanted) return buildCatalog();
+
+  const granular = granularToolDefinitions();
+  const meta = consolidatedToolDefinitions().find((t) => t.name === wanted);
+  if (meta) {
+    const actions: Record<string, string> = Object.fromEntries(Object.entries(ACTION_MAP[meta.name]).map(([action, name]) => [action, oneLine(granular.find((t) => t.name === name)?.description)]));
+    if (meta.name === "web_mind") actions.help = "This list. With args {action:'<name>'}: that action's exact schema.";
+    return { success: true, tool: meta, actions };
+  }
+
+  const name = wanted !== "help" && ACTION_MAP.web_mind[wanted] ? ACTION_MAP.web_mind[wanted] : wanted;
+  const def = granular.find((t) => t.name === name);
+  if (!def) {
+    const near = granular.map((t) => t.name).filter((n) => n.includes(wanted.toLowerCase())).slice(0, 8);
+    return { success: false, error: `No tool named "${wanted}".`, ...(near.length ? { didYouMean: near } : {}) };
+  }
+  return { success: true, tool: def, ...(isConsolidatedMode() ? { reachedVia: viaOf(def.name) } : {}) };
 }

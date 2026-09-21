@@ -7,6 +7,7 @@ Before interacting with or automating any complex, interactive, or stateful web 
 - A **candidate** playbook is an unverified draft: run its steps deliberately and confirm each with `web_expect`. Report the run with
   `web_learn { action: "outcome", domain, data: { playbook, success } }` (name it by the id `web_learn` returned) — two hub-confirmed runs in two sessions make it a fast path.
 - Target execution time for recurring learned tasks: **under 1 minute**.
+- In `TOOL_MODE=consolidated` the cognitive tools are one meta-tool, `web_mind { action, args }` (`recall`, `learn`, `stage`, ...); `action: "help"` returns any action's exact schema. `get_mcp_catalog { tool }` returns one tool's definition in either mode.
 - Inspect retrieved `pitfalls` and `antiPattern` warnings before executing any script or DOM manipulation.
 
 ## 2. Mandatory Cognitive Learning & Imprinting

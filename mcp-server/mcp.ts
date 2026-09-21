@@ -12,7 +12,7 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import {
-  buildCatalog,
+  catalogFor,
   getSkillsContent,
   promptDefinitions,
   resourceDefinitions,
@@ -184,7 +184,7 @@ export function createMcpServer() {
         return textResult({ success: true, ...((r.data ?? {}) as object) });
       }
       if (request.params.name === "get_mcp_catalog") {
-        return textResult(buildCatalog());
+        return textResult(catalogFor(request.params.arguments));
       }
       if (request.params.name === "get_skills") {
         return textResult(getSkillsContent());

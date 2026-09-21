@@ -5,7 +5,7 @@ import { lifespanToolDefinitions } from "./catalog-lifespan.js";
 import { adolescentToolDefinitions } from "./catalog-adolescent.js";
 import { dynamicsToolDefinitions } from "./catalog-dynamics.js";
 import { transcendentalToolDefinitions } from "./catalog-transcendental.js";
-export { consolidatedToolDefinitions, isConsolidatedMode, getToolsForMode, resolveConsolidatedCall } from "./catalog-consolidated.js";
+export { catalogFor, consolidatedToolDefinitions, isConsolidatedMode, getToolsForMode, resolveConsolidatedCall } from "./catalog-consolidated.js";
 import { getToolsForMode } from "./catalog-consolidated.js";
 
 // Single source of truth for everything the MCP server exposes. The MCP
@@ -100,8 +100,8 @@ export function toolDefinitions() {
     {
       name: "get_mcp_catalog",
       description:
-        "Returns the complete ScreenSync MCP catalog: every tool, prompt (skill), resource, plus connection settings and a recommended usage order. Call this first after connecting to discover all capabilities.",
-      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        "Returns the complete ScreenSync MCP catalog: every tool, prompt (skill), resource, plus connection settings and a recommended usage order. Call this first after connecting to discover all capabilities. Pass tool to get just that one tool's full definition (or, for a consolidated meta-tool, each of its actions in a line).",
+      inputSchema: { type: "object", properties: { tool: { type: "string", description: "A tool name (or consolidated action) to describe instead of returning everything." } }, additionalProperties: false },
     },
     {
       name: "get_skills",
