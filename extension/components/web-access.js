@@ -1,4 +1,5 @@
 import { escapeHtml } from '../lib/escape.js';
+import { mountApprovalQueue } from './approval-queue.js';
 export function mountWebAccess(el, send) {
   el.innerHTML = `
     <div class="web-card">
@@ -23,14 +24,8 @@ export function mountWebAccess(el, send) {
       </div>
       <div class="err" id="web-err" style="font-size:var(--text-xs)" hidden></div>
 
-      <!-- Pending Approval Queue -->
-      <div id="approvals-section" style="margin-top:16px;display:none">
-        <div class="row spread" style="margin-bottom:8px">
-          <strong style="color:var(--crit);font-size:var(--text-sm)">Pending Action Approvals</strong>
-          <span class="pill warn" id="approvals-count">0</span>
-        </div>
-        <div id="approvals-list" style="display:flex;flex-direction:column;gap:8px"></div>
-      </div>
+      <!-- Pending approvals: a person decides anything destructive (see components/approval-queue.js) -->
+      <div id="approvals-section" style="margin-top:16px"></div>
 
       <!-- Origin Grants Management -->
       <div style="margin-top:20px">
@@ -61,9 +56,7 @@ export function mountWebAccess(el, send) {
   const tabRow = el.querySelector('#web-tab');
   const errRow = el.querySelector('#web-err');
   const testBtn = el.querySelector('#web-test');
-  const approvalsSec = el.querySelector('#approvals-section');
-  const approvalsList = el.querySelector('#approvals-list');
-  const approvalsCount = el.querySelector('#approvals-count');
+  const approvals = mountApprovalQueue(el.querySelector('#approvals-section'), send);
   const newOriginInput = el.querySelector('#new-origin-input');
   const addGrantBtn = el.querySelector('#btn-add-grant');
   const grantsList = el.querySelector('#grants-list');
@@ -100,32 +93,7 @@ export function mountWebAccess(el, send) {
     }
     errRow.hidden = true;
 
-    // Refresh approvals
-    const apprRes = await send({ type: 'get-approvals' });
-    const approvals = (apprRes && apprRes.approvals) || [];
-    if (approvals.length > 0) {
-      approvalsSec.style.display = 'block';
-      approvalsCount.textContent = String(approvals.length);
-      approvalsList.innerHTML = '';
-      approvals.forEach((a) => {
-        const row = document.createElement('div');
-        row.className = 'row spread card';
-        row.style.padding = '8px 10px';
-        row.style.borderLeft = '3px solid var(--crit)';
-        row.innerHTML = `
-          <div>
-            <strong>${escapeHtml(a.tool)}</strong> on <code>${escapeHtml(a.origin)}</code>
-            <div class="dim" style="font-size:11px">${escapeHtml(a.risk)} action</div>
-          </div>
-          <div class="row" style="gap:6px">
-            <button class="btn btn-sm btn-primary" data-appr="${a.id}" data-action="approve">Approve</button>
-            <button class="btn btn-sm btn-ghost" data-appr="${a.id}" data-action="reject">Dismiss</button>
-          </div>`;
-        approvalsList.appendChild(row);
-      });
-    } else {
-      approvalsSec.style.display = 'none';
-    }
+    await approvals.refresh();
 
     // Refresh grants
     const grantsRes = await send({ type: 'get-grants' });
@@ -201,15 +169,6 @@ export function mountWebAccess(el, send) {
       testBtn.disabled = false;
       setTimeout(() => (testBtn.textContent = 'Test loop'), 1500);
     }
-  });
-
-  approvalsList.addEventListener('click', async (ev) => {
-    const btn = ev.target.closest('button[data-appr]');
-    if (!btn) return;
-    const id = btn.getAttribute('data-appr');
-    const approved = btn.getAttribute('data-action') === 'approve';
-    await send({ type: 'resolve-approval', id, approved });
-    await refresh();
   });
 
   addGrantBtn.addEventListener('click', async () => {

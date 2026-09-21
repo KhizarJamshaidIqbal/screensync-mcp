@@ -37,14 +37,25 @@ pairing link + QR that the extension and the Android app both accept.
 
 ## How the web bridge works
 
-1. The hub pushes a `web_request` over SSE; the service worker executes it on
-   your active tab (`lib/web-tools.js`) and POSTs the result to `/api/web/result`.
+1. The hub pushes a `web_request` over SSE; the service worker (`lib/web-bridge.js`) runs it
+   through the approval gate, executes it on your active tab (`lib/web-tools.js`) and POSTs
+   the result to `/api/web/result`.
 2. Everything is gated behind the **Web access for AI agents** toggle on the
    dashboard — it ships **ON by default** (owner decision, 2026-09-14); turn it OFF to stop all execution. Nothing runs while it is off, and writes still require a per-origin action grant.
 3. The hub only relays while it has seen our heartbeat recently, so a closed
    browser cleanly reads as "not connected".
 4. Restricted pages (`chrome://`, extension pages, the web store, PDFs) are
    refused with a clear error rather than attempted.
+5. **A person approves what looks destructive.** When an action looks destructive (a click on
+   "Delete", an authenticated POST, a cookie edit, a permission grant), or the hub's cognitive
+   gate asks for it, and the page is not one of your trusted hosts, the request waits in the
+   approval queue for up to 60 seconds. A number appears on the toolbar icon, and the popup and
+   the dashboard's Web Access tab list it with Approve / Decline. Nothing runs until you
+   approve; a decline or silence refuses it. An agent's own `confirmed` / `force` arguments carry
+   no weight there (`lib/approval-gate.js`); on your trusted hosts they behave as they always did.
+   Only the extension's own pages can drive these controls (`lib/owner-pages.js`): code an agent runs
+   inside a tab, with `web_run_code` for instance, cannot approve its own request, grant itself access,
+   change a setting or read the clipboard, because the extension ignores messages that come from a page.
 
 ## Requirements
 

@@ -72,9 +72,15 @@ assert.equal(redefiners.length, 0,
   'components must import escapeHtml from lib/escape.js, not redefine it: ' + redefiners.join(', '));
 
 const wa = read('extension/components/web-access.js');
-for (const sink of ['${escapeHtml(a.tool)}', '${escapeHtml(a.origin)}', '${escapeHtml(a.risk)}', '${escapeHtml(e.tool)}']) {
+for (const sink of ['${escapeHtml(e.tool)}']) {
   assert.ok(wa.includes(sink), 'web-access.js must escape this sink: ' + sink);
 }
+// The approval queue shows a person what an agent wants to do: its tool name, the origin, the target, the text
+// it would type and the hub's reason. It builds DOM nodes with textContent, so none of that is ever parsed as
+// markup; this fails if anyone reaches for innerHTML there, which would turn an agent's string into a script.
+const aq = read('extension/components/approval-queue.js');
+assert.ok(!/innerHTML|insertAdjacentHTML|outerHTML/.test(aq), 'approval-queue.js must not parse agent-derived text as markup');
+assert.ok(wa.includes('mountApprovalQueue'), 'the dashboard must show the approval queue through the shared component');
 const sp = read('extension/components/status-pill.js');
 assert.ok(sp.includes('${escapeHtml(label)}'), 'status-pill.js must escape its label');
 assert.ok(sp.includes('${escapeHtml(cache.sseStatus)}'), 'status-pill.js must escape the SSE status');

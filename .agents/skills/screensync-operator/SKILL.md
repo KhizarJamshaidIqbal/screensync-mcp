@@ -267,6 +267,10 @@ After driving the page, call **`web_events` {since: <lastSeq>}** to see what act
 - Chrome-restricted pages (`chrome://`, Web Store) are refused — that's by design.
 - Never exfiltrate cookies/sessions/tokens anywhere off-device.
 - No posting/purchasing/sending without explicit user confirmation of THAT action.
+- A destructive action on a site the owner has not trusted waits in the extension's approval queue for
+  the human's click (a badge on the toolbar icon). `USER_DECLINED` means they said no: do not retry, ask
+  what they want. `APPROVAL_TIMEOUT` means nobody answered: tell them it is waiting, then retry once they
+  can look. Your own `confirmed` / `force` arguments do nothing there.
 - Hub tools time out at ~25–45s; for slow pages `web_navigate` first, then act.
 
 ## 9 · Recovery

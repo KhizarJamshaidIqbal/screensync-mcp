@@ -347,7 +347,7 @@ export async function ssWebUnitInteract(args) {
       || hit.el.querySelector('button, a, [role="button"], [tabindex="0"]')
       || hit.el;
 
-    if (isDestructiveAction(target) && !args.confirmed && !args.force && args.dryRun !== true) {
+    if (isDestructiveAction(target) && !args.__humanApproved && args.dryRun !== true) {
       return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: 'Action involves destructive keyword. User confirmation required.' };
     }
 
@@ -389,7 +389,7 @@ export async function ssWebUnitInteract(args) {
       || el);
     el = editable;
 
-    if (isDestructiveAction(el) && !args.confirmed && !args.force && args.dryRun !== true) {
+    if (isDestructiveAction(el) && !args.__humanApproved && args.dryRun !== true) {
       return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: 'Action involves destructive keyword. User confirmation required.' };
     }
 

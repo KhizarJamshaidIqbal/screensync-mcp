@@ -7,6 +7,7 @@ export function createChromeMock() {
   return {
     runtime: {
       id: 'test-mock-extension-id',
+      getURL: (path = '') => `chrome-extension://test-mock-extension-id/${path}`,
       getManifest: () => ({ name: 'ScreenSync MCP', version: '1.8.0' }),
       onMessage: { addListener: () => {} },
       onConnect: { addListener: () => {} },

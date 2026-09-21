@@ -228,6 +228,32 @@ assert.equal(confirmDestructiveRes.ok, false);
 assert.equal(confirmDestructiveRes.code, 'USER_CONFIRMATION_REQUIRED');
 assert.equal(confirmDestructiveRes.risk, 'destructive');
 
+// ── TEST 4b: `confirmed` and `force` are the AGENT's own words, so they do not run a destructive action ──
+// Only the flag the extension itself sets after a person approves does (approval-gate.js).
+const dangerInput = new MockElement('input', { id: 'danger-input', 'aria-label': 'Delete everything' });
+dangerInput._rect = { x: 20, y: 570, width: 200, height: 30, top: 570, bottom: 600, left: 20, right: 220 };
+form.appendChild(dangerInput);
+const { ssWebUnitAction } = await import('../lib/web-unit-action.js');
+
+const clickInsists = await ssWebUnitInteract({ __tool: 'web_click', selector: '#danger-btn', confirmed: true, force: true, timeoutMs: 100 });
+assert.equal(clickInsists.code, 'USER_CONFIRMATION_REQUIRED', 'confirmed/force must not run a destructive click');
+const typeInsists = await ssWebUnitInteract({ __tool: 'web_type', selector: '#danger-input', text: 'x', confirmed: true, force: true, timeoutMs: 100 });
+assert.equal(typeInsists.code, 'USER_CONFIRMATION_REQUIRED', 'confirmed/force must not run a destructive type');
+const fillInsists = await ssWebUnitAction({ __tool: 'web_fill', selector: '#danger-input', value: 'x', confirmed: true, force: true, timeoutMs: 100 });
+assert.equal(fillInsists.code, 'USER_CONFIRMATION_REQUIRED', 'confirmed/force must not run a destructive fill');
+
+// With the approval flag the destructive check is passed. What happens next is the action itself, which the
+// mock DOM cannot fully perform, so a throw AFTER the check counts as having passed it.
+for (const [unit, args] of [
+  [ssWebUnitInteract, { __tool: 'web_click', selector: '#danger-btn' }],
+  [ssWebUnitInteract, { __tool: 'web_type', selector: '#danger-input', text: 'x' }],
+  [ssWebUnitAction, { __tool: 'web_fill', selector: '#danger-input', value: 'x' }],
+]) {
+  let approved;
+  try { approved = await unit({ ...args, __humanApproved: true, timeoutMs: 100 }); } catch (e) { approved = { thrownAfterTheCheck: String(e) }; }
+  assert.notEqual(approved.code, 'USER_CONFIRMATION_REQUIRED', `${args.__tool}: an approved action must get past the destructive check`);
+}
+
 // ── TEST 5: Actionability check on disabled element ───────────────────────
 const disabledActionRes = await ssWebUnitInteract({
   __tool: 'web_type',

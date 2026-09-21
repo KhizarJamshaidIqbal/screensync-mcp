@@ -1,5 +1,19 @@
 # ScreenSync MCP — Release Notes
 
+## Version 1.11.0 (the approval queue, for real) — 2026-09-21
+
+The 1.8.0 notes below describe an interactive Approval Queue. It existed as a component and had **no caller**: a destructive-looking action returned `USER_CONFIRMATION_REQUIRED` and the agent simply called again with `confirmed:true`, an argument it supplies itself, so nothing ever asked a person. This release wires it in.
+
+- **A person approves what looks destructive.** On a site you have not trusted, the request waits up to 60 seconds in the queue (a badge on the toolbar icon, the popup, and the dashboard's Web Access tab) and runs only if you approve. Declining, or not answering, refuses it (`USER_DECLINED` / `APPROVAL_TIMEOUT`).
+- **An agent's own `confirmed` / `force` no longer count**, and it cannot forge the internal flags (`__humanApproved`, `__actGranted`): the hub and the extension both strip them, at any depth. On your trusted hosts (x.com, epsoldev.com, ...) nothing changes.
+- **The hub's cognitive gate now asks you** instead of refusing. It is `enforce` by default: a destructive-looking action on a domain that has not earned trust is handed to the extension to put in front of you. If no connected extension can ask (older than 1.11.0) the call is refused and says why. Update the extension first, or set `SCREEN_SYNC_COGNITIVE_GATE=warn` until you have.
+- Each request shows what is being done (target, typed text, the reason) and how long is left, and the hub keeps waiting while you decide.
+- **An agent cannot approve its own request.** Code run through `web_run_code` and its siblings executes inside the extension's own scripting world, where it could message the extension directly (approve a request, grant itself access to any site, change settings) and read or write its storage. The extension now answers only its own pages, closes ports opened from a tab, and limits storage to its own contexts. This also closes a way to read the clipboard through the offscreen page without the clipboard permission check.
+- It is a check on what the extension and the hub can recognise as destructive (a keyword, a method, a target), not a sandbox: an `act` grant on a site still lets an agent act there, and code it runs with `web_eval` or `web_run_code` is judged by what it says, not by what it does.
+- An approval covers the page you were shown. If the target changed while you were deciding (another tab came forward, the page navigated) or you revoked the site's grant, nothing runs and the agent is told to ask again.
+
+---
+
 ## Version 1.8.0 (Rev 4 Release Readiness) — 2026-09-14
 
 ScreenSync v1.8.0 represents a major milestone: transitioning ScreenSync from an experimental AI automation bridge into a hardened, production-grade supervised browser engineering platform. It pairs the mobile Android screen sync engine with a 171-tool browser automation surface offering 100% Playwright parity, strict user supervision, and an offline-first architecture.

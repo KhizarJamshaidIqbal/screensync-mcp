@@ -14,7 +14,7 @@ export async function apiFetch(args = {}) {
 
   if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
     const origin = new URL(url).origin;
-    if (!isLoopbackOrTestOrigin(origin) && !args.confirmed && !args.force) {
+    if (!isLoopbackOrTestOrigin(origin) && !args.__humanApproved) {
       const grant = await getOriginGrant(origin);
       if (!grant.act) {
         return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: `Authenticated ${method} request to ${origin} requires user confirmation or act grant.` };

@@ -4,9 +4,13 @@
 
 import { getSettings, saveSettings } from './storage.js';
 
-// Pending approvals queue: id -> { id, origin, tool, risk, details, createdAt, resolve, reject, timer }
+// Pending approvals queue: id -> { id, origin, tool, risk, details, createdAt, expiresAt, resolve, reject, timer }
 const pendingApprovals = new Map();
 let approvalSeq = 0;
+
+// Told whenever the queue changes (something enqueued, approved, declined or expired). The service worker
+// uses it to keep the toolbar badge honest, so a request a person has not seen is a number on the icon.
+const approvalListeners = new Set();
 
 // Rate limiter: origin -> array of timestamps (ms)
 const rateLimits = new Map();
@@ -134,33 +138,51 @@ export function getExtractionBudget() {
   };
 }
 
+/** Subscribe to queue changes. Returns an unsubscribe function. */
+export function onApprovalsChanged(fn) {
+  approvalListeners.add(fn);
+  return () => approvalListeners.delete(fn);
+}
+
+function notifyApprovalsChanged() {
+  const list = getPendingApprovals();
+  for (const fn of approvalListeners) {
+    try { fn(list); } catch { /* a listener must never be able to break the queue */ }
+  }
+}
+
+/**
+ * Asks a person. Resolves { approved: true } on their say-so; rejects if they decline
+ * (error.code USER_DECLINED) or nobody answers within timeoutMs (APPROVAL_TIMEOUT). Silence is a refusal.
+ */
 export function enqueueApproval({ origin, tool, risk, details, timeoutMs = 60_000 }) {
   const id = `appr_${Date.now()}_${++approvalSeq}`;
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
+    const settle = (finish) => (value) => {
+      clearTimeout(timer);
       pendingApprovals.delete(id);
-      reject(new Error(`Approval request ${id} for ${tool} on ${origin} timed out (dismissed by default).`));
-    }, timeoutMs);
+      notifyApprovalsChanged();
+      finish(value);
+    };
+    const timer = setTimeout(
+      () => settle(reject)(Object.assign(new Error(`Approval request ${id} for ${tool} on ${origin} timed out (dismissed by default).`), { code: 'APPROVAL_TIMEOUT' })),
+      timeoutMs,
+    );
 
+    const createdAt = Date.now();
     pendingApprovals.set(id, {
       id,
       origin: normalizeOrigin(origin),
       tool,
       risk: risk || 'destructive',
       details: details || {},
-      createdAt: Date.now(),
+      createdAt,
+      expiresAt: createdAt + timeoutMs,
       timer,
-      resolve: (data) => {
-        clearTimeout(timer);
-        pendingApprovals.delete(id);
-        resolve(data);
-      },
-      reject: (err) => {
-        clearTimeout(timer);
-        pendingApprovals.delete(id);
-        reject(err);
-      },
+      resolve: settle(resolve),
+      reject: settle(reject),
     });
+    notifyApprovalsChanged();
   });
 }
 
@@ -174,6 +196,7 @@ export function getPendingApprovals() {
       risk: item.risk,
       details: item.details,
       createdAt: item.createdAt,
+      expiresAt: item.expiresAt,
     });
   }
   return list;
@@ -185,7 +208,7 @@ export function resolveApproval(id, approved = false) {
   if (approved) {
     item.resolve({ approved: true, id });
   } else {
-    item.reject(new Error(`User declined permission for ${item.tool} on ${item.origin}`));
+    item.reject(Object.assign(new Error(`User declined permission for ${item.tool} on ${item.origin}`), { code: 'USER_DECLINED' }));
   }
   return { ok: true, id, approved };
 }

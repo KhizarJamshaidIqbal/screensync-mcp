@@ -126,7 +126,7 @@ export function ssEval(args) {
 export function ssStorage(args) {
   const action = args.action || 'get';
   const type = args.type || 'local';
-  if (action !== 'get' && !args.__actGranted && !args.confirmed && !args.force) {
+  if (action !== 'get' && !args.__actGranted && !args.__humanApproved) {
     return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: `Modifying ${type} storage (${action}) requires action permission.` };
   }
   if (type === 'cookie') {

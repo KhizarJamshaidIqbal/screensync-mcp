@@ -14,6 +14,8 @@ const ROOT = resolve(import.meta.dirname, '..', '..');
 // SS_CATALOG lets a harness point this guard at a mutated copy, to prove it has teeth.
 const catalog = readFileSync(process.env.SS_CATALOG || resolve(ROOT, 'mcp-server', 'catalog-web.ts'), 'utf-8');
 const tools = readFileSync(resolve(ROOT, 'extension', 'lib', 'web-tools.js'), 'utf-8');
+// handleWebRequest - where the web-access gate and the approval gate sit - lives in the bridge module.
+const bridge = readFileSync(resolve(ROOT, 'extension', 'lib', 'web-bridge.js'), 'utf-8');
 
 console.log('[test] running extension tool surface guard...');
 
@@ -62,8 +64,13 @@ assert.ok(
 
 // 4. The gate itself must still be a real gate in the service worker.
 assert.ok(
-  tools.includes('if (!s.webAccessEnabled)'),
+  bridge.includes('if (!s.webAccessEnabled)'),
   'the webAccessEnabled gate must still short-circuit web tool execution'
+);
+// ...and it must come BEFORE the approval gate: with web access off, nothing may even ask the user.
+assert.ok(
+  bridge.indexOf('if (!s.webAccessEnabled)') > -1 && bridge.indexOf('if (!s.webAccessEnabled)') < bridge.indexOf('runWithApproval('),
+  'the approval gate must sit behind the webAccessEnabled gate, never in front of it'
 );
 
 // 5. The consent record is the user's, not the agent's: web_consent must be read-only.

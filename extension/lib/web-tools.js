@@ -1,6 +1,6 @@
 // ScreenSync Browser Extension — Web Bridge Dispatcher
-// Hub SSE requests arrive via handleWebRequest, resolve active tabs safely,
-// check grants & actionability, dispatch to specialized units, and log to the audit ring.
+// Resolves active tabs safely, checks grants & actionability and dispatches to the specialised units;
+// web-bridge.js receives the hub's requests, runs them through the approval gate, then calls executeWebTool.
 
 import { getSettings } from './storage.js';
 import { hubFetch } from './api.js';
@@ -28,13 +28,14 @@ import { execWebSiteMemory } from './site-memory.js';
 import { execCognitiveTool } from './cognitive-memory-ext.js';
 import { apiFetch } from './web-api-fetch.js';
 import { historySearch, bookmarksSearch } from './web-browser-data.js';
-import { getProfileIdentity, setProfileIdentity, matchesSelfTarget, RUNTIME_ID, BROWSER_NAME } from './profile-identity.js';
+import { getProfileIdentity, setProfileIdentity, RUNTIME_ID, BROWSER_NAME } from './profile-identity.js';
 import { execTabGroup } from './web-tab-groups.js';
 import { pickActiveTab, isRestrictedTab, waitForTabComplete, groupAgentTab } from './tab-resolve.js';
 import { makeError, ERROR_CODES } from './errors.js';
-import { recordAuditEntry, getAuditLog, clearAuditLog, exportAuditLog } from './audit.js';
+import { getAuditLog, clearAuditLog, exportAuditLog } from './audit.js';
 import { execWebTabs, execWebTab, execWebWindow, execTabPool, execSandboxGroup } from './web-tab-mgmt.js';
 import { validateToolArgs } from './validate.js';
+import { registerWebBridge } from './web-bridge.js';
 import {
   getOriginGrant,
   isLoopbackOrTestOrigin,
@@ -63,6 +64,7 @@ const DOM_TOOLS = new Set([
 ]);
 
 const STORAGE_ADV_TOOLS = new Set(['web_indexeddb', 'web_cache_storage']);
+export const isActTool = (tool) => INTERACT_TOOLS.has(tool) || AGENT_ACTION_TOOLS.has(tool); // needs the owner's `act` grant
 
 export const SELF_BROWSER = {
   id: RUNTIME_ID,
@@ -386,7 +388,7 @@ export async function executeWebTool(tool, args = {}) {
         if (!isSafeOrigin && !originGrant.act) {
           return makeError(ERROR_CODES.NO_GRANT, `Cookie modification requires act grant for origin ${domain}.`);
         }
-        if (!isSafeOrigin && !args.confirmed && !args.force) {
+        if (!isSafeOrigin && !args.__humanApproved) {
           return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: `Cookie modification on ${domain} requires user confirmation.` };
         }
         if (action === 'remove') {
@@ -495,103 +497,4 @@ export async function executeWebTool(tool, args = {}) {
       return execAdvTool(tool, tab, args);
     }
   }
-}
-
-export async function registerWebBridge() {
-  let tab = null;
-  try {
-    const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (t && t.url && !isRestrictedTab(t)) tab = { url: t.url, title: t.title };
-  } catch {}
-  let windows = [];
-  try {
-    const wins = await chrome.windows.getAll({ populate: true });
-    windows = (wins || []).map((w) => {
-      const activeTab = (w.tabs || []).find((t) => t.active) || (w.tabs && w.tabs[0]);
-      return {
-        id: w.id,
-        focused: w.focused,
-        state: w.state,
-        type: w.type,
-        tabCount: w.tabs ? w.tabs.length : 0,
-        activeTab: activeTab && activeTab.url && !isRestrictedTab(activeTab)
-          ? { tabId: activeTab.id, url: activeTab.url, title: activeTab.title }
-          : null,
-      };
-    });
-  } catch {}
-  try {
-    const identity = await getProfileIdentity();
-    const s = await getSettings();
-    const regRes = await hubFetch('/api/web/register', {
-      method: 'POST',
-      body: {
-        webAccessEnabled: s.webAccessEnabled === true,
-        tab,
-        windows,
-        userAgent: navigator.userAgent,
-        browserId: identity.runtimeId,
-        instanceId: identity.instanceId,
-        browserName: identity.browserName,
-        profileEmail: identity.profileEmail,
-        profileName: identity.profileName,
-      },
-    });
-    if (regRes && regRes.reloadRequested === true) {
-      setTimeout(() => { try { chrome.runtime.reload(); } catch {} }, 200);
-    }
-  } catch {}
-}
-
-export async function handleWebRequest(req) {
-  const { id, tool, args = {} } = req || {};
-  const identity = await getProfileIdentity();
-
-  // Strict Zero Cross-Talk Guard:
-  // If targeted to a specific profile, instance, or email, drop immediately if not for us.
-  if (!matchesSelfTarget(req, identity)) {
-    return;
-  }
-
-  const startedAt = Date.now();
-  let out;
-  const s = await getSettings();
-  if (!s.webAccessEnabled) {
-    out = makeError(ERROR_CODES.NO_GRANT, 'Web access is disabled in the ScreenSync extension dashboard.');
-  } else {
-    try {
-      out = await executeWebTool(tool, args);
-    } catch (e) {
-      out = makeError(ERROR_CODES.INTERNAL, String((e && e.message) || e));
-    }
-  }
-
-  // Record into privacy-preserving audit ring (Plan §2.4)
-  recordAuditEntry({
-    tool,
-    durationMs: Date.now() - startedAt,
-    ok: !!out.ok,
-    code: out.code,
-    error: out.error,
-    args,
-  }).catch(() => {});
-
-  try {
-    await hubFetch('/api/web/result', {
-      method: 'POST',
-      body: {
-        id,
-        ok: !!out.ok,
-        data: out.data,
-        error: out.error,
-        code: out.code,
-        retryable: out.retryable,
-        browserId: identity.runtimeId,
-        instanceId: identity.instanceId,
-        browserName: identity.browserName,
-        profileEmail: identity.profileEmail,
-        profileName: identity.profileName,
-      },
-    });
-  } catch {}
 }

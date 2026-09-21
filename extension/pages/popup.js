@@ -1,7 +1,11 @@
 import { updateStatusPill } from '../components/status-pill.js';
 import { buildConnectKit } from '../lib/connect-kit.js';
+import { mountApprovalQueue } from '../components/approval-queue.js';
 
 const send = (msg) => chrome.runtime.sendMessage(msg);
+
+// A request an agent is waiting on. The toolbar badge counts these; deciding is one click here.
+mountApprovalQueue(document.getElementById('approvals-slot'), send);
 
 const pill       = document.getElementById('pill');
 const thumb      = document.getElementById('thumb');

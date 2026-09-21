@@ -1,7 +1,7 @@
 import { getSettings, saveSettings } from './lib/storage.js';
 import { api, probeHub, hubFetch } from './lib/api.js';
 import { SseClient } from './lib/sse-client.js';
-import { handleWebRequest, registerWebBridge } from './lib/web-tools.js';
+import { handleWebRequest, registerWebBridge } from './lib/web-bridge.js';
 import { startAmbientCollector } from './lib/web-ambient.js';
 import { getGrants, saveOriginGrant, revokeOriginGrant, getPendingApprovals, resolveApproval } from './lib/consent.js';
 import { getAuditLog, exportAuditLog } from './lib/audit.js';
@@ -9,6 +9,7 @@ import { getTakeoverStatus, resumeTakeover } from './lib/takeover.js';
 import { listJobs, cancelJob } from './lib/jobs.js';
 import { execExtensionDiagnostics } from './lib/web-diag.js';
 import { fetchThreatState } from './lib/threat-state.js';
+import { ownerMessagesOnly, ownerPortsOnly, lockStorageToOwnerContexts } from './lib/owner-pages.js';
 import {
   GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, EVENT_LOG_CAP,
 } from './lib/constants.js';
@@ -17,6 +18,7 @@ console.info('[ss] sw boot');
 self.addEventListener('error', (e) => console.error('[ss] sw error:', e.message));
 self.addEventListener('unhandledrejection', (e) => console.error('[ss] sw rejection:', String(e.reason)));
 
+lockStorageToOwnerContexts();
 startAmbientCollector();
 
 const cache = {
@@ -34,10 +36,6 @@ function broadcast(msg) {
   for (const p of ports) {
     try { p.postMessage(msg); } catch { /* port closed */ }
   }
-}
-
-function snapshot() {
-  return { kind: 'snapshot', cache, settings: null };
 }
 
 const sse = new SseClient({
@@ -269,13 +267,13 @@ chrome.runtime.onStartup.addListener(() => {
 // Immediate boot connection whenever SW initializes
 boot().catch(() => {});
 
-chrome.runtime.onConnect.addListener((port) => {
+chrome.runtime.onConnect.addListener(ownerPortsOnly((port) => {
   ports.add(port);
   port.onDisconnect.addListener(() => ports.delete(port));
   getSettings().then((settings) => {
     try { port.postMessage({ kind: 'snapshot', cache, settings }); } catch { /* closed */ }
   });
-});
+}));
 
 if (chrome.tabs && chrome.tabs.onRemoved) {
   chrome.tabs.onRemoved.addListener((tabId) => {
@@ -289,7 +287,7 @@ if (chrome.tabs && chrome.tabs.onReplaced) {
   });
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(ownerMessagesOnly((msg, _sender, sendResponse) => {
   (async () => {
     try {
       switch (msg.type) {
@@ -490,7 +488,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
   })();
   return true; // async response
-});
+}));
 
 if (chrome.runtime.onMessageExternal) {
   chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {

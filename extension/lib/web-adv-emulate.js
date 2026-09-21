@@ -83,7 +83,7 @@ export async function cdpGrantPermissions(tab, args = {}) {
   const permissions = Array.isArray(args.permissions) ? args.permissions : [args.permission || 'geolocation'];
   const origin = args.origin || (tab.url ? new URL(tab.url).origin : undefined);
 
-  if (!isLoopbackOrTestOrigin(origin) && !args.confirmed && !args.force) {
+  if (!isLoopbackOrTestOrigin(origin) && !args.__humanApproved) {
     const grant = await getOriginGrant(origin);
     if (!grant.act) {
       return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: `Granting permissions on ${origin || 'active tab'} requires user confirmation or act grant.` };
@@ -153,7 +153,7 @@ export async function cdpSetTimezone(tab, args = {}) {
 
 export async function cdpSetGeolocation(tab, args = {}) {
   const origin = tab.url ? new URL(tab.url).origin : undefined;
-  if (!args.clear && !isLoopbackOrTestOrigin(origin) && !args.confirmed && !args.force) {
+  if (!args.clear && !isLoopbackOrTestOrigin(origin) && !args.__humanApproved) {
     const grant = await getOriginGrant(origin);
     if (!grant.act) {
       return { ok: false, code: 'USER_CONFIRMATION_REQUIRED', risk: 'destructive', error: `Overriding geolocation on ${origin || 'active tab'} requires user confirmation or act grant.` };
