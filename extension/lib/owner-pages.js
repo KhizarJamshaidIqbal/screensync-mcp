@@ -2,15 +2,18 @@
 //
 // The service worker answers messages that read and change what the owner has decided: the origin grants,
 // the web-access switch, the settings and the approval queue. They are meant for the extension's own pages
-// (popup, dashboard, side panel). But chrome.runtime.sendMessage is also available to any script injected
-// into a tab, and web_run_code injects the AGENT's code into the extension's isolated world. Left open, that
-// code could resolve its own approval requests or grant itself access to any site, and the approval queue
-// would approve nothing but the agent's own wishes.
+// (popup, dashboard, side panel), and the browser says who is asking: `sender.url` and `sender.origin` are
+// the web page's for a script running in a tab and chrome-extension://<id> for the extension itself. A page
+// cannot forge them.
 //
-// The browser fills in `sender.url` and `sender.origin` and a page cannot forge them: for a script injected
-// into a tab they are the web page's, for the extension's own pages and its service worker they are
-// chrome-extension://<id>. Storage has the same problem (a script in a tab can read and write
-// chrome.storage.local, where the grants live), so it is locked to the extension's own contexts as well.
+// This is hardening, not the fix for a live hole. Checked in Chrome on 2026-09-21: web_run_code and web_eval
+// run through the debugger in the page's own world, which has no extension APIs, and the extension's
+// isolated world did not evaluate a string (web_wait_for_function never succeeds), so no agent-supplied code
+// runs where it could send these messages today. But the messages carry no other proof of who sent them, so
+// the day a feature does run agent-influenced code there (a content script, a changed CSP) the approval
+// queue would approve nothing but the agent's own wishes. Storage has the same shape (a script in a tab can
+// read and write chrome.storage.local, where the grants live), so it is locked to the extension's own
+// contexts as well.
 
 const clip = (value, max) => String(value ?? '').slice(0, max);
 

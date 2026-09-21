@@ -53,9 +53,10 @@ pairing link + QR that the extension and the Android app both accept.
    the dashboard's Web Access tab list it with Approve / Decline. Nothing runs until you
    approve; a decline or silence refuses it. An agent's own `confirmed` / `force` arguments carry
    no weight there (`lib/approval-gate.js`); on your trusted hosts they behave as they always did.
-   Only the extension's own pages can drive these controls (`lib/owner-pages.js`): code an agent runs
-   inside a tab, with `web_run_code` for instance, cannot approve its own request, grant itself access,
-   change a setting or read the clipboard, because the extension ignores messages that come from a page.
+   Only the extension's own pages can drive these controls (`lib/owner-pages.js`): the extension ignores
+   messages that come from a page or a script in a tab, so nothing running there can approve a request,
+   grant access, change a setting or read the clipboard through it. No agent tool runs code where it could
+   try today; this keeps it that way.
 
 ## Requirements
 

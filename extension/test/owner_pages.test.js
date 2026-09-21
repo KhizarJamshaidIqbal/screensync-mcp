@@ -1,10 +1,11 @@
 // Who may drive the extension's controls.
 //
-// web_run_code (and a few siblings) run the AGENT's code in the extension's isolated world, where
-// chrome.runtime.sendMessage reaches the service worker and chrome.storage is readable. Without a check on
-// who is sending, that code could resolve its own approval requests, grant itself access to any site, or read
-// the clipboard through the offscreen document, and the approval queue would approve nothing but the agent's
-// own wishes. These tests pin that a script running inside a tab is refused everywhere.
+// The service worker answers messages that read and change what the owner decided (grants, web access, the
+// approval queue), and the offscreen page can read the clipboard. Nothing in this build lets an agent run code
+// where it could send those messages (web_run_code and web_eval run in the page's own world through the
+// debugger; the extension's isolated world did not evaluate a string when checked in Chrome), so this is
+// hardening. These tests pin that a sender that is not the extension's own page is refused everywhere, so
+// that stays true if a future feature changes what can run in a tab.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -69,7 +70,7 @@ for (const [name, sender] of Object.entries(outsiders)) assert.equal(isOwnerPage
   assert.equal(answers.length, 1, 'and none was answered');
 }
 
-// ── TEST 3: the attack itself. An injected script tries to approve its own request ──
+// ── TEST 3: what a script in a tab would try: approve its own request ──
 {
   const pending = enqueueApproval({ origin: 'https://shop.example', tool: 'web_click', risk: 'destructive', details: {}, timeoutMs: 30_000 });
   const settled = pending.then(() => 'approved', (e) => e.code);
