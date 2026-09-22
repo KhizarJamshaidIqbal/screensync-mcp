@@ -168,9 +168,13 @@ $('btn-connect').onclick = async () => {
     show('guide');
     loadGuide();
   } catch (e) {
-    err.textContent = e.status === 401
-      ? '401 Unauthorized — Pairing token does not match hub SCREEN_SYNC_TOKEN.'
-      : `Hub unreachable at ${url} — please check start-hub.bat is running. (${e.message})`;
+    if (e.status === 401) {
+      err.textContent = '401 Unauthorized — Pairing token does not match hub SCREEN_SYNC_TOKEN.';
+    } else if (e.status === 404) {
+      err.textContent = `404 Not Found at ${url} — Port 3000 is occupied by another local server or an outdated hub. Please run sh start-hub.sh (macOS) or start-hub.bat (Windows).`;
+    } else {
+      err.textContent = `Hub unreachable at ${url} — please check the hub is running (sh start-hub.sh on macOS, start-hub.bat on Windows). (${e.message})`;
+    }
     err.hidden = false;
   }
 };

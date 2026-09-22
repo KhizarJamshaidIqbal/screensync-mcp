@@ -43,7 +43,10 @@ export async function probeHub(url, timeoutMs = 6_000) {
   });
   const latencyMs = Date.now() - t0;
   if (!res.ok) throw new HubError(res.status, `Hub replied ${res.status}`);
-  const j = await res.json();
+  const j = await res.json().catch(() => ({}));
+  if (j && j.service && j.service !== 'screensync-hub') {
+    throw new HubError(400, `Another application (${j.service}) is using port 3000, not ScreenSync Hub`);
+  }
   return { ...j, latencyMs };
 }
 
