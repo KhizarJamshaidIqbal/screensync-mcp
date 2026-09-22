@@ -12,7 +12,7 @@
 const ARM_MS = 1200;
 const POLL_MS = 1000;
 
-const id = new URLSearchParams(location.search).get('id') || '';
+const id = new URL(location.href).searchParams.get('id') || '';
 const $ = (sel) => document.getElementById(sel);
 const send = (msg) => chrome.runtime.sendMessage(msg);
 const allowButtons = [$('once'), $('always')];

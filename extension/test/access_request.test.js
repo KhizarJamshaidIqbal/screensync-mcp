@@ -7,6 +7,7 @@
 // blocks re-asking, and the person can see and revoke an "Allow once" in the dashboard list.
 
 import assert from 'node:assert/strict';
+import process from 'node:process';
 import { createChromeMock } from './harness.js';
 
 globalThis.chrome = createChromeMock();
