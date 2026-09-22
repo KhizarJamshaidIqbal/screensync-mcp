@@ -89,10 +89,13 @@
         live Android screen, latency telemetry and a one-click Connect Kit.
       </p>
       <div class="mt-9 flex flex-wrap gap-4">
-        <a href="#install" class="btn-primary px-7 py-3.5 rounded-full font-semibold inline-flex items-center gap-2">
-          <i data-lucide="puzzle" class="w-5 h-5"></i> Install in 5 steps
+        <a href="downloads/screensync-extension.zip" download class="btn-primary px-7 py-3.5 rounded-full font-semibold inline-flex items-center gap-2 shadow-lg hover:scale-105 transition">
+          <i data-lucide="download" class="w-5 h-5"></i> Download Extension (.zip)
         </a>
-        <a href="#skills" class="btn-secondary px-7 py-3.5 rounded-full font-semibold inline-flex items-center gap-2">
+        <a href="#install" class="btn-secondary px-7 py-3.5 rounded-full font-semibold inline-flex items-center gap-2">
+          <i data-lucide="list-ordered" class="w-5 h-5"></i> Setup Guide (5 Steps)
+        </a>
+        <a href="#skills" class="btn-secondary px-6 py-3.5 rounded-full font-semibold inline-flex items-center gap-2">
           <i data-lucide="sparkles" class="w-5 h-5"></i> Agent skills
         </a>
       </div>
@@ -143,29 +146,50 @@
 
     <div class="mt-14 space-y-8">
       <!-- STEP 1 -->
-      <div class="lux-card p-6 sm:p-8 reveal grid lg:grid-cols-12 gap-8 items-center">
+      <div class="lux-card p-6 sm:p-8 reveal grid lg:grid-cols-12 gap-8 items-center border-l-4 border-l-amber-400">
         <div class="lg:col-span-5">
-          <div class="flex items-center gap-3"><div class="w-10 h-10 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center font-extrabold text-[#6541D6]">1</div><h3 class="font-bold text-xl">Run the hub on your computer</h3></div>
-          <p class="text-sm text-[#4B4460] mt-3 leading-relaxed">The hub is the small local server everything connects to. Download it below, unzip, double-click <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">start-hub.bat</code> — no repo, no terminal. It prints a pairing link + QR. (Needs free <a class="text-[#6541D6] font-semibold" href="https://nodejs.org" target="_blank" rel="noopener">Node 18+</a>.)</p>
-          <a href="downloads/screensync-hub.zip" download class="btn-primary px-6 py-3 rounded-full text-sm font-semibold inline-flex items-center gap-2 mt-4"><i data-lucide="download" class="w-4 h-4"></i> Download hub (.zip)</a>
-          <p class="text-xs text-[#4B4460] mt-2">Always the latest build — rebuilt from our GitHub on every release. Developer? The extension source is public — <a class="text-[#6541D6] font-semibold" href="https://github.com/KhizarJamshaidIqbal/screensync-extension" target="_blank" rel="noopener">clone it</a> and Load unpacked straight from the clone; the zip above always matches it.</p>
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 shrink-0 rounded-xl bg-amber-50 flex items-center justify-center font-extrabold text-amber-600">1</div>
+            <div>
+              <span class="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold px-2 py-0.5 rounded-full"><i data-lucide="server" class="w-3 h-3 text-amber-600"></i> DESKTOP SERVER ONLY</span>
+              <h3 class="font-bold text-xl mt-1">Run the hub on your computer</h3>
+            </div>
+          </div>
+          <p class="text-sm text-[#4B4460] mt-3 leading-relaxed">The hub is the small local server daemon that coordinates your AI agents, phone, and browser. Download it below, unzip, and double-click <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">start-hub.bat</code> (macOS/Linux: <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">sh start-hub.sh</code>) — needs free <a class="text-[#6541D6] font-semibold" href="https://nodejs.org" target="_blank" rel="noopener">Node 18+</a>.</p>
+          <div class="mt-3 p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 leading-normal flex items-start gap-2">
+            <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+            <span><strong>Do NOT load this into Chrome:</strong> This is a backend desktop service, not the browser extension. It has no manifest.json. For the Chrome extension, download Step 2 below.</span>
+          </div>
+          <a href="downloads/screensync-hub.zip" download class="btn-secondary px-6 py-3 rounded-full text-sm font-semibold inline-flex items-center gap-2 mt-4 text-[#1E1633] border border-purple-200 hover:bg-purple-50"><i data-lucide="server" class="w-4 h-4 text-[#6541D6]"></i> Download hub (.zip)</a>
+          <p class="text-xs text-[#4B4460] mt-2">Always the latest build — rebuilt from our GitHub on every release.</p>
         </div>
         <div class="lg:col-span-7 min-w-0">
           <div class="rounded-xl bg-[#150E27] text-purple-100 p-5 font-mono text-[13px] leading-relaxed overflow-x-auto">
-            <div class="text-purple-200/60"># unzip, then double-click start-hub.bat</div>
-            <div class="text-purple-200/60"># macOS / Linux: sh start-hub.sh</div>
+            <div class="text-purple-200/60"># 1. Unzip screensync-hub.zip</div>
+            <div class="text-purple-200/60"># 2. Windows: double-click start-hub.bat</div>
+            <div class="text-purple-200/60">#    macOS / Linux: sh start-hub.sh</div>
             <div class="text-emerald-300 mt-2">✔ hub on http://localhost:3000 — pairing QR printed</div>
           </div>
         </div>
       </div>
 
       <!-- STEP 2 -->
-      <div class="lux-card p-6 sm:p-8 reveal grid lg:grid-cols-12 gap-8 items-center">
+      <div class="lux-card p-6 sm:p-8 reveal grid lg:grid-cols-12 gap-8 items-center border-l-4 border-l-emerald-500">
         <div class="lg:col-span-5">
-          <div class="flex items-center gap-3"><div class="w-10 h-10 shrink-0 rounded-xl bg-purple-50 flex items-center justify-center font-extrabold text-[#6541D6]">2</div><h3 class="font-bold text-xl">Load the extension</h3></div>
-          <p class="text-sm text-[#4B4460] mt-3 leading-relaxed">Grab the zip below — no repo or terminal needed. Unzip it, open <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">chrome://extensions</code> (or <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">edge://extensions</code>), switch on <strong>Developer mode</strong>, click <strong>Load unpacked</strong> and pick the unzipped <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">extension/</code> folder.</p>
-          <a href="downloads/screensync-extension.zip" download class="btn-primary px-6 py-3 rounded-full text-sm font-semibold inline-flex items-center gap-2 mt-4"><i data-lucide="download" class="w-4 h-4"></i> Download extension (.zip)</a>
-          <p class="text-xs text-[#4B4460] mt-2">Always the latest build — the zip is rebuilt straight from our GitHub on every release, so you never install an outdated version.</p>
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 shrink-0 rounded-xl bg-emerald-50 flex items-center justify-center font-extrabold text-emerald-600">2</div>
+            <div>
+              <span class="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full"><i data-lucide="puzzle" class="w-3 h-3 text-emerald-600"></i> CHROME &amp; EDGE EXTENSION</span>
+              <h3 class="font-bold text-xl mt-1">Load the extension in Chrome</h3>
+            </div>
+          </div>
+          <p class="text-sm text-[#4B4460] mt-3 leading-relaxed">Grab the extension zip below. Unzip it, open <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">chrome://extensions</code> (or <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">edge://extensions</code>), switch on <strong>Developer mode</strong>, click <strong>Load unpacked</strong> and pick the unzipped <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">screensync-extension</code> folder.</p>
+          <div class="mt-3 p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-900 leading-normal flex items-start gap-2">
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
+            <span><strong>Contains manifest.json:</strong> This is the browser extension package. If you see <em>"Manifest file is missing"</em>, verify you unzipped and selected this file (<code class="bg-emerald-100 px-1 py-0.5 rounded font-mono">screensync-extension.zip</code>), NOT the hub zip.</span>
+          </div>
+          <a href="downloads/screensync-extension.zip" download class="btn-primary px-6 py-3 rounded-full text-sm font-semibold inline-flex items-center gap-2 mt-4 shadow-md shadow-purple-200"><i data-lucide="puzzle" class="w-4 h-4"></i> Download extension (.zip)</a>
+          <p class="text-xs text-[#4B4460] mt-2">Always the latest build — the zip is rebuilt straight from our GitHub on every release.</p>
           <p class="text-sm text-[#4B4460] mt-2 leading-relaxed">A Chrome Web Store listing is in review — the sideload build is the identical code.</p>
         </div>
         <div class="lg:col-span-7 space-y-4">
@@ -178,7 +202,7 @@
             <img src="assets/screenshots/ext-guide-load-unpacked.png" alt="Load unpacked button highlighted in the extensions toolbar" class="rounded-xl border border-purple-100 w-full h-auto" loading="lazy">
           </div>
           <div>
-            <div class="flex items-center gap-2 text-sm font-semibold text-[#6541D6] mb-2"><span class="w-6 h-6 shrink-0 rounded-full bg-[#6541D6] text-white flex items-center justify-center text-xs font-bold">3</span> Pick the unzipped <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">extension/</code> folder → <strong>&nbsp;Select Folder</strong></div>
+            <div class="flex items-center gap-2 text-sm font-semibold text-[#6541D6] mb-2"><span class="w-6 h-6 shrink-0 rounded-full bg-[#6541D6] text-white flex items-center justify-center text-xs font-bold">3</span> Pick the unzipped <code class="bg-[#F6F3FD] px-1.5 py-0.5 rounded">screensync-extension</code> folder → <strong>&nbsp;Select Folder</strong></div>
             <img src="assets/screenshots/ext-guide-folder.png" alt="Folder picker showing the unzipped extension folder with the Select Folder button highlighted" class="rounded-xl border border-purple-100 w-full h-auto" loading="lazy">
           </div>
         </div>
