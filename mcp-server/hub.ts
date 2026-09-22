@@ -26,6 +26,7 @@ import {
   type FrameMetadata,
 } from "./storage.js";
 import { createWebBridge } from "./web.js";
+import { watchExtensionDir } from "./ext-watcher.js";
 import { startCognitivePersistence, stopCognitivePersistence } from "./cognitive-engines.js";
 
 export type HubHandle = {
@@ -367,18 +368,13 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
   let apkWatcher: FSWatcher | null = null;
   let apkBroadcastTimer: NodeJS.Timeout | null = null;
   let lastBroadcastSha = "";
-  let extReloadTimer: NodeJS.Timeout | null = null;
   const extDir = path.resolve(PROJECT_DIR, "..", "extension");
   if (existsSync(extDir)) {
     try {
-      extWatcher = watch(extDir, { recursive: true }, (_event, filename) => {
-        if (!filename || filename.includes(".git") || filename.includes("node_modules")) return;
-        if (!/\.(js|html|css|json)$/i.test(filename)) return;
-        if (extReloadTimer) clearTimeout(extReloadTimer);
-        extReloadTimer = setTimeout(() => {
-          log("INFO", "Extension file changed, broadcasting dev_hot_reload", { file: filename });
-          broadcast({ type: "dev_hot_reload", file: filename });
-        }, 300);
+      // Only real edits reload: see ext-watcher.ts for why a raw fs.watch event is not enough on Windows.
+      extWatcher = watchExtensionDir(extDir, (file) => {
+        log("INFO", "Extension file changed, broadcasting dev_hot_reload", { file });
+        broadcast({ type: "dev_hot_reload", file });
       });
       log("INFO", "Zero-Click HMR file watcher active", { dir: extDir });
     } catch (err) {
@@ -709,7 +705,6 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
     webBridge.stopSchedules();
     stopCognitivePersistence(); // no-op unless persistence had already started
     if (extWatcher) extWatcher.close();
-    if (extReloadTimer) clearTimeout(extReloadTimer);
     hubEvents.off("event", broadcast);
     for (const client of sseClients) client.end();
     sseClients.clear();
@@ -738,7 +733,6 @@ if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
       clearInterval(keepalive);
       webBridge.stopSchedules();
       if (extWatcher) extWatcher.close();
-      if (extReloadTimer) clearTimeout(extReloadTimer);
       hubEvents.off("event", broadcast);
       for (const client of sseClients) client.end();
       sseClients.clear();
