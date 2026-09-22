@@ -1,5 +1,5 @@
 import { parsePairing } from '../lib/pairing.js';
-import { buildAgentSetupPrompt } from '../lib/connect-kit.js';
+import { buildAgentSetupPrompt, buildHubTroubleshootPrompt } from '../lib/connect-kit.js';
 import { PROBE_URLS, DEFAULT_TOKEN } from '../lib/constants.js';
 
 const $ = (id) => document.getElementById(id);
@@ -130,10 +130,20 @@ $('btn-apply').onclick = () => {
   $('token').value = p.token;
 };
 
+function detectPlatform() {
+  const ua = navigator.userAgent || '';
+  if (/Macintosh|Mac OS X/i.test(ua)) return 'macOS';
+  if (/Windows/i.test(ua)) return 'Windows';
+  if (/Linux/i.test(ua)) return 'Linux';
+  return 'Desktop';
+}
+
 // Connect Button
 $('btn-connect').onclick = async () => {
   const err = $('conn-err');
+  const troubleshoot = $('conn-troubleshoot');
   err.hidden = true;
+  if (troubleshoot) troubleshoot.hidden = true;
   const url = $('url').value.trim().replace(/\/$/, '');
   const token = $('token').value.trim() || DEFAULT_TOKEN;
   
@@ -176,6 +186,61 @@ $('btn-connect').onclick = async () => {
       err.textContent = `Hub unreachable at ${url} — please check the hub is running (sh start-hub.sh on macOS, start-hub.bat on Windows). (${e.message})`;
     }
     err.hidden = false;
+
+    // Show Auto-Fix with AI Agent card
+    if (troubleshoot) {
+      troubleshoot.hidden = false;
+      const os = detectPlatform();
+      const guideContent = $('manual-guide-content');
+      if (guideContent) {
+        if (os === 'macOS') {
+          guideContent.innerHTML = `
+            <ol style="margin-left:16px;margin-top:4px;display:flex;flex-direction:column;gap:4px">
+              <li>Open <strong>Terminal</strong> (<code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">Cmd + Space</code> &rarr; <em>Terminal</em>).</li>
+              <li>Check if port 3000 is busy: <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">lsof -i :3000</code> (close any conflicting dev app).</li>
+              <li>Navigate &amp; start hub: <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">cd ~/Downloads/screensync-hub &amp;&amp; sh start-hub.sh</code></li>
+              <li>When terminal displays <em>✔ hub on http://localhost:3000</em>, click <strong>Connect &amp; Continue</strong>.</li>
+            </ol>`;
+        } else {
+          guideContent.innerHTML = `
+            <ol style="margin-left:16px;margin-top:4px;display:flex;flex-direction:column;gap:4px">
+              <li>Open the unzipped <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">screensync-hub</code> folder.</li>
+              <li>Double-click <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">start-hub.bat</code>.</li>
+              <li>Make sure no other web server is occupying port 3000.</li>
+              <li>When terminal displays <em>✔ hub on http://localhost:3000</em>, click <strong>Connect &amp; Continue</strong>.</li>
+            </ol>`;
+        }
+      }
+
+      const copyFixBtn = $('btn-copy-fix-prompt');
+      if (copyFixBtn) {
+        copyFixBtn.onclick = async () => {
+          const fixPrompt = buildHubTroubleshootPrompt({
+            hubUrl: url,
+            token,
+            error: err.textContent,
+            os,
+          });
+          try {
+            await navigator.clipboard.writeText(fixPrompt);
+            const origText = copyFixBtn.textContent;
+            copyFixBtn.textContent = '✓ Copied!';
+            setTimeout(() => { copyFixBtn.textContent = origText; }, 2000);
+          } catch {
+            prompt('Copy AI Fix Prompt:', fixPrompt);
+          }
+        };
+      }
+
+      const toggleGuideBtn = $('btn-toggle-guide');
+      const drawer = $('manual-steps-drawer');
+      if (toggleGuideBtn && drawer) {
+        toggleGuideBtn.onclick = () => {
+          drawer.hidden = !drawer.hidden;
+          toggleGuideBtn.textContent = drawer.hidden ? 'Manual Steps' : 'Hide Steps';
+        };
+      }
+    }
   }
 };
 

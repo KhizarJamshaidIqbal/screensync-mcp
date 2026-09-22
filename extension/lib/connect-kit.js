@@ -166,3 +166,36 @@ Your mission is to operate autonomously as a master senior operator using the /s
 
 Confirm connectivity now by calling web_status and get_device_status, then report readiness!`;
 }
+
+// 1-Click troubleshooting prompt for AI agents to automatically fix hub connection failures
+export function buildHubTroubleshootPrompt({ hubUrl, token, error, os = 'auto' }) {
+  return `You are fixing a ScreenSync Hub connection issue on this computer.
+Target Hub: ${hubUrl}
+Pairing Token: ${token}
+Detected Platform: ${os}
+Error Encountered: "${error || 'Connection failed'}"
+
+MISSION: Diagnose port 3000, resolve any conflict or missing daemon, launch the ScreenSync Hub, and confirm healthy operation.
+
+ACTION STEPS:
+1. CHECK PORT 3000 CONFLICT:
+   - On macOS / Linux: Run \`lsof -i :3000\` to check which process is listening.
+     If an unrelated process (e.g. Next.js, Node dev server, Python, Docker) is holding port 3000, ask the user or terminate it to free port 3000.
+   - On Windows: Run \`netstat -ano | findstr :3000\` and inspect the PID.
+2. LOCATE SCREENSYNC HUB FOLDER:
+   - Search for the unzipped hub directory (usually in ~/Downloads/screensync-hub or current repo mcp-server/).
+   - Ensure "start-hub.bat", "start-hub.sh", or "dist/index.js" is present.
+3. PREPARE DEPENDENCIES:
+   - Inside the hub directory, if "node_modules" is missing, run: \`npm install --omit=dev\`
+4. START THE HUB DAEMON:
+   - On macOS / Linux: Run \`sh start-hub.sh\` (or \`node dist/index.js &\`)
+   - On Windows: Run \`start-hub.bat\` (or \`node dist/index.js\`)
+5. VERIFY HEALTH:
+   - Run: \`curl -s http://127.0.0.1:3000/health\`
+     Expected JSON response: {"ok":true,"service":"screensync-hub",...}
+   - Run: \`curl -s -H "Authorization: Bearer ${token}" http://127.0.0.1:3000/api/web/status\`
+     Expected JSON response: {"success":true,...}
+6. REPORT SUCCESS:
+   - Once healthy, report: "ScreenSync Hub is now running on port 3000. Please click 'Connect & Continue' in your Chrome extension!"`;
+}
+

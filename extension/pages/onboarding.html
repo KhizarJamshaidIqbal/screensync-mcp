@@ -184,6 +184,42 @@
           </button>
         </div>
         <div class="err" id="conn-err" hidden></div>
+
+        <!-- 1-Click AI Agent Fix & Troubleshooting Card -->
+        <div id="conn-troubleshoot" class="prompt-hero-box" style="margin-top:14px;border-color:rgba(239,68,68,0.45);background:linear-gradient(135deg,rgba(40,15,35,0.9),rgba(30,18,55,0.85))" hidden>
+          <div class="row spread" style="margin-bottom:8px">
+            <strong style="color:#FCA5A5;font-size:13px;display:flex;align-items:center;gap:6px">
+              <svg class="icon-svg-sm" style="color:#F87171" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m14.7 6.3 3 3a1 1 0 0 1 0 1.4l-8.6 8.6a1 1 0 0 1-.7.3H5v-3.4a1 1 0 0 1 .3-.7l8.6-8.6a1 1 0 0 1 1.4 0zM18 10l-4-4"/>
+              </svg>
+              Auto-Fix with AI Agent
+            </strong>
+            <div class="row" style="gap:6px">
+              <button class="btn btn-ghost btn-sm" id="btn-toggle-guide" style="font-size:11px;padding:3px 8px" type="button">
+                <svg class="icon-svg-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+                </svg>
+                Manual Steps
+              </button>
+              <button class="btn btn-primary btn-sm" id="btn-copy-fix-prompt" style="font-size:11px;padding:4px 10px;background:linear-gradient(135deg,#DC2626,#9333EA)" type="button">
+                <svg class="icon-svg-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                </svg>
+                Copy AI Fix Prompt
+              </button>
+            </div>
+          </div>
+          <p class="dim" style="font-size:11.5px;line-height:1.5;color:rgba(255,255,255,0.75)">
+            Paste this prompt directly into Claude Code, Cursor, Windsurf, or Terminal AI. The agent will inspect port 3000, start the hub daemon, and verify connectivity automatically.
+          </p>
+
+          <!-- Collapsible Manual Steps Drawer -->
+          <div id="manual-steps-drawer" style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);font-size:11.5px;color:rgba(255,255,255,0.85);line-height:1.6" hidden>
+            <div style="font-weight:600;color:#FCA5A5;margin-bottom:6px">Manual Fix Guide:</div>
+            <div id="manual-guide-content"></div>
+          </div>
+        </div>
       </div>
     </section>
 
