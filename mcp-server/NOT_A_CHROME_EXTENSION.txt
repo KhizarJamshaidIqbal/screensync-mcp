@@ -1,0 +1,14 @@
+====================================================================
+SCREENYSNC MCP - DESKTOP HUB SERVER (NOT A CHROME EXTENSION)
+====================================================================
+
+You unzipped the ScreenSync Desktop Hub Server.
+This is a desktop daemon to run on your PC/Mac (via start-hub.bat or start-hub.sh).
+
+If you are trying to install the Chrome Extension and received the error:
+"Manifest file is missing or unreadable - Could not load manifest"
+
+Please download the actual Chrome Extension package:
+--> screensync-extension.zip
+Available from: https://screensyncmcp.epsoldev.com/extension.html (Step 2)
+====================================================================

@@ -1,5 +1,9 @@
 # ScreenSync MCP Hub
 
+> ⚠️ **NOTICE FOR USERS**: This folder contains the **ScreenSync MCP Desktop Hub Server** (run via `start-hub.bat` or `start-hub.sh`).
+> This is **NOT** the Chrome Browser Extension and cannot be loaded via `chrome://extensions` (it does not contain `manifest.json`).
+> To install the Chrome Extension, download `screensync-extension.zip` from https://screensyncmcp.epsoldev.com/extension.html (Step 2).
+
 Local HTTP + SSE Hub daemon connecting AI coding agents (Claude Desktop, Claude Code, Cursor, Windsurf, Gemini) to your mobile phone and browser extension.
 
 ## Getting Started

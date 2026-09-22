@@ -19,6 +19,7 @@ $includeFiles = @(
   'start-hub.bat',
   'start-hub.sh',
   'README.md',
+  'NOT_A_CHROME_EXTENSION.txt',
   'package.json',
   'package-lock.json'
 )
