@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ScreenSync - an AI agent is asking for access</title>
+  <link rel="stylesheet" href="../styles/brand.css">
+  <link rel="stylesheet" href="../styles/components.css">
+  <style>
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); }
+    .ar { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-6); min-height: 100vh; box-sizing: border-box; }
+    .ar-head { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--text-sm); color: var(--dim); }
+    .ar-title { font-size: var(--text-xl); line-height: var(--lh-xl); margin: 0; }
+    .ar-site { padding: var(--sp-4); border: 1px solid var(--border); border-left: 4px solid var(--warning); border-radius: var(--r-lg); background: var(--surface); }
+    .ar-host { font-size: var(--text-lg); font-weight: 700; word-break: break-all; }
+    .ar-origin { font-family: var(--mono); font-size: var(--text-xs); color: var(--dim); word-break: break-all; }
+    .ar-label { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--dim); margin-bottom: var(--sp-1); }
+    .ar-reason { font-size: var(--text-sm); white-space: pre-wrap; word-break: break-word; }
+    .ar-note { font-size: var(--text-xs); color: var(--dim); }
+    .ar-actions { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: auto; position: sticky; bottom: 0; background: var(--bg); padding-top: var(--sp-2); }
+    .ar-actions .btn { width: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: var(--sp-3); font-size: var(--text-md); }
+    .ar-actions .btn[disabled] { opacity: .45; cursor: not-allowed; }
+    .ar-sub { display: block; font-size: var(--text-xs); font-weight: 400; opacity: .85; }
+    .ar-done { font-size: var(--text-md); font-weight: 600; text-align: center; padding: var(--sp-6) 0; }
+  </style>
+</head>
+<body>
+<main class="ar" id="ar">
+  <div class="ar-head">
+    <img src="../icons/icon32.png" alt="" width="20" height="20">
+    <span>ScreenSync MCP</span>
+    <span class="pill" id="left" style="margin-left:auto"></span>
+  </div>
+  <h1 class="ar-title">An AI agent is asking for access to this site</h1>
+
+  <section class="ar-site">
+    <div class="ar-host" id="host">...</div>
+    <div class="ar-origin" id="origin"></div>
+  </section>
+
+  <section>
+    <div class="ar-label">It wants to</div>
+    <div class="ar-reason" id="wants">Read this site's pages, click and type on them, and send requests to it signed in as you (for example submit a form or change a setting). It does not get the cookie tools that read or copy your login.</div>
+  </section>
+
+  <section>
+    <div class="ar-label">The agent's reason (its own words - not checked)</div>
+    <div class="ar-reason" id="reason"></div>
+  </section>
+
+  <div class="ar-actions" id="actions">
+    <button class="btn btn-ghost" id="deny" autofocus>Deny</button>
+    <button class="btn btn-primary" id="once" data-allow="once" tabindex="-1" disabled>Allow once<span class="ar-sub" id="once-sub">for the next 15 minutes</span></button>
+    <button class="btn btn-primary" id="always" data-allow="always" tabindex="-1" disabled>Always allow this site<span class="ar-sub">until you revoke it in the dashboard's Web Access tab</span></button>
+    <div class="ar-note">Only a mouse click counts. The Allow buttons wake up a moment after this window appears and ignore the keyboard, so nothing typed by automation can press them. Closing this window counts as Deny. An "Allow once" is listed in the Web Access tab, where you can revoke it early.</div>
+  </div>
+</main>
+<script type="module" src="access-request.js"></script>
+</body>
+</html>

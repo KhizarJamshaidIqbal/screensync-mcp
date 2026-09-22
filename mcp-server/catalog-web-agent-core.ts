@@ -258,6 +258,22 @@ export function agentCoreWebToolDefinitions(): WebToolDef[] {
       },
     },
     {
+      name: "web_request_access",
+      description:
+        "Ask the user for access to a site you are not allowed to read or act on (\"Read/Action access not granted for origin X\"). The extension puts the request in front of them in a focused window, on the toolbar badge and in the popup: they answer Deny, Allow once (read + act for 15 minutes) or Always allow this site (a saved read + act grant, the same as the dashboard's Add Grant; not the cookie grant). Only a person can answer; nothing you send approves it, and you must never try to click the window. Waits up to waitMs (max 30s) and returns status allowed_once / allowed_always / already_allowed, or pending: the request is still waiting, so call this again with the url it returns (it never opens a second request). One window is shown at a time and at most 3 requests may wait (ACCESS_BUSY beyond that). A decline, or the user closing the window, returns USER_DECLINED and the site cannot be asked for again for 10 minutes; an unanswered request blocks re-asking for 5 minutes. Then ask the user in chat instead. Only http(s) sites; with no url, the active tab of the user's browser window.",
+      inputSchema: {
+        type: "object",
+        required: ["reason"],
+        properties: {
+          reason: { type: "string", description: "One sentence the user will read: what you need this site for (max 240 characters)." },
+          url: { type: "string", description: "The site or page to ask for (http/https). Defaults to the tab the call targets." },
+          tabId: { type: "integer", description: "Optional tab whose site to ask for, when url is not given." },
+          waitMs: { type: "integer", minimum: 0, maximum: 30000, default: 30000, description: "How long to wait for the answer before returning status pending." },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
       name: "web_agent_window",
       description:
         "Manages an isolated browser window with an amber breathing viewport border for agent tasks. Keeps automated work segregated from user personal windows. Accessing tabs outside the agent window triggers in-page borrowing approval.",

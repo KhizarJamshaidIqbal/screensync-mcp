@@ -111,7 +111,7 @@ export function mountWebAccess(el, send) {
         row.innerHTML = `
           <div>
             <code>${escapeHtml(orig)}</code>
-            <span class="dim" style="margin-left:6px">${g.read ? '✓ Read' : '✗ Read'} · ${g.act ? '✓ Act' : '✗ Act'} · ${g.cookies ? '✓ Cookies' : '✗ Cookies'}</span>
+            <span class="dim" style="margin-left:6px">${g.read ? '✓ Read' : '✗ Read'} · ${g.act ? '✓ Act' : '✗ Act'} · ${g.cookies ? '✓ Cookies' : '✗ Cookies'}${g.allowOnceUntil ? ` · allowed once until ${escapeHtml(new Date(g.allowOnceUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}` : ''}</span>
           </div>
           <button class="btn btn-sm btn-ghost" data-revoke="${escapeHtml(orig)}">Revoke</button>`;
         grantsList.appendChild(row);

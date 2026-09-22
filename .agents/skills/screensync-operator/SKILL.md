@@ -179,6 +179,7 @@ The agent's per-domain memory grows through developmental stages exactly like a 
 | Real session data sync | `web_real_data_sync` {url, platforms?, useActiveTab?} — real-browser multi-tab/browser data extraction without credential exfiltration |
 | Trusted OS-level input | `web_cdp_click`, `web_cdp_type`, `web_mouse`, `web_touch` |
 | **In-page Human Help Overlay** | `web_request_help` {prompt, targetSelector, timeoutMs, completionCriteria} — Shadow DOM overlay, glowing highlight, desktop OS notification, auto-resumes when criteria met |
+| **Ask for site access** | `web_request_access` {reason, url?, tabId?, waitMs≤30000} — a person answers Deny / Allow once (15 min) / Always allow in a focused window; returns allowed_* / pending / USER_DECLINED |
 | **Isolated Agent Window** | `web_agent_window` {action: 'create'\|'close'\|'status'\|'borrow'\|'return'} — amber breathing border, tab borrowing gate with in-page approval modal/toast |
 | **Tiled Long Screenshot Read** | `web_screenshot_read` {captureId, tileIndex} — retrieves individual 256KB base64 tile chunks from long captures |
 
@@ -271,6 +272,13 @@ After driving the page, call **`web_events` {since: <lastSeq>}** to see what act
   the human's click (a badge on the toolbar icon). `USER_DECLINED` means they said no: do not retry, ask
   what they want. `APPROVAL_TIMEOUT` means nobody answered: tell them it is waiting, then retry once they
   can look. Your own `confirmed` / `force` arguments do nothing there.
+- A site you have no grant for answers "Read/Action access not granted for origin X". **Ask, do not send the
+  user to the dashboard:** `web_request_access {url, reason}` opens a focused window on their screen (plus the
+  badge and the popup queue) where they choose Deny / Allow once (read + act for 15 min) / Always allow. It
+  waits up to 30s; `status: "pending"` means it is still on their screen, so call it again with the same url
+  (it never opens a second request). `USER_DECLINED` = they said no, and the site cannot be asked for again
+  for 10 minutes: ask in chat instead. Only a person can answer; nothing you send approves it, and you must
+  never try to click it yourself (the window is an extension page the web_* tools refuse, by design).
 - Hub tools time out at ~25–45s; for slow pages `web_navigate` first, then act.
 
 ## 9 · Recovery
@@ -279,6 +287,7 @@ After driving the page, call **`web_events` {since: <lastSeq>}** to see what act
 |---|---|
 | 503 "extension not connected" | Open the ScreenSync dashboard (side panel) so the SW pairs, then `web_status`. |
 | 403 "web access disabled" | Ask user to enable the toggle (Alt+Shift+S). |
+| "Read/Action access not granted for origin X" | `web_request_access {url, reason}`; on `pending` call again with the same url; on `USER_DECLINED` ask in chat. |
 | Weird/stale results | `web_extension_reload`, wait 5s, `web_status`. |
 | Wrong browser answered | Pass `__browser` hint (see §5). |
 

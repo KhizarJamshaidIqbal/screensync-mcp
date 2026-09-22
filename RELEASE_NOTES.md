@@ -1,5 +1,18 @@
 # ScreenSync MCP — Release Notes
 
+## Version 1.12.0 (access requests) — 2026-09-22
+
+Before this release an agent that hit "Action access not granted for origin X" was stuck until you found the dashboard's Web Access tab and added a grant by hand, usually after it had asked you in chat to do so. Now it can ask you directly.
+
+- **New tool `web_request_access`** (226 tools; in consolidated mode `web_assist` action `request_access`). The agent names the site and says in one sentence why it needs it. A small ScreenSync window opens in the middle of your screen, the toolbar badge counts it, and it is listed in the popup and the dashboard queue.
+- **You choose: Deny, Allow once (15 minutes) or Always allow this site.** Allow once and Always allow both give *read + act*: the agent can read the site's pages, click and type on them, and send requests to it signed in as you (for example submit a form). Neither gives the cookie tools that read or copy your login. Always allow is the same saved grant the dashboard's Add Grant makes; an Allow once is listed in the Web Access tab with its end time, and revoking the site ends it at once. It is never written to storage.
+- **The agent cannot answer its own request.** The decision is applied only from the extension's own pages; there is no hub route or tool argument that grants anything, and every `web_*` tool refuses to read, click or script extension pages. On the window and in the queue the Allow buttons wake up a moment after they appear (and again if the row moves under your pointer), never take keyboard focus and ignore keyboard presses, so only a pointer click counts.
+- **It cannot wear you down.** One window at a time (the next opens when you answer), at most 3 requests waiting, and one request per site however often the agent asks. Declining, or closing the window (that counts as Deny), blocks the site from asking again for 10 minutes; an unanswered request blocks it for 5.
+- The agent's reason is shown as "its own words - not checked": it is what the agent claims, not something ScreenSync verified.
+- While the access window has focus, tools called without a tab now keep targeting the tab you were using, not the first website tab found anywhere.
+
+---
+
 ## Version 1.11.0 (the approval queue, for real) — 2026-09-21
 
 The 1.8.0 notes below describe an interactive Approval Queue. It existed as a component and had **no caller**: a destructive-looking action returned `USER_CONFIRMATION_REQUIRED` and the agent simply called again with `confirmed:true`, an argument it supplies itself, so nothing ever asked a person. This release wires it in.

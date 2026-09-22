@@ -10,8 +10,9 @@ import { getProfileIdentity, matchesSelfTarget } from './profile-identity.js';
 import { isRestrictedTab } from './tab-resolve.js';
 import { makeError, ERROR_CODES } from './errors.js';
 import { recordAuditEntry } from './audit.js';
-import { runWithApproval } from './approval-gate.js';
+import { runWithApproval, stripInternalArgs } from './approval-gate.js';
 import { executeWebTool, isActTool } from './web-tools.js';
+import { requestAccess } from './access-request.js';
 
 export async function registerWebBridge() {
   let tab = null;
@@ -80,8 +81,11 @@ export async function handleWebRequest(req) {
     out = makeError(ERROR_CODES.NO_GRANT, 'Web access is disabled in the ScreenSync extension dashboard.');
   } else {
     try {
+      // web_request_access touches no page: its whole job is to ask a person (access-request.js), so it does
+      // not go through the action gate. Its arguments are scrubbed of internal flags all the same.
+      if (tool === 'web_request_access') out = await requestAccess(stripInternalArgs(args).args, req);
       // A person, not the agent, decides anything destructive: see approval-gate.js.
-      out = await runWithApproval(tool, args, req, executeWebTool, { isActTool });
+      else out = await runWithApproval(tool, args, req, executeWebTool, { isActTool });
     } catch (e) {
       out = makeError(ERROR_CODES.INTERNAL, String((e && e.message) || e));
     }

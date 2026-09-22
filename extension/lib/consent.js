@@ -73,13 +73,44 @@ export async function getGrants() {
   return settings.grants || {};
 }
 
+// ── "Allow once": a short grant a person gave from an access request (access-request.js) ────────────
+// Read + act on one origin for ALLOW_ONCE_MS, never cookies. Held in memory on purpose: it ends on its own,
+// and an extension reload ends it early, which is the safe direction. Revoking the site ends it too.
+export const ACCESS_RISK = 'access';
+export const ALLOW_ONCE_MS = 15 * 60_000;
+const allowOnceGrants = new Map(); // normalized origin -> expiresAt (ms)
+
+export function grantAllowOnce(origin, ms = ALLOW_ONCE_MS) {
+  const until = Date.now() + ms;
+  allowOnceGrants.set(normalizeOrigin(origin), until);
+  return until;
+}
+
+function allowOnceUntil(norm) {
+  const until = allowOnceGrants.get(norm) || 0;
+  if (until && until <= Date.now()) { allowOnceGrants.delete(norm); return 0; }
+  return until;
+}
+
 export async function getOriginGrant(origin) {
   const norm = normalizeOrigin(origin);
   if (isLoopbackOrTestOrigin(norm)) {
     return { read: true, act: true, cookies: true, isDefault: true };
   }
   const grants = await getGrants();
-  return grants[norm] || { read: false, act: false, cookies: false, isDefault: false };
+  const saved = grants[norm] || { read: false, act: false, cookies: false, isDefault: false };
+  const until = allowOnceUntil(norm);
+  return until ? { ...saved, read: true, act: true, allowOnceUntil: until } : saved;
+}
+
+/** Saved grants plus the live "Allow once" ones, for the dashboard's list. Never written back to storage. */
+export async function getGrantsForDisplay() {
+  const grants = { ...(await getGrants()) };
+  for (const origin of [...allowOnceGrants.keys()]) {
+    const until = allowOnceUntil(origin);
+    if (until) grants[origin] = { ...(grants[origin] || { cookies: false }), read: true, act: true, allowOnceUntil: until };
+  }
+  return grants;
 }
 
 export async function saveOriginGrant(origin, grant) {
@@ -98,6 +129,7 @@ export async function saveOriginGrant(origin, grant) {
 
 export async function revokeOriginGrant(origin) {
   const norm = normalizeOrigin(origin);
+  allowOnceGrants.delete(norm); // a revoke means now, not in fifteen minutes
   const grants = await getGrants();
   delete grants[norm];
   await saveSettings({ grants });
@@ -202,9 +234,25 @@ export function getPendingApprovals() {
   return list;
 }
 
-export function resolveApproval(id, approved = false) {
+/**
+ * Settles a request with a person's answer. Only the extension's own pages can reach this (owner-pages.js).
+ * For an access request (risk ACCESS_RISK) the grant is applied HERE, where the owner's click lands, so it
+ * exists even if the agent that asked has already stopped waiting: `decision` 'always' saves a read + act
+ * grant for the site; anything else is "Allow once". The short grant is set first either way, so the site
+ * works the instant the person clicks, before the storage write lands.
+ */
+export function resolveApproval(id, approved = false, decision = '') {
   const item = pendingApprovals.get(id);
   if (!item) return { ok: false, error: `Approval item not found: ${id}` };
+  if (approved && item.risk === ACCESS_RISK) {
+    const always = decision === 'always';
+    grantAllowOnce(item.origin);
+    const saved = always
+      ? saveOriginGrant(item.origin, { read: true, act: true }).then(() => 'always', () => 'once')
+      : Promise.resolve('once');
+    saved.then((d) => item.resolve({ approved: true, id, decision: d }));
+    return { ok: true, id, approved: true, decision: always ? 'always' : 'once' };
+  }
   if (approved) {
     item.resolve({ approved: true, id });
   } else {
@@ -229,7 +277,7 @@ export async function checkOriginPermission(origin, category, tool, _args = {}) 
     return {
       ok: false,
       code: 'PERMISSION_DENIED',
-      error: `Read access not granted for origin ${norm}. Grant read permission in extension dashboard.`,
+      error: `Read access not granted for origin ${norm}. Grant read permission in extension dashboard, or call web_request_access to ask the user.`,
       origin: norm,
       category: 'read',
     };
@@ -239,7 +287,7 @@ export async function checkOriginPermission(origin, category, tool, _args = {}) 
     return {
       ok: false,
       code: 'PERMISSION_DENIED',
-      error: `Action access not granted for origin ${norm}. Grant action permission in extension dashboard.`,
+      error: `Action access not granted for origin ${norm}. Grant action permission in extension dashboard, or call web_request_access to ask the user.`,
       origin: norm,
       category: 'act',
     };

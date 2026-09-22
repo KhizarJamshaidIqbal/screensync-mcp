@@ -98,6 +98,7 @@ const ACTION_MAP: Record<string, Record<string, string>> = {
     device_emulate: "web_device_emulate",
     set_user_agent: "web_set_user_agent",
     request_help: "web_request_help",
+    request_access: "web_request_access",
     takeover: "web_takeover",
     clock_set: "web_clock_set",
     clock_clear: "web_clock_clear",
@@ -227,7 +228,7 @@ export function consolidatedToolDefinitions() {
     {
       name: "web_assist",
       description:
-        "Browser assistance tools. Actions: resize (change viewport), emulate_media (print/screen/color scheme), device_emulate (mobile device simulation), set_user_agent, request_help (in-page human help overlay with target highlighting), takeover (pause for human), clock_set/clock_clear/clock_fast_forward (fake timers), cache_control (enable/disable/clear cache), network_auth (HTTP authentication).",
+        "Browser assistance tools. Actions: resize (change viewport), emulate_media (print/screen/color scheme), device_emulate (mobile device simulation), set_user_agent, request_help (in-page human help overlay with target highlighting), request_access (ask the user for read + act access to a site; they answer Deny / Allow once / Always allow), takeover (pause for human), clock_set/clock_clear/clock_fast_forward (fake timers), cache_control (enable/disable/clear cache), network_auth (HTTP authentication).",
       inputSchema: {
         type: "object" as const,
         properties: {

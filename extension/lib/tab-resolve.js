@@ -14,6 +14,18 @@ export function isRestrictedTab(tabOrUrl) {
   return RESTRICTED_TAB.test(url);
 }
 
+/** The active, unrestricted tab of the last-focused normal (tabbed) window, or null. */
+export async function activeTabOfLastNormalWindow() {
+  try {
+    const win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+    if (!win || win.id == null) return null;
+    const [tab] = await chrome.tabs.query({ active: true, windowId: win.id });
+    return tab && tab.url && !isRestrictedTab(tab) ? tab : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Selects an active tab for agent operation.
  * @param {{ tabId?: number }} [args]
@@ -55,6 +67,11 @@ export async function pickActiveTab(args = {}) {
 
   const active = tabs[0];
   if (active && isRestrictedTab(active)) {
+    // The last-focused window is showing an extension or browser page, e.g. the access-request popup the
+    // extension just brought forward. Prefer the tab the person was actually using: the active tab of the
+    // last-focused NORMAL window. Only if there is none, take the first usable tab anywhere, as before.
+    const inNormal = await activeTabOfLastNormalWindow();
+    if (inNormal) return inNormal;
     const allTabs = await chrome.tabs.query({}).catch(() => []);
     const usable = allTabs.find((t) => t.url && !isRestrictedTab(t));
     if (usable) return usable;

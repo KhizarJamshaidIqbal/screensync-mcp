@@ -3,7 +3,7 @@ import { api, probeHub, hubFetch } from './lib/api.js';
 import { SseClient } from './lib/sse-client.js';
 import { handleWebRequest, registerWebBridge } from './lib/web-bridge.js';
 import { startAmbientCollector } from './lib/web-ambient.js';
-import { getGrants, saveOriginGrant, revokeOriginGrant, getPendingApprovals, resolveApproval } from './lib/consent.js';
+import { getGrantsForDisplay, saveOriginGrant, revokeOriginGrant, getPendingApprovals, resolveApproval } from './lib/consent.js';
 import { getAuditLog, exportAuditLog } from './lib/audit.js';
 import { getTakeoverStatus, resumeTakeover } from './lib/takeover.js';
 import { listJobs, cancelJob } from './lib/jobs.js';
@@ -374,7 +374,7 @@ chrome.runtime.onMessage.addListener(ownerMessagesOnly((msg, _sender, sendRespon
           break;
         }
         case 'get-grants': {
-          const grants = await getGrants();
+          const grants = await getGrantsForDisplay(); // saved grants + live "Allow once" ones
           sendResponse({ ok: true, grants });
           break;
         }
@@ -393,7 +393,7 @@ chrome.runtime.onMessage.addListener(ownerMessagesOnly((msg, _sender, sendRespon
           break;
         }
         case 'resolve-approval': {
-          const res = resolveApproval(msg.id, !!msg.approved);
+          const res = resolveApproval(msg.id, !!msg.approved, msg.decision === 'always' ? 'always' : 'once');
           sendResponse(res);
           break;
         }

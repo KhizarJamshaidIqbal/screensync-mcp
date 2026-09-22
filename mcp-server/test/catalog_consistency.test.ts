@@ -78,6 +78,11 @@ test("catalogue-to-handler consistency guard: zero orphan tools", async () => {
   const hubWebCases = (webHubSrc + "\n" + cognitiveHandlerSrc).matchAll(/tool\s*===?\s*['"](web_[a-z0-9_]+)['"]/g);
   for (const m of hubWebCases) handledTools.add(m[1]);
 
+  // 5b. Tools the extension answers in its bridge, before the dispatcher (e.g. web_request_access, which
+  //     asks a person and never touches a page, so it does not belong in web-tools.js).
+  const bridgeSrc = readFileSync(join(extDir, "web-bridge.js"), "utf-8");
+  for (const m of bridgeSrc.matchAll(/tool\s*===?\s*['"](web_[a-z0-9_]+)['"]/g)) handledTools.add(m[1]);
+
   // 6. Mobile / OS control tools handled in control.ts
   const controlCases = controlHubSrc.matchAll(/case\s+['"]([a-z0-9_]+)['"]/g);
   for (const m of controlCases) handledTools.add(m[1]);
