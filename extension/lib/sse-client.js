@@ -82,6 +82,11 @@ export class SseClient {
           this.stop();
           return;
         }
+        if (res.status === 404) {
+          this._status('error', '404 — hub endpoint /api/events not found (possible port conflict or outdated hub)');
+          await new Promise((r) => setTimeout(r, 5000));
+          continue;
+        }
         if (res.status === 429) {
           this._status('error', '429 — too many connections, retrying...');
           await new Promise((r) => setTimeout(r, 3000));

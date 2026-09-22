@@ -24,6 +24,13 @@ if not exist "node_modules" (
   )
 )
 
-echo [INFO] Starting ScreenSync Hub on http://127.0.0.1:3000 ...
+if not "%~1"=="" (
+  set "SCREEN_SYNC_PORT=%~1"
+)
+if "%SCREEN_SYNC_PORT%"=="" (
+  set "SCREEN_SYNC_PORT=3000"
+)
+
+echo [INFO] Starting ScreenSync Hub on http://127.0.0.1:%SCREEN_SYNC_PORT% ...
 node dist/index.js
 pause

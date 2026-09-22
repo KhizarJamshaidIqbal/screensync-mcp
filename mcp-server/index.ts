@@ -2,7 +2,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { agentName, log } from "./config.js";
+import { agentName, HTTP_PORT, log } from "./config.js";
 import { emitHubEvent } from "./events.js";
 import { startHttpHub } from "./hub.js";
 import { createMcpServer } from "./mcp.js";
@@ -12,11 +12,30 @@ async function main() {
   try {
     hub = await startHttpHub();
   } catch (error) {
-    if (String(error).includes("EADDRINUSE")) {
-      // Another hub instance already serves the shared data dir (typical
-      // when an agent spawns this stdio server while npm start is running).
-      // Continue in MCP-only mode instead of crashing.
-      log("INFO", "HTTP port busy — continuing in MCP-only mode");
+    if (String(error).includes("EADDRINUSE") || String(error).includes("EACCES")) {
+      // Check whether an existing ScreenSync Hub is running or another application occupies the port.
+      let existingHubFound = false;
+      try {
+        const probeRes = await fetch(`http://127.0.0.1:${HTTP_PORT}/health`, { signal: AbortSignal.timeout(1500) });
+        if (probeRes.ok) {
+          const body = (await probeRes.json().catch(() => null)) as Record<string, unknown> | null;
+          if (body?.service === "screensync-hub") {
+            existingHubFound = true;
+          }
+        }
+      } catch {
+        existingHubFound = false;
+      }
+
+      if (existingHubFound) {
+        log("INFO", `Existing ScreenSync Hub detected on port ${HTTP_PORT} — continuing in MCP-only mode`);
+      } else {
+        const platformHint = process.platform === "win32"
+          ? `start-hub.bat 3001\n    (To find the conflicting process: netstat -ano | findstr :${HTTP_PORT})`
+          : `export SCREEN_SYNC_PORT=3001 && ./start-hub.sh 3001\n    (To find the conflicting process: lsof -i :${HTTP_PORT})`;
+        log("ERROR", `Port ${HTTP_PORT} is occupied by another service (not ScreenSync Hub)!`);
+        console.error(`\n[ERROR] Port ${HTTP_PORT} is occupied by an unrelated service.\nRemediation:\n  ${platformHint}\n`);
+      }
     } else {
       throw error;
     }

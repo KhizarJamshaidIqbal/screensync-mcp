@@ -6,7 +6,6 @@ import { DATA_DIR, isAuthorized, log } from "./config.js";
 import { emitHubEvent, lastEventSeq, recentHubEvents } from "./events.js";
 import { createFrameStore } from "./web-frame.js";
 import { generateFlow, generatePlaywright } from "./codegen.js";
-import { runTestSuite } from "./test-runner.js";
 import { createProfileRegistry, BrowserInstance, BrowserWindowInfo } from "./profile-registry.js";
 import { trackToolExecution } from "./cognitive-auto-tracker.js";
 import { sessionOf } from "./cognitive-spine-observer.js";
@@ -502,6 +501,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           return await request(stepTool, stepArgs, 45_000);
         };
 
+        const { runTestSuite } = await import("./test-runner.js");
         const result = await runTestSuite(suiteDef, runnerCallback);
         res.json({ success: true, ok: result.failed === 0, data: result });
         return;

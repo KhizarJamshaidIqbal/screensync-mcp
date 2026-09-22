@@ -166,7 +166,13 @@ export async function startHttpHub(): Promise<HubHandle> {
 
   app.get("/health", async (_req, res) => {
     const latest = await latestFrame();
-    res.json({ ok: true, service: "screensync-hub", latestFrameAt: latest?.receivedAt ?? null });
+    res.json({
+      ok: true,
+      service: "screensync-hub",
+      version: "1.12.0",
+      port: HTTP_PORT,
+      latestFrameAt: latest?.receivedAt ?? null,
+    });
   });
 
   // ── Zero-friction pairing ──

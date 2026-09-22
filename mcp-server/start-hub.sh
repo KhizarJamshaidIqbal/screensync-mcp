@@ -17,5 +17,12 @@ if [ ! -d "node_modules" ]; then
   npm install --omit=dev
 fi
 
-echo "[INFO] Starting ScreenSync Hub on http://127.0.0.1:3000 ..."
+# Allow setting port via argument (e.g. ./start-hub.sh 3001) or environment variable
+if [ -n "$1" ]; then
+  export SCREEN_SYNC_PORT="$1"
+fi
+TARGET_PORT="${SCREEN_SYNC_PORT:-3000}"
+export SCREEN_SYNC_PORT="$TARGET_PORT"
+
+echo "[INFO] Starting ScreenSync Hub on http://127.0.0.1:${TARGET_PORT} ..."
 node dist/index.js

@@ -175,15 +175,36 @@ $('btn-connect').onclick = async () => {
       throw errObj;
     }
     await send({ type: 'update-settings', patch: { hubUrl: url, token, onboardingComplete: true } });
+
+    // Verify SSE stream and browser registration before reporting success
+    let fullyVerified = false;
+    for (let i = 0; i < 10; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const statusRes = await send({ type: 'get-web-status' }).catch(() => null);
+      const isOnline = statusRes?.bridge?.online === true;
+      const sseRes = await send({ type: 'get-status' }).catch(() => null);
+      const sseOk = sseRes?.cache?.sseStatus === 'connected';
+      if (isOnline || sseOk) {
+        fullyVerified = true;
+        break;
+      }
+    }
+
+    if (!fullyVerified) {
+      throw new Error('Hub reachable, but real-time SSE stream or registration could not be confirmed. Check port/firewall.');
+    }
+
     show('guide');
     loadGuide();
   } catch (e) {
-    if (e.status === 401) {
+    if (e.status === 401 || e.status === 403) {
       err.textContent = '401 Unauthorized — Pairing token does not match hub SCREEN_SYNC_TOKEN.';
+    } else if (e.status === 409) {
+      err.textContent = e.message;
     } else if (e.status === 404) {
-      err.textContent = `404 Not Found at ${url} — Port 3000 is occupied by another local server or an outdated hub. Please run sh start-hub.sh (macOS) or start-hub.bat (Windows).`;
+      err.textContent = `404 Not Found at ${url} — Port is occupied by another local server or an outdated hub. Please run sh start-hub.sh (macOS) or start-hub.bat (Windows), or switch to port 3001.`;
     } else {
-      err.textContent = `Hub unreachable at ${url} — please check the hub is running (sh start-hub.sh on macOS, start-hub.bat on Windows). (${e.message})`;
+      err.textContent = `Hub connection failed at ${url} — please check the hub is running (sh start-hub.sh on macOS, start-hub.bat on Windows). (${e.message})`;
     }
     err.hidden = false;
 
@@ -197,17 +218,19 @@ $('btn-connect').onclick = async () => {
           guideContent.innerHTML = `
             <ol style="margin-left:16px;margin-top:4px;display:flex;flex-direction:column;gap:4px">
               <li>Open <strong>Terminal</strong> (<code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">Cmd + Space</code> &rarr; <em>Terminal</em>).</li>
-              <li>Check if port 3000 is busy: <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">lsof -i :3000</code> (close any conflicting dev app).</li>
-              <li>Navigate &amp; start hub: <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">cd ~/Downloads/screensync-hub &amp;&amp; sh start-hub.sh</code></li>
-              <li>When terminal displays <em>✔ hub on http://localhost:3000</em>, click <strong>Connect &amp; Continue</strong>.</li>
+              <li>Check if port 3000 is busy: <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">lsof -i :3000</code></li>
+              <li>Run on port 3001 if needed: <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">SCREEN_SYNC_PORT=3001 ./start-hub.sh 3001</code></li>
+              <li>Or start normally: <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">cd ~/Downloads/screensync-hub &amp;&amp; sh start-hub.sh</code></li>
+              <li>When terminal shows running, click <strong>Connect &amp; Continue</strong>.</li>
             </ol>`;
         } else {
           guideContent.innerHTML = `
             <ol style="margin-left:16px;margin-top:4px;display:flex;flex-direction:column;gap:4px">
               <li>Open the unzipped <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">screensync-hub</code> folder.</li>
-              <li>Double-click <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">start-hub.bat</code>.</li>
-              <li>Make sure no other web server is occupying port 3000.</li>
-              <li>When terminal displays <em>✔ hub on http://localhost:3000</em>, click <strong>Connect &amp; Continue</strong>.</li>
+              <li>Check if port 3000 is busy: <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">netstat -ano | findstr :3000</code></li>
+              <li>Run on port 3001 if needed: <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">start-hub.bat 3001</code></li>
+              <li>Or double-click <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:4px">start-hub.bat</code>.</li>
+              <li>When terminal shows running, click <strong>Connect &amp; Continue</strong>.</li>
             </ol>`;
         }
       }
@@ -217,7 +240,6 @@ $('btn-connect').onclick = async () => {
         copyFixBtn.onclick = async () => {
           const fixPrompt = buildHubTroubleshootPrompt({
             hubUrl: url,
-            token,
             error: err.textContent,
             os,
           });

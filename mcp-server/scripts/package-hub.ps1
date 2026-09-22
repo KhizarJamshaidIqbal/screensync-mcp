@@ -37,7 +37,7 @@ foreach ($f in $includeFiles) {
 $distDir = Join-Path $root 'dist'
 if (Test-Path $distDir) {
   Get-ChildItem -Path $distDir -Recurse -File |
-    Where-Object { $_.FullName -notmatch 'dist[\\/]test' } |
+    Where-Object { $_.FullName -notmatch 'dist[\\/]test[\\/]' } |
     ForEach-Object {
       $relPath = $_.FullName.Substring($root.Length + 1).Replace('\', '/')
       if ($relPath.Contains('\')) { throw "Entry has backslash: $relPath" }
@@ -49,8 +49,10 @@ $zip.Dispose()
 
 # Verification
 $verifyZip = [System.IO.Compression.ZipFile]::OpenRead($out)
-$badEntries = @($verifyZip.Entries | Where-Object { $_.FullName.Contains('\') -or $_.FullName -match 'dist/test' })
+$badEntries = @($verifyZip.Entries | Where-Object { $_.FullName.Contains('\') -or $_.FullName -match 'dist/test/' })
 $hasBat = ($verifyZip.Entries | Where-Object { $_.FullName -eq 'start-hub.bat' }).Count
+$hasSh = ($verifyZip.Entries | Where-Object { $_.FullName -eq 'start-hub.sh' }).Count
+$hasTestRunner = ($verifyZip.Entries | Where-Object { $_.FullName -eq 'dist/test-runner.js' }).Count
 $verifyZip.Dispose()
 
 if ($badEntries.Count -gt 0) {
@@ -58,6 +60,12 @@ if ($badEntries.Count -gt 0) {
 }
 if ($hasBat -eq 0) {
   throw "Hub zip missing start-hub.bat!"
+}
+if ($hasSh -eq 0) {
+  throw "Hub zip missing start-hub.sh!"
+}
+if ($hasTestRunner -eq 0) {
+  throw "Hub zip missing dist/test-runner.js!"
 }
 
 $hash = (Get-FileHash -Path $out -Algorithm SHA256).Hash
