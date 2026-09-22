@@ -1,7 +1,36 @@
 {
-  "generatedAt": "2026-09-21T08:21:37Z",
+  "generatedAt": "2026-09-22T09:11:50Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
+    {
+      "sha": "1dfb6a3",
+      "date": "2026-09-22",
+      "ts": 1790068309,
+      "parts": [
+        {
+          "stream": "extension",
+          "streamLabel": "Extension",
+          "version": "1.12.0",
+          "build": "",
+          "display": "1.12.0",
+          "date": "2026-09-22",
+          "ts": 1790068309,
+          "sha": "1dfb6a3",
+          "groups": {
+            "NEW": [
+              "An agent asks for a site's access, a person decides"
+            ],
+            "IMPROVED": [],
+            "FIXED": [
+              "Keep the access window and its test inside the lint globals"
+            ]
+          },
+          "count": 2
+        }
+      ],
+      "count": 2,
+      "title": "Extension 1.12.0"
+    },
     {
       "sha": "a196bda",
       "date": "2026-09-21",
@@ -399,9 +428,9 @@
     }
   ],
   "stats": {
-    "releases": 12,
+    "releases": 13,
     "appReleases": 6,
-    "extensionReleases": 6,
-    "changes": 75
+    "extensionReleases": 7,
+    "changes": 77
   }
 }
