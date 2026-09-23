@@ -404,25 +404,60 @@ export async function ssWebUnitAction(args = {}) {
 
   // ── web_scroll_to: scrollIntoView with options, or page positions ──
   if (args.__tool === 'web_scroll_to') {
+    // Only an explicit 'smooth' request gets a smooth animation. Passing anything else through
+    // as 'auto' used to let the PAGE's own `scroll-behavior: smooth` CSS silently govern the
+    // scroll instead of the browser's default instant jump — and on a hidden/background tab,
+    // smooth-scroll animation is throttled or paused entirely, so it could still be mid-animation
+    // (or never started) when the fixed wait below elapsed. 'instant' always forces an immediate
+    // jump regardless of the page's own CSS.
+    const behavior = args.behavior === 'smooth' ? 'smooth' : 'instant';
+    const waitMs = behavior === 'smooth' ? 450 : 80;
     if (args.selector || typeof args.ref === 'number' || typeof args.index === 'number') {
       const el = await findWithRetry(args);
       if (!el) return { ok: false, error: 'Element not found for scroll_to: ' + (args.selector ?? args.ref ?? args.index) };
       const r0 = el.getBoundingClientRect();
-      const inView = r0.top >= 0 && r0.left >= 0 && r0.bottom <= window.innerHeight && r0.right <= window.innerWidth;
-      if (args.ifNeeded && inView) {
+      const inView0 = r0.top >= 0 && r0.left >= 0 && r0.bottom <= window.innerHeight && r0.right <= window.innerWidth;
+      if (args.ifNeeded && inView0) {
         return { ok: true, data: { scrolledTo: 'element', alreadyInView: true, inViewport: true, scrollX: window.scrollX, scrollY: window.scrollY, ...targetDesc(el) } };
       }
-      el.scrollIntoView({ behavior: args.behavior || 'smooth', block: args.block || (args.ifNeeded ? 'nearest' : 'center'), inline: args.inline || 'nearest' });
-      await new Promise((r2) => setTimeout(r2, args.behavior === 'auto' ? 80 : 450));
+      const scrollYBefore = window.scrollY;
+      const scrollXBefore = window.scrollX;
+      el.scrollIntoView({ behavior, block: args.block || (args.ifNeeded ? 'nearest' : 'center'), inline: args.inline || 'nearest' });
+      await new Promise((r2) => setTimeout(r2, waitMs));
       const r = el.getBoundingClientRect();
-      return { ok: true, data: { scrolledTo: 'element', inViewport: r.top >= 0 && r.bottom <= window.innerHeight, scrollX: window.scrollX, scrollY: window.scrollY, ...targetDesc(el) } };
+      const inViewport = r.top >= 0 && r.left >= 0 && r.bottom <= window.innerHeight && r.right <= window.innerWidth;
+      const moved = window.scrollY !== scrollYBefore || window.scrollX !== scrollXBefore;
+      // Only claim success when the element actually ended up in view, or the page genuinely
+      // scrolled (an oversized element can't fully fit the viewport but a real scroll still
+      // happened) — not unconditionally, which used to report ok:true even when the scroll had
+      // no effect at all (e.g. a hidden tab where the animation never ran).
+      const ok = inViewport || moved || inView0;
+      return {
+        ok,
+        ...(ok ? {} : { noop: true, error: 'Scroll had no effect: the element is still out of view.' }),
+        data: { scrolledTo: 'element', inViewport, scrollX: window.scrollX, scrollY: window.scrollY, ...targetDesc(el) },
+      };
     }
     const pos = String(args.position || 'top').toLowerCase();
     const pageH = document.documentElement.scrollHeight;
     const targets = { top: 0, bottom: pageH, middle: Math.max(0, (pageH - window.innerHeight) / 2) };
     if (!(pos in targets)) return { ok: false, error: 'Unknown position: ' + pos + '. Supported: top, middle, bottom, or pass selector.' };
-    window.scrollTo({ top: targets[pos], behavior: args.behavior || 'smooth' });
-    return { ok: true, data: { scrolledTo: pos, scrollX: window.scrollX, scrollY: window.scrollY, pageHeight: pageH } };
+    const target = targets[pos];
+    const scrollYBefore = window.scrollY;
+    window.scrollTo({ top: target, behavior });
+    await new Promise((r2) => setTimeout(r2, waitMs));
+    // The page may already be clamped at this position (e.g. already at the top/bottom), which
+    // is still success — only flag noop when neither the target was already reached nor did the
+    // scroll position change at all.
+    const reached = Math.abs(window.scrollY - target) < 2;
+    const alreadyThere = Math.abs(scrollYBefore - target) < 2;
+    const moved = window.scrollY !== scrollYBefore;
+    const ok = reached || alreadyThere || moved;
+    return {
+      ok,
+      ...(ok ? {} : { noop: true, error: 'Scroll had no effect: scroll position did not change.' }),
+      data: { scrolledTo: pos, scrollX: window.scrollX, scrollY: window.scrollY, pageHeight: pageH },
+    };
   }
 
   // ── web_run_code: Playwright run_code — async snippet with a mini page API ──
