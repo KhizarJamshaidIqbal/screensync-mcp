@@ -151,7 +151,7 @@ The agent's per-domain memory grows through developmental stages exactly like a 
 | Act inside an iframe | `web_in_frame` {tool, args, frameId|frameUrl} (frames via `web_frame_tree`) |
 | Auto-answer HTTP 401 auth dialogs | `web_network_auth` {username, password} then navigate |
 | Teach-once-replay-anywhere | `web_record` {action:start/stop} → edit steps → `web_replay` {steps} — daily real-account flows in one call |
-| Run one tool on ALL tabs | `web_tab_fanout` {tool, args, tabIds|urls|activeOnly} |
+| Run one tool on ALL tabs | `web_tab_fanout` {tool, args, tabIds|urls|activeOnly, profile} — one browser's tabs: `profile`, else the selected profile; call once per profile for several |
 | Jump the fake clock | `web_clock_fast_forward` {ms} after `web_clock_set` (+ `fixed:true` freeze) |
 | Wait for a download | `web_wait_download` {url?, filename?} (call before the triggering action) |
 | Restore a minimized window | `web_window` {state:'normal'|"maximized", focused:true} — needed before screenshots |

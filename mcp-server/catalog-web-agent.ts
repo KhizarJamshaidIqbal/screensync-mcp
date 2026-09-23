@@ -150,12 +150,13 @@ export function agentWebToolDefinitions(): WebToolDef[] {
     {
       name: "web_tab_fanout",
       description:
-        "Multi-TAB orchestration (mirror of web_fanout): runs ONE web tool on every tab (or a filtered subset: tabIds / url substrings / activeOnly) of the connected browser and merges results keyed per tab. E.g. extract a table from 5 open tabs in one call.",
+        "Multi-TAB orchestration (mirror of web_fanout): runs ONE web tool on every tab (or a filtered subset: tabIds / url substrings / activeOnly) of ONE browser and merges results keyed per tab. The browser is chosen like any web_* call: `profile` if given, else the profile selected with web_profile, else the focused or most recently active one; the reply names it (instanceId, profile). For several browsers, call it once per profile. E.g. extract a table from 5 open tabs in one call.",
       inputSchema: {
         type: "object",
         required: ["tool"],
         properties: {
           tool: { type: "string", description: "The web_* tool to run on each tab (must accept tabId)." },
+          profile: { type: "string", description: "Whose tabs: a profile email, profile name, instanceId or browser name (web_status.browsers). Omit for the selected profile." },
           args: { type: "object", description: "Arguments forwarded to the tool on every tab." },
           tabIds: { type: "array", items: { type: "integer" }, description: "Restrict to these tab ids." },
           urls: { oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], description: "Restrict to tabs whose URL contains a substring (or any of them)." },

@@ -28,7 +28,7 @@ const B = { instanceId: "inst-b", browserId: "inst-b", browserName: "chrome", pr
 const SOLO = { ...A, instanceId: "inst-solo", browserId: "inst-solo", profileEmail: "solo@profile.test" };
 
 /** One bridge on an ephemeral port. Every relayed web_request is recorded, and answered as the addressed extension would. */
-async function startHub() {
+async function startHub(answer: (ev: Relayed) => unknown = (ev) => ({ ranIn: ev.targetInstanceId })) {
   const relayed: Relayed[] = [];
   let base = "";
   const bridge = createWebBridge((payload) => {
@@ -39,7 +39,7 @@ async function startHub() {
       fetch(`${base}/api/web/result`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ id: ev.id, ok: true, data: { ranIn: ev.targetInstanceId }, ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: "chrome" }),
+        body: JSON.stringify({ id: ev.id, ok: true, data: answer(ev), ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: "chrome" }),
       }).catch(() => {});
     });
   }, () => 2);
@@ -259,6 +259,85 @@ test("gate: a dispatch that is refused (selected profile offline) is refused bef
     assert.deepEqual(hub.relayed.map((r) => r.tool), [], "no approval prompt for a call that cannot be dispatched");
     assert.equal(reply.code, "SELECTED_PROFILE_OFFLINE", "the routing problem is what to fix, not the extension version");
     assert.match(String(reply.error), /selected profile 'a@profile\.test' is offline/);
+  } finally {
+    await hub.close();
+    mock.timers.reset();
+  }
+});
+
+// ── web_tab_fanout lists and acts on ONE browser's tabs: the routed one ──────────────────────────────────────
+// It listed the tabs of whichever browser heartbeated last (listOnline()[0]) and relayed each per-tab call
+// unpinned, so with profile B selected it read A's tab ids and ran them wherever each id happened to route.
+
+/** Each browser's own tabs, as its extension's web_tabs answers. Tab ids are only unique inside one browser. */
+const TABS: Record<string, Array<{ tabId: number; url: string }>> = {
+  "inst-a": [{ tabId: 100, url: "https://a.test/1" }, { tabId: 101, url: "https://a.test/2" }],
+  "inst-b": [{ tabId: 200, url: "https://b.test/1" }, { tabId: 201, url: "https://b.test/2" }],
+};
+const tabsAnswer = (ev: Relayed) => (ev.tool === "web_tabs" ? { tabs: TABS[String(ev.targetInstanceId)] ?? [] } : { ranIn: ev.targetInstanceId });
+const sent = (hub: Awaited<ReturnType<typeof startHub>>) =>
+  hub.relayed.map((r) => `${r.tool}${r.args.tabId === undefined ? "" : `#${r.args.tabId}`}->${r.targetInstanceId}`);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** `first` heartbeats, then `last`: `last` holds the most recent heartbeat (listOnline()[0]). */
+async function heartbeats(hub: Awaited<ReturnType<typeof startHub>>, first: Record<string, unknown>, last: Record<string, unknown>) {
+  await hub.register(first);
+  await sleep(5);
+  await hub.register(last);
+  const profiles = (await hub.call("web_profile")).data.profiles;
+  assert.equal(profiles[0].instanceId, last.instanceId, "fixture: the most recent heartbeat");
+}
+
+test("tab fanout: selectedProfile = B while A heartbeated last: B's tabs are listed and every per-tab call goes to B", async () => {
+  const hub = await startHub(tabsAnswer);
+  try {
+    await heartbeats(hub, B, A);
+    await hub.call("web_profile", { action: "select", profile: "b@profile.test" });
+    const reply = await hub.call("web_tab_fanout", { tool: "web_title" });
+
+    assert.deepEqual(sent(hub), ["web_tabs->inst-b", "web_title#200->inst-b", "web_title#201->inst-b"]);
+    assert.equal(reply.ok, true, String(reply.error));
+    assert.deepEqual(reply.data.results.map((r: { tabId: number }) => r.tabId), [200, 201]);
+    assert.equal(reply.data.instanceId, "inst-b", "the reply says whose tabs these are");
+  } finally {
+    await hub.close();
+  }
+});
+
+test("tab fanout: an explicit profile hint picks the browser, for the listing and for every per-tab call", async () => {
+  const hub = await startHub(tabsAnswer);
+  try {
+    await heartbeats(hub, A, B);
+    const reply = await hub.call("web_tab_fanout", { tool: "web_title", profile: "a@profile.test" });
+    assert.deepEqual(sent(hub), ["web_tabs->inst-a", "web_title#100->inst-a", "web_title#101->inst-a"]);
+    assert.equal(reply.ok, true, String(reply.error));
+  } finally {
+    await hub.close();
+  }
+});
+
+test("tab fanout: per-tab calls stay pinned even when another browser reports the same tab id", async () => {
+  const hub = await startHub(tabsAnswer);
+  try {
+    // A's heartbeat says its active tab is 200 too: the same number means a different tab in another browser.
+    await heartbeats(hub, B, { ...A, windows: [{ id: 10, focused: true, activeTab: { tabId: 200 } }] });
+    await hub.call("web_profile", { action: "select", profile: "b@profile.test" });
+    await hub.call("web_tab_fanout", { tool: "web_title", tabIds: [200] });
+    assert.deepEqual(sent(hub), ["web_tabs->inst-b", "web_title#200->inst-b"]);
+  } finally {
+    await hub.close();
+  }
+});
+
+test("tab fanout: while the selected profile is offline nothing is listed or run, and the refusal says why", async () => {
+  mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const hub = await startHub(tabsAnswer);
+  try {
+    await selectedProfileGoesOffline(hub);
+    const reply = await hub.call("web_tab_fanout", { tool: "web_title" });
+    assert.deepEqual(sent(hub), []);
+    assert.equal(reply.ok, false);
+    assert.equal(reply.code, "SELECTED_PROFILE_OFFLINE");
   } finally {
     await hub.close();
     mock.timers.reset();
