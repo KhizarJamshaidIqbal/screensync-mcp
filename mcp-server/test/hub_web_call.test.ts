@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { APPROVAL_MAX_MS, APPROVAL_RUN_HEADROOM_MS } from "../web-ext-routes.js";
-import { callHubWebTool, callTimeoutOf, HUB_MAX_HOLD_MS, transportTimeoutMs } from "../hub-web-call.js";
+import { callHubWebTool, callTimeoutOf, HUB_MAX_HOLD_MS, IN_PAGE_MARGIN_MS, transportTimeoutMs } from "../hub-web-call.js";
 
 async function serve(onRequest: Parameters<typeof createServer>[1]): Promise<{ base: string; server: Server }> {
   const server = createServer(onRequest);
@@ -25,6 +25,14 @@ test("the transport outlives the longest the hub may hold a call for a person", 
   assert.ok(transportTimeoutMs(def) > HUB_MAX_HOLD_MS, "now the hub always answers first");
   assert.ok(transportTimeoutMs(1_000) > HUB_MAX_HOLD_MS, "however short the call timeout");
   assert.ok(transportTimeoutMs(120_000) > 120_000, "and a longer call timeout still wins");
+});
+
+test("an in-page budget (web_expect timeoutMs) gets a margin so the browser's own verdict arrives", () => {
+  assert.equal(callTimeoutOf({ timeoutMs: 25_000 }), 30_000, "the hub waits the budget plus 5 s");
+  assert.equal(callTimeoutOf({ timeoutMs: 100 }), 6_000, "a tiny budget is floored at 1 s, then the margin");
+  assert.equal(callTimeoutOf({ timeoutMs: 119_000 }), 120_000, "still capped");
+  assert.equal(callTimeoutOf({}), 45_000, "no budget: the old default, unchanged");
+  assert.ok(callTimeoutOf({ timeoutMs: 60_000 }) > 60_000, "a 60 s budget is not cut at 60 s any more");
 });
 
 test("a refused connection says the hub is not reachable", async () => {
@@ -81,7 +89,8 @@ test("the extension's outcome and code reach the caller; the call carries the se
     assert.equal(seen.auth, "Bearer t0k");
     assert.match(String(seen.session), /^mcp-/);
     assert.equal(seen.body.tool, "web_eval");
-    assert.equal(seen.body.timeoutMs, 2_000);
+    // 2026-09-23: the hub waits the browser-side budget plus IN_PAGE_MARGIN_MS, so the extension answers first.
+    assert.equal(seen.body.timeoutMs, 2_000 + IN_PAGE_MARGIN_MS);
   } finally {
     await stop(server);
   }

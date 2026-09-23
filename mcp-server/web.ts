@@ -837,7 +837,8 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         res.status(httpStatus).json({ success: false, ok: false, error, code, onlineProfiles, data: { code, onlineProfiles } });
         return;
       }
-      const timeoutMs = Math.min(Math.max(Number(b.timeoutMs) || 45_000, 5_000), 60_000);
+      // 65 s, not 60: a tool with a 60 s browser-side budget still gets the MCP side's 5 s margin (hub-web-call.ts).
+      const timeoutMs = Math.min(Math.max(Number(b.timeoutMs) || 45_000, 5_000), 65_000);
       const startedAt = Date.now();
       const result = await request(tool, args, timeoutMs, gate?.block ? gate.decision : undefined, route);
       emitHubEvent("tool", tool, result.ok);

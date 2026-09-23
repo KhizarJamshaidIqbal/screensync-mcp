@@ -22,11 +22,20 @@ export const SESSION_ID = `mcp-${randomUUID()}`;
 export const HUB_MAX_HOLD_MS = APPROVAL_MAX_MS + APPROVAL_RUN_HEADROOM_MS;
 const TRANSPORT_MARGIN_MS = 10_000;
 const DEFAULT_CALL_TIMEOUT_MS = 45_000;
+/**
+ * An args.timeoutMs is the browser-side budget of the tool itself (web_expect polls for it, web_wait_for waits
+ * for it). The hub used to wait EXACTLY that long, so an assertion that ran its whole budget never got its own
+ * answer back ("expected X, got Y"): the hub gave up first with "Timed out ... waiting for the browser
+ * extension" (seen live 2026-09-23, web_expect {timeoutMs:25000}). The hub now waits the budget plus this.
+ */
+export const IN_PAGE_MARGIN_MS = 5_000;
 
-/** The per-call timeout sent to the hub (the hub clamps it to its own 5-60s range). */
+/** The per-call timeout sent to the hub (the hub clamps it to its own 5-65s range). */
 export function callTimeoutOf(args: Record<string, unknown>): number {
   const requested = Number(args.timeoutMs);
-  return Number.isFinite(requested) && requested > 0 ? Math.min(Math.max(requested, 1000), 120_000) : DEFAULT_CALL_TIMEOUT_MS;
+  return Number.isFinite(requested) && requested > 0
+    ? Math.min(Math.max(requested, 1000) + IN_PAGE_MARGIN_MS, 120_000)
+    : DEFAULT_CALL_TIMEOUT_MS;
 }
 
 /**
