@@ -89,3 +89,55 @@ test("the per-browser list is unchanged: every instance still reports its own ta
   assert.deepEqual(s.browsers.find((b) => b.instanceId === "inst-a")!.activeTab, tabA);
   assert.deepEqual(s.browsers.find((b) => b.instanceId === "inst-b")!.activeTab, tabB);
 });
+
+// resolveDispatch(): the routing decision request() in web.ts relays with. It must name exactly one instance or
+// refuse - the extension runs a web_request that names none in every connected profile (web_dispatch.test.ts).
+
+test("dispatch: a selectedProfile matching no connected browser is refused, not re-routed to the other profile", async () => {
+  const registry = await twoProfiles({ aFocused: true });
+  registry.setSelectedProfile("gone@profile.test");
+  const d = registry.resolveDispatch({ selector: "#post" });
+  assert.equal(d.ok, false);
+  if (d.ok) return;
+  assert.equal(d.code, "SELECTED_PROFILE_OFFLINE");
+  assert.match(d.error, /selected profile 'gone@profile\.test' is offline/);
+  assert.deepEqual(d.onlineProfiles, ["a@profile.test", "b@profile.test"]);
+});
+
+test("dispatch: 'any' and 'default' name no browser, so they cannot bypass an offline selection", async () => {
+  const registry = await twoProfiles({ aFocused: true });
+  registry.setSelectedProfile("gone@profile.test");
+  for (const wildcard of ["any", "default", "ANY", " "]) {
+    assert.equal(registry.resolveDispatch({ __browser: wildcard }).ok, false, `__browser: '${wildcard}'`);
+  }
+  registry.setSelectedProfile("b@profile.test");
+  const d = registry.resolveDispatch({ __browser: "any" });
+  assert.equal(d.ok && d.target.instanceId, "inst-b", "a wildcard follows the selection, not the focused window");
+});
+
+test("dispatch: an explicit hint and a tab owner still route while the selection is offline", async () => {
+  const registry = await twoProfiles({ aFocused: true });
+  registry.setSelectedProfile("gone@profile.test");
+  const byHint = registry.resolveDispatch({ __profile: "b@profile.test" });
+  assert.equal(byHint.ok && byHint.target.instanceId, "inst-b");
+  const byTab = registry.resolveDispatch({ tabId: 200 });
+  assert.equal(byTab.ok && byTab.target.instanceId, "inst-b", "the owning instance is ground truth, not a fallback");
+});
+
+test("dispatch: a hint matching no connected browser is refused even when a tab owner exists", async () => {
+  const registry = await twoProfiles();
+  const d = registry.resolveDispatch({ tabId: 100, __browser: "firefox" });
+  assert.equal(d.ok, false);
+  if (d.ok) return;
+  assert.equal(d.code, "PROFILE_NOT_CONNECTED");
+  assert.match(d.error, /No connected browser matches 'firefox'/);
+});
+
+test("dispatch: one browser online and nothing selected names that browser; none online is refused", () => {
+  const registry = createProfileRegistry();
+  const none = registry.resolveDispatch({});
+  assert.equal(!none.ok && none.code, "NO_BROWSER_ONLINE");
+  registry.register({ ...A, tab: tabA, windows: [] });
+  const one = registry.resolveDispatch({});
+  assert.equal(one.ok && one.target.instanceId, "inst-a");
+});

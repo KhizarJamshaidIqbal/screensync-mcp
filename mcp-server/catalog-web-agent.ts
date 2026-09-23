@@ -123,7 +123,7 @@ export function agentWebToolDefinitions(): WebToolDef[] {
     {
       name: "web_profile",
       description:
-        "Multi-profile management: list all connected browser profiles (with profileEmail, profileName, instanceId, windows, activeTab) or select an active target profile to enforce zero cross-talk.",
+        "Multi-profile management: list all connected browser profiles (with profileEmail, profileName, instanceId, windows, activeTab) or select an active target profile to enforce zero cross-talk. While the selected profile is offline, web_* calls without their own profile hint or tabId are refused, never re-routed to another profile; select an online profile, or select with no profile to clear.",
       inputSchema: {
         type: "object",
         properties: {

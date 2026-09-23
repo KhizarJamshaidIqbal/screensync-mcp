@@ -87,33 +87,21 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
 
   const request = (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision): Promise<WebToolResult> =>
     new Promise((resolve) => {
+      // Every relay (tool route, flows, schedules, replay, fanout) passes through here, so this is where a call
+      // that cannot be pinned to exactly one browser instance is stopped: the extension runs an untargeted
+      // web_request in EVERY connected profile. Routing order (tabId/windowId owner, hint, selectedProfile,
+      // heuristic) lives in profile-registry.ts resolveDispatch().
+      const route = registry.resolveDispatch(args);
+      if (!route.ok) {
+        resolve({ ok: false, error: route.error, data: { code: route.code, onlineProfiles: route.onlineProfiles } });
+        return;
+      }
       const id = randomUUID();
       const timer = setTimeout(() => {
         pending.delete(id);
         resolve({ ok: false, error: `Timed out after ${timeoutMs}ms waiting for the browser extension.` });
       }, timeoutMs);
-
-      const hint =
-        typeof args.__profile === "string" ? args.__profile
-        : typeof args.profile === "string" ? args.profile
-        : typeof args.__email === "string" ? args.__email
-        : typeof args.email === "string" ? args.email
-        : typeof args.__instance === "string" ? args.__instance
-        : typeof args.instanceId === "string" ? args.instanceId
-        : typeof args.__browser === "string" ? args.__browser
-        : null;
-
-      // A tabId/windowId is ground truth for which connected browser instance owns the target —
-      // resolveTarget()'s hint is a fuzzy heuristic (selectedProfile, else focused window, else
-      // most-recently-seen) that silently picks the wrong Chrome profile once two are connected
-      // at once. When the call carries either id, route to whichever instance's heartbeat
-      // actually reports owning it; only fall back to the heuristic when no instance claims it.
-      const owningInstance = registry.resolveOwnerByTabOrWindow(args.tabId, args.windowId);
-      const targetEntry = owningInstance || registry.resolveTarget(hint);
-      const targetBrowser = targetEntry ? targetEntry.name : (typeof args.__browser === "string" ? args.__browser : null);
-      const targetInstanceId = targetEntry ? targetEntry.instanceId : null;
-      const targetEmail = targetEntry ? targetEntry.profileEmail : (typeof args.email === "string" ? String(args.email) : null);
-      const targetProfile = targetEntry ? targetEntry.profileName : (typeof args.profile === "string" ? String(args.profile) : null);
+      const { name: targetBrowser, instanceId: targetInstanceId, profileEmail: targetEmail, profileName: targetProfile } = route.target;
 
       pending.set(id, { resolve, timer, targetBrowser, targetInstanceId, targetEmail, targetProfile });
       broadcast({
@@ -639,7 +627,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           return;
         }
         const baselineDataUrl = "data:image/png;base64," + readFileSync(basePng).toString("base64");
-        const diff = await request("web_pixel_diff", { imageA: baselineDataUrl, imageB: dataUrl, threshold }, timeoutMs);
+        const diff = await request("web_pixel_diff", { imageA: baselineDataUrl, imageB: dataUrl, threshold, __browser: target.id }, timeoutMs);
         const dd = diff.data as { identical?: boolean; diffPercent?: number; diffImageDataUrl?: string } | undefined;
         if (!diff.ok || !dd) {
           res.json({ success: true, ok: false, data: { error: "pixel diff failed: " + (diff.error ?? "no data") } });
@@ -839,26 +827,13 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         });
         return;
       }
-      // Multi-profile & multi-browser targeting:
-      const hint =
-        typeof args.__profile === "string" ? args.__profile
-        : typeof args.profile === "string" ? args.profile
-        : typeof args.__email === "string" ? args.__email
-        : typeof args.email === "string" ? args.email
-        : typeof args.__instance === "string" ? args.__instance
-        : typeof args.instanceId === "string" ? args.instanceId
-        : typeof args.__browser === "string" ? args.__browser
-        : null;
-
-      if (hint && hint.toLowerCase() !== "any" && hint.toLowerCase() !== "default") {
-        const matched = registry.resolveTarget(hint);
-        if (!matched) {
-          res.status(400).json({
-            success: false, ok: false,
-            error: `No connected browser matches '${hint}'. Connected: ${onlineBrowsers.map((b) => b.profileEmail || b.profileName || b.name).join(", ") || "none"}. Call web_status or web_profile to list browsers.`,
-          });
-          return;
-        }
+      // Multi-profile & multi-browser targeting: refuse here what request() would refuse (unknown hint, offline
+      // selectedProfile), so a routing refusal is not counted as a tool run by events, the recorder or tracking.
+      const route = registry.resolveDispatch(args);
+      if (!route.ok) {
+        const { status: httpStatus, code, error, onlineProfiles } = route;
+        res.status(httpStatus).json({ success: false, ok: false, error, code, onlineProfiles, data: { code, onlineProfiles } });
+        return;
       }
       const timeoutMs = Math.min(Math.max(Number(b.timeoutMs) || 45_000, 5_000), 60_000);
       const startedAt = Date.now();

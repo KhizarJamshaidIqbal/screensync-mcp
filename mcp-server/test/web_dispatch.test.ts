@@ -1,0 +1,204 @@
+// A web_* call must never leave the hub without a target browser instance.
+//
+// The extension accepts a web_request that names no instance in EVERY connected profile
+// (matchesSelfTarget in extension/lib/profile-identity.js). When selectedProfile named a profile that had
+// dropped offline, resolveTarget() found nothing and request() broadcast the call with
+// targetInstanceId: null, so with two logged-in Chrome profiles online one web_click / web_fill / post ran
+// in BOTH accounts. These cases drive the real bridge (routes, request(), flows, fanout) in-process and
+// record every web_request it relays, standing in for the extension that would receive it.
+
+import "./_isolate-data-dir.js";
+import { test, mock } from "node:test";
+import assert from "node:assert/strict";
+import { once } from "node:events";
+import type { AddressInfo } from "node:net";
+import express from "express";
+import { AUTH_TOKEN } from "../config.js";
+import { createWebBridge } from "../web.js";
+
+// The cognitive gate is covered elsewhere (cognitive_gate.e2e.ts); here it would only add noise.
+process.env.SCREEN_SYNC_COGNITIVE_GATE = "off";
+
+type Relayed = { type: string; id: string; tool: string; args: Record<string, unknown>; targetInstanceId: string | null };
+type ToolReply = { ok: boolean; error?: string; code?: string; onlineProfiles?: string[]; data?: any };
+
+const headers = { "Content-Type": "application/json", Authorization: `Bearer ${AUTH_TOKEN}` };
+const A = { instanceId: "inst-a", browserId: "inst-a", browserName: "chrome", profileEmail: "a@profile.test", webAccessEnabled: true, approvals: true };
+const B = { instanceId: "inst-b", browserId: "inst-b", browserName: "chrome", profileEmail: "b@profile.test", webAccessEnabled: true, approvals: true };
+const SOLO = { ...A, instanceId: "inst-solo", browserId: "inst-solo", profileEmail: "solo@profile.test" };
+
+/** One bridge on an ephemeral port. Every relayed web_request is recorded, and answered as the addressed extension would. */
+async function startHub() {
+  const relayed: Relayed[] = [];
+  let base = "";
+  const bridge = createWebBridge((payload) => {
+    const ev = payload as Relayed;
+    if (ev?.type !== "web_request") return;
+    relayed.push(ev);
+    setImmediate(() => {
+      fetch(`${base}/api/web/result`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ id: ev.id, ok: true, data: { ranIn: ev.targetInstanceId }, ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: "chrome" }),
+      }).catch(() => {});
+    });
+  }, () => 2);
+  const app = express();
+  app.use(express.json({ limit: "5mb" }));
+  bridge.registerRoutes(app);
+  const server = app.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+  const post = async (route: string, body: unknown) => (await fetch(`${base}${route}`, { method: "POST", headers, body: JSON.stringify(body) })).json();
+  return {
+    relayed,
+    register: (body: Record<string, unknown>) => post("/api/web/register", body),
+    call: (tool: string, args: Record<string, unknown> = {}) => post("/api/web/tool", { tool, args }) as Promise<ToolReply>,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
+/** A registers, goes silent past the 10-minute presence TTL, B keeps heartbeating: A is offline, B online. */
+async function selectedProfileGoesOffline(hub: Awaited<ReturnType<typeof startHub>>) {
+  await hub.register(A);
+  await hub.register(B);
+  await hub.call("web_profile", { action: "select", profile: "a@profile.test" });
+  mock.timers.tick(11 * 60_000);
+  await hub.register(B);
+  const status = (await hub.call("web_status")).data;
+  assert.deepEqual(status.browsers.filter((b: any) => b.online).map((b: any) => b.instanceId), ["inst-b"], "fixture: only B is online");
+  assert.equal(status.selectedProfile, "a@profile.test");
+}
+
+test("(a) selectedProfile offline while another profile is online: web_click is refused and nothing is dispatched", async () => {
+  mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const hub = await startHub();
+  try {
+    await selectedProfileGoesOffline(hub);
+    const reply = await hub.call("web_click", { selector: "#publish" });
+
+    assert.deepEqual(hub.relayed.map((r) => r.tool), [], "no web_request may reach any browser");
+    assert.equal(reply.ok, false);
+    assert.match(String(reply.error), /selected profile 'a@profile\.test' is offline/);
+    assert.match(String(reply.error), /web_profile/, "the error must say how to recover");
+    assert.match(String(reply.error), /b@profile\.test/, "the error must name the profiles that are online");
+    assert.deepEqual(reply.onlineProfiles, ["b@profile.test"]);
+  } finally {
+    await hub.close();
+    mock.timers.reset();
+  }
+});
+
+test("(a2) a saved flow run while the selected profile is offline dispatches none of its steps", async () => {
+  mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const hub = await startHub();
+  try {
+    await selectedProfileGoesOffline(hub);
+    await hub.call("web_flow_save", { name: "offline-post", steps: [{ tool: "web_fill", args: { selector: "#msg", value: "hi" } }, { tool: "web_click", args: { selector: "#post" } }] });
+    const run = await hub.call("web_flow_run", { name: "offline-post" });
+
+    assert.deepEqual(hub.relayed.map((r) => r.tool), [], "flows and schedules go through the same guard");
+    assert.equal(run.ok, false);
+    assert.match(String(run.data.results[0].error), /selected profile 'a@profile\.test' is offline/);
+  } finally {
+    await hub.close();
+    mock.timers.reset();
+  }
+});
+
+test("an explicit profile hint still routes while the selected profile is offline", async () => {
+  mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const hub = await startHub();
+  try {
+    await selectedProfileGoesOffline(hub);
+    const reply = await hub.call("web_click", { selector: "#ok", __profile: "b@profile.test" });
+    assert.equal(reply.ok, true);
+    assert.deepEqual(hub.relayed.map((r) => r.targetInstanceId), ["inst-b"]);
+  } finally {
+    await hub.close();
+    mock.timers.reset();
+  }
+});
+
+test("(b) no selection and two profiles online: the call is still sent to exactly one named instance", async () => {
+  const hub = await startHub();
+  try {
+    await hub.register(A);
+    await hub.register(B);
+    const reply = await hub.call("web_click", { selector: "#ok" });
+    assert.equal(reply.ok, true);
+    assert.equal(hub.relayed.length, 1);
+    assert.ok(["inst-a", "inst-b"].includes(String(hub.relayed[0].targetInstanceId)), `targetInstanceId was ${hub.relayed[0].targetInstanceId}`);
+  } finally {
+    await hub.close();
+  }
+});
+
+test("(c) one browser online and nothing selected: the call names that instance explicitly", async () => {
+  const hub = await startHub();
+  try {
+    await hub.register(SOLO);
+    const reply = await hub.call("web_click", { selector: "#ok" });
+    assert.equal(reply.ok, true);
+    assert.deepEqual(hub.relayed.map((r) => r.targetInstanceId), ["inst-solo"]);
+  } finally {
+    await hub.close();
+  }
+});
+
+test("(d) web_fanout still reaches every online browser, one targeted request each", async () => {
+  const hub = await startHub();
+  try {
+    await hub.register(A);
+    await hub.register(B);
+    const reply = await hub.call("web_fanout", { tool: "web_aria_snapshot" });
+    assert.equal(reply.ok, true);
+    assert.equal(reply.data.matched, 2);
+    assert.deepEqual(hub.relayed.map((r) => r.targetInstanceId).sort(), ["inst-a", "inst-b"]);
+  } finally {
+    await hub.close();
+  }
+});
+
+test("(d2) web_fanout addresses all browsers on purpose, so an offline selection does not block it", async () => {
+  mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const hub = await startHub();
+  try {
+    await selectedProfileGoesOffline(hub);
+    const reply = await hub.call("web_fanout", { tool: "web_aria_snapshot" });
+    assert.equal(reply.ok, true);
+    assert.deepEqual(hub.relayed.map((r) => r.targetInstanceId), ["inst-b"]);
+  } finally {
+    await hub.close();
+    mock.timers.reset();
+  }
+});
+
+test("no browser online: a flow step is refused instead of broadcast to whoever is listening", async () => {
+  const hub = await startHub();
+  try {
+    await hub.call("web_flow_save", { name: "nobody-home", steps: [{ tool: "web_click", args: { selector: "#post" } }] });
+    const run = await hub.call("web_flow_run", { name: "nobody-home" });
+    assert.deepEqual(hub.relayed.map((r) => r.tool), []);
+    assert.equal(run.ok, false);
+    assert.match(String(run.data.results[0].error), /No browser is online/);
+  } finally {
+    await hub.close();
+  }
+});
+
+test("every relayed web_request carries a targetInstanceId", async () => {
+  const hub = await startHub();
+  try {
+    await hub.register(A);
+    await hub.register(B);
+    await hub.call("web_expect", { condition: "visible", selector: "h1" });
+    await hub.call("web_click", { selector: "#ok", __browser: "any" });
+    await hub.call("web_fanout", { tool: "web_title" });
+    assert.ok(hub.relayed.length >= 4);
+    for (const r of hub.relayed) assert.ok(r.targetInstanceId, `${r.tool} was relayed without a target`);
+  } finally {
+    await hub.close();
+  }
+});
