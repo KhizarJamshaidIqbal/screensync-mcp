@@ -104,7 +104,10 @@ The agent's per-domain memory grows through developmental stages exactly like a 
    `node <mcp-server>/dist/index.js` with env `SCREEN_SYNC_TOKEN`.
    Global install already exists for this user — prefer it.
 2. Always call **`web_status`** first. It returns `{online, webAccessEnabled,
-   browsers: [{id, name, online, activeTab}]}`.
+   selectedProfile, targetInstanceId, targetProfile, activeTab, browsers: [{instanceId,
+   name, profileEmail, online, activeTab}]}`. The top-level `targetProfile` / `activeTab`
+   are the browser your next call goes to; check them before acting when several profiles
+   are connected (null target = `selectedProfile` matches no connected browser).
 3. `get_mcp_catalog` re-reads the full capability surface anytime.
 
 ## 1 · See before acting (perception loop)

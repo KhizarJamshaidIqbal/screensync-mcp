@@ -218,15 +218,20 @@ export function createProfileRegistry() {
 
   const statusPayload = (sseClients: number) => {
     const online = listOnline();
-    const latest = online[0] ?? null;
+    // The top level describes the browser a call with no routing hints is sent to: the same
+    // resolveTarget() that request() in web.ts uses. Not online[0] - with two profiles connected the
+    // latest heartbeat is often the OTHER logged-in account. null when selectedProfile matches nothing.
+    const target = resolveTarget();
     return {
       online: sseClients > 0 && online.length > 0,
       sseConnected: sseClients > 0,
       sseClients,
       webAccessEnabled: [...instances.values()].some((b) => b.webAccessEnabled),
       selectedProfile,
-      lastSeenAt: latest ? latest.lastSeenAt : null,
-      activeTab: latest ? latest.tab : null,
+      targetInstanceId: target ? target.instanceId : null,
+      targetProfile: target ? (target.profileEmail ?? target.profileName) : null,
+      lastSeenAt: target ? target.lastSeenAt : null,
+      activeTab: target ? target.tab : null,
       browserCount: instances.size,
       browsers: [...instances.values()].map((b) => ({
         instanceId: b.instanceId,
