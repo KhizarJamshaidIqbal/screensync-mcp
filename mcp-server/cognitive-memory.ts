@@ -98,9 +98,14 @@ export class CognitiveMemoryStore {
     const domainFacts = domain ? (data.domains[domain] || null) : null;
     const domainPitfalls = domain ? (data.pitfalls[domain] || []) : [];
 
-    const matchingPlaybooks = Object.values(data.playbooks).filter((pb) => {
+    // With no domain to scope to, there is nothing to rank a playbook AGAINST: every playbook of every
+    // domain ever stored used to pass this filter unfiltered (the `domain &&` guard short-circuited away
+    // when domain was ""), so recall({}) confidently recommended whichever stored playbook scored highest
+    // globally - a completely unrelated domain's playbook, with no indication anything was wrong. An
+    // unscoped cue must come back empty-handed, never a guess.
+    const matchingPlaybooks = !domain ? [] : Object.values(data.playbooks).filter((pb) => {
       if (statusOf(pb) === "deprecated") return false;
-      if (domain && this.normalizeDomain(pb.domain) !== domain) return false;
+      if (this.normalizeDomain(pb.domain) !== domain) return false;
       if (intent && pb.intent.toLowerCase() !== intent) return false;
       return true;
     });

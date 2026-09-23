@@ -14,8 +14,14 @@ import { globalDevelopmentEngine, type DomainMaturity } from "./cognitive-develo
 import { globalMaturationEngine, type OntogeneticProfile } from "./cognitive-maturation.js";
 import { globalLifespanEngine, type LifespanProfile } from "./cognitive-lifespan.js";
 
-/** Who is calling. Handlers that record evidence need a session to count distinct ones. */
-export interface CognitiveContext { session: string }
+/**
+ * Who is calling, and (optionally) what page they're on. Handlers that record evidence need a session to
+ * count distinct ones. `activeTabUrl` is the URL of the browser tab a hint-less web_* call would be routed
+ * to right now (the same resolution resolveDispatch()/web_status's `activeTab` use) - null when no browser
+ * is online. It lets a tool like web_recall infer a domain when the caller omits both `domain` and `url`,
+ * instead of falling back to an unscoped guess.
+ */
+export interface CognitiveContext { session: string; activeTabUrl?: string | null }
 export const HUB_SESSION = "hub";
 
 /** Level L spans [c[L-1], c[L]). */

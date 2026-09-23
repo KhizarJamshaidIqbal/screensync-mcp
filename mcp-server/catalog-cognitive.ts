@@ -10,13 +10,13 @@ export function cognitiveToolDefinitions(): Tool[] {
     {
       name: "web_recall",
       description:
-        "Cognitive cue-dependent memory recall. Call BEFORE interacting with any domain or web task (e.g. x.com, linkedin, wordpress, github) to retrieve verified procedural playbooks, framework quirks (Draft.js, Slate, React), and critical pitfalls to avoid repeating past mistakes.",
+        "Cognitive cue-dependent memory recall. Call BEFORE interacting with any domain or web task (e.g. x.com, linkedin, wordpress, github) to retrieve verified procedural playbooks, framework quirks (Draft.js, Slate, React), and critical pitfalls to avoid repeating past mistakes. If both domain and url are omitted, recall is scoped to whatever page the currently-routed browser tab is actually on (the same tab web_status's activeTab reports) - never to an unscoped ranking across every domain ever learned. With no browser online it returns found:false and a note instead of guessing.",
       inputSchema: {
         type: "object",
         properties: {
           domain: {
             type: "string",
-            description: "Target web domain or host (e.g. 'x.com', 'github.com', 'blog.example.com')."
+            description: "Target web domain or host (e.g. 'x.com', 'github.com', 'blog.example.com'). Omit to use the active browser tab's domain."
           },
           url: {
             type: "string",
