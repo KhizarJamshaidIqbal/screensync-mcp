@@ -278,9 +278,9 @@ export async function ssWebUnitInteract(args) {
     return { ok: true, rect: r, cx, cy };
   }
 
-  function isDestructiveAction(el) {
-    const text = (el.innerText || el.value || el.getAttribute('aria-label') || '').toLowerCase();
-    return /delete|remove|destroy|terminate|cancel\s*subscription|drop|pay|purchase|buy|charge/i.test(text);
+  function isDestructiveAction(el) { // whole words only, same list as mcp-server/destructive-vocab.ts ('Dropdown', 'Display' are not destructive)
+    const words = String(el.innerText || el.value || el.getAttribute('aria-label') || '').replace(/remove(?:All)?(?:Event)?Listeners?|drop[\s_-]?shadow/gi, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/);
+    return words.some((w, i) => /^(?:delet(?:e|es|ing|ion|ions)|remov(?:e|es|ing|al)|destroy(?:s|ing)?|destruction|terminat(?:e|es|ing|ion)|drop(?:s|ping)?|pay(?:s|ing|ment|ments|now|pal)?|purchas(?:e|es|ing)|buy(?:s|ing|now)?|charg(?:e|es|ing))$/.test(w) || (w === 'cancel' && /^subscriptions?$/.test(words[i + 1] || '')));
   }
 
   function findBy(a) {

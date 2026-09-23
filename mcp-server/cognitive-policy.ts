@@ -10,9 +10,10 @@
 //            not look destructive. A fresh domain stays usable.
 //
 // The hub judges "destructive" with the same somatic-marker appraisal the transcendental engine already
-// exposes (the destructive vocabulary is the regex the extension's page-side check shares). It sees only
-// what the caller sends (selector, text, value, url, method), so it is a safety net for honest mistakes,
-// not a defence against a caller that lies about its arguments. It composes with, and does not replace,
+// exposes (destructive-vocab.ts: whole destructive words, never a word hidden inside `dropdown` or
+// `removeEventListener`, plus page-changing code such as `.submit()`; the extension's page-side check shares
+// the word list). It sees only what the caller sends (selector, text, value, url, method), so it is a
+// safety net for honest mistakes, not a defence against a caller that lies about its arguments. It composes with, and does not replace,
 // the extension's origin grants and precise page-side check, and it never trusts `confirmed` or `force`.
 //
 // Modes (SCREEN_SYNC_COGNITIVE_GATE):
@@ -115,6 +116,15 @@ function surfaceOf(args: Record<string, unknown>): { tool?: string; target: stri
   return { tool: method || undefined, target, text, url: asText(args.url), irreversible: args.irreversible === true };
 }
 
+/** The markers, with the words and constructs that raised them, for the person who is asked. */
+function describeMarkers(risk: { markers: string[]; keywords: string[]; constructs: string[] }): string {
+  return risk.markers.map((m) => {
+    if (m === "destructive_keyword" && risk.keywords.length) return `${m}: ${risk.keywords.map((k) => `"${k}"`).join(", ")}`;
+    if (m === "destructive_code" && risk.constructs.length) return `${m}: ${risk.constructs.join(", ")}`;
+    return m;
+  }).join("; ");
+}
+
 /**
  * Decides whether this call is gated, and if so how. Returns null when nothing needs saying: the gate
  * is off, the tool is not a page mutation, the action does not look destructive, the domain has earned
@@ -144,7 +154,7 @@ export function gateBeforeRelay(tool: string, args: Record<string, unknown>, ses
     requiredName: LEVEL_NAMES[REQUIRED_LEVEL - 1],
     riskScore: risk.visceralRiskScore,
     markers: risk.markers,
-    reason: `${tool} looks destructive (${risk.markers.join(", ") || "risk appraisal"}) and ${domain ?? "this page"} has only earned ${LEVEL_NAMES[earned - 1]}; ${LEVEL_NAMES[REQUIRED_LEVEL - 1]} is needed to act on it unsupervised.`,
+    reason: `${tool} looks destructive (${describeMarkers(risk) || "risk appraisal"}) and ${domain ?? "this page"} has only earned ${LEVEL_NAMES[earned - 1]}; ${LEVEL_NAMES[REQUIRED_LEVEL - 1]} is needed to act on it unsupervised.`,
   };
   log("WARN", "Cognitive gate", { ...decision });
 

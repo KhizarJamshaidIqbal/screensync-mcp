@@ -14,6 +14,8 @@
 // class was removed from this project deliberately (commit 5fa992e). The
 // prescribed response to a challenge is to stop and ask the human.
 
+import { destructiveCode, destructiveWords } from './destructive-vocab.js';
+
 function normalizeDomain(input) {
   if (!input) return '';
   try {
@@ -52,8 +54,7 @@ const CATASTROPHIC = [
   'transfer funds', 'wire transfer', 'withdraw', 'production dns', 'rotate key', 'revoke access',
 ];
 
-// Same vocabulary the page-side interact unit enforces, so hub and page agree.
-const DESTRUCTIVE_RE = /delete|remove|destroy|terminate|cancel\s*subscription|drop|pay|purchase|buy|charge/i;
+// Destructive words and page-changing code come from destructive-vocab.js, the hub's vocabulary, so hub and page agree.
 
 /**
  * domain -> threat record for THIS mirror only. The hub answers this tool itself and owns
@@ -247,13 +248,17 @@ export async function execWebZpdScaffoldTutor(args = {}) {
 export async function execWebSomaticMarkerRisk(args = {}) {
   const domain = normalizeDomain(args.domain || args.url);
   const action = args.action || {};
-  const surface = `${action.target || ''} ${action.text || ''} ${action.url || ''} ${action.tool || ''}`.toLowerCase();
+  const raw = `${action.target || ''} ${action.text || ''} ${action.url || ''} ${action.tool || ''}`;
+  const surface = raw.toLowerCase();
   const markers = [];
   let score = 0;
 
   const catastrophic = CATASTROPHIC.find((c) => surface.includes(c));
   if (catastrophic) { markers.push(`catastrophic_intent:${catastrophic.replace(/\s+/g, '_')}`); score += 0.7; }
-  if (DESTRUCTIVE_RE.test(surface)) { markers.push('destructive_keyword'); score += 0.35; }
+  const keywords = destructiveWords(raw);
+  if (keywords.length) { markers.push('destructive_keyword'); score += 0.35; }
+  const constructs = destructiveCode(`${action.target || ''}\n${action.text || ''}`); // not the URL: `?location=x` is no navigation
+  if (constructs.length) { markers.push('destructive_code'); score += 0.35; }
   if (action.irreversible === true) { markers.push('declared_irreversible'); score += 0.3; }
   if (/^(post|put|patch|delete)$/i.test(String(action.tool || ''))) { markers.push('mutating_request'); score += 0.15; }
 
@@ -274,7 +279,7 @@ export async function execWebSomaticMarkerRisk(args = {}) {
   return {
     ok: true,
     data: {
-      domain, visceralRiskScore, somaticGutResponse, markers,
+      domain, visceralRiskScore, somaticGutResponse, markers, keywords, constructs,
       requiresApproval: somaticGutResponse === 'GUT_VISCERAL_ALARM',
       code: somaticGutResponse === 'GUT_VISCERAL_ALARM' ? 'USER_CONFIRMATION_REQUIRED' : null,
       recommendation,
