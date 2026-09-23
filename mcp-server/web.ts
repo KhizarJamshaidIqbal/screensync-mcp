@@ -20,7 +20,7 @@ import { handleCognitiveTool } from "./web-cognitive-handlers.js";
 // extension, which executes it in the user's browser and POSTs the result to
 // /api/web/result so the pending tool call resolves.
 
-export type WebToolResult = { ok: boolean; data?: unknown; error?: string };
+export type WebToolResult = { ok: boolean; data?: unknown; error?: string; code?: string; retryable?: boolean }; // code: APPROVAL_TIMEOUT, USER_DECLINED, ...
 
 type Pending = {
   resolve: (r: WebToolResult) => void;
@@ -100,7 +100,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       const id = randomUUID();
       const timer = setTimeout(() => {
         pending.delete(id);
-        resolve({ ok: false, error: `Timed out after ${timeoutMs}ms waiting for the browser extension.` });
+        resolve({ ok: false, code: "TIMEOUT", error: `Timed out after ${timeoutMs}ms waiting for the browser extension.` });
       }, timeoutMs);
       const { name: targetBrowser, instanceId: targetInstanceId, profileEmail: targetEmail, profileName: targetProfile } = route.target;
 
@@ -812,7 +812,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       const route = registry.resolveDispatch(args);
       const gate = gateBeforeRelay(tool, args, session);
       if (gate && refusedByGate(gate, route)) {
-        res.json({ success: false, ok: false, error: gate.message, data: { gate: gate.decision } });
+        res.json({ success: false, ok: false, code: "USER_CONFIRMATION_REQUIRED", error: gate.message, data: { gate: gate.decision } });
         return;
       }
       const onlineBrowsers = registry.listOnline();
@@ -846,7 +846,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       }
       log("INFO", "Web tool round trip", { tool, ok: result.ok, durationMs: Date.now() - startedAt });
       trackToolExecution(tool, args, result, Date.now() - startedAt, session);
-      res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error, ...(gate ? { cognitiveGate: gate.block ? { ...gate.decision, verdict: "asked" } : gate.decision } : {}) });
+      res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.retryable !== undefined ? { retryable: result.retryable } : {}), ...(gate ? { cognitiveGate: gate.block ? { ...gate.decision, verdict: "asked" } : gate.decision } : {}) });
     });
 
     app.post("/api/web/result", (req: Request, res: Response) => {
@@ -858,7 +858,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         id?: string;
         ok?: boolean;
         data?: unknown;
-        error?: string;
+        error?: string; code?: unknown; retryable?: unknown; // the extension's error code, e.g. APPROVAL_TIMEOUT / USER_DECLINED
         browserId?: string;
         browserName?: string;
         instanceId?: string;
@@ -904,7 +904,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       }
       clearTimeout(entry.timer);
       pending.delete(b.id as string);
-      entry.resolve({ ok: b.ok === true, data: b.data, error: b.error });
+      entry.resolve({ ok: b.ok === true, data: b.data, error: b.error, ...(typeof b.code === "string" && b.code ? { code: b.code.slice(0, 64) } : {}), ...(typeof b.retryable === "boolean" ? { retryable: b.retryable } : {}) });
       res.json({ success: true });
     });
 

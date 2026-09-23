@@ -6,7 +6,7 @@
 import type { Express, Request, Response } from "express";
 
 type PendingRequest = {
-  resolve: (r: { ok: boolean; error?: string }) => void;
+  resolve: (r: { ok: boolean; error?: string; code?: string }) => void;
   timer: ReturnType<typeof setTimeout>;
   /** Set once the extension has asked for more time, so it cannot keep a request alive forever. */
   extended?: boolean;
@@ -66,7 +66,12 @@ export function mountExtensionRoutes(app: Express, { isAuthorized, broadcast, pe
     entry.extended = true;
     entry.timer = setTimeout(() => {
       pending.delete(id);
-      entry.resolve({ ok: false, error: `Timed out after ${waitMs}ms waiting for the browser extension.` });
+      // The extension answers APPROVAL_TIMEOUT itself when nobody decides in time; getting here means it went quiet
+      // (its service worker restarted, or the approved action is still running). Say so, not "hub unreachable".
+      entry.resolve({
+        ok: false, code: "TIMEOUT",
+        error: `Timed out after ${waitMs}ms waiting for the browser extension, which had asked the user to approve this call. The extension may have restarted, or the approved action may still be running: check web_status and web_events before retrying.`,
+      });
     }, waitMs);
     res.json({ success: true, waitMs });
   });

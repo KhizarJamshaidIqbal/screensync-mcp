@@ -23,7 +23,7 @@ import {
   isConsolidatedMode,
   resolveConsolidatedCall,
 } from "./catalog.js";
-import { AUTH_TOKEN, HTTP_PORT, log } from "./config.js";
+import { log } from "./config.js";
 import { emitHubEvent } from "./events.js";
 import { promptMessage } from "./prompts.js";
 import {
@@ -53,41 +53,11 @@ import {
   typeText,
   uiHierarchy,
 } from "./control.js";
-import { randomUUID } from "node:crypto";
-
-/** One id per MCP process, so the hub can tell distinct agent sessions apart (competence needs several). */
-const SESSION_ID = `mcp-${randomUUID()}`;
+// web_* tools round-trip through the HTTP hub; hub-web-call.ts also says what a failed round trip means.
+import { callHubWebTool } from "./hub-web-call.js";
 
 function textResult(value: unknown, isError = false) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }], isError };
-}
-
-/**
- * Round-trips a web_* tool through the HTTP hub, which relays it over SSE to
- * the ScreenSync browser extension. Goes through HTTP (not in-process calls)
- * so it also works when this stdio server runs MCP-only beside another hub
- * instance.
- */
-async function callHubWebTool(tool: string, args: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
-  const url = `http://127.0.0.1:${HTTP_PORT}/api/web/tool`;
-  let res: Response;
-  const requestedTimeout = Number(args.timeoutMs);
-  const timeoutMs = Number.isFinite(requestedTimeout) && requestedTimeout > 0
-    ? Math.min(Math.max(requestedTimeout, 1000), 120_000)
-    : 45_000;
-  const abortTimeout = timeoutMs + 5_000;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${AUTH_TOKEN}`, "X-Session-Id": SESSION_ID },
-      body: JSON.stringify({ tool, args, timeoutMs }),
-      signal: AbortSignal.timeout(abortTimeout),
-    });
-  } catch (error) {
-    return { ok: false, error: `ScreenSync hub is not reachable at ${url} (${String(error)}). Start the hub with 'npm start' and make sure the browser extension is connected.` };
-  }
-  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: unknown; error?: string };
-  return { ok: body.ok === true, data: body.data, error: body.error ?? (res.ok ? undefined : `Hub replied ${res.status}`) };
 }
 
 
@@ -139,7 +109,8 @@ export function createMcpServer() {
       // ── Web bridge (browser access for AI agents) ──
       if (request.params.name.startsWith("web_")) {
         const r = await callHubWebTool(request.params.name, (request.params.arguments ?? {}) as Record<string, unknown>);
-        if (!r.ok) return textResult({ success: false, error: r.error }, true);
+        // The code (APPROVAL_TIMEOUT, USER_DECLINED, TIMEOUT, HUB_UNREACHABLE, ...) says what to do next.
+        if (!r.ok) return textResult({ success: false, error: r.error, ...(r.code ? { code: r.code } : {}), ...(r.retryable !== undefined ? { retryable: r.retryable } : {}) }, true);
         if (request.params.name === "web_screenshot" || request.params.name === "web_full_screenshot" || request.params.name === "web_element_screenshot") {
           const d = r.data as { imageDataUrl?: string; url?: string; title?: string; fullPage?: boolean; selector?: string } | undefined;
           const dataUrl = d?.imageDataUrl ?? "";
