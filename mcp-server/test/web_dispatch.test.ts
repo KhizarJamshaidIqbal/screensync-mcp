@@ -19,7 +19,7 @@ import { createWebBridge } from "../web.js";
 // The cognitive gate is covered elsewhere (cognitive_gate.e2e.ts); here it would only add noise.
 process.env.SCREEN_SYNC_COGNITIVE_GATE = "off";
 
-type Relayed = { type: string; id: string; tool: string; args: Record<string, unknown>; targetInstanceId: string | null };
+type Relayed = { type: string; id: string; tool: string; args: Record<string, unknown>; targetInstanceId: string | null; targetBrowser?: string | null };
 type ToolReply = { ok: boolean; error?: string; code?: string; onlineProfiles?: string[]; data?: any };
 
 const headers = { "Content-Type": "application/json", Authorization: `Bearer ${AUTH_TOKEN}` };
@@ -28,7 +28,7 @@ const B = { instanceId: "inst-b", browserId: "inst-b", browserName: "chrome", pr
 const SOLO = { ...A, instanceId: "inst-solo", browserId: "inst-solo", profileEmail: "solo@profile.test" };
 
 /** One bridge on an ephemeral port. Every relayed web_request is recorded, and answered as the addressed extension would. */
-async function startHub() {
+async function startHub(answer: (ev: Relayed) => unknown = (ev) => ({ ranIn: ev.targetInstanceId })) {
   const relayed: Relayed[] = [];
   let base = "";
   const bridge = createWebBridge((payload) => {
@@ -39,7 +39,7 @@ async function startHub() {
       fetch(`${base}/api/web/result`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ id: ev.id, ok: true, data: { ranIn: ev.targetInstanceId }, ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: "chrome" }),
+        body: JSON.stringify({ id: ev.id, ok: true, data: answer(ev), ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: ev.targetBrowser || "chrome" }),
       }).catch(() => {});
     });
   }, () => 2);
@@ -198,6 +198,166 @@ test("every relayed web_request carries a targetInstanceId", async () => {
     await hub.call("web_fanout", { tool: "web_title" });
     assert.ok(hub.relayed.length >= 4);
     for (const r of hub.relayed) assert.ok(r.targetInstanceId, `${r.tool} was relayed without a target`);
+  } finally {
+    await hub.close();
+  }
+});
+
+// ── The approval gate asks the browser the call is dispatched to ─────────────────────────────────────────────
+// humanCanBeAsked() used to pick its browser with resolveTarget(), which ignores tabId/windowId, while request()
+// dispatched with resolveDispatch(), which follows the tab owner. So approval could be judged on profile A (an
+// extension that asks a person) while the call ran in profile B (an older one that would simply run it).
+
+const DANGEROUS = { url: "https://gated.example/account", selector: "button.delete-account" };
+const CAPABLE_A = { ...A, approvals: true, windows: [{ id: 10, focused: true, activeTab: { tabId: 100, url: "https://gated.example/" } }] };
+const OLD_B = { ...B, approvals: false, windows: [{ id: 20, focused: false, activeTab: { tabId: 200, url: "https://gated.example/" } }] };
+
+async function withGate<T>(mode: string, fn: () => Promise<T>): Promise<T> {
+  process.env.SCREEN_SYNC_COGNITIVE_GATE = mode;
+  try { return await fn(); } finally { process.env.SCREEN_SYNC_COGNITIVE_GATE = "off"; }
+}
+
+test("gate: selectedProfile = A, tabId owned by B: approval is judged on B, so B's old extension never gets the call", async () => {
+  const hub = await startHub();
+  try {
+    await hub.register(CAPABLE_A);
+    await hub.register(OLD_B);
+    await hub.call("web_profile", { action: "select", profile: "a@profile.test" });
+    const reply = await withGate("enforce", () => hub.call("web_click", { ...DANGEROUS, tabId: 200 }));
+
+    assert.deepEqual(hub.relayed.map((r) => `${r.tool}->${r.targetInstanceId}`), [], "B cannot ask a person, so nothing may be relayed to it");
+    assert.equal(reply.ok, false);
+    assert.match(String(reply.error), /^USER_CONFIRMATION_REQUIRED \(cognitive gate\)/);
+  } finally {
+    await hub.close();
+  }
+});
+
+test("gate: selectedProfile = B (cannot ask), tabId owned by A (can ask): the call goes to A, marked for a person", async () => {
+  const hub = await startHub();
+  try {
+    await hub.register(CAPABLE_A);
+    await hub.register(OLD_B);
+    await hub.call("web_profile", { action: "select", profile: "b@profile.test" });
+    const reply = await withGate("enforce", () => hub.call("web_click", { ...DANGEROUS, tabId: 100 }));
+
+    assert.equal(reply.ok, true, String(reply.error));
+    assert.deepEqual(hub.relayed.map((r) => r.targetInstanceId), ["inst-a"]);
+    assert.equal((hub.relayed[0].args.__gate as { needsHuman?: boolean } | undefined)?.needsHuman, true, "A's extension is told to ask a person");
+  } finally {
+    await hub.close();
+  }
+});
+
+test("gate: a dispatch that is refused (selected profile offline) is refused before anyone is asked", async () => {
+  mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const hub = await startHub();
+  try {
+    await selectedProfileGoesOffline(hub);
+    const reply = await withGate("enforce", () => hub.call("web_click", DANGEROUS));
+
+    assert.deepEqual(hub.relayed.map((r) => r.tool), [], "no approval prompt for a call that cannot be dispatched");
+    assert.equal(reply.code, "SELECTED_PROFILE_OFFLINE", "the routing problem is what to fix, not the extension version");
+    assert.match(String(reply.error), /selected profile 'a@profile\.test' is offline/);
+  } finally {
+    await hub.close();
+    mock.timers.reset();
+  }
+});
+
+// ── web_tab_fanout lists and acts on ONE browser's tabs: the routed one ──────────────────────────────────────
+// It listed the tabs of whichever browser heartbeated last (listOnline()[0]) and relayed each per-tab call
+// unpinned, so with profile B selected it read A's tab ids and ran them wherever each id happened to route.
+
+/** Each browser's own tabs, as its extension's web_tabs answers. Tab ids are only unique inside one browser. */
+const TABS: Record<string, Array<{ tabId: number; url: string }>> = {
+  "inst-a": [{ tabId: 100, url: "https://a.test/1" }, { tabId: 101, url: "https://a.test/2" }],
+  "inst-b": [{ tabId: 200, url: "https://b.test/1" }, { tabId: 201, url: "https://b.test/2" }],
+};
+const tabsAnswer = (ev: Relayed) => (ev.tool === "web_tabs" ? { tabs: TABS[String(ev.targetInstanceId)] ?? [] } : { ranIn: ev.targetInstanceId });
+const sent = (hub: Awaited<ReturnType<typeof startHub>>) =>
+  hub.relayed.map((r) => `${r.tool}${r.args.tabId === undefined ? "" : `#${r.args.tabId}`}->${r.targetInstanceId}`);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** `first` heartbeats, then `last`: `last` holds the most recent heartbeat (listOnline()[0]). */
+async function heartbeats(hub: Awaited<ReturnType<typeof startHub>>, first: Record<string, unknown>, last: Record<string, unknown>) {
+  await hub.register(first);
+  await sleep(5);
+  await hub.register(last);
+  const profiles = (await hub.call("web_profile")).data.profiles;
+  assert.equal(profiles[0].instanceId, last.instanceId, "fixture: the most recent heartbeat");
+}
+
+test("tab fanout: selectedProfile = B while A heartbeated last: B's tabs are listed and every per-tab call goes to B", async () => {
+  const hub = await startHub(tabsAnswer);
+  try {
+    await heartbeats(hub, B, A);
+    await hub.call("web_profile", { action: "select", profile: "b@profile.test" });
+    const reply = await hub.call("web_tab_fanout", { tool: "web_title" });
+
+    assert.deepEqual(sent(hub), ["web_tabs->inst-b", "web_title#200->inst-b", "web_title#201->inst-b"]);
+    assert.equal(reply.ok, true, String(reply.error));
+    assert.deepEqual(reply.data.results.map((r: { tabId: number }) => r.tabId), [200, 201]);
+    assert.equal(reply.data.instanceId, "inst-b", "the reply says whose tabs these are");
+  } finally {
+    await hub.close();
+  }
+});
+
+test("tab fanout: an explicit profile hint picks the browser, for the listing and for every per-tab call", async () => {
+  const hub = await startHub(tabsAnswer);
+  try {
+    await heartbeats(hub, A, B);
+    const reply = await hub.call("web_tab_fanout", { tool: "web_title", profile: "a@profile.test" });
+    assert.deepEqual(sent(hub), ["web_tabs->inst-a", "web_title#100->inst-a", "web_title#101->inst-a"]);
+    assert.equal(reply.ok, true, String(reply.error));
+  } finally {
+    await hub.close();
+  }
+});
+
+test("tab fanout: per-tab calls stay pinned even when another browser reports the same tab id", async () => {
+  const hub = await startHub(tabsAnswer);
+  try {
+    // A's heartbeat says its active tab is 200 too: the same number means a different tab in another browser.
+    await heartbeats(hub, B, { ...A, windows: [{ id: 10, focused: true, activeTab: { tabId: 200 } }] });
+    await hub.call("web_profile", { action: "select", profile: "b@profile.test" });
+    await hub.call("web_tab_fanout", { tool: "web_title", tabIds: [200] });
+    assert.deepEqual(sent(hub), ["web_tabs->inst-b", "web_title#200->inst-b"]);
+  } finally {
+    await hub.close();
+  }
+});
+
+test("tab fanout: while the selected profile is offline nothing is listed or run, and the refusal says why", async () => {
+  mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const hub = await startHub(tabsAnswer);
+  try {
+    await selectedProfileGoesOffline(hub);
+    const reply = await hub.call("web_tab_fanout", { tool: "web_title" });
+    assert.deepEqual(sent(hub), []);
+    assert.equal(reply.ok, false);
+    assert.equal(reply.code, "SELECTED_PROFILE_OFFLINE");
+  } finally {
+    await hub.close();
+    mock.timers.reset();
+  }
+});
+
+test("a tabId that two browsers both report is not guessed: nothing is dispatched until a profile hint picks one", async () => {
+  const hub = await startHub();
+  try {
+    const win = [{ id: 5, focused: true, activeTab: { tabId: 7 } }];
+    await hub.register({ ...A, windows: win });
+    await hub.register({ ...B, browserName: "edge", windows: win });
+    const refused = await hub.call("web_click", { selector: "#post", tabId: 7 });
+    assert.deepEqual(sent(hub), []);
+    assert.equal(refused.code, "AMBIGUOUS_TAB_OWNER");
+    assert.match(String(refused.error), /a@profile\.test.*b@profile\.test|b@profile\.test.*a@profile\.test/);
+
+    const picked = await hub.call("web_click", { selector: "#post", tabId: 7, __profile: "b@profile.test" });
+    assert.equal(picked.ok, true, String(picked.error));
+    assert.deepEqual(sent(hub), ["web_click#7->inst-b"]);
   } finally {
     await hub.close();
   }

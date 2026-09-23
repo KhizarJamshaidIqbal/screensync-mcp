@@ -6,7 +6,7 @@ import { DATA_DIR, isAuthorized, log } from "./config.js";
 import { emitHubEvent, lastEventSeq, recentHubEvents } from "./events.js";
 import { createFrameStore } from "./web-frame.js";
 import { generateFlow, generatePlaywright } from "./codegen.js";
-import { createProfileRegistry, BrowserInstance, BrowserWindowInfo } from "./profile-registry.js";
+import { createProfileRegistry, BrowserInstance, BrowserWindowInfo, type DispatchDecision } from "./profile-registry.js";
 import { trackToolExecution } from "./cognitive-auto-tracker.js";
 import { sessionOf } from "./cognitive-spine-observer.js";
 import { forRelay, gateBeforeRelay, humanCanBeAsked, type GateDecision } from "./cognitive-policy.js";
@@ -85,13 +85,13 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
     return registry.statusPayload(sseClients);
   };
 
-  const request = (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision): Promise<WebToolResult> =>
+  const request = (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision, decided?: DispatchDecision): Promise<WebToolResult> =>
     new Promise((resolve) => {
       // Every relay (tool route, flows, schedules, replay, fanout) passes through here, so this is where a call
       // that cannot be pinned to exactly one browser instance is stopped: the extension runs an untargeted
       // web_request in EVERY connected profile. Routing order (tabId/windowId owner, hint, selectedProfile,
-      // heuristic) lives in profile-registry.ts resolveDispatch().
-      const route = registry.resolveDispatch(args);
+      // heuristic) lives in profile-registry.ts resolveDispatch(); a caller that already acted on one passes `decided`.
+      const route = decided ?? registry.resolveDispatch(args);
       if (!route.ok) {
         resolve({ ok: false, error: route.error, data: { code: route.code, onlineProfiles: route.onlineProfiles } });
         return;
@@ -736,13 +736,18 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           return;
         }
         const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
-        const browser = registry.listOnline()[0];
-        if (!browser) {
-          res.status(503).json({ success: false, ok: false, error: "No browser is online." });
+        const { tool: _t, tabIds: _ti, urls: _u, activeOnly: _a, args: innerA, ...rest } = args;
+        const innerArgs = { ...rest, ...(innerA && typeof innerA === "object" ? (innerA as Record<string, unknown>) : {}) };
+        // ONE browser, routed like any call (never "whoever heartbeated last"), lists the tabs AND runs every per-tab
+        // call: a tab id means nothing outside the browser that reported it. The per-tab tabId routes nothing here.
+        const route = registry.resolveDispatch({ ...innerArgs, tabId: undefined });
+        if (!route.ok) {
+          const { status: httpStatus, code, error, onlineProfiles } = route;
+          res.status(httpStatus).json({ success: false, ok: false, error, code, onlineProfiles, data: { code, onlineProfiles } });
           return;
         }
-        const targetId = browser.instanceId;
-        const tabsRes = await request("web_tabs", { __browser: targetId }, timeoutMs);
+        const from = { instanceId: route.target.instanceId, profile: route.target.profileEmail ?? route.target.profileName };
+        const tabsRes = await request("web_tabs", {}, timeoutMs, undefined, route);
         const tabsRaw = (tabsRes.data as { tabs?: Array<{ tabId: number; url?: string }> } | undefined)?.tabs ?? [];
         const want = args.tabIds;
         let tabs = tabsRaw;
@@ -753,17 +758,15 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         }
         if (args.activeOnly === true) tabs = tabsRaw.filter((t) => (t as { active?: boolean }).active === true);
         if (!tabs.length) {
-          res.json({ success: true, ok: false, data: { results: [], matched: 0, availableTabs: tabsRaw.length } });
+          res.json({ success: true, ok: false, error: tabsRes.ok ? undefined : tabsRes.error, data: { ...from, results: [], matched: 0, availableTabs: tabsRaw.length } });
           return;
         }
-        const { tool: _t, tabIds: _ti, urls: _u, activeOnly: _a, args: innerA, ...rest } = args;
-        const innerArgs = { ...rest, ...(innerA && typeof innerA === "object" ? (innerA as Record<string, unknown>) : {}) };
         const results: Array<Record<string, unknown>> = [];
         for (const t of tabs) {
-          const r = await request(innerTool, { ...innerArgs, tabId: t.tabId }, timeoutMs);
+          const r = await request(innerTool, { ...innerArgs, tabId: t.tabId }, timeoutMs, undefined, route);
           results.push({ tabId: t.tabId, url: t.url, ok: r.ok, data: r.data, error: r.error });
         }
-        res.json({ success: true, ok: results.every((r) => r.ok), data: { tool: innerTool, matched: tabs.length, results } });
+        res.json({ success: true, ok: results.every((r) => r.ok), data: { tool: innerTool, ...from, matched: tabs.length, results } });
         return;
       }
 
@@ -807,8 +810,11 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       // Soft gate: a destructive-looking mutation on a domain that has not earned COMPETENT (cognitive-policy.ts).
       // In enforce mode it goes to a person (the extension asks); it is refused here only when nobody can be
       // asked. Before the connection checks: that refusal must not depend on whether a browser is attached.
+      // `route` is decided ONCE: the browser judged able to ask IS the one request() dispatches to. A route refused
+      // while browsers are online is left to the routing refusal below; either way nothing is relayed or asked.
+      const route = registry.resolveDispatch(args);
       const gate = gateBeforeRelay(tool, args, session);
-      if (gate?.block && !humanCanBeAsked(registry, args)) {
+      if (gate?.block && !humanCanBeAsked(route) && (route.ok || route.onlineProfiles.length === 0)) {
         res.json({ success: false, ok: false, error: gate.message, data: { gate: gate.decision } });
         return;
       }
@@ -829,7 +835,6 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       }
       // Multi-profile & multi-browser targeting: refuse here what request() would refuse (unknown hint, offline
       // selectedProfile), so a routing refusal is not counted as a tool run by events, the recorder or tracking.
-      const route = registry.resolveDispatch(args);
       if (!route.ok) {
         const { status: httpStatus, code, error, onlineProfiles } = route;
         res.status(httpStatus).json({ success: false, ok: false, error, code, onlineProfiles, data: { code, onlineProfiles } });
@@ -837,7 +842,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       }
       const timeoutMs = Math.min(Math.max(Number(b.timeoutMs) || 45_000, 5_000), 60_000);
       const startedAt = Date.now();
-      const result = await request(tool, args, timeoutMs, gate?.block ? gate.decision : undefined);
+      const result = await request(tool, args, timeoutMs, gate?.block ? gate.decision : undefined, route);
       emitHubEvent("tool", tool, result.ok);
       if (recorder.active && !RECORD_SKIP.has(tool)) {
         recorder.steps.push({ step: recorder.steps.length + 1, tool, args });

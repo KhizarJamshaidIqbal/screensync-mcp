@@ -111,6 +111,9 @@ The agent's per-domain memory grows through developmental stages exactly like a 
    While that selected profile is offline the hub refuses web_* calls (`SELECTED_PROFILE_OFFLINE`,
    listing the online profiles) instead of sending them to another account: reconnect it, pass a
    `__profile` hint, or `web_profile {action:"select"}` an online profile (no profile clears it).
+   Tab and window ids are only unique inside one browser: a `tabId`/`windowId` that two connected
+   browsers both report is refused with `AMBIGUOUS_TAB_OWNER` (naming both) unless your profile hint,
+   else the selected profile, is one of them. Retry with `__profile` (or `__instance`) set.
 3. `get_mcp_catalog` re-reads the full capability surface anytime.
 
 ## 1 · See before acting (perception loop)
@@ -151,7 +154,7 @@ The agent's per-domain memory grows through developmental stages exactly like a 
 | Act inside an iframe | `web_in_frame` {tool, args, frameId|frameUrl} (frames via `web_frame_tree`) |
 | Auto-answer HTTP 401 auth dialogs | `web_network_auth` {username, password} then navigate |
 | Teach-once-replay-anywhere | `web_record` {action:start/stop} → edit steps → `web_replay` {steps} — daily real-account flows in one call |
-| Run one tool on ALL tabs | `web_tab_fanout` {tool, args, tabIds|urls|activeOnly} |
+| Run one tool on ALL tabs | `web_tab_fanout` {tool, args, tabIds|urls|activeOnly, profile} — one browser's tabs: `profile`, else the selected profile; call once per profile for several |
 | Jump the fake clock | `web_clock_fast_forward` {ms} after `web_clock_set` (+ `fixed:true` freeze) |
 | Wait for a download | `web_wait_download` {url?, filename?} (call before the triggering action) |
 | Restore a minimized window | `web_window` {state:'normal'|"maximized", focused:true} — needed before screenshots |
