@@ -5,9 +5,9 @@
 // web_dispatch.test.ts (the real routes and request(), with a stand-in extension) show where each call went.
 
 import "./_isolate-data-dir.js";
-import { test } from "node:test";
+import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { A, B, startHub, sent } from "./_web-hub-harness.js";
+import { A, B, startHub, sent, heartbeats, selectedProfileGoesOffline, type Relayed } from "./_web-hub-harness.js";
 
 /** A's active tab is 100 in window 10, B's is 200 in window 20: the hub learns tab owners from these heartbeats. */
 const A_TAB = { ...A, windows: [{ id: 10, focused: true, activeTab: { tabId: 100, url: "https://a.test/" } }] };
@@ -90,6 +90,49 @@ test("fanout: a windowId owned by B runs only in B", async () => {
     const reply = await hub.call("web_fanout", { tool: "web_window", args: { action: "focus", windowId: 20 } });
     assert.deepEqual(hub.relayed.map((r) => `${r.tool}->${r.targetInstanceId}`), ["web_window->inst-b"]);
     assert.equal(reply.data.results.find((r: any) => r.browserId === "inst-a").skipped, true);
+  } finally {
+    await hub.close();
+  }
+});
+
+// ── web_visual_baseline: one routing decision takes the screenshot and runs the pixel diff ───────────────────
+// It picked the browser that heartbeated last and sent it a __browser hint, which also got around an offline
+// selected profile (an explicit hint routes past it).
+
+const PNG = "data:image/png;base64,iVBORw0KGgo=";
+const shotAnswer = (ev: Relayed) =>
+  ev.tool === "web_screenshot" ? { imageDataUrl: PNG, url: `https://${ev.targetInstanceId}.test/` }
+    : ev.tool === "web_pixel_diff" ? { identical: true, diffPercent: 0 } : { ranIn: ev.targetInstanceId };
+
+test("visual baseline: while the selected profile is offline nothing is captured, and the refusal says why", async () => {
+  mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const hub = await startHub(shotAnswer);
+  try {
+    await selectedProfileGoesOffline(hub);
+    for (const action of ["save", "compare"]) {
+      const reply = await hub.call("web_visual_baseline", { action, name: "offline-page" });
+      assert.equal(reply.ok, false, action);
+      assert.equal(reply.code, "SELECTED_PROFILE_OFFLINE", action);
+    }
+    assert.deepEqual(sent(hub), [], "no screenshot from the other profile");
+  } finally {
+    await hub.close();
+    mock.timers.reset();
+  }
+});
+
+test("visual baseline: B selected while A heartbeated last: the screenshot and the pixel diff both run in B", async () => {
+  const hub = await startHub(shotAnswer);
+  try {
+    await heartbeats(hub, B, A);
+    await hub.call("web_profile", { action: "select", profile: "b@profile.test" });
+    const saved = await hub.call("web_visual_baseline", { action: "save", name: "routed-page" });
+    assert.equal(saved.ok, true, String(saved.error ?? saved.data?.error));
+    const compared = await hub.call("web_visual_baseline", { action: "compare", name: "routed-page" });
+    assert.equal(compared.ok, true, String(compared.error ?? compared.data?.error));
+    assert.equal(compared.data.compared, true);
+
+    assert.deepEqual(hub.relayed.map((r) => `${r.tool}->${r.targetInstanceId}`), ["web_screenshot->inst-b", "web_screenshot->inst-b", "web_pixel_diff->inst-b"]);
   } finally {
     await hub.close();
   }

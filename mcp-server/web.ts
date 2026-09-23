@@ -588,17 +588,12 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           return;
         }
 
-        // Capture the CURRENT viewport as PNG via the extension.
-        const targets = registry.listOnline().map((e) => ({ id: e.instanceId, name: e.name }));
-        const target = args.__browser
-          ? targets.find((t) => t.name === String(args.__browser) || t.id === String(args.__browser)) ?? targets[0]
-          : targets[0];
-        if (!target) {
-          res.status(503).json({ success: false, ok: false, error: "No browser is online." });
-          return;
-        }
+        // Capture the CURRENT viewport as PNG via the extension. The browser is routed ONCE, like any call, and that
+        // same decision takes the screenshot and runs the pixel diff below.
+        const route = registry.resolveDispatch(args);
+        if (!route.ok) { sendRouteRefusal(res, route); return; }
         const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
-        const shot = await request("web_screenshot", { format: "png", ...(args.tabId ? { tabId: args.tabId } : {}), __browser: target.id }, timeoutMs);
+        const shot = await request("web_screenshot", { format: "png", ...(args.tabId ? { tabId: args.tabId } : {}) }, timeoutMs, undefined, route);
         const shotData = shot.data as { imageDataUrl?: string; url?: string; title?: string } | undefined;
         const dataUrl = shotData?.imageDataUrl ?? "";
         if (!shot.ok || !dataUrl.startsWith("data:image/")) {
@@ -628,7 +623,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           return;
         }
         const baselineDataUrl = "data:image/png;base64," + readFileSync(basePng).toString("base64");
-        const diff = await request("web_pixel_diff", { imageA: baselineDataUrl, imageB: dataUrl, threshold, __browser: target.id }, timeoutMs);
+        const diff = await request("web_pixel_diff", { imageA: baselineDataUrl, imageB: dataUrl, threshold }, timeoutMs, undefined, route);
         const dd = diff.data as { identical?: boolean; diffPercent?: number; diffImageDataUrl?: string } | undefined;
         if (!diff.ok || !dd) {
           res.json({ success: true, ok: false, data: { error: "pixel diff failed: " + (diff.error ?? "no data") } });
