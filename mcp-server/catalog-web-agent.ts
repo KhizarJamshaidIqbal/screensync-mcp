@@ -237,6 +237,7 @@ export function agentWebToolDefinitions(): WebToolDef[] {
             description: "Filter by event type: web_navigation, web_page_loaded, web_tab_activated, tool, frame, web_event.",
           },
           limit: { type: "integer", minimum: 1, maximum: 500, default: 100, description: "Maximum events returned." },
+          newest: { type: "boolean", default: true, description: "true (default): the most recent `limit` matching events, still oldest first. false: the first `limit` after `since`, to page forward without gaps (next since = the last seq returned). `skipped` counts what was left out." },
         },
         additionalProperties: false,
       },

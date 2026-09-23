@@ -57,15 +57,49 @@ export function recordHubEvent(payload: Record<string, unknown>): number {
   return eventSeq;
 }
 
-export function recentHubEvents(
-  since = 0,
-  types?: string[],
-  limit = 100,
-): Array<{ seq: number; at: string; payload: Record<string, unknown> }> {
-  const filtered = eventRing.filter(
+type RingEvent = { seq: number; at: string; payload: Record<string, unknown> };
+
+function matchingEvents(since: number, types?: string[]): RingEvent[] {
+  return eventRing.filter(
     (e) => e.seq > since && (!types || types.length === 0 || types.includes(String(e.payload.type))),
   );
-  return filtered.slice(Math.max(0, filtered.length - limit));
+}
+
+/**
+ * Buffered events after `since`, oldest first. `newest` (the default) keeps the LAST `limit` of them, the live
+ * tail; `newest: false` keeps the FIRST `limit`, so a caller can page forward without gaps.
+ */
+export function recentHubEvents(since = 0, types?: string[], limit = 100, newest = true): RingEvent[] {
+  const filtered = matchingEvents(since, types);
+  return newest ? filtered.slice(Math.max(0, filtered.length - limit)) : filtered.slice(0, limit);
+}
+
+/**
+ * The web_events tool's reply, answered from the ring with no browser round trip. The default is unchanged:
+ * the most recent `limit` events, ascending. `newest: true` asks for that explicitly; `newest: false` returns
+ * the first `limit` after `since` instead (continue with since = the last seq returned). `skipped` counts the
+ * matching events this reply left out, older ones for newest, newer ones otherwise.
+ */
+export function webEventsReply(args: Record<string, unknown>) {
+  const since = Number(args.since) || 0;
+  const limit = Math.min(Number(args.limit) || 100, 500);
+  const types = Array.isArray(args.types)
+    ? args.types.map(String)
+    : typeof args.types === "string"
+      ? String(args.types).split(",").map((s) => s.trim()).filter(Boolean)
+      : undefined;
+  const newest = !(args.newest === false || args.newest === "false");
+  const matched = matchingEvents(since, types).length;
+  const events = recentHubEvents(since, types, limit, newest);
+  return {
+    lastSeq: lastEventSeq(),
+    count: events.length,
+    since,
+    types: types ?? null,
+    newest,
+    skipped: matched - events.length,
+    events: events.map((e) => ({ seq: e.seq, at: e.at, ...e.payload })),
+  };
 }
 
 export function lastEventSeq(): number {

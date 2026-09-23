@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFile
 import path from "node:path";
 import type { Express, Request, Response } from "express";
 import { DATA_DIR, isAuthorized, log } from "./config.js";
-import { emitHubEvent, lastEventSeq, recentHubEvents } from "./events.js";
+import { emitHubEvent, webEventsReply } from "./events.js";
 import { createFrameStore } from "./web-frame.js";
 import { generateFlow, generatePlaywright } from "./codegen.js";
 import { createProfileRegistry, BrowserInstance, BrowserWindowInfo, type DispatchDecision } from "./profile-registry.js";
@@ -345,24 +345,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       // web_events: hub-side real-time tail of the sequenced SSE ring — no
       // extension round trip, answered instantly from the buffered stream.
       if (tool === "web_events") {
-        const since = Number(args.since) || 0;
-        const limit = Math.min(Number(args.limit) || 100, 500);
-        const types = Array.isArray(args.types)
-          ? args.types.map(String)
-          : typeof args.types === "string"
-            ? String(args.types).split(",").map((s) => s.trim()).filter(Boolean)
-            : undefined;
-        const events = recentHubEvents(since, types, limit);
-        res.json({
-          success: true, ok: true,
-          data: {
-            lastSeq: lastEventSeq(),
-            count: events.length,
-            since,
-            types: types ?? null,
-            events: events.map((e) => ({ seq: e.seq, at: e.at, ...e.payload })),
-          },
-        });
+        res.json({ success: true, ok: true, data: webEventsReply(args) });
         return;
       }
       // ── Hub-side multi-browser orchestration ─────────────────────────────
