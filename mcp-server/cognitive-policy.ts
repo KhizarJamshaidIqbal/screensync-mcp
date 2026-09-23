@@ -171,6 +171,15 @@ export function humanCanBeAsked(route: DispatchDecision): boolean {
   return route.ok && route.target.webAccessEnabled && route.target.approvals;
 }
 
+/**
+ * True when the gate itself must refuse a call: it needs a person and the browser `route` dispatches it to cannot
+ * ask one. A route refused while browsers are online is left to the routing refusal (that is what to fix); with
+ * none online nobody can be asked either way. The tool route and every step a hub-side tool relays use this.
+ */
+export function refusedByGate(gate: GateOutcome, route: DispatchDecision): boolean {
+  return gate.block && !humanCanBeAsked(route) && (route.ok || route.onlineProfiles.length === 0);
+}
+
 /** Flags only the hub or the extension may set. Whatever a caller sends under these names is dropped. */
 const INTERNAL_KEYS: ReadonlySet<string> = new Set(["__humanApproved", "__actGranted", "__gate"]);
 const MAX_SCRUB_DEPTH = 8;

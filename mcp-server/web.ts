@@ -9,8 +9,9 @@ import { generateFlow, generatePlaywright } from "./codegen.js";
 import { createProfileRegistry, BrowserInstance, BrowserWindowInfo, type DispatchDecision } from "./profile-registry.js";
 import { trackToolExecution } from "./cognitive-auto-tracker.js";
 import { sessionOf } from "./cognitive-spine-observer.js";
-import { forRelay, gateBeforeRelay, humanCanBeAsked, type GateDecision } from "./cognitive-policy.js";
+import { forRelay, gateBeforeRelay, refusedByGate, type GateDecision } from "./cognitive-policy.js";
 import { mountExtensionRoutes } from "./web-ext-routes.js";
+import { createStepDispatch, sendRouteRefusal, type StepResult } from "./web-multi-dispatch.js";
 import { handleCognitiveTool } from "./web-cognitive-handlers.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
@@ -117,6 +118,8 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         targetProfile,
       });
     });
+  // A step of web_flow_run / web_replay / web_fanout / web_tab_fanout meets the approval gate like a direct call.
+  const gatedStep = createStepDispatch(registry.resolveDispatch, request);
 
     // ── Persisted Flows Library: save / list / run / delete ──────────────
     // Recorded steps can be saved under a name (with editable steps and
@@ -209,6 +212,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       vars: Record<string, string>,
       stopOnError: boolean,
       stepTimeoutMs: number,
+      send: (tool: string, args: Record<string, unknown>, timeoutMs: number) => Promise<StepResult> = request,
     ): Promise<{ results: Array<Record<string, unknown>>; okAll: boolean; executed: number }> => {
       const results: Array<Record<string, unknown>> = [];
       let okAll = true;
@@ -225,8 +229,8 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         }
           const stepArgs = substituteTokens(step.args ?? {}, vars, results) as Record<string, unknown>;
         broadcast({ type: "web_replay_step", at: new Date().toISOString(), flow: flow.name, step: i + 1, of: flow.steps.length, tool: stepTool });
-        const r = await request(stepTool, stepArgs, stepTimeoutMs);
-        results.push({ step: i + 1, tool: stepTool, ok: r.ok, data: r.data, error: r.error });
+        const r = await send(stepTool, stepArgs, stepTimeoutMs);
+        results.push({ step: i + 1, tool: stepTool, ...r });
         executed++;
         if (!r.ok) {
           okAll = false;
@@ -363,20 +367,14 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       }
       // ── Hub-side multi-browser orchestration ─────────────────────────────
       // These run ONE tool on N browsers by issuing sequential per-browser
-      // requests (each extension self-filters via args.__browser) and merging.
-      const resolveTargets = (): Array<{ id: string; name: string }> => {
-        const online = registry.listOnline().map((e) => ({
-          id: e.instanceId,
-          name: e.name,
-          email: e.profileEmail,
-        }));
+      // requests, each pinned to its browser (registry.planFanout), and merging.
+      const resolveTargets = (): BrowserInstance[] => {
+        const online = registry.listOnline();
         const want = args.browsers;
         if (!want || want === "all") return online;
         const list = Array.isArray(want) ? want.map(String) : String(want).split(",").map((s) => s.trim());
-        return online.filter((t) => list.includes(t.name) || list.includes(t.id) || (t.email && list.includes(t.email)));
+        return online.filter((t) => list.includes(t.name) || list.includes(t.instanceId) || (t.profileEmail && list.includes(t.profileEmail)));
       };
-      const callOn = (target: { id: string; name: string }, innerTool: string, innerArgs: Record<string, unknown>, timeoutMs: number): Promise<WebToolResult> =>
-        request(innerTool, { ...innerArgs, __browser: target.id }, timeoutMs);
 
       if (tool === "web_fanout") {
         const innerTool = String(args.tool || "");
@@ -394,12 +392,17 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         // The agent passes tool args nested under `args`; forward them as the
         // actual tool arguments (falling back to top-level extras).
         const innerArgs = { ...rest, ...(innerA && typeof innerA === "object" ? (innerA as Record<string, unknown>) : {}) };
+        // Each pass carries its own browser's decision: no hint or tab id in innerArgs can send it elsewhere.
+        const plan = registry.planFanout(targets, innerArgs);
+        if (!plan.ok) { sendRouteRefusal(res, plan); return; }
         const results: Array<Record<string, unknown>> = [];
-        for (const target of targets) {
-          const r = await callOn(target, innerTool, innerArgs as Record<string, unknown>, timeoutMs);
-          results.push({ browser: target.name, browserId: target.id, ok: r.ok, data: r.data, error: r.error });
+        for (const { target, decision, skipped } of plan.passes) {
+          const who = { browser: target.name, browserId: target.instanceId };
+          if (skipped || !decision) { results.push({ ...who, ok: false, skipped: true, reason: skipped }); continue; }
+          results.push({ ...who, ...(await gatedStep(innerTool, innerArgs, timeoutMs, session, decision)) });
         }
-        res.json({ success: true, ok: results.every((r) => r.ok), data: { tool: innerTool, matched: targets.length, results } });
+        const ran = results.filter((r) => !r.skipped);
+        res.json({ success: true, ok: ran.length > 0 && ran.every((r) => r.ok), data: { tool: innerTool, matched: targets.length, ran: ran.length, results } });
         return;
       }
 
@@ -448,7 +451,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         const vars = (args.vars && typeof args.vars === "object" ? args.vars : {}) as Record<string, string>;
         const stopOnError = args.stopOnError !== false;
         const stepTimeoutMs = Math.min(Math.max(Number(args.stepTimeoutMs) || 45_000, 5_000), 60_000);
-        const run = await executeFlow(flow, vars, stopOnError, stepTimeoutMs);
+        const run = await executeFlow(flow, vars, stopOnError, stepTimeoutMs, (t, a, ms) => gatedStep(t, a, ms, session));
         res.json({ success: true, ok: run.okAll, data: { flow: flow.name, vars: Object.keys(vars), total: flow.steps.length, executed: run.executed, okAll: run.okAll, results: run.results } });
         return;
       }
@@ -587,17 +590,12 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           return;
         }
 
-        // Capture the CURRENT viewport as PNG via the extension.
-        const targets = registry.listOnline().map((e) => ({ id: e.instanceId, name: e.name }));
-        const target = args.__browser
-          ? targets.find((t) => t.name === String(args.__browser) || t.id === String(args.__browser)) ?? targets[0]
-          : targets[0];
-        if (!target) {
-          res.status(503).json({ success: false, ok: false, error: "No browser is online." });
-          return;
-        }
+        // Capture the CURRENT viewport as PNG via the extension. The browser is routed ONCE, like any call, and that
+        // same decision takes the screenshot and runs the pixel diff below.
+        const route = registry.resolveDispatch(args);
+        if (!route.ok) { sendRouteRefusal(res, route); return; }
         const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
-        const shot = await request("web_screenshot", { format: "png", ...(args.tabId ? { tabId: args.tabId } : {}), __browser: target.id }, timeoutMs);
+        const shot = await request("web_screenshot", { format: "png", ...(args.tabId ? { tabId: args.tabId } : {}) }, timeoutMs, undefined, route);
         const shotData = shot.data as { imageDataUrl?: string; url?: string; title?: string } | undefined;
         const dataUrl = shotData?.imageDataUrl ?? "";
         if (!shot.ok || !dataUrl.startsWith("data:image/")) {
@@ -627,7 +625,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           return;
         }
         const baselineDataUrl = "data:image/png;base64," + readFileSync(basePng).toString("base64");
-        const diff = await request("web_pixel_diff", { imageA: baselineDataUrl, imageB: dataUrl, threshold, __browser: target.id }, timeoutMs);
+        const diff = await request("web_pixel_diff", { imageA: baselineDataUrl, imageB: dataUrl, threshold }, timeoutMs, undefined, route);
         const dd = diff.data as { identical?: boolean; diffPercent?: number; diffImageDataUrl?: string } | undefined;
         if (!diff.ok || !dd) {
           res.json({ success: true, ok: false, data: { error: "pixel diff failed: " + (diff.error ?? "no data") } });
@@ -717,8 +715,8 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           }
           const stepArgs = substituteTokens(step.args ?? {}, {}, results) as Record<string, unknown>;
           broadcast({ type: "web_replay_step", at: new Date().toISOString(), step: i + 1, of: steps.length, tool: stepTool });
-          const r = await request(stepTool, stepArgs, stepTimeoutMs);
-          results.push({ step: i + 1, tool: stepTool, ok: r.ok, data: r.data, error: r.error });
+          const r = await gatedStep(stepTool, stepArgs, stepTimeoutMs, session);
+          results.push({ step: i + 1, tool: stepTool, ...r });
           if (!r.ok) {
             okAll = false;
             if (stopOnError) break;
@@ -756,15 +754,14 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           const needles = Array.isArray(args.urls) ? args.urls.map(String) : String(args.urls).split(",").map((s) => s.trim());
           tabs = tabsRaw.filter((t) => needles.some((n) => (t.url || "").toLowerCase().includes(n.toLowerCase())));
         }
-        if (args.activeOnly === true) tabs = tabsRaw.filter((t) => (t as { active?: boolean }).active === true);
+        if (args.activeOnly === true) tabs = tabs.filter((t) => (t as { active?: boolean }).active === true); // AND, not instead
         if (!tabs.length) {
           res.json({ success: true, ok: false, error: tabsRes.ok ? undefined : tabsRes.error, data: { ...from, results: [], matched: 0, availableTabs: tabsRaw.length } });
           return;
         }
         const results: Array<Record<string, unknown>> = [];
         for (const t of tabs) {
-          const r = await request(innerTool, { ...innerArgs, tabId: t.tabId }, timeoutMs, undefined, route);
-          results.push({ tabId: t.tabId, url: t.url, ok: r.ok, data: r.data, error: r.error });
+          results.push({ tabId: t.tabId, url: t.url, ...(await gatedStep(innerTool, { ...innerArgs, tabId: t.tabId }, timeoutMs, session, route)) });
         }
         res.json({ success: true, ok: results.every((r) => r.ok), data: { tool: innerTool, ...from, matched: tabs.length, results } });
         return;
@@ -814,7 +811,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       // while browsers are online is left to the routing refusal below; either way nothing is relayed or asked.
       const route = registry.resolveDispatch(args);
       const gate = gateBeforeRelay(tool, args, session);
-      if (gate?.block && !humanCanBeAsked(route) && (route.ok || route.onlineProfiles.length === 0)) {
+      if (gate && refusedByGate(gate, route)) {
         res.json({ success: false, ok: false, error: gate.message, data: { gate: gate.decision } });
         return;
       }

@@ -10,66 +10,7 @@
 import "./_isolate-data-dir.js";
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { once } from "node:events";
-import type { AddressInfo } from "node:net";
-import express from "express";
-import { AUTH_TOKEN } from "../config.js";
-import { createWebBridge } from "../web.js";
-
-// The cognitive gate is covered elsewhere (cognitive_gate.e2e.ts); here it would only add noise.
-process.env.SCREEN_SYNC_COGNITIVE_GATE = "off";
-
-type Relayed = { type: string; id: string; tool: string; args: Record<string, unknown>; targetInstanceId: string | null; targetBrowser?: string | null };
-type ToolReply = { ok: boolean; error?: string; code?: string; onlineProfiles?: string[]; data?: any };
-
-const headers = { "Content-Type": "application/json", Authorization: `Bearer ${AUTH_TOKEN}` };
-const A = { instanceId: "inst-a", browserId: "inst-a", browserName: "chrome", profileEmail: "a@profile.test", webAccessEnabled: true, approvals: true };
-const B = { instanceId: "inst-b", browserId: "inst-b", browserName: "chrome", profileEmail: "b@profile.test", webAccessEnabled: true, approvals: true };
-const SOLO = { ...A, instanceId: "inst-solo", browserId: "inst-solo", profileEmail: "solo@profile.test" };
-
-/** One bridge on an ephemeral port. Every relayed web_request is recorded, and answered as the addressed extension would. */
-async function startHub(answer: (ev: Relayed) => unknown = (ev) => ({ ranIn: ev.targetInstanceId })) {
-  const relayed: Relayed[] = [];
-  let base = "";
-  const bridge = createWebBridge((payload) => {
-    const ev = payload as Relayed;
-    if (ev?.type !== "web_request") return;
-    relayed.push(ev);
-    setImmediate(() => {
-      fetch(`${base}/api/web/result`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ id: ev.id, ok: true, data: answer(ev), ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: ev.targetBrowser || "chrome" }),
-      }).catch(() => {});
-    });
-  }, () => 2);
-  const app = express();
-  app.use(express.json({ limit: "5mb" }));
-  bridge.registerRoutes(app);
-  const server = app.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-
-  const post = async (route: string, body: unknown) => (await fetch(`${base}${route}`, { method: "POST", headers, body: JSON.stringify(body) })).json();
-  return {
-    relayed,
-    register: (body: Record<string, unknown>) => post("/api/web/register", body),
-    call: (tool: string, args: Record<string, unknown> = {}) => post("/api/web/tool", { tool, args }) as Promise<ToolReply>,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
-  };
-}
-
-/** A registers, goes silent past the 10-minute presence TTL, B keeps heartbeating: A is offline, B online. */
-async function selectedProfileGoesOffline(hub: Awaited<ReturnType<typeof startHub>>) {
-  await hub.register(A);
-  await hub.register(B);
-  await hub.call("web_profile", { action: "select", profile: "a@profile.test" });
-  mock.timers.tick(11 * 60_000);
-  await hub.register(B);
-  const status = (await hub.call("web_status")).data;
-  assert.deepEqual(status.browsers.filter((b: any) => b.online).map((b: any) => b.instanceId), ["inst-b"], "fixture: only B is online");
-  assert.equal(status.selectedProfile, "a@profile.test");
-}
+import { A, B, SOLO, CAPABLE_A, OLD_B, DANGEROUS, startHub, selectedProfileGoesOffline, withGate, tabsAnswer, sent, heartbeats } from "./_web-hub-harness.js";
 
 test("(a) selectedProfile offline while another profile is online: web_click is refused and nothing is dispatched", async () => {
   mock.timers.enable({ apis: ["Date"], now: Date.now() });
@@ -208,15 +149,6 @@ test("every relayed web_request carries a targetInstanceId", async () => {
 // dispatched with resolveDispatch(), which follows the tab owner. So approval could be judged on profile A (an
 // extension that asks a person) while the call ran in profile B (an older one that would simply run it).
 
-const DANGEROUS = { url: "https://gated.example/account", selector: "button.delete-account" };
-const CAPABLE_A = { ...A, approvals: true, windows: [{ id: 10, focused: true, activeTab: { tabId: 100, url: "https://gated.example/" } }] };
-const OLD_B = { ...B, approvals: false, windows: [{ id: 20, focused: false, activeTab: { tabId: 200, url: "https://gated.example/" } }] };
-
-async function withGate<T>(mode: string, fn: () => Promise<T>): Promise<T> {
-  process.env.SCREEN_SYNC_COGNITIVE_GATE = mode;
-  try { return await fn(); } finally { process.env.SCREEN_SYNC_COGNITIVE_GATE = "off"; }
-}
-
 test("gate: selectedProfile = A, tabId owned by B: approval is judged on B, so B's old extension never gets the call", async () => {
   const hub = await startHub();
   try {
@@ -268,25 +200,6 @@ test("gate: a dispatch that is refused (selected profile offline) is refused bef
 // ── web_tab_fanout lists and acts on ONE browser's tabs: the routed one ──────────────────────────────────────
 // It listed the tabs of whichever browser heartbeated last (listOnline()[0]) and relayed each per-tab call
 // unpinned, so with profile B selected it read A's tab ids and ran them wherever each id happened to route.
-
-/** Each browser's own tabs, as its extension's web_tabs answers. Tab ids are only unique inside one browser. */
-const TABS: Record<string, Array<{ tabId: number; url: string }>> = {
-  "inst-a": [{ tabId: 100, url: "https://a.test/1" }, { tabId: 101, url: "https://a.test/2" }],
-  "inst-b": [{ tabId: 200, url: "https://b.test/1" }, { tabId: 201, url: "https://b.test/2" }],
-};
-const tabsAnswer = (ev: Relayed) => (ev.tool === "web_tabs" ? { tabs: TABS[String(ev.targetInstanceId)] ?? [] } : { ranIn: ev.targetInstanceId });
-const sent = (hub: Awaited<ReturnType<typeof startHub>>) =>
-  hub.relayed.map((r) => `${r.tool}${r.args.tabId === undefined ? "" : `#${r.args.tabId}`}->${r.targetInstanceId}`);
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** `first` heartbeats, then `last`: `last` holds the most recent heartbeat (listOnline()[0]). */
-async function heartbeats(hub: Awaited<ReturnType<typeof startHub>>, first: Record<string, unknown>, last: Record<string, unknown>) {
-  await hub.register(first);
-  await sleep(5);
-  await hub.register(last);
-  const profiles = (await hub.call("web_profile")).data.profiles;
-  assert.equal(profiles[0].instanceId, last.instanceId, "fixture: the most recent heartbeat");
-}
 
 test("tab fanout: selectedProfile = B while A heartbeated last: B's tabs are listed and every per-tab call goes to B", async () => {
   const hub = await startHub(tabsAnswer);

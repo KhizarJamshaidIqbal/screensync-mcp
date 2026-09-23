@@ -187,7 +187,7 @@ export function agentWebToolDefinitions(): WebToolDef[] {
     {
       name: "web_replay",
       description:
-        "Re-executes a recorded step list (from web_record {action:'stop'}, optionally edited by you) step by step on the live browser — with stopOnError control, per-step results, and web_replay_step events visible in web_events. The replay half of teach-once-replay-anywhere.",
+        "Re-executes a recorded step list (from web_record {action:'stop'}, optionally edited by you) step by step on the live browser — with stopOnError control, per-step results, and web_replay_step events visible in web_events. A risky step is put to a person (approval queue) exactly as the same direct call would be. The replay half of teach-once-replay-anywhere.",
       inputSchema: {
         type: "object",
         required: ["steps"],
@@ -244,7 +244,7 @@ export function agentWebToolDefinitions(): WebToolDef[] {
     {
       name: "web_fanout",
       description:
-        "Multi-browser orchestration: runs ONE web tool on every connected browser (or a chosen subset) and merges the results keyed by browser. The core of operating several real browsers at once — e.g. web_cookies across all browsers, or web_screenshot on each. Tool name + args pass through; each browser executes its own copy.",
+        "Multi-browser orchestration: runs ONE web tool on every connected browser (or the subset in `browsers`) and merges the results keyed by browser — e.g. web_cookies across all browsers, or web_screenshot on each. Each pass is pinned to its browser: a profile hint inside args (profile, __profile, __browser, ...) is refused with FANOUT_ROUTING_HINT (choose with `browsers`), and a tabId/windowId runs only in the browser that owns it, the other passes reported as skipped.",
       inputSchema: {
         type: "object",
         required: ["tool"],
@@ -375,7 +375,7 @@ export function agentWebToolDefinitions(): WebToolDef[] {
     {
       name: "web_flow_run",
       description:
-        "Runs a saved flow by name: executes its steps sequentially with {{var}} substitution, stopOnError control, per-step results, and web_replay_step events in web_events. The daily-driver for recorded real-account flows.",
+        "Runs a saved flow by name: executes its steps sequentially with {{var}} substitution, stopOnError control, per-step results, and web_replay_step events in web_events. A risky step is put to a person (approval queue) exactly as the same direct call would be. The daily-driver for recorded real-account flows.",
       inputSchema: {
         type: "object",
         required: ["name"],
