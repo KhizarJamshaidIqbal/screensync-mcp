@@ -11,7 +11,7 @@ export function webToolDefinitions() {
     {
       name: "web_status",
       description:
-        "Reports whether the ScreenSync browser extension is connected and Web access is enabled, plus the currently active browser tab. Always call this before any web_* action.",
+        "Reports whether the ScreenSync browser extension is connected and Web access is enabled, plus the currently active browser tab. Top-level activeTab, lastSeenAt, targetInstanceId and targetProfile (email, else profile name) describe the browser the next web_* call without routing hints goes to (selectedProfile, else the focused window, else the latest heartbeat); those four are null when selectedProfile matches no connected browser. browsers[] lists every instance with its own activeTab. Always call this before any web_* action.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
     {
