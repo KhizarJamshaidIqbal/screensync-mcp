@@ -38,6 +38,21 @@ export type LocalChromeProfile = {
   email: string;
 };
 
+/** Where one web_* call goes, or why it goes nowhere. `status` is the HTTP status the tool route answers with. */
+export type DispatchDecision =
+  | { ok: true; target: BrowserInstance }
+  | { ok: false; status: number; code: string; error: string; onlineProfiles: string[] };
+
+/** The argument that names a browser for a call, in precedence order. `any`/`default` name none. */
+function routingHint(args: Record<string, unknown>): string | null {
+  for (const key of ["__profile", "profile", "__email", "email", "__instance", "instanceId", "__browser"]) {
+    if (typeof args[key] === "string") return args[key] as string;
+  }
+  return null;
+}
+
+const isWildcard = (v: string) => ["", "any", "default"].includes(v.trim().toLowerCase());
+
 let cachedChromeProfiles: LocalChromeProfile[] | null = null;
 let lastCacheTimeMs = 0;
 
@@ -150,14 +165,15 @@ export function createProfileRegistry() {
 
   /**
    * Resolves a target browser instance based on an optional hint (email, profile name, instanceId, or browser name).
-   * If hint is omitted, defaults to currently selected profile, or the latest active instance.
+   * If hint is omitted (or `any`/`default`, which name no browser), defaults to currently selected profile, or
+   * the latest active instance.
    */
   const resolveTarget = (hint?: string | null): BrowserInstance | null => {
     const online = listOnline();
     if (!online.length) return null;
 
-    const query = (hint || selectedProfile || "").trim().toLowerCase();
-    if (!query || query === "any" || query === "default") {
+    const query = ((hint && !isWildcard(hint) ? hint : null) || selectedProfile || "").trim().toLowerCase();
+    if (isWildcard(query)) {
       // Return focused window instance first, or latest active
       const focusedInstance = online.find((inst) => inst.windows.some((w) => w.focused));
       return focusedInstance || online[0];
@@ -216,6 +232,40 @@ export function createProfileRegistry() {
     return null;
   };
 
+  /**
+   * The one routing decision for a web_* call: tab/window owner, else an explicit profile hint, else
+   * selectedProfile, else resolveTarget()'s heuristic. It never answers "no target": the extension runs a
+   * web_request that names no instance in EVERY connected profile, so an untargeted click with two logged-in
+   * profiles online happens in both accounts. A selectedProfile that is offline is an error, never a reason
+   * to fall back to whichever other profile is online.
+   */
+  const resolveDispatch = (args: Record<string, unknown>): DispatchDecision => {
+    const online = listOnline();
+    const onlineProfiles = online.map((b) => b.profileEmail || b.profileName || b.instanceId);
+    const listed = onlineProfiles.join(", ") || "none";
+    const refuse = (status: number, code: string, error: string): DispatchDecision => ({ ok: false, status, code, error, onlineProfiles });
+
+    const hint = routingHint(args);
+    const explicit = hint !== null && !isWildcard(hint);
+    const hinted = explicit ? resolveTarget(hint) : null;
+    if (explicit && !hinted) {
+      return refuse(400, "PROFILE_NOT_CONNECTED", `No connected browser matches '${hint}'. Connected: ${listed}. Call web_status or web_profile to list browsers.`);
+    }
+    const target = resolveOwnerByTabOrWindow(args.tabId, args.windowId) || hinted || resolveTarget(null);
+    if (target) return { ok: true, target };
+
+    if (!explicit && selectedProfile && !isWildcard(selectedProfile)) {
+      return refuse(409, "SELECTED_PROFILE_OFFLINE",
+        `selected profile '${selectedProfile}' is offline; reconnect it, or call web_profile {action:'select', profile:'<online profile>'} with an online profile, or web_profile {action:'select'} with no profile to clear the selection. Online profiles: ${listed}.`);
+    }
+    if (online.length === 0) {
+      return refuse(503, "NO_BROWSER_ONLINE", "No browser is online: no ScreenSync extension has sent this hub a heartbeat in the last 10 minutes. Open the extension so it reconnects, then retry.");
+    }
+    // Unreachable while resolveTarget() picks some instance whenever one is online; kept so a future change
+    // to that heuristic fails closed instead of broadcasting.
+    return refuse(409, "TARGET_AMBIGUOUS", `No target browser could be chosen and ${online.length} are online (${listed}). Pass a profile hint (__profile / __email / __browser) or call web_profile {action:'select'}.`);
+  };
+
   const statusPayload = (sseClients: number) => {
     const online = listOnline();
     // The top level describes the browser a call with no routing hints is sent to: the same
@@ -260,6 +310,7 @@ export function createProfileRegistry() {
     getSelectedProfile,
     resolveTarget,
     resolveOwnerByTabOrWindow,
+    resolveDispatch,
     statusPayload,
   };
 }

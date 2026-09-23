@@ -108,6 +108,9 @@ The agent's per-domain memory grows through developmental stages exactly like a 
    name, profileEmail, online, activeTab}]}`. The top-level `targetProfile` / `activeTab`
    are the browser your next call goes to; check them before acting when several profiles
    are connected (null target = `selectedProfile` matches no connected browser).
+   While that selected profile is offline the hub refuses web_* calls (`SELECTED_PROFILE_OFFLINE`,
+   listing the online profiles) instead of sending them to another account: reconnect it, pass a
+   `__profile` hint, or `web_profile {action:"select"}` an online profile (no profile clears it).
 3. `get_mcp_catalog` re-reads the full capability surface anytime.
 
 ## 1 · See before acting (perception loop)
