@@ -21,10 +21,10 @@
 export const DESTRUCTIVE_WORD_RE = /^(?:(?:auto|re|pre|over|up|sur)?(?:pay|charg|buy)|delet|remov|destroy|terminat|drop|purchas|cancelsubscription)/;
 
 /** ...unless it is one of these look-alikes: a state or a thing, not an action. */
-export const BENIGN_WORD_RE = /^(?:dropdown|dropped|deleted|removed|payload|purchased|destroyed|terminated|charged|buyer)/;
+export const BENIGN_WORD_RE = /^(?:dropdowns?|dropped|deleted|removed|payloads?|purchased|destroyed|terminated|charged|buyers?)$/;
 
 /** Identifiers that contain a destructive word but do nothing destructive. Taken out before splitting. */
-export const BENIGN_IDENTIFIER_RE = /remove(?:All)?(?:Event)?Listeners?|drop[\s_-]?(?:shadow|down)/gi;
+export const BENIGN_IDENTIFIER_RE = /(?:remove(?:All)?(?:Event)?Listeners?|drop[\s_-]?(?:shadow|down)s?)(?![a-z0-9])/gi;
 
 /** JavaScript that changes the page, its storage, the session or the server. [label, pattern]. */
 const CODE_RULES: ReadonlyArray<readonly [string, RegExp]> = [

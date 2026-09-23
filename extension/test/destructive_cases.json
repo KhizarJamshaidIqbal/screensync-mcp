@@ -83,7 +83,14 @@
       "Repay loan",
       "Recharge now",
       "#deleteaccount",
-      "CANCELSUBSCRIPTION"
+      "CANCELSUBSCRIPTION",
+      "deletedforever",
+      "#removedaccount",
+      "[data-action=chargedcardnow]",
+      "droppeddatabase",
+      "dropdowndatabase",
+      "removeEventListenerAndDeleteAccount",
+      "#removeEventListenerAccount"
     ]
   }
 }

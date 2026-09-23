@@ -245,8 +245,8 @@ export async function ssWebUnitAction(args = {}) {
   }
 
   function isDestructiveAction(el) { // a destructive stem must start a word; same patterns as mcp-server/destructive-vocab.ts ('Dropdown', 'Display' are not)
-    const words = String(el.innerText || el.value || el.getAttribute('aria-label') || '').replace(/remove(?:All)?(?:Event)?Listeners?|drop[\s_-]?(?:shadow|down)/gi, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/);
-    return words.some((w, i) => (/^(?:(?:auto|re|pre|over|up|sur)?(?:pay|charg|buy)|delet|remov|destroy|terminat|drop|purchas|cancelsubscription)/.test(w) && !/^(?:dropdown|dropped|deleted|removed|payload|purchased|destroyed|terminated|charged|buyer)/.test(w)) || (w === 'cancel' && /^subscriptions?$/.test(words[i + 1] || '')));
+    const words = String(el.innerText || el.value || el.getAttribute('aria-label') || '').replace(/(?:remove(?:All)?(?:Event)?Listeners?|drop[\s_-]?(?:shadow|down)s?)(?![a-z0-9])/gi, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/);
+    return words.some((w, i) => (/^(?:(?:auto|re|pre|over|up|sur)?(?:pay|charg|buy)|delet|remov|destroy|terminat|drop|purchas|cancelsubscription)/.test(w) && !/^(?:dropdowns?|dropped|deleted|removed|payloads?|purchased|destroyed|terminated|charged|buyers?)$/.test(w)) || (w === 'cancel' && /^subscriptions?$/.test(words[i + 1] || '')));
   }
 
   async function findWithRetry(a, maxWaitMs = 2500) {
