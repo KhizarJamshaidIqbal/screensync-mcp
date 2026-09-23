@@ -351,10 +351,16 @@ export async function ssWebUnitPerception(args = {}) {
   // ── web_aria_snapshot: Playwright ariaSnapshot — YAML ARIA tree for LLM reading ──
   if (args.__tool === 'web_aria_snapshot') {
     const maxNodes = Math.min(Number(args.maxNodes) || 350, 700);
+    // Paging for long pages: `offset` skips that many snapshot lines and a truncated page reports nextOffset.
+    // The walk and the [index=N] numbering always start at the top, so a ref names the same element on every page.
+    const offset = Math.max(0, Math.floor(Number(args.offset) || 0));
+    const end = offset + maxNodes;
     const skip = new Set(['script', 'style', 'noscript', 'template', 'svg', 'path', 'meta', 'link', 'head', 'br']);
     const lines = [];
-    let count = 0, idx = 0;
+    let seen = 0, idx = 0, truncated = false;
+    const push = (line) => { if (seen >= offset) lines.push(line); seen++; };
     function emit(el, depth) {
+      if (seen >= end) { truncated = true; return; }
       const role = roleOf(el);
       const name = nameOf(el);
       const tag = el.tagName.toLowerCase();
@@ -370,19 +376,21 @@ export async function ssWebUnitPerception(args = {}) {
       if (el.getAttribute('aria-expanded') === 'true') extra += ' [expanded]';
       if (el.getAttribute('aria-selected') === 'true') extra += ' [selected]';
       if (el.getAttribute('disabled') !== null || el.getAttribute('aria-disabled') === 'true') extra += ' [disabled]';
-      lines.push('  '.repeat(depth) + '- ' + role + (name ? ' "' + name + '"' : '') + extra);
-      count++;
-      if (el.childElementCount && count < maxNodes) emitChildren(el, depth + 1);
+      push('  '.repeat(depth) + '- ' + role + (name ? ' "' + name + '"' : '') + extra);
+      if (el.childElementCount && !truncated) emitChildren(el, depth + 1);
     }
     function emitChildren(node, depth) {
       for (const el of Array.from(node.children)) {
-        if (count >= maxNodes) return;
+        if (truncated) return;
         const tag = el.tagName.toLowerCase();
         if (skip.has(tag) || !visible(el)) continue;
         if (roleOf(el) === 'generic') {
           const ownText = Array.from(el.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(' ').replace(/\s+/g, ' ');
-          if (ownText) { lines.push('  '.repeat(depth) + '- text "' + ownText.slice(0, 120) + '"'); count++; }
-          if (el.childElementCount && count < maxNodes) emitChildren(el, depth);
+          if (ownText) {
+            if (seen >= end) { truncated = true; return; }
+            push('  '.repeat(depth) + '- text "' + ownText.slice(0, 120) + '"');
+          }
+          if (el.childElementCount && !truncated) emitChildren(el, depth);
           continue;
         }
         emit(el, depth);
@@ -391,7 +399,14 @@ export async function ssWebUnitPerception(args = {}) {
     const root = args.selector ? pwFind(args.selector) : document.body;
     if (!root) return { ok: false, error: 'Snapshot root not found: ' + args.selector };
     emitChildren(root, 0);
-    return { ok: true, data: { url: location.href, title: document.title, yaml: lines.join('\n'), nodeCount: count } };
+    return {
+      ok: true,
+      data: {
+        url: location.href, title: document.title, yaml: lines.join('\n'), nodeCount: lines.length,
+        ...(offset ? { offset } : {}),
+        ...(truncated ? { truncated: true, nextOffset: seen } : {}),
+      },
+    };
   }
 
   // ── web_media_extract: enumerate images / videos / audios / links ──

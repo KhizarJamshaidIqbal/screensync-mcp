@@ -47,6 +47,7 @@ export function agentCoreWebToolDefinitions(): WebToolDef[] {
         properties: {
           selector: { type: "string", description: "Optional subtree root. Omit for the whole page." },
           maxNodes: { type: "integer", minimum: 10, maximum: 700, default: 350, description: "Maximum nodes in the snapshot." },
+          offset: { type: "integer", minimum: 0, default: 0, description: "Skip this many snapshot lines, to read a long page in parts. A cut-short snapshot returns truncated:true and nextOffset; pass it here for the next part. [index=N] refs keep their numbering on every part." },
           tabId: { type: "integer", description: "Optional background tab ID." },
         },
         additionalProperties: false,
