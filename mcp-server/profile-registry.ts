@@ -186,6 +186,36 @@ export function createProfileRegistry() {
     return null;
   };
 
+  /**
+   * Finds which online instance actually owns a given tab or window, by scanning each
+   * instance's `windows[]` snapshot (populated from the extension's heartbeat, see
+   * web-bridge.js registerWebBridge). A windowId is matched against `windows[].id`; a tabId
+   * is matched against `windows[].activeTab.tabId` (the only per-window tab id the heartbeat
+   * tracks). This is precise ground truth for routing — unlike resolveTarget()'s hint, which
+   * falls back to "whichever profile has a focused window" or "most recently seen" and can
+   * silently pick the wrong Chrome profile when two are connected at once.
+   * Returns null when no online instance claims the id, so callers can fall back to
+   * resolveTarget()'s heuristic unchanged (never regresses the no-hint case).
+   */
+  const resolveOwnerByTabOrWindow = (tabId?: unknown, windowId?: unknown): BrowserInstance | null => {
+    const toId = (v: unknown): number | null => {
+      if (v === undefined || v === null || v === "") return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+    const wantTab = toId(tabId);
+    const wantWindow = toId(windowId);
+    if (wantTab === null && wantWindow === null) return null;
+
+    for (const inst of listOnline()) {
+      for (const w of inst.windows) {
+        if (wantWindow !== null && w.id === wantWindow) return inst;
+        if (wantTab !== null && w.activeTab && w.activeTab.tabId === wantTab) return inst;
+      }
+    }
+    return null;
+  };
+
   const statusPayload = (sseClients: number) => {
     const online = listOnline();
     const latest = online[0] ?? null;
@@ -224,6 +254,7 @@ export function createProfileRegistry() {
     setSelectedProfile,
     getSelectedProfile,
     resolveTarget,
+    resolveOwnerByTabOrWindow,
     statusPayload,
   };
 }

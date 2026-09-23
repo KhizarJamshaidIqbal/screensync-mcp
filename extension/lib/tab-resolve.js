@@ -33,12 +33,22 @@ export async function activeTabOfLastNormalWindow() {
  */
 export async function pickActiveTab(args = {}) {
   if (args && args.tabId) {
+    // An explicit tabId is a precise request for THAT tab (often routed here from a specific
+    // browser profile/instance — see profile-registry.ts resolveOwnerByTabOrWindow). It used to
+    // fail silently into the generic fallbacks below when chrome.tabs.get() rejected (tab
+    // belongs to a different profile/window, or was closed), which meant an eval or action would
+    // silently run against whatever tab happened to be active elsewhere instead. Surface a clear
+    // error so callers see the mismatch rather than mis-targeting a different page.
+    let t = null;
     try {
-      const t = await chrome.tabs.get(Number(args.tabId));
-      if (t) return t;
+      t = await chrome.tabs.get(Number(args.tabId));
     } catch {
-      /* tabId not found or closed, fallback to query */
+      t = null;
     }
+    if (!t) {
+      throw new Error(`Tab ${args.tabId} was not found (it may belong to a different Chrome profile/window, or have been closed).`);
+    }
+    return t;
   }
 
   // Window-level isolation: target a specific window if requested

@@ -1,6 +1,9 @@
 // ScreenSync CDP evaluation executors — cdpEval fallback and the CSP-proof
 // web_run_code (Runtime.evaluate with inlined user code).
 import { rawAttach, rawDetach } from './web-adv-core.js';
+
+// web_eval's raw contract ("evaluate this expression") never actually parsed or ran through
+// CDP's awaitPromise — see cdpEvalExpression below, which is the fix for that.
 export async function cdpEval(tab, args = {}) {
   const target = { tabId: tab.id };
   let attached = false;
@@ -84,6 +87,27 @@ export async function cdpRunCode(tab, args) {
   } finally {
     if (attachedHere) { await rawDetach(target); }
   }
+}
+
+// web_eval's actual evaluator: always run through CDP so a returned Promise is genuinely
+// awaited (awaitPromise:true) instead of being JSON.stringify'd into "{}", and so `await` is
+// legal in the snippet (it now runs inside an async function). Two wrapping shapes are tried,
+// mirroring the old page-context two-try (expression-with-return, then raw statement body):
+//  1. Treat the snippet as a single expression: `(async () => { return (EXPR); })()`. Covers
+//     the common case (`document.title`) as well as `await fetch(...)` and Promise-returning
+//     expressions — the outer async IIFE's own Promise (which chains through anything it
+//     returns) is what awaitPromise waits on.
+//  2. If that fails to PARSE (multi-statement code, e.g. `const x = 1; return x;`, can't sit
+//     inside `return (...)`), fall back to treating it as a full async function body, relying
+//     on the snippet's own explicit `return` — same contract `web_run_code` already documents.
+export async function cdpEvalExpression(tab, rawExpr) {
+  const exprWrap = `(async () => {\n  return (\n${rawExpr}\n  );\n})()`;
+  let res = await cdpEval(tab, { expression: exprWrap });
+  if (!res.ok && /SyntaxError/i.test(String(res.error || ''))) {
+    const bodyWrap = `(async () => {\n${rawExpr}\n})()`;
+    res = await cdpEval(tab, { expression: bodyWrap });
+  }
+  return res;
 }
 
 // ── web_trace_record: CDP Tracing — real Chrome performance trace ──────────
