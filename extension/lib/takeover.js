@@ -3,6 +3,7 @@
 // 2FA, and CAPTCHAs, then cleanly resume when the user confirms completion.
 
 import { ssShowHelpOverlay, ssCheckCompletionCriteria, ssRemoveHelpOverlay } from './web-unit-help-overlay.js';
+import { clearNotification, showNotification } from './os-notify.js';
 
 let activeTakeover = null; // { id, reason, message, tabId, startedAt, resolve, reject, timer }
 
@@ -107,17 +108,9 @@ export async function execWebRequestHelp(tabId, args = {}) {
     args: [{ prompt, targetSelector, helpRequestId, timeoutMs }]
   });
   
-  // Notification
-  try {
-    chrome.notifications.create({
-      type: 'basic',
-      iconUrl: 'icon128.png',
-      title: 'ScreenSync Help Needed',
-      message: prompt,
-      priority: 2
-    });
-  } catch {}
-  
+  // Desktop notification (it never showed before: no "notifications" permission and a wrong icon path).
+  showNotification(helpRequestId, { title: 'ScreenSync Help Needed', message: String(prompt).slice(0, 300) });
+
   return new Promise((resolve) => {
     let checkInterval = null;
     let listener = null;
@@ -128,6 +121,7 @@ export async function execWebRequestHelp(tabId, args = {}) {
       isDone = true;
       if (checkInterval) clearInterval(checkInterval);
       if (listener) chrome.runtime.onMessage.removeListener(listener);
+      clearNotification(helpRequestId);
       chrome.scripting.executeScript({
         target: { tabId },
         func: ssRemoveHelpOverlay

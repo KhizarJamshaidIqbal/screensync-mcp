@@ -33,11 +33,18 @@ function refuse(kind, what, sender) {
   console.warn('[ss] refused a', kind, 'from outside the extension:', clip(what, 40), 'sender:', clip(sender && sender.url, 120));
 }
 
+/**
+ * Messages the extension's own scripts send from inside a tab: the in-page approval dialog (approval-notify.js
+ * checks tab, frame, document, origin and a one-time nonce) and the help overlay (takeover.js). Their own
+ * listeners judge them, so the owner-page listener declines them without logging each one as an intrusion.
+ */
+const TAB_CHANNEL_TYPES = new Set(['ss-approval-dialog', 'help_overlay_done', 'help_overlay_cancel']);
+
 /** Wraps a chrome.runtime.onMessage listener so it only ever sees messages from the owner's own pages. */
 export function ownerMessagesOnly(listener) {
   return (msg, sender, sendResponse) => {
     if (isOwnerPage(sender)) return listener(msg, sender, sendResponse);
-    refuse('message', msg && msg.type, sender);
+    if (!(msg && TAB_CHANNEL_TYPES.has(msg.type))) refuse('message', msg && msg.type, sender);
     return false;
   };
 }

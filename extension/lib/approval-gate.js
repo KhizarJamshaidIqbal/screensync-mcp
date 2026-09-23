@@ -5,7 +5,8 @@
 // an argument IT supplies. Nothing ever asked a human, and the approval queue below had no caller.
 //
 // This wires the queue in. When an action needs a person and the page is not one the owner has already
-// trusted, the request waits in the queue (toolbar badge + popup + dashboard) for up to a minute:
+// trusted, the request waits in the queue (toolbar badge + popup + dashboard, an OS notification and a dialog on
+// the page itself: approval-notify.js) for up to a minute:
 //   approved  -> the action runs, with an internal flag that only this module can set;
 //   declined  -> USER_DECLINED; nobody answered -> APPROVAL_TIMEOUT. Silence is a refusal.
 //
@@ -18,6 +19,8 @@ import { checkOriginPermission, enqueueApproval, getOriginGrant, isLoopbackOrTes
 import { hubFetch } from './api.js';
 import { pickActiveTab } from './tab-resolve.js';
 import { ERROR_CODES, makeError } from './errors.js';
+// Besides the badge below: an OS notification and a dialog on the page itself for every request that waits.
+import './approval-notify.js';
 
 /** How long a person has to answer. The hub is told, so it keeps waiting at least this long too. */
 export const APPROVAL_WINDOW_MS = 60_000;
@@ -65,15 +68,25 @@ export function stripInternalArgs(rawArgs) {
   return { args: scrub(source), gate };
 }
 
+/**
+ * Where an action lands: the origin (the URL a fetch will call, else the tab it targets) and the tab it would
+ * run in, if there is one, so the request can be shown on that page too (approval-notify.js).
+ */
+async function targetOf(tool, args) {
+  let tab = null;
+  try { tab = await pickActiveTab(args); } catch { tab = null; }
+  const tabId = tab && Number.isInteger(tab.id) ? tab.id : null;
+  try {
+    if (tool === 'web_api_fetch' && args.url) return { origin: new URL(String(args.url)).origin, tabId };
+    return { origin: tab && tab.url ? new URL(tab.url).origin : 'unknown', tabId };
+  } catch {
+    return { origin: 'unknown', tabId };
+  }
+}
+
 /** The origin an action lands on: the URL a fetch will call, else the tab it targets. */
 export async function originOf(tool, args) {
-  try {
-    if (tool === 'web_api_fetch' && args.url) return new URL(String(args.url)).origin;
-    const tab = await pickActiveTab(args);
-    return tab && tab.url ? new URL(tab.url).origin : 'unknown';
-  } catch {
-    return 'unknown';
-  }
+  return (await targetOf(tool, args)).origin;
 }
 
 /** What the person is shown. Short, escaped by the UI, and never the full text of a typed secret. */
@@ -92,7 +105,7 @@ export function summarizeAction(tool, args, reason, gate) {
  * Puts one request in front of a person. Resolves { approved: true } or { approved: false, error } where
  * error is the result to hand back to the agent.
  */
-export async function askHuman({ origin, tool, args, reason, risk = 'destructive', req = {}, gate = null }) {
+export async function askHuman({ origin, tool, args, reason, risk = 'destructive', req = {}, gate = null, tabId = null }) {
   let windowMs = APPROVAL_WINDOW_MS;
   // Tell the hub a human is being asked, so it keeps waiting (an older hub has no such route).
   const extended = req.id
@@ -109,7 +122,7 @@ export async function askHuman({ origin, tool, args, reason, risk = 'destructive
   }
 
   try {
-    await enqueueApproval({ origin, tool, risk, details: summarizeAction(tool, args, reason, gate), timeoutMs: windowMs });
+    await enqueueApproval({ origin, tool, risk, details: summarizeAction(tool, args, reason, gate), timeoutMs: windowMs, tabId });
     return { approved: true };
   } catch (e) {
     const declined = Boolean(e && e.code === 'USER_DECLINED');
@@ -129,12 +142,12 @@ export async function askHuman({ origin, tool, args, reason, risk = 'destructive
  *                    those arguments have always meant there. Nowhere else can they set it.
  */
 async function situation(tool, args) {
-  const origin = await originOf(tool, args);
+  const { origin, tabId } = await targetOf(tool, args);
   const trusted = isLoopbackOrTestOrigin(origin);
   const grant = await getOriginGrant(origin).catch(() => ({}));
   const granted = { ...args, __actGranted: Boolean(trusted || grant.act) };
   const base = trusted && (args.confirmed || args.force) ? { ...granted, __humanApproved: true } : granted;
-  return { origin, trusted, base };
+  return { origin, tabId, trusted, base };
 }
 
 /**
@@ -144,11 +157,11 @@ async function situation(tool, args) {
  */
 export async function runWithApproval(tool, rawArgs, req, execute, { isActTool = () => false } = {}) {
   const { args, gate } = stripInternalArgs(rawArgs);
-  const { origin, trusted, base } = await situation(tool, args);
+  const { origin, tabId, trusted, base } = await situation(tool, args);
 
   // Asks a person, then runs the call, but only if it still lands where they were asked about.
   const askThenRun = async (reason, risk, hub) => {
-    const decision = await askHuman({ origin, tool, args, reason, risk, req, gate: hub });
+    const decision = await askHuman({ origin, tool, args, reason, risk, req, gate: hub, tabId });
     if (!decision.approved) return decision.error;
     // Up to a minute has passed: another tab may have come to the front, the page may have navigated, the
     // owner may have revoked the grant. An approval for one page must not carry over to another, so look again.

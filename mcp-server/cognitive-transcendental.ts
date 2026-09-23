@@ -19,9 +19,10 @@
 import { createHash } from "node:crypto";
 
 import {
-  CATASTROPHIC, CHALLENGE_FINGERPRINTS, DESTRUCTIVE_RE, FAILURE_VECTORS, PERTURBATIONS, clean, round,
+  CATASTROPHIC, CHALLENGE_FINGERPRINTS, FAILURE_VECTORS, PERTURBATIONS, clean, round,
   type ExecutionTrace, type ReflexPlaybook, type ThreatRecord,
 } from "./cognitive-transcendental-data.js";
+import { destructiveCode, destructiveWords } from "./destructive-vocab.js";
 import { asRecord, toMap } from "./cognitive-serial.js";
 
 // Kept importable from here so existing importers do not have to change.
@@ -260,22 +261,30 @@ export class TranscendentalCognitionEngine {
   // -- 5. Damasio somatic marker ---------------------------------------------
   /**
    * Pre-motor gut check. Builds on the same destructive vocabulary the page-side
-   * unit enforces, then adds a catastrophic tier for irreversible outcomes.
+   * unit enforces (destructive-vocab.ts: whole words, not substrings, plus the
+   * JavaScript constructs that change a page), then adds a catastrophic tier for
+   * irreversible outcomes. `keywords` and `constructs` say what was found.
    */
   public somaticMarkerRisk(domain: string, action: {
     tool?: string; target?: string; text?: string; url?: string; irreversible?: boolean;
   } = {}): {
     domain: string; visceralRiskScore: number; somaticGutResponse: string;
-    markers: string[]; requiresApproval: boolean; code: string | null; recommendation: string;
+    markers: string[]; keywords: string[]; constructs: string[];
+    requiresApproval: boolean; code: string | null; recommendation: string;
   } {
     const d = clean(domain);
-    const surface = `${action.target ?? ""} ${action.text ?? ""} ${action.url ?? ""} ${action.tool ?? ""}`.toLowerCase();
+    const raw = `${action.target ?? ""} ${action.text ?? ""} ${action.url ?? ""} ${action.tool ?? ""}`;
+    const surface = raw.toLowerCase();
     const markers: string[] = [];
     let score = 0;
 
     const catastrophic = CATASTROPHIC.find((c) => surface.includes(c));
     if (catastrophic) { markers.push(`catastrophic_intent:${catastrophic.replace(/\s+/g, "_")}`); score += 0.7; }
-    if (DESTRUCTIVE_RE.test(surface)) { markers.push("destructive_keyword"); score += 0.35; }
+    const keywords = destructiveWords(raw);
+    if (keywords.length) { markers.push("destructive_keyword"); score += 0.35; }
+    // Code constructs are looked for in what the caller would run or type, not in a URL: `?location=x` is not a navigation.
+    const constructs = destructiveCode(`${action.target ?? ""}\n${action.text ?? ""}`);
+    if (constructs.length) { markers.push("destructive_code"); score += 0.35; }
     if (action.irreversible === true) { markers.push("declared_irreversible"); score += 0.3; }
     if (/^(post|put|patch|delete)$/i.test(String(action.tool ?? ""))) { markers.push("mutating_request"); score += 0.15; }
 
@@ -294,7 +303,7 @@ export class TranscendentalCognitionEngine {
     }
 
     return {
-      domain: d, visceralRiskScore, somaticGutResponse, markers,
+      domain: d, visceralRiskScore, somaticGutResponse, markers, keywords, constructs,
       requiresApproval: somaticGutResponse === "GUT_VISCERAL_ALARM",
       code: somaticGutResponse === "GUT_VISCERAL_ALARM" ? "USER_CONFIRMATION_REQUIRED" : null,
       recommendation,

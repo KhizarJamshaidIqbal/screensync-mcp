@@ -57,6 +57,19 @@ pairing link + QR that the extension and the Android app both accept.
    messages that come from a page or a script in a tab, so nothing running there can approve a request,
    grant access, change a setting or read the clipboard through it. No agent tool runs code where it could
    try today; this keeps it that way.
+6. **You are told where you are looking.** A waiting approval is also shown as a desktop notification
+   ("ScreenSync needs your approval", with Approve / Decline buttons; it stays until answered and plays
+   the system chime; clicking it brings the tab forward) and as a card at the top right of the page the
+   action would run on: a ringing bell, the tool, the site, why it was flagged, a preview of the code or
+   arguments, the real countdown and Approve / Decline (`lib/approval-notify.js`, `lib/approval-dialog.js`).
+   Answer in any one place and the request is settled once; the notification and the card go away
+   everywhere. Several waiting requests show one card and one notification with "+N more". The card runs
+   in the extension's isolated world inside a closed shadow root: the page cannot see or press its buttons,
+   only a real mouse click on a visible, uncovered card counts, and the agent's own CDP mouse and keyboard
+   tools are refused on that tab while it is up. Pages the extension cannot script (`chrome://`, the web
+   store, PDFs) get the notification and the popup only. The card can also ring a short chime of its own;
+   switch it off under **Dashboard > Settings > Chime on the page when an agent action waits for your
+   approval** (on by default; a page that has not been clicked may not be allowed to play sound).
 
 ## Requirements
 
@@ -94,6 +107,7 @@ Every permission declared in `manifest.json` is mapped to active tool call sites
 | `downloads` | Saving generated artifacts: HAR, MHTML, traces, recordings | `lib/web-adv-capture.js:165`, `lib/web-adv-record.js:57,116,294` | Saves test artifacts and diagnostic traces directly to user's disk without cloud hops. |
 | `clipboardRead` | Supervised clipboard read (`web_clipboard {action: 'read'}`) | `lib/web-adv-input.js:394`, `pages/offscreen.js:216` | Allows the agent to read clipboard contents when requested by the workflow. |
 | `clipboardWrite` | Clipboard writing (`web_clipboard {action: 'write'}`, dashboard copy) | `lib/web-adv-input.js:365`, `components/catalog-browser.js:50` | Copies connection kits, diagnostic bundles, and agent text payloads to the clipboard. |
+| `notifications` | Desktop notification for a pending approval (Approve / Decline) and for `web_request_help` | `lib/os-notify.js`, `lib/approval-notify.js`, `lib/takeover.js` | Puts a request that waits for you on your screen, so it does not lapse unseen behind the toolbar badge. |
 | `host_permissions` | Local hub endpoints, pairing origins, and `<all_urls>` | `manifest.json:61-66` | Relays agent actions to open web tabs. Inert until paired and Web Access is enabled. |
 
 > `<all_urls>` is broad by design: the extension's purpose is to let the

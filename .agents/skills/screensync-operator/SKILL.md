@@ -278,9 +278,16 @@ After driving the page, call **`web_events` {since: <lastSeq>}** to see what act
 - Never exfiltrate cookies/sessions/tokens anywhere off-device.
 - No posting/purchasing/sending without explicit user confirmation of THAT action.
 - A destructive action on a site the owner has not trusted waits in the extension's approval queue for
-  the human's click (a badge on the toolbar icon). `USER_DECLINED` means they said no: do not retry, ask
-  what they want. `APPROVAL_TIMEOUT` means nobody answered: tell them it is waiting, then retry once they
-  can look. Your own `confirmed` / `force` arguments do nothing there.
+  the human's click for up to 60s: they see a desktop notification (Approve / Decline), a card with a bell
+  at the top right of that page, the badge on the toolbar icon and the popup list. The call's result carries
+  a `code`: `USER_DECLINED` means they said no: do not retry, ask what they want. `APPROVAL_TIMEOUT` means
+  nobody answered: tell them it is waiting, then retry once they can look. Your own `confirmed` / `force`
+  arguments do nothing there. Never try to click the card or the notification yourself: while the card is
+  up, `web_cdp_click` / `web_mouse` / `web_cdp_type` / `web_key_combo` on that tab return `APPROVAL_PENDING`.
+- "Destructive" means a whole destructive word (delete, remove, pay, buy, drop, ...) in what you send, or code
+  that changes things (`.submit()`, `.click()`, a POST/PUT/PATCH/DELETE fetch, storage or cookie writes,
+  `location.href =`, `window.open`, ...). A read-only `web_eval` that mentions `dropdown`, `display` or
+  `removeEventListener` is not gated.
 - A risky step inside `web_flow_run`, `web_replay`, `web_fanout` or `web_tab_fanout` is put to a person (the
   extension's approval queue) exactly like the same direct call: one prompt per step, and per browser in a fanout.
   A scheduled flow (`web_flow_schedule`) runs with nobody watching and the hub asks no one, so never schedule a
@@ -292,7 +299,10 @@ After driving the page, call **`web_events` {since: <lastSeq>}** to see what act
   (it never opens a second request). `USER_DECLINED` = they said no, and the site cannot be asked for again
   for 10 minutes: ask in chat instead. Only a person can answer; nothing you send approves it, and you must
   never try to click it yourself (the window is an extension page the web_* tools refuse, by design).
-- Hub tools time out at ~25–45s; for slow pages `web_navigate` first, then act.
+- Hub tools time out at ~25–45s; for slow pages `web_navigate` first, then act. A call waiting for an approval
+  is held longer (the approval window plus the run). `code: "TIMEOUT"` ("The browser didn't answer within
+  Ns") means the hub is up and the browser has not answered: often an approval nobody has seen yet. Only
+  `HUB_UNREACHABLE` ("hub is not reachable") means the hub is down.
 
 ## 9 · Recovery
 
@@ -301,6 +311,8 @@ After driving the page, call **`web_events` {since: <lastSeq>}** to see what act
 | 503 "extension not connected" | Open the ScreenSync dashboard (side panel) so the SW pairs, then `web_status`. |
 | 403 "web access disabled" | Ask user to enable the toggle (Alt+Shift+S). |
 | "Read/Action access not granted for origin X" | `web_request_access {url, reason}`; on `pending` call again with the same url; on `USER_DECLINED` ask in chat. |
+| `TIMEOUT` "The browser didn't answer within Ns" | Not a hub outage. Ask the user to look for a ScreenSync approval (notification / card on the page / popup); check `web_events`, then retry. |
+| `HUB_UNREACHABLE` "hub is not reachable" | The hub refused the connection: ask the user to start it (`npm start` / start-hub). |
 | Weird/stale results | `web_extension_reload`, wait 5s, `web_status`. |
 | Wrong browser answered | Pass `__browser` hint (see §5). |
 

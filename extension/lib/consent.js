@@ -4,13 +4,16 @@
 
 import { getSettings, saveSettings } from './storage.js';
 
-// Pending approvals queue: id -> { id, origin, tool, risk, details, createdAt, expiresAt, resolve, reject, timer }
+// Pending approvals queue: id -> { id, origin, tool, risk, details, tabId, createdAt, expiresAt, resolve, reject, timer }
 const pendingApprovals = new Map();
 let approvalSeq = 0;
 
 // Told whenever the queue changes (something enqueued, approved, declined or expired). The service worker
 // uses it to keep the toolbar badge honest, so a request a person has not seen is a number on the icon.
 const approvalListeners = new Set();
+// Told how each request ended ('approved' | 'declined' | 'timeout'), just before the queue-change listeners, so a
+// surface that showed it (approval-notify.js) can say "timed out" rather than simply vanish.
+const settledListeners = new Set();
 
 // Rate limiter: origin -> array of timestamps (ms)
 const rateLimits = new Map();
@@ -183,21 +186,35 @@ function notifyApprovalsChanged() {
   }
 }
 
+/** Subscribe to how requests end: fn({ id, origin, tool, risk, tabId }, 'approved' | 'declined' | 'timeout'). */
+export function onApprovalSettled(fn) {
+  settledListeners.add(fn);
+  return () => settledListeners.delete(fn);
+}
+
 /**
  * Asks a person. Resolves { approved: true } on their say-so; rejects if they decline
  * (error.code USER_DECLINED) or nobody answers within timeoutMs (APPROVAL_TIMEOUT). Silence is a refusal.
+ * `tabId` is the tab the action would run in, so the request can also be shown on that page.
  */
-export function enqueueApproval({ origin, tool, risk, details, timeoutMs = 60_000 }) {
+export function enqueueApproval({ origin, tool, risk, details, timeoutMs = 60_000, tabId = null }) {
   const id = `appr_${Date.now()}_${++approvalSeq}`;
   return new Promise((resolve, reject) => {
-    const settle = (finish) => (value) => {
+    const settle = (finish, outcome) => (value) => {
       clearTimeout(timer);
+      const item = pendingApprovals.get(id);
       pendingApprovals.delete(id);
+      if (item) {
+        const ended = { id, origin: item.origin, tool, risk: item.risk, tabId: item.tabId };
+        for (const fn of settledListeners) {
+          try { fn(ended, outcome); } catch { /* a listener must never be able to break the queue */ }
+        }
+      }
       notifyApprovalsChanged();
       finish(value);
     };
     const timer = setTimeout(
-      () => settle(reject)(Object.assign(new Error(`Approval request ${id} for ${tool} on ${origin} timed out (dismissed by default).`), { code: 'APPROVAL_TIMEOUT' })),
+      () => settle(reject, 'timeout')(Object.assign(new Error(`Approval request ${id} for ${tool} on ${origin} timed out (dismissed by default).`), { code: 'APPROVAL_TIMEOUT' })),
       timeoutMs,
     );
 
@@ -208,11 +225,12 @@ export function enqueueApproval({ origin, tool, risk, details, timeoutMs = 60_00
       tool,
       risk: risk || 'destructive',
       details: details || {},
+      tabId: Number.isInteger(tabId) ? tabId : null,
       createdAt,
       expiresAt: createdAt + timeoutMs,
       timer,
-      resolve: settle(resolve),
-      reject: settle(reject),
+      resolve: settle(resolve, 'approved'),
+      reject: settle(reject, 'declined'),
     });
     notifyApprovalsChanged();
   });
@@ -227,6 +245,7 @@ export function getPendingApprovals() {
       tool: item.tool,
       risk: item.risk,
       details: item.details,
+      tabId: item.tabId,
       createdAt: item.createdAt,
       expiresAt: item.expiresAt,
     });

@@ -63,12 +63,8 @@ export const CATASTROPHIC = Object.freeze([
   "transfer funds", "wire transfer", "withdraw", "production dns", "rotate key", "revoke access",
 ]);
 
-/**
- * Destructive-action vocabulary. Deliberately the same regex the page-side unit
- * already enforces (extension/lib/web-unit-interact.js isDestructiveAction) so
- * the hub and the page agree on what "destructive" means.
- */
-export const DESTRUCTIVE_RE = /delete|remove|destroy|terminate|cancel\s*subscription|drop|pay|purchase|buy|charge/i;
+// The destructive-action vocabulary lives in destructive-vocab.ts (whole words plus page-changing code),
+// shared with the extension and its page-side units.
 
 export const round = (n: number, dp = 3): number => Math.round(n * 10 ** dp) / 10 ** dp;
 export const clean = (d: string): string => String(d || "").toLowerCase().trim();
