@@ -128,18 +128,37 @@ export async function getProfileIdentity() {
   };
 }
 
+// How many browser instances the hub's last register reply listed as online, this one included. null = unknown:
+// an older hub that sends no browser list, or no reply yet since this service worker started.
+let hubOnlineInstances = null;
+
+/** Records the hub's view of who is online from a /api/web/register reply (web-bridge.js registerWebBridge). */
+export function noteHubPresence(status) {
+  const browsers = status && Array.isArray(status.browsers) ? status.browsers : null;
+  hubOnlineInstances = browsers ? browsers.filter((b) => b && b.online === true).length : null;
+}
+
+const namesTarget = (v) => typeof v === 'string' && !['', 'any', 'default'].includes(v.trim().toLowerCase());
+
 /**
  * Strict Zero Cross-Talk Target Filter.
  * Checks whether an incoming web_request is intended for this specific profile/instance.
  * If not, returns false so this profile will drop the request without touching any DOM or tabs.
  */
-export function matchesSelfTarget(req, identity) {
+export function matchesSelfTarget(req, identity, onlineInstances = hubOnlineInstances) {
   if (!req) return true;
   const args = req.args || {};
   const targetInstance = req.targetInstanceId || args.__instance || args.instanceId;
   const targetEmail = req.targetEmail || args.__email || args.email || args.profileEmail;
   const targetProfile = req.targetProfile || args.__profile || args.profile;
   const targetBrowser = req.targetBrowser || args.__browser;
+
+  // 0. A request that names nobody reaches EVERY connected profile, so with two logged-in accounts one click
+  // would run in both. Current hubs always name an instance; this guards older ones. Accept it only when the hub
+  // has not told us that another instance is online (unknown keeps the old behaviour).
+  if (![targetInstance, targetEmail, targetProfile, targetBrowser].some(namesTarget) && onlineInstances > 1) {
+    return false;
+  }
 
   // 1. Exact Instance ID matching (highest priority)
   if (targetInstance && typeof targetInstance === 'string') {

@@ -6,7 +6,7 @@
 
 import { getSettings } from './storage.js';
 import { hubFetch } from './api.js';
-import { getProfileIdentity, matchesSelfTarget } from './profile-identity.js';
+import { getProfileIdentity, matchesSelfTarget, noteHubPresence } from './profile-identity.js';
 import { isRestrictedTab } from './tab-resolve.js';
 import { makeError, ERROR_CODES } from './errors.js';
 import { recordAuditEntry } from './audit.js';
@@ -58,6 +58,8 @@ export async function registerWebBridge() {
         extensionVersion: chrome.runtime.getManifest().version,
       },
     });
+    // Who else is online, so an untargeted request from an older hub is not run in two accounts at once.
+    noteHubPresence(regRes && regRes.status);
     if (regRes && regRes.reloadRequested === true) {
       setTimeout(() => { try { chrome.runtime.reload(); } catch {} }, 200);
     }
