@@ -137,3 +137,26 @@ test("visual baseline: B selected while A heartbeated last: the screenshot and t
     await hub.close();
   }
 });
+
+// ── web_tab_fanout: activeOnly narrows the other filters instead of replacing them ────────────────────────────
+
+test("tab fanout: activeOnly combines with tabIds and urls (AND), it does not replace them", async () => {
+  const tabs = [{ tabId: 100, url: "https://a.test/1", active: false }, { tabId: 101, url: "https://a.test/2", active: true }];
+  const hub = await startHub((ev) => (ev.tool === "web_tabs" ? { tabs } : { ranIn: ev.targetInstanceId }));
+  try {
+    await hub.register(A);
+    const perTab = () => sent(hub).filter((s) => !s.startsWith("web_tabs"));
+
+    const inactiveId = await hub.call("web_tab_fanout", { tool: "web_title", tabIds: [100], activeOnly: true });
+    assert.deepEqual(perTab(), [], "tab 100 is not active, so nothing matches both filters");
+    assert.equal(inactiveId.data.matched, 0);
+
+    await hub.call("web_tab_fanout", { tool: "web_title", urls: "a.test/1", activeOnly: true });
+    assert.deepEqual(perTab(), [], "the url filter is kept too");
+
+    await hub.call("web_tab_fanout", { tool: "web_title", tabIds: [100, 101], activeOnly: true });
+    assert.deepEqual(perTab(), ["web_title#101->inst-a"]);
+  } finally {
+    await hub.close();
+  }
+});

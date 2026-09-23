@@ -754,7 +754,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           const needles = Array.isArray(args.urls) ? args.urls.map(String) : String(args.urls).split(",").map((s) => s.trim());
           tabs = tabsRaw.filter((t) => needles.some((n) => (t.url || "").toLowerCase().includes(n.toLowerCase())));
         }
-        if (args.activeOnly === true) tabs = tabsRaw.filter((t) => (t as { active?: boolean }).active === true);
+        if (args.activeOnly === true) tabs = tabs.filter((t) => (t as { active?: boolean }).active === true); // AND, not instead
         if (!tabs.length) {
           res.json({ success: true, ok: false, error: tabsRes.ok ? undefined : tabsRes.error, data: { ...from, results: [], matched: 0, availableTabs: tabsRaw.length } });
           return;
