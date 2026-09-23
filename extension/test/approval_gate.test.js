@@ -86,6 +86,7 @@ const reset = () => { calls.length = 0; hubCalls.length = 0; hubAcceptsAwaiting 
   assert.equal(calls[0].args.__actGranted, false, 'and a forged grant was replaced by the real one');
   assert.equal(item.origin, 'https://shop.example');
   assert.equal(item.tool, 'web_click');
+  assert.equal(item.tabId, 7, 'the queue knows which tab the action would run in, so the card can be shown there');
   assert.match(item.details.target, /#delete-account/);
   assert.match(item.details.reason, /destructive keyword/);
   assert.ok(item.expiresAt > item.createdAt, 'the queue says when the request lapses, so the UI can show it');
