@@ -1,7 +1,7 @@
 // ScreenSync web_screenshot executor — split out of web-tools.js (which sits at the repo's
 // 500-line ceiling, see AGENTS.md §2) to fix background-tab captures without growing it further.
 import { execAdvTool } from './web-adv.js';
-import { pickActiveTab, isRestrictedTab } from './tab-resolve.js';
+import { pickActiveTab, isRestrictedTab, waitForPaintReady } from './tab-resolve.js';
 import { makeError, ERROR_CODES } from './errors.js';
 
 export async function execWebScreenshot(args = {}) {
@@ -29,6 +29,13 @@ export async function execWebScreenshot(args = {}) {
       captureTab = await chrome.tabs.get(tab.id).catch(() => tab);
     }
   } catch { /* best-effort activation — capture below still runs against the original tab */ }
+
+  // Guard against the paint/compositor race: right after web_navigate reports status:'complete'
+  // (load event fired), the compositor can still be a frame or two behind, so capturing
+  // immediately can return every <img> as a flat grey/blank rect even though the DOM/network
+  // layer already finished loading and decoding them. Two rAFs is cheap (~tens of ms) on an
+  // already-settled page, so do this unconditionally rather than only right after navigation.
+  await waitForPaintReady(captureTab.id);
 
   try {
     const imageDataUrl = await chrome.tabs.captureVisibleTab(captureTab.windowId, opts);

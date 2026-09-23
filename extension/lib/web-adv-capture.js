@@ -21,10 +21,16 @@ export async function cdpScreenshot(tab, args = {}) {
   }
   try {
     await chrome.debugger.sendCommand(target, 'Page.enable', {});
+    // Same compositor-lag guard as tab-resolve.js's waitForPaintReady: wait for a double-rAF
+    // round-trip (via this session's own Runtime.evaluate) before capturing pixels.
+    await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+      expression: 'new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))',
+      awaitPromise: true,
+    }).catch(() => {});
     const full = args.fullPage !== false;
     const format = args.format === 'png' ? 'png' : 'jpeg';
     const quality = typeof args.quality === 'number' ? Math.min(100, Math.max(1, args.quality)) : 80;
-    
+
     const captureOpts = { format, captureBeyondViewport: full };
     if (format === 'jpeg') captureOpts.quality = quality;
 
