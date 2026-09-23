@@ -66,6 +66,21 @@ for (const [name, sender] of Object.entries(outsiders)) assert.equal(isOwnerPage
     assert.equal(listener({ type: 'resolve-approval', id: 'x', approved: true }, sender, respond), false, `${name}: refused`);
   }
   assert.equal(listener(null, outsiders.scriptInjectedIntoATab, respond), false, 'a malformed message from a tab is refused, not a crash');
+  // The in-page approval dialog and the help overlay talk to their own listeners, which judge them; here they are
+  // declined like any other message from a tab, just without a warning in the console for each one.
+  const warned = [];
+  const warn = console.warn;
+  console.warn = (...a) => { warned.push(a.join(' ')); };
+  try {
+    for (const type of ['ss-approval-dialog', 'help_overlay_done']) {
+      assert.equal(listener({ type, id: 'x', decision: 'approve' }, outsiders.scriptInjectedIntoATab, respond), false, `${type} from a tab: declined`);
+    }
+    assert.equal(warned.length, 0, 'quietly');
+    listener({ type: 'resolve-approval' }, outsiders.scriptInjectedIntoATab, respond);
+    assert.equal(warned.length, 1, 'anything else from a tab is still reported');
+  } finally {
+    console.warn = warn;
+  }
   assert.deepEqual(seen, ['get-approvals'], 'none of them reached the handler');
   assert.equal(answers.length, 1, 'and none was answered');
 }
@@ -136,6 +151,7 @@ for (const [name, sender] of Object.entries(outsiders)) assert.equal(isOwnerPage
     'background.js': 'wrapped (checked above)',
     'pages/offscreen.js': 'refuses anything that came from a tab (checked below)',
     'lib/takeover.js': 'is handed the help overlay\'s own "done" message by a script in the tab; it can only end that overlay',
+    'lib/approval-notify.js': 'answers only the in-page approval dialog it injected: same extension, tab, top frame, document and origin, plus that dialog\'s one-time nonce (approval_notify.test.js)',
   };
   const found = [];
   const walk = (dir) => {

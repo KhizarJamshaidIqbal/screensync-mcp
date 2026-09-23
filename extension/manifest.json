@@ -41,7 +41,8 @@
     "downloads",
     "clipboardRead",
     "clipboardWrite",
-    "identity"
+    "identity",
+    "notifications"
   ],
   "side_panel": {
     "default_path": "pages/dashboard.html"

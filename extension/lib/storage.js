@@ -19,6 +19,9 @@ const LOCAL_DEFAULTS = {
 const SYNC_DEFAULTS = {
   theme: 'dark',
   reduceMotion: false,
+  // A short two-note chime from the in-page approval dialog (approval-dialog.js). The OS notification's own sound
+  // plays either way; a page may not play audio until it has been clicked (autoplay rules), so it can be silent.
+  approvalChime: true,
 };
 
 const LOCAL_KEYS = new Set([

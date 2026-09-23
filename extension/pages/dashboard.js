@@ -207,6 +207,27 @@ async function renderSettings() {
   field('Onboarding', s.settings.onboardingComplete ? 'Complete' : 'Pending');
   field('Web Access', s.settings.webAccessEnabled ? 'Enabled' : 'Disabled');
 
+  // Approval chime: the in-page approval dialog can ring a short chime (the OS notification sounds regardless).
+  const chimeRow = document.createElement('label');
+  chimeRow.className = 'row spread mt';
+  chimeRow.style.gap = 'var(--sp-3)';
+  const chimeText = document.createElement('span');
+  chimeText.textContent = 'Chime on the page when an agent action waits for your approval';
+  const chimeSwitch = document.createElement('span');
+  chimeSwitch.className = 'switch';
+  const chimeBox = document.createElement('input');
+  chimeBox.type = 'checkbox';
+  chimeBox.checked = s.settings.approvalChime !== false;
+  const chimeSlider = document.createElement('span');
+  chimeSlider.className = 'slider';
+  chimeSwitch.append(chimeBox, chimeSlider);
+  chimeRow.append(chimeText, chimeSwitch);
+  chimeBox.onchange = async () => {
+    await send({ type: 'update-settings', patch: { approvalChime: chimeBox.checked } });
+    toast(chimeBox.checked ? 'Approval chime on' : 'Approval chime off', 'ok');
+  };
+  body.appendChild(chimeRow);
+
   const btns = document.createElement('div');
   btns.className = 'row mt-lg';
 

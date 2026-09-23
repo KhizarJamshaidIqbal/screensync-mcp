@@ -12,10 +12,14 @@ import { cdpEval, cdpEvalExpression, cdpRunCode } from './web-adv-eval.js';
 import { cdpHarRecord, cdpVideoRecord, cdpClockSet, cdpClockClear, cdpClockFastForward, cdpTraceRecord } from './web-adv-record.js';
 import { handleWebHandle } from './web-handles.js';
 import { cdpServiceWorker } from './web-adv-worker.js';
+import { trustedInputRefusal } from './approval-guard.js';
 
 export { attachCdp, detachCdp, cdpWaitNetworkIdle, ensureHooks };
 
 export async function execAdvTool(tool, tab, args) {
+  // CDP input is trusted: never send it to a page that is showing an approval dialog (approval-guard.js).
+  const paused = tab ? trustedInputRefusal(tool, tab.id) : null;
+  if (paused) return paused;
   switch (tool) {
     case 'web_eval': {
       const expr = String(args.expression || args.code || '');
