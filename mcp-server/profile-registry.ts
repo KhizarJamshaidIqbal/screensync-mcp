@@ -164,6 +164,17 @@ export function createProfileRegistry() {
   const getSelectedProfile = (): string | null => selectedProfile;
 
   /**
+   * The first of `candidates` that a lowercased `query` names: 1. exact instanceId, 2. email (exact or substring),
+   * 3. profile name or directory, 4. browser name (e.g. 'chrome', 'edge').
+   */
+  const findNamed = (candidates: BrowserInstance[], query: string): BrowserInstance | null =>
+    candidates.find((inst) => inst.instanceId.toLowerCase() === query) ??
+    candidates.find((inst) => inst.profileEmail?.toLowerCase().includes(query)) ??
+    candidates.find((inst) => inst.profileName?.toLowerCase() === query || inst.profileDir?.toLowerCase() === query) ??
+    candidates.find((inst) => inst.name === query) ??
+    null;
+
+  /**
    * Resolves a target browser instance based on an optional hint (email, profile name, instanceId, or browser name).
    * If hint is omitted (or `any`/`default`, which name no browser), defaults to currently selected profile, or
    * the latest active instance.
@@ -178,28 +189,7 @@ export function createProfileRegistry() {
       const focusedInstance = online.find((inst) => inst.windows.some((w) => w.focused));
       return focusedInstance || online[0];
     }
-
-    // 1. Exact instanceId
-    const byInst = online.find((inst) => inst.instanceId.toLowerCase() === query);
-    if (byInst) return byInst;
-
-    // 2. Exact or substring email match
-    const byEmail = online.find((inst) => inst.profileEmail && (inst.profileEmail.toLowerCase() === query || inst.profileEmail.toLowerCase().includes(query)));
-    if (byEmail) return byEmail;
-
-    // 3. Profile name or directory match
-    const byName = online.find(
-      (inst) =>
-        (inst.profileName && inst.profileName.toLowerCase() === query) ||
-        (inst.profileDir && inst.profileDir.toLowerCase() === query)
-    );
-    if (byName) return byName;
-
-    // 4. Browser name match (e.g. 'chrome', 'edge')
-    const byBrowserName = online.find((inst) => inst.name === query);
-    if (byBrowserName) return byBrowserName;
-
-    return null;
+    return findNamed(online, query);
   };
 
   /**
@@ -210,10 +200,12 @@ export function createProfileRegistry() {
    * tracks). This is precise ground truth for routing — unlike resolveTarget()'s hint, which
    * falls back to "whichever profile has a focused window" or "most recently seen" and can
    * silently pick the wrong Chrome profile when two are connected at once.
-   * Returns null when no online instance claims the id, so callers can fall back to
-   * resolveTarget()'s heuristic unchanged (never regresses the no-hint case).
+   * Returns EVERY online instance that claims the id: ids are only unique inside one browser process, so Chrome
+   * and Edge (or two profiles) can both report tab 7, and taking the first would be a guess (resolveDispatch()
+   * breaks that tie only with a hint or the selected profile). Empty when none claims it, so callers fall back
+   * to resolveTarget()'s heuristic unchanged (never regresses the no-hint case).
    */
-  const resolveOwnerByTabOrWindow = (tabId?: unknown, windowId?: unknown): BrowserInstance | null => {
+  const resolveOwnerByTabOrWindow = (tabId?: unknown, windowId?: unknown): BrowserInstance[] => {
     const toId = (v: unknown): number | null => {
       if (v === undefined || v === null || v === "") return null;
       const n = Number(v);
@@ -221,15 +213,9 @@ export function createProfileRegistry() {
     };
     const wantTab = toId(tabId);
     const wantWindow = toId(windowId);
-    if (wantTab === null && wantWindow === null) return null;
-
-    for (const inst of listOnline()) {
-      for (const w of inst.windows) {
-        if (wantWindow !== null && w.id === wantWindow) return inst;
-        if (wantTab !== null && w.activeTab && w.activeTab.tabId === wantTab) return inst;
-      }
-    }
-    return null;
+    if (wantTab === null && wantWindow === null) return [];
+    return listOnline().filter((inst) =>
+      inst.windows.some((w) => (wantWindow !== null && w.id === wantWindow) || (wantTab !== null && w.activeTab?.tabId === wantTab)));
   };
 
   /**
@@ -237,7 +223,8 @@ export function createProfileRegistry() {
    * selectedProfile, else resolveTarget()'s heuristic. It never answers "no target": the extension runs a
    * web_request that names no instance in EVERY connected profile, so an untargeted click with two logged-in
    * profiles online happens in both accounts. A selectedProfile that is offline is an error, never a reason
-   * to fall back to whichever other profile is online.
+   * to fall back to whichever other profile is online, and so is a tab/window id that several browsers report
+   * and neither the hint nor the selection picks out (AMBIGUOUS_TAB_OWNER).
    */
   const resolveDispatch = (args: Record<string, unknown>): DispatchDecision => {
     const online = listOnline();
@@ -251,7 +238,21 @@ export function createProfileRegistry() {
     if (explicit && !hinted) {
       return refuse(400, "PROFILE_NOT_CONNECTED", `No connected browser matches '${hint}'. Connected: ${listed}. Call web_status or web_profile to list browsers.`);
     }
-    const target = resolveOwnerByTabOrWindow(args.tabId, args.windowId) || hinted || resolveTarget(null);
+    // Several browsers claiming the tab/window id is a tie that only the caller's hint, else the selected profile,
+    // may break - and only by naming one of the claimants. Anything else would be a guess between two accounts.
+    const owners = resolveOwnerByTabOrWindow(args.tabId, args.windowId);
+    let owner = owners.length === 1 ? owners[0] : null;
+    if (owners.length > 1) {
+      const pick = explicit ? hint : selectedProfile && !isWildcard(selectedProfile) ? selectedProfile : null;
+      owner = pick ? findNamed(owners, pick.trim().toLowerCase()) : null;
+      if (!owner) {
+        const ids = ["tabId", "windowId"].filter((k) => args[k] !== undefined && args[k] !== null && args[k] !== "").map((k) => `${k} ${args[k]}`).join(" / ");
+        const claimants = owners.map((b) => `${b.profileEmail || b.profileName || b.instanceId} (${b.name}, instanceId ${b.instanceId})`).join(", ");
+        return refuse(409, "AMBIGUOUS_TAB_OWNER",
+          `${ids} is reported by ${owners.length} connected browsers: ${claimants}. Tab and window ids are only unique within one browser, so the hub will not guess. Retry with a profile hint naming one of them (profile / __profile, or __instance with its instanceId), or select one with web_profile {action:'select'}.`);
+      }
+    }
+    const target = owner || hinted || resolveTarget(null);
     if (target) return { ok: true, target };
 
     if (!explicit && selectedProfile && !isWildcard(selectedProfile)) {

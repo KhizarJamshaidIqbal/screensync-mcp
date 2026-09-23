@@ -141,3 +141,66 @@ test("dispatch: one browser online and nothing selected names that browser; none
   const one = registry.resolveDispatch({});
   assert.equal(one.ok && one.target.instanceId, "inst-a");
 });
+
+// Tab and window ids are only unique inside ONE browser process: Chrome and Edge (or two profiles) can both report
+// window 5 with tab 7. resolveOwnerByTabOrWindow() used to answer with whichever it scanned first.
+
+const EDGE_B = { ...B, browserName: "edge" };
+const C = { instanceId: "inst-c", browserId: "inst-c", browserName: "brave", profileEmail: "c@profile.test", webAccessEnabled: true };
+
+/** A (chrome) and B (edge) both report window 5 / tab 7; C is online and reports window 9 / tab 70. */
+async function sameIds() {
+  const registry = createProfileRegistry();
+  registry.register({ ...EDGE_B, windows: [{ id: 5, focused: true, activeTab: { tabId: 7 } }] });
+  await sleep(5);
+  registry.register({ ...A, windows: [{ id: 5, focused: false, activeTab: { tabId: 7 } }] });
+  registry.register({ ...C, windows: [{ id: 9, focused: false, activeTab: { tabId: 70 } }] });
+  return registry;
+}
+
+test("dispatch: a tabId or windowId two browsers report is refused, naming both, when nothing picks one", async () => {
+  const registry = await sameIds();
+  for (const args of [{ tabId: 7 }, { windowId: 5 }, { tabId: 7, __browser: "any" }]) {
+    const d = registry.resolveDispatch(args);
+    assert.equal(d.ok, false, `${JSON.stringify(args)} must not be guessed`);
+    if (d.ok) return;
+    assert.equal(d.code, "AMBIGUOUS_TAB_OWNER");
+    assert.equal(d.status, 409);
+    assert.match(d.error, /a@profile\.test/);
+    assert.match(d.error, /b@profile\.test/);
+    assert.doesNotMatch(d.error, /c@profile\.test/, "only the browsers that report the id are listed");
+    assert.match(d.error, /profile/, "the error says to pass a profile hint");
+  }
+});
+
+test("dispatch: an explicit hint breaks the tie among the browsers that report the id", async () => {
+  const registry = await sameIds();
+  registry.setSelectedProfile("a@profile.test");
+  const edge = registry.resolveDispatch({ tabId: 7, __browser: "edge" });
+  assert.equal(edge.ok && edge.target.instanceId, "inst-b", "the hint outranks the selection");
+  const a = registry.resolveDispatch({ windowId: 5, __profile: "a@profile.test" });
+  assert.equal(a.ok && a.target.instanceId, "inst-a");
+  const elsewhere = registry.resolveDispatch({ tabId: 7, __profile: "c@profile.test" });
+  assert.equal(!elsewhere.ok && elsewhere.code, "AMBIGUOUS_TAB_OWNER", "a hint naming neither owner breaks nothing");
+});
+
+test("dispatch: with no hint, the selected profile breaks the tie; an offline selection does not", async () => {
+  const registry = await sameIds();
+  registry.setSelectedProfile("b@profile.test");
+  const b = registry.resolveDispatch({ tabId: 7 });
+  assert.equal(b.ok && b.target.instanceId, "inst-b");
+  registry.setSelectedProfile("a@profile.test");
+  const a = registry.resolveDispatch({ tabId: 7 });
+  assert.equal(a.ok && a.target.instanceId, "inst-a");
+  registry.setSelectedProfile("gone@profile.test");
+  assert.equal(registry.resolveDispatch({ tabId: 7 }).ok, false);
+});
+
+test("dispatch: an id only one browser reports routes to it exactly as before", async () => {
+  const registry = await sameIds();
+  registry.setSelectedProfile("a@profile.test");
+  const c = registry.resolveDispatch({ tabId: 70 });
+  assert.equal(c.ok && c.target.instanceId, "inst-c", "the owner is ground truth, over the selection");
+  const byWindow = registry.resolveDispatch({ windowId: 9, __browser: "any" });
+  assert.equal(byWindow.ok && byWindow.target.instanceId, "inst-c");
+});

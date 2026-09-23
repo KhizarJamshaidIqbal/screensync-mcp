@@ -19,7 +19,7 @@ import { createWebBridge } from "../web.js";
 // The cognitive gate is covered elsewhere (cognitive_gate.e2e.ts); here it would only add noise.
 process.env.SCREEN_SYNC_COGNITIVE_GATE = "off";
 
-type Relayed = { type: string; id: string; tool: string; args: Record<string, unknown>; targetInstanceId: string | null };
+type Relayed = { type: string; id: string; tool: string; args: Record<string, unknown>; targetInstanceId: string | null; targetBrowser?: string | null };
 type ToolReply = { ok: boolean; error?: string; code?: string; onlineProfiles?: string[]; data?: any };
 
 const headers = { "Content-Type": "application/json", Authorization: `Bearer ${AUTH_TOKEN}` };
@@ -39,7 +39,7 @@ async function startHub(answer: (ev: Relayed) => unknown = (ev) => ({ ranIn: ev.
       fetch(`${base}/api/web/result`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ id: ev.id, ok: true, data: answer(ev), ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: "chrome" }),
+        body: JSON.stringify({ id: ev.id, ok: true, data: answer(ev), ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: ev.targetBrowser || "chrome" }),
       }).catch(() => {});
     });
   }, () => 2);
@@ -341,5 +341,24 @@ test("tab fanout: while the selected profile is offline nothing is listed or run
   } finally {
     await hub.close();
     mock.timers.reset();
+  }
+});
+
+test("a tabId that two browsers both report is not guessed: nothing is dispatched until a profile hint picks one", async () => {
+  const hub = await startHub();
+  try {
+    const win = [{ id: 5, focused: true, activeTab: { tabId: 7 } }];
+    await hub.register({ ...A, windows: win });
+    await hub.register({ ...B, browserName: "edge", windows: win });
+    const refused = await hub.call("web_click", { selector: "#post", tabId: 7 });
+    assert.deepEqual(sent(hub), []);
+    assert.equal(refused.code, "AMBIGUOUS_TAB_OWNER");
+    assert.match(String(refused.error), /a@profile\.test.*b@profile\.test|b@profile\.test.*a@profile\.test/);
+
+    const picked = await hub.call("web_click", { selector: "#post", tabId: 7, __profile: "b@profile.test" });
+    assert.equal(picked.ok, true, String(picked.error));
+    assert.deepEqual(sent(hub), ["web_click#7->inst-b"]);
+  } finally {
+    await hub.close();
   }
 });
