@@ -72,6 +72,10 @@ export async function rawAttach(target) {
 }
 
 
+/** Longest the pre-capture CDP paint wait may take. */
+export const CDP_PAINT_WAIT_MS = 1000;
+const CDP_PAINT_EXPRESSION = "document.visibilityState === 'hidden' ? true : new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))";
+
 /**
  * Waits for a real painted frame on an ALREADY-ATTACHED CDP session, via a double
  * requestAnimationFrame round-trip run inside the page (the same guarantee tab-resolve.js's
@@ -81,12 +85,20 @@ export async function rawAttach(target) {
  * cdpElementScreenshot both call it — so a capture added later gets the same guard for free instead
  * of needing its own copy. Best-effort: a page that cannot evaluate (rare) just skips the wait, the
  * capture proceeds as before.
+ *
+ * A hidden page (a background tab, a minimized window) runs no requestAnimationFrame at all, so the
+ * double rAF never settled and the capture waited until the hub gave up after 45 s. The wait is
+ * skipped on a hidden page and bounded by `maxMs` on any page.
+ * @param {{ tabId: number }} target
+ * @param {number} [maxMs=CDP_PAINT_WAIT_MS]
  */
-export async function cdpWaitPaintReady(target) {
-  await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
-    expression: 'new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))',
-    awaitPromise: true,
-  }).catch(() => {});
+export async function cdpWaitPaintReady(target, maxMs = CDP_PAINT_WAIT_MS) {
+  let timer;
+  await Promise.race([
+    chrome.debugger.sendCommand(target, 'Runtime.evaluate', { expression: CDP_PAINT_EXPRESSION, awaitPromise: true }).catch(() => {}),
+    new Promise((resolve) => { timer = setTimeout(resolve, maxMs); }),
+  ]);
+  clearTimeout(timer);
 }
 
 function cdpBusy(tabId) {

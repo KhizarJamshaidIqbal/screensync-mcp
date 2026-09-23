@@ -134,18 +134,25 @@ export async function waitForTabComplete(tabId, timeoutMs = 20000) {
  * this was scheduled; on an already-idle page it resolves in ~2 frames (tens of ms), so callers
  * can await this unconditionally before any pixel capture, not only right after navigation.
  * Best-effort: a restricted or unreachable tab just skips the wait; capture proceeds as before.
+ * Bounded by `maxMs`: a hidden tab runs no requestAnimationFrame, and the promise would never settle.
  * @param {number} tabId
+ * @param {number} [maxMs=1000]
  * @returns {Promise<void>}
  */
-export async function waitForPaintReady(tabId) {
+export async function waitForPaintReady(tabId, maxMs = 1000) {
+  let timer;
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId: Number(tabId) },
-      func: () => new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
+    await Promise.race([
+      chrome.scripting.executeScript({
+        target: { tabId: Number(tabId) },
+        func: () => new Promise((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
+        }),
       }),
-    });
+      new Promise((resolve) => { timer = setTimeout(resolve, maxMs); }),
+    ]);
   } catch { /* best-effort — restricted/unreachable tab just skips the wait */ }
+  clearTimeout(timer);
 }
 
 /**
