@@ -4,10 +4,71 @@
 
 let agentWindow = null; // { windowId, createdAt, borrowedTabs: Map<tabId, origWindowId> }
 
+// The state above lives in the service worker, which Chrome stops after ~30 s idle (MV3). A
+// restart forgot the window while it stayed open, so web_navigate {newTab} opened tabs in the
+// person's window again and "close" said "No agent window is active" (seen live 2026-09-23).
+// The window id is kept in chrome.storage.session (cleared when the browser closes) and
+// restored lazily; a window the person closed is forgotten.
+const STORE_KEY = 'ssAgentWindow';
+
+function sessionStore() {
+  return (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session) || null;
+}
+
+async function persistAgentWindow() {
+  const store = sessionStore();
+  if (!store) return;
+  const value = agentWindow
+    ? { windowId: agentWindow.windowId, createdAt: agentWindow.createdAt, borrowed: [...agentWindow.borrowedTabs.entries()] }
+    : null;
+  try {
+    await store.set({ [STORE_KEY]: value });
+  } catch {}
+}
+
+/** Brings the agent window back after a service worker restart; null when there is none. */
+export async function restoreAgentWindow() {
+  if (agentWindow) return agentWindow;
+  const store = sessionStore();
+  if (!store) return null;
+  let saved = null;
+  try {
+    saved = (await store.get(STORE_KEY))[STORE_KEY] || null;
+  } catch {
+    saved = null;
+  }
+  if (!saved || !saved.windowId) return null;
+  const alive = await chrome.windows.get(saved.windowId).then(() => true, () => false);
+  if (!alive) {
+    await persistAgentWindow();
+    return null;
+  }
+  agentWindow = { windowId: saved.windowId, createdAt: saved.createdAt || Date.now(), borrowedTabs: new Map(saved.borrowed || []) };
+  chrome.tabs.onCreated.addListener(onAgentTabCreated);
+  return agentWindow;
+}
+
+/** getAgentWindowStatus() after restoring from session storage. */
+export async function agentWindowStatus() {
+  await restoreAgentWindow();
+  return getAgentWindowStatus();
+}
+
+// The person closing the agent window ends agent-window mode.
+if (typeof chrome !== 'undefined' && chrome.windows && chrome.windows.onRemoved && chrome.windows.onRemoved.addListener) {
+  chrome.windows.onRemoved.addListener((windowId) => {
+    if (agentWindow && agentWindow.windowId === windowId) {
+      agentWindow = null;
+      persistAgentWindow();
+    }
+  });
+}
+
 /**
  * Create a dedicated agent window with visual amber breathing border.
  */
 export async function createAgentWindow(_args = {}) {
+  await restoreAgentWindow();
   if (agentWindow) {
     return { ok: true, data: { windowId: agentWindow.windowId, alreadyActive: true } };
   }
@@ -18,6 +79,7 @@ export async function createAgentWindow(_args = {}) {
     url: 'about:blank',
   });
   agentWindow = { windowId: win.id, createdAt: Date.now(), borrowedTabs: new Map() };
+  await persistAgentWindow();
 
   // Inject amber breathing border into each tab in the agent window
   for (const tab of win.tabs || []) {
@@ -74,6 +136,7 @@ async function injectAgentBorder(tabId) {
  * Close the agent window and return any borrowed tabs.
  */
 export async function closeAgentWindow() {
+  await restoreAgentWindow();
   if (!agentWindow) return { ok: false, error: 'No agent window is active.' };
   const { windowId, borrowedTabs } = agentWindow;
 
@@ -91,6 +154,7 @@ export async function closeAgentWindow() {
     await chrome.windows.remove(windowId);
   } catch {}
   agentWindow = null;
+  await persistAgentWindow();
   return { ok: true, data: { closed: true } };
 }
 
@@ -120,12 +184,14 @@ export function requiresBorrowing(_tabId) {
  * Record that a tab has been borrowed (after user approval).
  */
 export async function borrowTab(tabId) {
+  await restoreAgentWindow();
   if (!agentWindow) return { ok: false, error: 'No agent window active.' };
   const tab = await chrome.tabs.get(tabId);
   if (tab.windowId === agentWindow.windowId) {
     return { ok: true, data: { alreadyInAgentWindow: true } };
   }
   agentWindow.borrowedTabs.set(tabId, tab.windowId);
+  await persistAgentWindow();
   return { ok: true, data: { borrowed: true, originalWindowId: tab.windowId } };
 }
 
@@ -133,6 +199,7 @@ export async function borrowTab(tabId) {
  * Return a borrowed tab to its original window.
  */
 export async function returnTab(tabId) {
+  await restoreAgentWindow();
   if (!agentWindow || !agentWindow.borrowedTabs.has(tabId)) {
     return { ok: false, error: 'Tab was not borrowed.' };
   }
@@ -141,6 +208,7 @@ export async function returnTab(tabId) {
     await chrome.tabs.move(tabId, { windowId: origWindowId, index: -1 });
   } catch {}
   agentWindow.borrowedTabs.delete(tabId);
+  await persistAgentWindow();
   return { ok: true, data: { returned: true } };
 }
 
@@ -152,7 +220,7 @@ export async function execWebAgentWindow(tabId, args = {}) {
   switch (action) {
     case 'create': return createAgentWindow(args);
     case 'close': return closeAgentWindow();
-    case 'status': return { ok: true, data: getAgentWindowStatus() };
+    case 'status': return { ok: true, data: await agentWindowStatus() };
     case 'borrow': return borrowTab(Number(args.targetTabId || tabId));
     case 'return': return returnTab(Number(args.targetTabId || tabId));
     default: return { ok: false, error: `Unknown action: ${action}` };

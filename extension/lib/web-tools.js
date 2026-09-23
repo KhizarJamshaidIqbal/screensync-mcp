@@ -30,11 +30,12 @@ import { apiFetch } from './web-api-fetch.js';
 import { historySearch, bookmarksSearch } from './web-browser-data.js';
 import { getProfileIdentity, setProfileIdentity, RUNTIME_ID, BROWSER_NAME } from './profile-identity.js';
 import { execTabGroup } from './web-tab-groups.js';
-import { pickActiveTab, isRestrictedTab, waitForTabComplete, groupAgentTab } from './tab-resolve.js';
+import { pickActiveTab, isRestrictedTab, waitForTabComplete } from './tab-resolve.js';
 import { makeError, ERROR_CODES } from './errors.js';
 import { getAuditLog, clearAuditLog, exportAuditLog } from './audit.js';
 import { execWebTabs, execWebTab, execWebWindow, execTabPool, execSandboxGroup } from './web-tab-mgmt.js';
 import { execWebScreenshot } from './web-screenshot.js';
+import { execWebNavigate } from './web-navigate.js';
 import { validateToolArgs } from './validate.js';
 import { registerWebBridge } from './web-bridge.js';
 import {
@@ -182,21 +183,9 @@ export async function executeWebTool(tool, args = {}) {
     case 'web_navigate': {
       const url = String(args.url || '');
       if (!/^https?:/i.test(url)) return makeError(ERROR_CODES.BAD_ARGS, 'Only http(s) URLs are supported.');
-      const current = await pickActiveTab(args);
-      // A page with unsaved state raises the native beforeunload dialog on navigation.
-      // It is browser chrome, not DOM, so no DOM tool can dismiss it and the navigation
-      // would hang until timeout. Attach a CDP session first so the dialog event is
-      // received, and accept it because the caller asked to navigate. Pass
-      // acceptBeforeUnload:false to leave the page alone instead.
-      const guard = args.acceptBeforeUnload === false
-        ? null
-        : await execAdvTool('web_dialog_rule', current, { action: 'accept' }).catch(() => null);
-      const tab = args.newTab ? await chrome.tabs.create({ url }) : await chrome.tabs.update(current.id, { url });
-      if (args.newTab && tab.id) groupAgentTab(tab.id);
-      await waitForTabComplete(tab.id, 20000);
-      if (guard && guard.ok) await execAdvTool('web_dialog_rule', tab, { action: 'clear' }).catch(() => null);
-      const after = await chrome.tabs.get(tab.id);
-      return { ok: true, data: { tabId: tab.id, url: after.url, title: after.title, status: after.status } };
+      // New tabs open in the agent window with no guard on the person's tab; the same-tab
+      // beforeunload guard is bounded (web-navigate.js).
+      return execWebNavigate(args, execAdvTool);
     }
     case 'web_go_back': {
       const tab = await pickActiveTab(args);
