@@ -8,7 +8,7 @@ import { cdpInput, cdpUploadFile, cdpKeyCombo, cdpMouse, cdpTouch, cdpClipboard 
 import { cdpScreenshot, cdpPdf, cdpElementScreenshot, cdpAXTree, cdpExportHar, cdpCoverage, cdpScreencast, cdpMhtml } from './web-adv-capture.js';
 import { cdpNetworkMock, cdpRoute, cdpDialogRule, cdpWaitForResponse, cdpWaitForRequest, cdpWebSocketTraffic, cdpNetworkAuth, cdpCacheControl, cdpNetworkRules } from './web-adv-net.js';
 import { cdpEmulate, cdpGrantPermissions, cdpSetTimezone, cdpSetGeolocation, cdpThrottleNetwork, cdpSetColorScheme, cdpEmulateMedia } from './web-adv-emulate.js';
-import { cdpEval, cdpRunCode } from './web-adv-eval.js';
+import { cdpEval, cdpEvalExpression, cdpRunCode } from './web-adv-eval.js';
 import { cdpHarRecord, cdpVideoRecord, cdpClockSet, cdpClockClear, cdpClockFastForward, cdpTraceRecord } from './web-adv-record.js';
 import { handleWebHandle } from './web-handles.js';
 import { cdpServiceWorker } from './web-adv-worker.js';
@@ -18,11 +18,18 @@ export { attachCdp, detachCdp, cdpWaitNetworkIdle, ensureHooks };
 export async function execAdvTool(tool, tab, args) {
   switch (tool) {
     case 'web_eval': {
-      const res = await main(tab, ssEval, args);
-      if (!res.ok && res.error && (res.error.includes('Content Security Policy') || res.error.includes('violates the following'))) {
-        return cdpEval(tab, args);
-      }
-      return res;
+      const expr = String(args.expression || args.code || '');
+      if (!expr) return { ok: false, error: 'expression or code is required' };
+      // CDP is the primary path: it genuinely awaits a returned Promise (awaitPromise:true)
+      // and, wrapped in an async IIFE, supports top-level `await` and multi-statement snippets
+      // with an explicit return — none of which the page-context `new Function` path (ssEval)
+      // could ever do, since JSON.stringify silently drops a Promise into "{}" and a
+      // non-async function body can't contain `await` at all.
+      const res = await cdpEvalExpression(tab, expr);
+      if (res.ok || !/CDP attach failed/i.test(String(res.error || ''))) return res;
+      // CDP attach itself failed (e.g. another DevTools client holds the debugger, or the page
+      // forbids it) — fall back to the page-context evaluator so plain expressions still work.
+      return main(tab, ssEval, args);
     }
     case 'web_console': await ensureHooks(tab); return main(tab, ssReadBuffer, { ...args, kind: 'console' });
     case 'web_network': await ensureHooks(tab); return main(tab, ssReadBuffer, { ...args, kind: 'network' });
@@ -40,7 +47,7 @@ export async function execAdvTool(tool, tab, args) {
     case 'web_mhtml': return cdpMhtml(tab, args);
     case 'web_cdp_eval': return cdpEval(tab, args);
     case 'web_a11y_tree': return cdpAXTree(tab, args);
-    case 'web_export_har': return cdpExportHar(tab, args);
+    case 'web_export_har': return cdpExportHar(tab, args);
     case 'web_network_mock': return cdpNetworkMock(tab, args);
     case 'web_network_auth': return cdpNetworkAuth(tab, args);
     case 'web_cache_control': return cdpCacheControl(tab, args);
@@ -62,7 +69,7 @@ export async function execAdvTool(tool, tab, args) {
     case 'web_clipboard': return cdpClipboard(tab, args);
     case 'web_wait_for_response': return cdpWaitForResponse(tab, args);
     case 'web_wait_for_request': return cdpWaitForRequest(tab, args);
-    case 'web_websocket_traffic': return cdpWebSocketTraffic(tab, args);
+    case 'web_websocket_traffic': return cdpWebSocketTraffic(tab, args);
     case 'web_screencast': return cdpScreencast(tab, args);
     case 'web_run_code': return cdpRunCode(tab, args);
     case 'web_har_record': return cdpHarRecord(tab, args);

@@ -102,18 +102,26 @@ export function ssReadBuffer(args) {
 }
 
 
-export function ssEval(args) {
+export async function ssEval(args) {
   // Trust boundary: compiling the expression IS the feature (the user-approved
   // agent's page.evaluate, like Playwright's). The string arrives only via the
   // authenticated hub SSE channel gated by the webAccessEnabled toggle — never
   // from page content — so there is no injection amplification path here.
+  //
+  // This page-context path only runs when the CDP evaluator (web-adv.js's primary route for
+  // web_eval) couldn't even attach — e.g. another DevTools client holds the debugger. It still
+  // wraps in an async IIFE so a returned Promise is awaited (chrome.scripting.executeScript
+  // awaits a function that returns a Promise) instead of JSON.stringify'ing it into "{}", and so
+  // `await` parses inside the snippet.
   const expr = String(args.expression || args.code || '');
   if (!expr) return { ok: false, error: 'expression or code is required' };
   let v;
   try {
-    v = new Function('return (' + expr + ')')();
+    v = await new Function('return (async () => { return (\n' + expr + '\n); })()')();
   } catch {
-    try { v = new Function(expr)(); } catch (e2) {
+    try {
+      v = await new Function('return (async () => {\n' + expr + '\n})()')();
+    } catch (e2) {
       return { ok: false, error: 'eval error: ' + String((e2 && e2.message) || e2) };
     }
   }
