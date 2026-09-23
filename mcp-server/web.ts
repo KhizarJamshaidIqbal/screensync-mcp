@@ -103,7 +103,13 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         : typeof args.__browser === "string" ? args.__browser
         : null;
 
-      const targetEntry = registry.resolveTarget(hint);
+      // A tabId/windowId is ground truth for which connected browser instance owns the target —
+      // resolveTarget()'s hint is a fuzzy heuristic (selectedProfile, else focused window, else
+      // most-recently-seen) that silently picks the wrong Chrome profile once two are connected
+      // at once. When the call carries either id, route to whichever instance's heartbeat
+      // actually reports owning it; only fall back to the heuristic when no instance claims it.
+      const owningInstance = registry.resolveOwnerByTabOrWindow(args.tabId, args.windowId);
+      const targetEntry = owningInstance || registry.resolveTarget(hint);
       const targetBrowser = targetEntry ? targetEntry.name : (typeof args.__browser === "string" ? args.__browser : null);
       const targetInstanceId = targetEntry ? targetEntry.instanceId : null;
       const targetEmail = targetEntry ? targetEntry.profileEmail : (typeof args.email === "string" ? String(args.email) : null);
