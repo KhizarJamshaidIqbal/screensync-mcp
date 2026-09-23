@@ -10,6 +10,7 @@ import { execWatch } from './web-watch.js';
 import { ssWebUnitInteract } from './web-unit-interact.js';
 import { ssWebUnitExtract } from './web-unit-extract.js';
 import { ssWebUnitPerception } from './web-unit-perception.js';
+import { runExpectPolling } from './web-expect-poll.js';
 import { ssWebUnitAction } from './web-unit-action.js';
 import { ssWebUnitDom } from './web-unit-dom.js';
 import { ssWebUnitStorageAdv } from './web-storage-adv.js';
@@ -444,7 +445,11 @@ export async function executeWebTool(tool, args = {}) {
         if (!perm.ok) return makeError(ERROR_CODES.NO_GRANT, perm.error);
         const grant = perm.grant || {};
         const prePopups = (INTERACT_TOOLS.has(tool) || AGENT_ACTION_TOOLS.has(tool)) ? getRecentPopups(tab.id) : [];
-        const res = await inject(tab, { ...args, __tool: tool, __actGranted: !!grant.act });
+        const injectArgs = { ...args, __tool: tool, __actGranted: !!grant.act };
+        // web_expect: the worker polls a hidden tab, whose own timers are throttled (web-expect-poll.js).
+        const res = tool === 'web_expect'
+          ? await runExpectPolling((a) => inject(tab, a), injectArgs)
+          : await inject(tab, injectArgs);
         if (res && res.ok && (INTERACT_TOOLS.has(tool) || AGENT_ACTION_TOOLS.has(tool))) {
           const postPopups = getRecentPopups(tab.id);
           if (postPopups.length > prePopups.length) {

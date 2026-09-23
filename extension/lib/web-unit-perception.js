@@ -6,10 +6,34 @@ export async function ssWebUnitPerception(args = {}) {
     if (!window.chrome) window.chrome = { runtime: {} };
   } catch {}
 
+  // CSS animations and transitions only advance on rendered frames, and a hidden tab renders none (no
+  // requestAnimationFrame either): a fade-in that started while the tab was in the background stays frozen at
+  // opacity 0, a fade-out at its first frame. In a hidden tab an opacity that a running animation carries is
+  // judged by where the animation ends: true (shown), false (ends at 0), null (no such animation, or the tab is
+  // visible). Layout and computed style are read synchronously: no frame, rAF or IntersectionObserver needed.
+  function hiddenTabFadeEnd(el) {
+    if (document.visibilityState !== 'hidden' || typeof el.getAnimations !== 'function') return null;
+    let end = null;
+    for (const a of el.getAnimations()) {
+      if (a.playState !== 'running' && a.playState !== 'pending') continue;
+      let frames = [];
+      try { frames = a.effect && a.effect.getKeyframes ? a.effect.getKeyframes() : []; } catch {}
+      const withOpacity = frames.filter((k) => k && k.opacity !== undefined && k.opacity !== null);
+      if (!withOpacity.length) continue;
+      const last = withOpacity[withOpacity.length - 1];
+      // Ending before 100% hands the value back to the element's own style, which is not the frozen frame.
+      if (Number(last.opacity) === 0 && (last.computedOffset ?? last.offset) === 1) return false;
+      end = true;
+    }
+    return end;
+  }
+
   function visible(el) {
     try {
       const r = el.getBoundingClientRect(), s = window.getComputedStyle(el);
-      return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
+      if (!(r.width > 0 && r.height > 0) || s.display === 'none' || s.visibility === 'hidden') return false;
+      const fade = hiddenTabFadeEnd(el);
+      return fade === null ? s.opacity !== '0' : fade;
     } catch { return false; }
   }
 
@@ -261,7 +285,7 @@ export async function ssWebUnitPerception(args = {}) {
     const pollMs = Math.max(Number(args.pollMs) || 200, 50);
     const expectedText = args.text !== undefined ? String(args.text).toLowerCase() : null;
     const start = Date.now();
-    let attempts = 0, actual = null, passed = false;
+    let attempts = 0, actual = null, passed = false, handBack = false;
     while (Date.now() - start <= timeoutMs) {
       attempts++;
       const el = args.selector ? pwFind(args.selector) : null;
@@ -309,14 +333,18 @@ export async function ssWebUnitPerception(args = {}) {
       else if (condition === 'detached') { passed = !el; actual = el ? 'attached' : 'detached'; }
       else return { ok: false, error: 'Unknown expect condition: ' + condition + '. Supported: visible, hidden, text, value, count, url, title, checked, enabled, disabled, focused, empty, accessible_name, attribute, has_class, attached, detached.' };
       if (args.not === true) { if (!passed) break; } else if (passed) break;
+      // A hidden tab's timers are throttled (one wake-up a second, later one a minute), so this loop could sleep
+      // far past timeoutMs and the hub gave up first. When the service worker offers to poll (its timers are not
+      // throttled), hand the wait back to it: web-expect-poll.js injects one evaluation per poll.
+      if (args.__workerPoll === true && document.visibilityState === 'hidden') { handBack = true; break; }
       await new Promise((r) => setTimeout(r, pollMs));
     }
     if (args.not === true) passed = !passed;
-    if (passed && args.selector && (condition === 'visible' || condition === 'text')) {
+    if (passed && args.selector && (condition === 'visible' || condition === 'text') && document.visibilityState !== 'hidden') {
       const el = pwFind(args.selector);
       if (el && visible(el)) { const r = el.getBoundingClientRect(); ripple(r.x + r.width / 2, r.y + r.height / 2); }
     }
-    return { ok: true, data: { condition, passed, actual, selector: args.selector || null, waitedMs: Date.now() - start, attempts } };
+    return { ok: true, data: { condition, passed, actual, selector: args.selector || null, waitedMs: Date.now() - start, attempts, ...(handBack ? { workerPoll: true } : {}) } };
   }
 
   // ── web_aria_snapshot: Playwright ariaSnapshot — YAML ARIA tree for LLM reading ──
