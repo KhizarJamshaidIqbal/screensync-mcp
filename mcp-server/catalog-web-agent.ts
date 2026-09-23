@@ -244,7 +244,7 @@ export function agentWebToolDefinitions(): WebToolDef[] {
     {
       name: "web_fanout",
       description:
-        "Multi-browser orchestration: runs ONE web tool on every connected browser (or a chosen subset) and merges the results keyed by browser. The core of operating several real browsers at once — e.g. web_cookies across all browsers, or web_screenshot on each. Tool name + args pass through; each browser executes its own copy.",
+        "Multi-browser orchestration: runs ONE web tool on every connected browser (or the subset in `browsers`) and merges the results keyed by browser — e.g. web_cookies across all browsers, or web_screenshot on each. Each pass is pinned to its browser: a profile hint inside args (profile, __profile, __browser, ...) is refused with FANOUT_ROUTING_HINT (choose with `browsers`), and a tabId/windowId runs only in the browser that owns it, the other passes reported as skipped.",
       inputSchema: {
         type: "object",
         required: ["tool"],

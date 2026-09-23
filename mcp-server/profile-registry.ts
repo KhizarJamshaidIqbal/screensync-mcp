@@ -43,15 +43,26 @@ export type DispatchDecision =
   | { ok: true; target: BrowserInstance }
   | { ok: false; status: number; code: string; error: string; onlineProfiles: string[] };
 
-/** The argument that names a browser for a call, in precedence order. `any`/`default` name none. */
+/** A web_fanout run: one pass per chosen browser, each pinned to it or skipped with the reason; or why none runs. */
+export type FanoutPlan =
+  | { ok: true; passes: Array<{ target: BrowserInstance; decision?: DispatchDecision; skipped?: string }> }
+  | Extract<DispatchDecision, { ok: false }>;
+
+/** The arguments that name a browser for a call, in precedence order. `any`/`default` name none. */
+const ROUTING_KEYS = ["__profile", "profile", "__email", "email", "__instance", "instanceId", "__browser"] as const;
+
 function routingHint(args: Record<string, unknown>): string | null {
-  for (const key of ["__profile", "profile", "__email", "email", "__instance", "instanceId", "__browser"]) {
+  for (const key of ROUTING_KEYS) {
     if (typeof args[key] === "string") return args[key] as string;
   }
   return null;
 }
 
 const isWildcard = (v: string) => ["", "any", "default"].includes(v.trim().toLowerCase());
+const label = (b: BrowserInstance) => `${b.profileEmail || b.profileName || b.instanceId} (${b.name}, instanceId ${b.instanceId})`;
+/** "tabId 7 / windowId 5" for the ids a call names, "" when it names none. */
+const idsNamed = (args: Record<string, unknown>) =>
+  ["tabId", "windowId"].filter((k) => args[k] !== undefined && args[k] !== null && args[k] !== "").map((k) => `${k} ${args[k]}`).join(" / ");
 
 let cachedChromeProfiles: LocalChromeProfile[] | null = null;
 let lastCacheTimeMs = 0;
@@ -246,10 +257,8 @@ export function createProfileRegistry() {
       const pick = explicit ? hint : selectedProfile && !isWildcard(selectedProfile) ? selectedProfile : null;
       owner = pick ? findNamed(owners, pick.trim().toLowerCase()) : null;
       if (!owner) {
-        const ids = ["tabId", "windowId"].filter((k) => args[k] !== undefined && args[k] !== null && args[k] !== "").map((k) => `${k} ${args[k]}`).join(" / ");
-        const claimants = owners.map((b) => `${b.profileEmail || b.profileName || b.instanceId} (${b.name}, instanceId ${b.instanceId})`).join(", ");
         return refuse(409, "AMBIGUOUS_TAB_OWNER",
-          `${ids} is reported by ${owners.length} connected browsers: ${claimants}. Tab and window ids are only unique within one browser, so the hub will not guess. Retry with a profile hint naming one of them (profile / __profile, or __instance with its instanceId), or select one with web_profile {action:'select'}.`);
+          `${idsNamed(args)} is reported by ${owners.length} connected browsers: ${owners.map(label).join(", ")}. Tab and window ids are only unique within one browser, so the hub will not guess. Retry with a profile hint naming one of them (profile / __profile, or __instance with its instanceId), or select one with web_profile {action:'select'}.`);
       }
     }
     const target = owner || hinted || resolveTarget(null);
@@ -265,6 +274,44 @@ export function createProfileRegistry() {
     // Unreachable while resolveTarget() picks some instance whenever one is online; kept so a future change
     // to that heuristic fails closed instead of broadcasting.
     return refuse(409, "TARGET_AMBIGUOUS", `No target browser could be chosen and ${online.length} are online (${listed}). Pass a profile hint (__profile / __email / __browser) or call web_profile {action:'select'}.`);
+  };
+
+  /**
+   * web_fanout's routing: every pass is pinned to its own browser, so nothing inside the forwarded args may pick
+   * another one. A profile hint there is refused (it would send every pass to one browser, or a pass meant for
+   * one browser into all of them); `browsers` is how a fanout chooses. A tab or window id names a tab in ONE
+   * browser, so only that browser's pass runs and the others are skipped with the reason. An id no heartbeat
+   * reports (a background tab: heartbeats list each window's active tab) or that several chosen browsers report
+   * is refused unless exactly one browser was chosen, the same guess resolveDispatch() refuses to make.
+   */
+  const planFanout = (targets: BrowserInstance[], args: Record<string, unknown>): FanoutPlan => {
+    const onlineProfiles = listOnline().map((b) => b.profileEmail || b.profileName || b.instanceId);
+    const refuse = (status: number, code: string, error: string): FanoutPlan => ({ ok: false, status, code, error, onlineProfiles });
+    const hint = ROUTING_KEYS.find((k) => typeof args[k] === "string" && !isWildcard(args[k] as string));
+    if (hint) {
+      return refuse(400, "FANOUT_ROUTING_HINT",
+        `web_fanout runs one pass in each chosen browser, so ${hint}: '${args[hint]}' in its arguments cannot pick one. Choose the browsers with web_fanout {browsers: [...]} (names, instanceIds or emails from web_status.browsers), or call the tool directly with the hint to run it in one browser.`);
+    }
+    const ids = idsNamed(args);
+    if (!ids) return { ok: true, passes: targets.map((target) => ({ target, decision: { ok: true, target } })) };
+    const owners = resolveOwnerByTabOrWindow(args.tabId, args.windowId);
+    const chosen = owners.filter((o) => targets.some((t) => t.instanceId === o.instanceId));
+    const owner = chosen.length === 1 ? chosen[0] : !owners.length && targets.length === 1 ? targets[0] : null;
+    if (!owner && chosen.length > 1) {
+      return refuse(409, "AMBIGUOUS_TAB_OWNER",
+        `${ids} is reported by ${chosen.length} of the chosen browsers: ${chosen.map(label).join(", ")}. Tab and window ids are only unique within one browser; narrow the fanout to one of them with browsers: [...].`);
+    }
+    if (!owner && !owners.length) {
+      return refuse(409, "TAB_OWNER_UNKNOWN",
+        `No connected browser reports ${ids} (heartbeats list only each window's active tab), so the hub cannot tell whose it is, and the same id may be a different tab in another browser. Narrow the fanout to the browser that has it with browsers: [...].`);
+    }
+    const whose = (owner ? [owner] : owners).map(label).join(", ");
+    return {
+      ok: true,
+      passes: targets.map((target) => target.instanceId === owner?.instanceId
+        ? { target, decision: { ok: true, target } }
+        : { target, skipped: `${ids} belongs to ${whose}; an id means nothing in another browser, so this browser's pass was skipped.` }),
+    };
   };
 
   const statusPayload = (sseClients: number) => {
@@ -312,6 +359,7 @@ export function createProfileRegistry() {
     resolveTarget,
     resolveOwnerByTabOrWindow,
     resolveDispatch,
+    planFanout,
     statusPayload,
   };
 }

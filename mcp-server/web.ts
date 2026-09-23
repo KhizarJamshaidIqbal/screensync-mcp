@@ -11,6 +11,7 @@ import { trackToolExecution } from "./cognitive-auto-tracker.js";
 import { sessionOf } from "./cognitive-spine-observer.js";
 import { forRelay, gateBeforeRelay, humanCanBeAsked, type GateDecision } from "./cognitive-policy.js";
 import { mountExtensionRoutes } from "./web-ext-routes.js";
+import { sendRouteRefusal } from "./web-multi-dispatch.js";
 import { handleCognitiveTool } from "./web-cognitive-handlers.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
@@ -363,20 +364,14 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       }
       // ── Hub-side multi-browser orchestration ─────────────────────────────
       // These run ONE tool on N browsers by issuing sequential per-browser
-      // requests (each extension self-filters via args.__browser) and merging.
-      const resolveTargets = (): Array<{ id: string; name: string }> => {
-        const online = registry.listOnline().map((e) => ({
-          id: e.instanceId,
-          name: e.name,
-          email: e.profileEmail,
-        }));
+      // requests, each pinned to its browser (registry.planFanout), and merging.
+      const resolveTargets = (): BrowserInstance[] => {
+        const online = registry.listOnline();
         const want = args.browsers;
         if (!want || want === "all") return online;
         const list = Array.isArray(want) ? want.map(String) : String(want).split(",").map((s) => s.trim());
-        return online.filter((t) => list.includes(t.name) || list.includes(t.id) || (t.email && list.includes(t.email)));
+        return online.filter((t) => list.includes(t.name) || list.includes(t.instanceId) || (t.profileEmail && list.includes(t.profileEmail)));
       };
-      const callOn = (target: { id: string; name: string }, innerTool: string, innerArgs: Record<string, unknown>, timeoutMs: number): Promise<WebToolResult> =>
-        request(innerTool, { ...innerArgs, __browser: target.id }, timeoutMs);
 
       if (tool === "web_fanout") {
         const innerTool = String(args.tool || "");
@@ -394,12 +389,18 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         // The agent passes tool args nested under `args`; forward them as the
         // actual tool arguments (falling back to top-level extras).
         const innerArgs = { ...rest, ...(innerA && typeof innerA === "object" ? (innerA as Record<string, unknown>) : {}) };
+        // Each pass carries its own browser's decision: no hint or tab id in innerArgs can send it elsewhere.
+        const plan = registry.planFanout(targets, innerArgs);
+        if (!plan.ok) { sendRouteRefusal(res, plan); return; }
         const results: Array<Record<string, unknown>> = [];
-        for (const target of targets) {
-          const r = await callOn(target, innerTool, innerArgs as Record<string, unknown>, timeoutMs);
-          results.push({ browser: target.name, browserId: target.id, ok: r.ok, data: r.data, error: r.error });
+        for (const { target, decision, skipped } of plan.passes) {
+          const who = { browser: target.name, browserId: target.instanceId };
+          if (skipped || !decision) { results.push({ ...who, ok: false, skipped: true, reason: skipped }); continue; }
+          const r = await request(innerTool, innerArgs, timeoutMs, undefined, decision);
+          results.push({ ...who, ok: r.ok, data: r.data, error: r.error });
         }
-        res.json({ success: true, ok: results.every((r) => r.ok), data: { tool: innerTool, matched: targets.length, results } });
+        const ran = results.filter((r) => !r.skipped);
+        res.json({ success: true, ok: ran.length > 0 && ran.every((r) => r.ok), data: { tool: innerTool, matched: targets.length, ran: ran.length, results } });
         return;
       }
 
