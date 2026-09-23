@@ -1,5 +1,20 @@
 # ScreenSync MCP — Release Notes
 
+## Version 1.14.0 (background tabs) — 2026-09-23
+
+An agent working in its own window reads tabs you are not looking at. Several tools behaved as if those tabs were in front; this release makes them work in the background, and adds four options.
+
+- **`web_screenshot` can capture a tab without taking your focus.** By default a tab that is not in front is still brought to the front and its window focused for the capture, as before. While you are using the browser, an agent can pass `background: true` instead. Chrome's "capture the visible tab" returns whatever the window shows on screen, so for a tab in a window behind yours it would return your own page: in background mode it is used only for the active tab of the focused window, and any other tab is captured through Chrome's DevTools protocol, which reads the tab itself. Nothing is brought to the front and your focus stays where it is. If that is not possible, the call fails within seconds with `CAPTURE_UNAVAILABLE` and no image, never a picture of another page.
+- **Screenshots of a hidden tab no longer hang.** Before a capture the extension waits for the page to draw a frame, and a hidden tab never draws one, so the wait lasted until the hub gave up after 45 seconds. It now skips hidden pages and never waits longer than a second, so `web_full_screenshot` and `web_element_screenshot` of a background tab answer.
+- **`web_expect` works on a background tab.** Chrome does not draw hidden tabs, so an element that fades in there stays frozen at the start of its fade, and the page's own timers are slowed to one tick a second or even a minute. The check said "hidden" and then waited far past its timeout. It now judges visibility from layout and style alone and, in a hidden tab, lets the extension do the waiting, so you get the real answer within the time you asked for.
+- **`web_table_extract` reads tables inside a closed `<details>`.** They used to come back with every cell empty. Each table now also lists which columns a person can see (`columnVisible`), and `openDetails: true` opens the section for the read and closes it again.
+- **`web_aria_snapshot` can read a long page in parts.** When a snapshot is cut short it says so (`truncated`, `nextOffset`); pass `offset` to get the next part. The `[index=N]` refs stay the same on every part, and the default output is unchanged.
+- **`web_events` takes `newest`.** The default is still the most recent events. `newest: false` returns the first events after `since`, to page through a burst without gaps, and every reply says how many it left out (`skipped`).
+
+The fixes are in the extension. `background`, `newest`, `offset` and `openDetails` are declared by the hub, and `web_events` runs there: update the hub too.
+
+---
+
 ## Version 1.13.1 (agent window navigation fixes) — 2026-09-23
 
 Three things went wrong while an agent worked in its own agent window and you kept browsing in yours. This release fixes them; nothing new to learn.
