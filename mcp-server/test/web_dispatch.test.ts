@@ -202,3 +202,65 @@ test("every relayed web_request carries a targetInstanceId", async () => {
     await hub.close();
   }
 });
+
+// ── The approval gate asks the browser the call is dispatched to ─────────────────────────────────────────────
+// humanCanBeAsked() used to pick its browser with resolveTarget(), which ignores tabId/windowId, while request()
+// dispatched with resolveDispatch(), which follows the tab owner. So approval could be judged on profile A (an
+// extension that asks a person) while the call ran in profile B (an older one that would simply run it).
+
+const DANGEROUS = { url: "https://gated.example/account", selector: "button.delete-account" };
+const CAPABLE_A = { ...A, approvals: true, windows: [{ id: 10, focused: true, activeTab: { tabId: 100, url: "https://gated.example/" } }] };
+const OLD_B = { ...B, approvals: false, windows: [{ id: 20, focused: false, activeTab: { tabId: 200, url: "https://gated.example/" } }] };
+
+async function withGate<T>(mode: string, fn: () => Promise<T>): Promise<T> {
+  process.env.SCREEN_SYNC_COGNITIVE_GATE = mode;
+  try { return await fn(); } finally { process.env.SCREEN_SYNC_COGNITIVE_GATE = "off"; }
+}
+
+test("gate: selectedProfile = A, tabId owned by B: approval is judged on B, so B's old extension never gets the call", async () => {
+  const hub = await startHub();
+  try {
+    await hub.register(CAPABLE_A);
+    await hub.register(OLD_B);
+    await hub.call("web_profile", { action: "select", profile: "a@profile.test" });
+    const reply = await withGate("enforce", () => hub.call("web_click", { ...DANGEROUS, tabId: 200 }));
+
+    assert.deepEqual(hub.relayed.map((r) => `${r.tool}->${r.targetInstanceId}`), [], "B cannot ask a person, so nothing may be relayed to it");
+    assert.equal(reply.ok, false);
+    assert.match(String(reply.error), /^USER_CONFIRMATION_REQUIRED \(cognitive gate\)/);
+  } finally {
+    await hub.close();
+  }
+});
+
+test("gate: selectedProfile = B (cannot ask), tabId owned by A (can ask): the call goes to A, marked for a person", async () => {
+  const hub = await startHub();
+  try {
+    await hub.register(CAPABLE_A);
+    await hub.register(OLD_B);
+    await hub.call("web_profile", { action: "select", profile: "b@profile.test" });
+    const reply = await withGate("enforce", () => hub.call("web_click", { ...DANGEROUS, tabId: 100 }));
+
+    assert.equal(reply.ok, true, String(reply.error));
+    assert.deepEqual(hub.relayed.map((r) => r.targetInstanceId), ["inst-a"]);
+    assert.equal((hub.relayed[0].args.__gate as { needsHuman?: boolean } | undefined)?.needsHuman, true, "A's extension is told to ask a person");
+  } finally {
+    await hub.close();
+  }
+});
+
+test("gate: a dispatch that is refused (selected profile offline) is refused before anyone is asked", async () => {
+  mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const hub = await startHub();
+  try {
+    await selectedProfileGoesOffline(hub);
+    const reply = await withGate("enforce", () => hub.call("web_click", DANGEROUS));
+
+    assert.deepEqual(hub.relayed.map((r) => r.tool), [], "no approval prompt for a call that cannot be dispatched");
+    assert.equal(reply.code, "SELECTED_PROFILE_OFFLINE", "the routing problem is what to fix, not the extension version");
+    assert.match(String(reply.error), /selected profile 'a@profile\.test' is offline/);
+  } finally {
+    await hub.close();
+    mock.timers.reset();
+  }
+});

@@ -34,7 +34,7 @@ import { globalSpine, normalizeDomain } from "./cognitive-spine.js";
 import { ACTION_TOOLS, globalObserver } from "./cognitive-spine-observer.js";
 import { LEVEL_NAMES } from "./cognitive-spine-ladder.js";
 import { globalTranscendentalEngine } from "./cognitive-transcendental.js";
-import type { createProfileRegistry } from "./profile-registry.js";
+import type { DispatchDecision } from "./profile-registry.js";
 
 export type GateMode = "off" | "warn" | "enforce";
 
@@ -160,21 +160,15 @@ export function gateBeforeRelay(tool: string, args: Record<string, unknown>, ses
 
 // ── asking a person: who can, and what the extension is told ────────────────
 
-/** The routing hint a call carries, in the precedence web.ts uses to choose a browser. */
-function hintOf(args: Record<string, unknown>): string | null {
-  for (const key of ["__profile", "profile", "__email", "email", "__instance", "instanceId", "__browser"]) {
-    if (typeof args[key] === "string") return args[key] as string;
-  }
-  return null;
-}
-
 /**
  * True when the browser this call will reach can put a request in front of a person: web access is on and
  * its extension says it has an approval queue. Handing a gated call to one that cannot would simply run it.
+ * `route` must be the very decision the call is then dispatched with (web.ts passes the same one to
+ * request()): judging a browser picked any other way can approve on one profile and run in another. A route
+ * that is refused reaches no browser, so nobody can be asked.
  */
-export function humanCanBeAsked(registry: Pick<ReturnType<typeof createProfileRegistry>, "resolveTarget">, args: Record<string, unknown>): boolean {
-  const target = registry.resolveTarget(hintOf(args));
-  return Boolean(target && target.webAccessEnabled && target.approvals);
+export function humanCanBeAsked(route: DispatchDecision): boolean {
+  return route.ok && route.target.webAccessEnabled && route.target.approvals;
 }
 
 /** Flags only the hub or the extension may set. Whatever a caller sends under these names is dropped. */

@@ -17,6 +17,7 @@ import { globalSpine } from "../cognitive-spine.js";
 import { observeToolResult } from "../cognitive-spine-observer.js";
 import { AdolescentCognitionEngine } from "../cognitive-adolescent.js";
 import { handleCognitiveTool } from "../web-cognitive-handlers.js";
+import { createProfileRegistry } from "../profile-registry.js";
 
 const POLICY_DIR = path.join(ISOLATED_DATA_DIR, "cognitive");
 const POLICY_FILE = path.join(POLICY_DIR, "policy.json");
@@ -216,25 +217,42 @@ test("the tool uses the level the hub earned, and ignores an earnedLevel the cal
 
 // ── asking a person (Phase 5) ───────────────────────────────────────────────
 
-type FakeBrowser = { instanceId: string; name: string; webAccessEnabled: boolean; approvals: boolean };
-const browser = (over: Partial<FakeBrowser> = {}): FakeBrowser => ({ instanceId: "i1", name: "chrome", webAccessEnabled: true, approvals: true, ...over });
-/** Resolves a hint the way the real registry does: an exact instance or browser name, else the first browser. */
-const registryOf = (...browsers: FakeBrowser[]) => ({
-  resolveTarget: (hint?: string | null) => (hint ? browsers.find((b) => b.instanceId === hint || b.name === hint) ?? null : browsers[0] ?? null),
-}) as unknown as Parameters<typeof humanCanBeAsked>[0];
+type FakeBrowser = { instanceId: string; browserName: string; webAccessEnabled: boolean; approvals: boolean; windows?: unknown[] };
+const browser = (over: Partial<FakeBrowser> = {}): FakeBrowser => ({ instanceId: "i1", browserName: "chrome", webAccessEnabled: true, approvals: true, ...over });
+/** A real registry with these browsers connected: the same resolveDispatch() web.ts dispatches with. */
+const registryOf = (...browsers: FakeBrowser[]) => {
+  const registry = createProfileRegistry();
+  for (const b of browsers) registry.register({ ...b, browserId: b.instanceId });
+  return registry;
+};
+const canAsk = (registry: ReturnType<typeof createProfileRegistry>, args: Record<string, unknown>) => humanCanBeAsked(registry.resolveDispatch(args));
 
 test("a person can be asked only when the browser this call will reach says it can ask", () => {
-  assert.equal(humanCanBeAsked(registryOf(browser()), {}), true);
-  assert.equal(humanCanBeAsked(registryOf(browser({ approvals: false })), {}), false, "an older extension would simply run the call");
-  assert.equal(humanCanBeAsked(registryOf(browser({ webAccessEnabled: false })), {}), false);
-  assert.equal(humanCanBeAsked(registryOf(), {}), false, "no browser at all");
+  assert.equal(canAsk(registryOf(browser()), {}), true);
+  assert.equal(canAsk(registryOf(browser({ approvals: false })), {}), false, "an older extension would simply run the call");
+  assert.equal(canAsk(registryOf(browser({ webAccessEnabled: false })), {}), false);
+  assert.equal(canAsk(registryOf(), {}), false, "no browser at all");
 
   // The hint decides WHICH browser is asked: a capable one elsewhere does not cover an incapable target.
-  const mixed = registryOf(browser({ instanceId: "new" }), browser({ instanceId: "old", name: "edge", approvals: false }));
-  assert.equal(humanCanBeAsked(mixed, { __instance: "new" }), true);
-  assert.equal(humanCanBeAsked(mixed, { __instance: "old" }), false);
-  assert.equal(humanCanBeAsked(mixed, { __browser: "edge" }), false);
-  assert.equal(humanCanBeAsked(mixed, { profile: "old", __browser: "new" }), false, "profile outranks __browser, exactly as in web.ts");
+  const mixed = registryOf(browser({ instanceId: "new" }), browser({ instanceId: "old", browserName: "edge", approvals: false }));
+  assert.equal(canAsk(mixed, { __instance: "new" }), true);
+  assert.equal(canAsk(mixed, { __instance: "old" }), false);
+  assert.equal(canAsk(mixed, { __browser: "edge" }), false);
+  assert.equal(canAsk(mixed, { profile: "old", __browser: "new" }), false, "profile outranks __browser, exactly as in web.ts");
+  assert.equal(canAsk(mixed, { __browser: "firefox" }), false, "a hint naming no connected browser reaches nobody");
+});
+
+test("the browser judged is the tab's owner, the one the call is dispatched to, not the selected profile", () => {
+  const registry = registryOf(
+    browser({ instanceId: "new", windows: [{ id: 1, focused: true, activeTab: { tabId: 11 } }] }),
+    browser({ instanceId: "old", browserName: "edge", approvals: false, windows: [{ id: 2, activeTab: { tabId: 22 } }] }),
+  );
+  registry.setSelectedProfile("new");
+  assert.equal(canAsk(registry, {}), true);
+  assert.equal(canAsk(registry, { tabId: 22 }), false, "tab 22 runs in 'old', which cannot ask");
+  assert.equal(canAsk(registry, { windowId: 2 }), false);
+  registry.setSelectedProfile("old");
+  assert.equal(canAsk(registry, { tabId: 11 }), true, "tab 11 runs in 'new', which can");
 });
 
 test("forRelay drops every internal flag a caller sent, at any depth, and adds the hub's own only when a person must be asked", () => {
