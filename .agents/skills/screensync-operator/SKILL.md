@@ -125,7 +125,7 @@ The agent's per-domain memory grows through developmental stages exactly like a 
 - **`web_page_observe`** — non-mutating VOM (Visual Object Model): joins CDP AXTree + DOMSnapshot layout geometry, computes occlusion, modal blocking layers, and token-bounded cursor pagination (`node:N`). Zero DOM mutations.
 - **`web_aria_snapshot`** — the default way to READ a page: compact YAML ARIA
   tree with `[index=N]` refs. Feed refs straight into `web_click`/`web_type`.
-- **`web_screenshot`** / **`web_full_screenshot`** (`longPage: true` for tiled scrolling of massive/infinite feeds; `web_screenshot_read` to read tile chunks).
+- **`web_screenshot`** / **`web_full_screenshot`** (`longPage: true` for tiled scrolling of massive/infinite feeds; `web_screenshot_read` to read tile chunks) / **`web_element_screenshot`** (CDP clip capture of one element). `web_screenshot` auto-focuses a background tab's window first (Chrome's `captureVisibleTab` requires the foreground tab of a focused window) — no need to call `web_window` first. All three now wait for an actual painted frame before capturing, so a call right after a navigation or scroll will not come back blank/stale.
 - **`web_hierarchy`** — interactive-element list with coordinates (Set-of-Marks
   alternative: `web_som_overlay`).
 - `web_dom_diff` after actions to detect modals/toasts/route changes.

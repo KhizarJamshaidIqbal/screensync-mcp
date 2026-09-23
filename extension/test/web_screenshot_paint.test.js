@@ -4,14 +4,20 @@
 // even though the DOM/network layer had already fully loaded and decoded them — confirmed live by
 // running web_eval's `[...document.querySelectorAll('img')].map(...)` on the same page and seeing
 // `complete: true` + real naturalWidth/naturalHeight for every image right after the blank
-// screenshot). Both capture paths must now wait for an actual painted frame (two consecutive
+// screenshot). All three capture paths must wait for an actual painted frame (two consecutive
 // requestAnimationFrame callbacks — the standard guarantee that a paint has happened since the
 // callback was scheduled) before taking the pixels:
 //   1. execWebScreenshot (web-screenshot.js) -> chrome.tabs.captureVisibleTab, guarded by the
 //      shared waitForPaintReady() helper (tab-resolve.js) via chrome.scripting.executeScript.
 //   2. cdpScreenshot (web-adv-capture.js), the CDP fallback -> Page.captureScreenshot, guarded by
-//      an equivalent double-rAF wait sent over the already-attached CDP session (Runtime.evaluate
-//      with awaitPromise:true).
+//      the shared cdpWaitPaintReady() helper (web-adv-core.js): an equivalent double-rAF wait sent
+//      over the already-attached CDP session (Runtime.evaluate with awaitPromise:true).
+//   3. cdpElementScreenshot (web-element-screenshot.js), web_element_screenshot's CDP clip capture
+//      -> Page.captureScreenshot with a clip region. This path had NO wait at all until 2026-09-23:
+//      it computed the element's bounds then captured immediately, so a call right after a scroll
+//      or DOM change (e.g. web_eval's scrollIntoView()) could return a blank/solid-color image with
+//      ok:true and no error — confirmed live in the same session that reproduced bug #1/#2 above.
+//      It now shares cdpWaitPaintReady() with cdpScreenshot.
 // Each mock below simulates a real async delay for the paint wait and asserts (inside the capture
 // mock itself) that the wait already resolved — so if a future change removes the `await` on the
 // paint-readiness call, this test fails with a clear message instead of silently regressing.
@@ -113,6 +119,60 @@ import { createChromeMock } from './harness.js';
   );
 
   console.log('[test] web_screenshot_paint.test.js: cdpScreenshot waits for paint before Page.captureScreenshot — PASSED');
+}
+
+// --- Part 3: cdpElementScreenshot -> Page.captureScreenshot with clip (web-element-screenshot.js) ---
+// This is the bug: unlike Parts 1 and 2, this path never waited for paint before 2026-09-23 — the
+// mock below would have let a `capture` happen with `elPaintWaited` still false if the fix were
+// reverted, which is exactly what a caller saw live (ok:true, blank/solid-color image).
+{
+  const elCallOrder = [];
+  let elPaintWaited = false;
+
+  // The bounds lookup (ssWebUnitExtract, run via chrome.scripting.executeScript) happens before CDP
+  // is even attached, so it has nothing to do with the paint wait — just hand back a plausible rect.
+  globalThis.chrome.scripting = {
+    executeScript: async () => [{ result: { ok: true, data: { x: 10, y: 20, width: 100, height: 40, pageX: 10, pageY: 220 } } }],
+  };
+  globalThis.chrome.debugger = {
+    attach: async () => {},
+    detach: async () => {},
+    sendCommand: async (_target, method, params = {}) => {
+      if (method === 'Target.setAutoAttach' || method === 'Page.setInterceptFileChooserDialog' || method === 'Page.enable') {
+        return {};
+      }
+      if (method === 'Runtime.evaluate') {
+        elCallOrder.push('runtime-evaluate-start');
+        assert.match(params.expression || '', /requestAnimationFrame/, 'expected the element-screenshot CDP paint wait to use a double rAF expression');
+        assert.equal(params.awaitPromise, true, 'Runtime.evaluate must set awaitPromise so the rAF chain is actually awaited');
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        elPaintWaited = true;
+        elCallOrder.push('runtime-evaluate-done');
+        return { result: { value: true } };
+      }
+      if (method === 'Page.captureScreenshot') {
+        elCallOrder.push('capture');
+        assert.equal(elPaintWaited, true, 'cdpElementScreenshot must not capture before its paint-readiness wait resolves (this was the actual bug: it never had this wait at all)');
+        assert.ok(params.clip, 'expected a clip region for the element capture');
+        return { data: 'RUxFTUVOVA==' };
+      }
+      throw new Error('Unhandled chrome.debugger.sendCommand method: ' + method);
+    },
+  };
+
+  const { cdpElementScreenshot } = await import('../lib/web-element-screenshot.js');
+  const tab = { id: 7, url: 'https://citytourinbarcelona.com/explore-catalonia/', title: 'Explore Catalonia' };
+  const res = await cdpElementScreenshot(tab, { selector: 'footer', format: 'png' });
+
+  assert.equal(res.ok, true, 'cdpElementScreenshot should succeed: ' + JSON.stringify(res));
+  assert.equal(res.data.imageDataUrl, 'data:image/png;base64,RUxFTUVOVA==');
+  assert.deepEqual(
+    elCallOrder,
+    ['runtime-evaluate-start', 'runtime-evaluate-done', 'capture'],
+    'the CDP paint wait must fully resolve before Page.captureScreenshot is called'
+  );
+
+  console.log('[test] web_screenshot_paint.test.js: cdpElementScreenshot waits for paint before Page.captureScreenshot — PASSED');
 }
 
 console.log('[test] web_screenshot_paint.test.js: ALL ASSERTIONS PASSED');

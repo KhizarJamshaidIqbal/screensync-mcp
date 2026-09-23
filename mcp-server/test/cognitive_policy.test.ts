@@ -55,9 +55,21 @@ test("every gated tool is a real tool in the catalogue", () => {
 });
 
 test("reads and perception are never gated, whatever the words in their arguments", () => {
-  for (const tool of ["web_screenshot", "web_aria_snapshot", "web_content", "web_cookies", "web_page_observe", "web_expect", "web_tabs"]) {
+  for (const tool of ["web_screenshot", "web_element_screenshot", "web_aria_snapshot", "web_content", "web_cookies", "web_page_observe", "web_expect", "web_tabs"]) {
     assert.equal(gateBeforeRelay(tool, { ...DANGEROUS, text: "delete account" }, "s-reads"), null, tool);
   }
+});
+
+// Confirmed live 2026-09-23: web_screenshot timed out and web_element_screenshot returned a blank
+// image mid-session, which raised the question of whether either was accidentally waiting on an
+// approval nothing ever answered. They are not: neither is in GATED_TOOLS (the set above already
+// pins that they pass DANGEROUS-looking arguments untouched), so gateBeforeRelay short-circuits on
+// `!GATED_TOOLS.has(tool)` before it ever resolves a domain or asks a person. Pinned explicitly so a
+// future change to GATED_TOOLS (e.g. a careless spread of another tool set into it) cannot silently
+// start gating a read-only capture behind a prompt nobody will see.
+test("web_screenshot and web_element_screenshot are read-only captures, never in GATED_TOOLS", () => {
+  assert.equal(GATED_TOOLS.has("web_screenshot"), false);
+  assert.equal(GATED_TOOLS.has("web_element_screenshot"), false);
 });
 
 test("a fresh domain stays usable: mutations that do not look destructive pass at every level", () => {
