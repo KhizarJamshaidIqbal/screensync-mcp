@@ -125,7 +125,9 @@ The agent's per-domain memory grows through developmental stages exactly like a 
 - **`web_page_observe`** — non-mutating VOM (Visual Object Model): joins CDP AXTree + DOMSnapshot layout geometry, computes occlusion, modal blocking layers, and token-bounded cursor pagination (`node:N`). Zero DOM mutations.
 - **`web_aria_snapshot`** — the default way to READ a page: compact YAML ARIA
   tree with `[index=N]` refs. Feed refs straight into `web_click`/`web_type`.
+  A long page comes back `truncated` with `nextOffset`: pass it as `offset` for the next part.
 - **`web_screenshot`** / **`web_full_screenshot`** (`longPage: true` for tiled scrolling of massive/infinite feeds; `web_screenshot_read` to read tile chunks) / **`web_element_screenshot`** (CDP clip capture of one element). `web_screenshot` auto-focuses a background tab's window first (Chrome's `captureVisibleTab` requires the foreground tab of a focused window) — no need to call `web_window` first. All three now wait for an actual painted frame before capturing, so a call right after a navigation or scroll will not come back blank/stale.
+  When the person is using the browser, pass **`background: true`**: nothing is activated or focused, a tab that is not in front is captured through CDP, and `CAPTURE_UNAVAILABLE` means it could not be — no image of another page is ever returned (retry, or drop `background` to bring the tab forward).
 - **`web_hierarchy`** — interactive-element list with coordinates (Set-of-Marks
   alternative: `web_som_overlay`).
 - `web_dom_diff` after actions to detect modals/toasts/route changes.
@@ -210,7 +212,8 @@ visual flows use `web_watch` (live frame stream) or `web_screencast`.
 
 ## 4 · Extract & sync real data
 
-- Tables → **`web_table_extract`** (json/markdown/csv in one call).
+- Tables → **`web_table_extract`** (json/markdown/csv in one call). Tables in a closed `<details>` are read too;
+  `columnVisible` flags the columns a person can see, `openDetails: true` opens the `<details>` for the read.
 - Structured lists → `web_scrape_schema` {itemSelector, schema}.
 - Articles → `web_markdown_extract`; assets → `web_media_extract`.
 - Clutter-free articles & reader view → **`web_reader_mode`** (title, byline, markdown, reading time).
@@ -272,7 +275,7 @@ captcha/2FA — stop and hand back to the user; (4) prefer human-emulation tools
 `web_a11y_tree`, `web_export_har`, `web_throttle_network`, `web_coverage`.
 
 ## 7b · Live observability (real-time SSE)
-After driving the page, call **`web_events` {since: <lastSeq>}** to see what actually happened — `web_navigation`, `web_page_loaded`, `web_tab_activated`, tool activity — instead of assuming. Keep the cursor: each response returns `lastSeq`; pass it back as `since` next time. SSE reconnects replay missed events automatically (Last-Event-ID).
+After driving the page, call **`web_events` {since: <lastSeq>}** to see what actually happened — `web_navigation`, `web_page_loaded`, `web_tab_activated`, tool activity — instead of assuming. Keep the cursor: each response returns `lastSeq`; pass it back as `since` next time. A reply holds the most recent `limit` events (`skipped` counts older ones left out); `newest: false` pages forward from `since` instead, with no gaps. SSE reconnects replay missed events automatically (Last-Event-ID).
 
 ## 8 · Hard guardrails
 
