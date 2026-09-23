@@ -1,5 +1,16 @@
 # ScreenSync MCP — Release Notes
 
+## Version 1.13.1 (agent window navigation fixes) — 2026-09-23
+
+Three things went wrong while an agent worked in its own agent window and you kept browsing in yours. This release fixes them; nothing new to learn.
+
+- **Opening a new tab could hang for 45 seconds and open nothing.** `web_navigate` with `newTab` first attached its "accept the leave-this-page dialog" guard to the tab you were using, although a new tab leaves no page. When that attach got stuck, the whole call waited for the hub's timeout. A new tab now gets no guard at all, and the guard on a same-tab navigation gives up after 4 seconds, so the navigation goes ahead instead of stalling.
+- **New tabs opened in your window, not the agent's.** The agent window says "New tabs will open here", but tabs opened wherever Chrome chose. They now open in the agent window whenever one is open. If you closed it, they open the normal way.
+- **The agent window was forgotten after the extension went idle.** Chrome stops the extension's background worker after about 30 seconds of quiet, and it lost track of the agent window that was still open: new tabs went back to your window and "close" said no agent window was active. The window is now remembered for the browser session, and a window you closed yourself is forgotten.
+- **`web_expect` and `web_wait_for` now report their own answer when they run out of time.** With a `timeoutMs`, the hub used to give up at exactly that moment, so you got a generic "waiting for the browser extension" timeout instead of "expected X, got Y". The hub now waits 5 seconds longer than the tool's own budget (up to 65 seconds), so the real verdict arrives. This part is in the hub: update it too.
+
+---
+
 ## Version 1.12.0 (access requests) — 2026-09-22
 
 Before this release an agent that hit "Action access not granted for origin X" was stuck until you found the dashboard's Web Access tab and added a grant by hand, usually after it had asked you in chat to do so. Now it can ask you directly.
