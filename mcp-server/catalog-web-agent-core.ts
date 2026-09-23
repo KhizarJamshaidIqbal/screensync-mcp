@@ -64,6 +64,7 @@ export function agentCoreWebToolDefinitions(): WebToolDef[] {
           format: { type: "string", enum: ["all", "json", "markdown", "csv"], default: "all", description: "Which renderings to include." },
           limit: { type: "integer", minimum: 1, maximum: 1000, default: 200, description: "Maximum rows per table." },
           tableLimit: { type: "integer", minimum: 1, maximum: 20, default: 5, description: "Maximum tables when scanning by selector." },
+          openDetails: { type: "boolean", default: false, description: "Open closed <details> around the tables for the read, then close them again. Without it, text in a closed <details> is still read (from textContent), and columnVisible shows which columns a person can see." },
           tabId: { type: "integer", description: "Optional background tab ID." },
         },
         additionalProperties: false,

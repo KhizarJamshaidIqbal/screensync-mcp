@@ -10,6 +10,7 @@ import { execWatch } from './web-watch.js';
 import { ssWebUnitInteract } from './web-unit-interact.js';
 import { ssWebUnitExtract } from './web-unit-extract.js';
 import { ssWebUnitPerception } from './web-unit-perception.js';
+import { ssWebUnitTable } from './web-unit-table.js';
 import { runExpectPolling } from './web-expect-poll.js';
 import { ssWebUnitAction } from './web-unit-action.js';
 import { ssWebUnitDom } from './web-unit-dom.js';
@@ -81,6 +82,7 @@ async function inject(tab, args) {
   try {
     const toolName = (args && args.__tool) || '';
     const fn = INTERACT_TOOLS.has(toolName) ? ssWebUnitInteract
+      : toolName === 'web_table_extract' ? ssWebUnitTable
       : AGENT_PERCEPTION_TOOLS.has(toolName) ? ssWebUnitPerception
       : AGENT_ACTION_TOOLS.has(toolName) ? ssWebUnitAction
       : DOM_TOOLS.has(toolName) ? ssWebUnitDom

@@ -6,6 +6,7 @@
 import { ssWebUnitInteract } from './web-unit-interact.js';
 import { ssWebUnitExtract } from './web-unit-extract.js';
 import { ssWebUnitPerception } from './web-unit-perception.js';
+import { ssWebUnitTable } from './web-unit-table.js';
 import { ssWebUnitAction } from './web-unit-action.js';
 
 const RESTRICTED_TAB = /^(chrome|edge|view-source|devtools|chrome-extension):/;
@@ -41,6 +42,7 @@ export async function execInFrame(tab, args) {
   }
 
   const fn = INTERACT_TOOLS.has(innerTool) ? ssWebUnitInteract
+    : innerTool === 'web_table_extract' ? ssWebUnitTable
     : PERCEPTION_TOOLS.has(innerTool) ? ssWebUnitPerception
     : ACTION_TOOLS.has(innerTool) ? ssWebUnitAction
     : ssWebUnitExtract;

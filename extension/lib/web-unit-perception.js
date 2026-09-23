@@ -1,5 +1,6 @@
 // ScreenSync Agent Perception Unit — Playwright-grade assertions, snapshots & structured reads
-// Self-contained page-side executor for: web_expect, web_aria_snapshot, web_table_extract, web_media_extract, web_actionable
+// Self-contained page-side executor for: web_expect, web_aria_snapshot, web_media_extract, web_actionable
+// (web_table_extract lives in web-unit-table.js)
 
 export async function ssWebUnitPerception(args = {}) {
   try {
@@ -391,33 +392,6 @@ export async function ssWebUnitPerception(args = {}) {
     if (!root) return { ok: false, error: 'Snapshot root not found: ' + args.selector };
     emitChildren(root, 0);
     return { ok: true, data: { url: location.href, title: document.title, yaml: lines.join('\n'), nodeCount: count } };
-  }
-
-  // ── web_table_extract: scrape <table> elements into json / markdown / csv ──
-  if (args.__tool === 'web_table_extract') {
-    const format = String(args.format || 'all').toLowerCase();
-    const limit = Math.min(Number(args.limit) || 200, 1000);
-    let nodes = [];
-    if (args.index !== undefined && args.index !== null) {
-      const t = document.querySelectorAll('table')[Number(args.index)];
-      if (t) nodes = [t];
-    } else {
-      try { nodes = Array.from(document.querySelectorAll(args.selector || 'table')).slice(0, Number(args.tableLimit) || 5); } catch {}
-    }
-    const tables = [];
-    for (const table of nodes) {
-      const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
-      const headers = headerRow ? Array.from(headerRow.querySelectorAll('th, td')).map((c) => (c.innerText || '').trim().replace(/\s+/g, ' ')) : [];
-      const rows = Array.from(table.querySelectorAll('tbody tr, tr')).filter((r) => r !== headerRow).slice(0, limit)
-        .map((r) => Array.from(r.querySelectorAll('td, th')).map((c) => (c.innerText || '').trim().replace(/\s+/g, ' ')));
-      const t = { rowCount: rows.length, headers, rows };
-      if (format === 'json' || format === 'all') t.json = rows.map((r) => Object.fromEntries(headers.map((h, i) => [h || 'col' + i, r[i] ?? null])));
-      if (format === 'markdown' || format === 'all') t.markdown = '| ' + headers.join(' | ') + ' |\n| ' + headers.map(() => '---').join(' | ') + ' |\n' + rows.map((r) => '| ' + r.join(' | ') + ' |').join('\n');
-      if (format === 'csv' || format === 'all') t.csv = [headers].concat(rows).map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
-      tables.push(t);
-    }
-    if (!tables.length) return { ok: false, error: 'No <table> elements found' + (args.selector ? ' for selector: ' + args.selector : '') + '.' };
-    return { ok: true, data: { tables, count: tables.length } };
   }
 
   // ── web_media_extract: enumerate images / videos / audios / links ──
