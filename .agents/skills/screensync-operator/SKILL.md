@@ -21,6 +21,10 @@ Human minds don't solve the same puzzle from scratch twice: once a motor skill o
 
 2. **Pre-Flight Memory Recall (`web_recall`)**:
    - Call `web_recall { domain: "x.com", intent: "post" }` before unfamiliar operations.
+   - `domain`/`url` may be omitted: recall then scopes to whatever page the currently-routed browser tab is
+     actually on (the same tab `web_status`'s `activeTab` reports), never to an unscoped ranking across every
+     domain ever learned. With no browser online it returns `found: false` and a `note` instead of guessing —
+     check `domainSource` (`"explicit" | "inferred" | "unresolved"`) and the echoed `domain` to see which.
    - Returns: `{ fastPathAvailable, playbookStatus, recommendedPlaybook, selectedBranch, guidance, alternatives, pitfalls, environmentalProbes }`.
    - **If `fastPathAvailable` is true the playbook is verified: EXECUTE IT DIRECTLY.** Do not guess, do not trial-and-error. Execution takes **< 15 seconds**.
    - If `playbookStatus` is `"candidate"` it is an unverified draft: run it deliberately, confirm each step with `web_expect`, then report the run with

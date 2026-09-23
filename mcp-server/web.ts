@@ -408,7 +408,10 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
 
 
 // Cognitive & developmental tools (Architectures 1.0-11.0) live in their own module.
-      if (handleCognitiveTool(tool, args, res, { session })) return;
+      // activeTabUrl: the same no-hint target resolution web_status's top-level `activeTab` uses (selected
+      // profile -> focused window -> latest heartbeat), so a tool like web_recall can infer a domain from
+      // whatever page is actually open right now instead of guessing across every browser online.
+      if (handleCognitiveTool(tool, args, res, { session, activeTabUrl: registry.resolveTarget()?.tab?.url ?? null })) return;
 
       if (tool === "web_flow_save") {
         const name = String(args.name || "").trim();

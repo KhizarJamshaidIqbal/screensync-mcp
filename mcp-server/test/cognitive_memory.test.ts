@@ -34,6 +34,20 @@ test("CognitiveMemoryStore: recall on unknown domain returns empty gracefully", 
   assert.equal(res.recommendedPlaybook, null);
 });
 
+test("CognitiveMemoryStore: recall with no domain and no url never leaks a cross-domain playbook", () => {
+  // Regression for the live bug: web_recall() with no arguments returned domain: "" and still
+  // confidently recommended the seeded x.com playbook (a global, unscoped ranking over every stored
+  // playbook). With no domain to scope to, recall must come back empty-handed, not guess.
+  const store = new CognitiveMemoryStore();
+  const res = store.recall({});
+  assert.equal(res.domain, "", "no domain or url was given, so nothing was resolved");
+  assert.equal(res.found, false);
+  assert.equal(res.recommendedPlaybook, null, "must not recommend any playbook (e.g. seeded x_publish_post) without a domain to scope to");
+  assert.equal(res.fastPathAvailable, false);
+  assert.equal(res.pitfalls.length, 0);
+  assert.equal(res.alternatives.length, 0, "the 'alternatives' ranking must not leak other domains' playbooks either");
+});
+
 test("CognitiveMemoryStore: recall on x.com returns seeded playbook and pitfalls", () => {
   const store = new CognitiveMemoryStore();
   const res = store.recall({ url: "https://x.com/compose/post", intent: "post" });

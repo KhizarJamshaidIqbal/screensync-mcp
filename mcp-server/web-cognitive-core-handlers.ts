@@ -16,16 +16,40 @@ import { nextSteps } from "./cognitive-curriculum.js";
 import { globalReplayAndHygieneEngine } from "./cognitive-replay.js";
 import { globalRpdEngine } from "./cognitive-rpd.js";
 
+/**
+ * web_recall's own description invites a caller to omit `domain`/`url` and rely on the hub knowing what
+ * page it's on. Resolves what to recall against:
+ *   - an explicit domain or url always wins (unchanged behavior);
+ *   - otherwise, the currently-routed browser tab's URL (ctx.activeTabUrl - the same target
+ *     resolveDispatch()/web_status's `activeTab` already resolve to, set by web.ts per request);
+ *   - otherwise, nothing - the caller is told so, rather than the store falling back to an unscoped
+ *     ranking over every domain ever recorded (cognitive-memory.ts recall() refuses that on its own too,
+ *     but the caller-facing "why" belongs here, where the cue was actually resolved).
+ */
+function resolveRecallCue(args: Record<string, any>, ctx: CognitiveContext): {
+  domain: string | undefined; url: string | undefined; domainSource: "explicit" | "inferred" | "unresolved"; note?: string;
+} {
+  const domain = args.domain ? String(args.domain) : undefined;
+  const explicitUrl = args.url ? String(args.url) : undefined;
+  if (domain || explicitUrl) return { domain, url: explicitUrl, domainSource: "explicit" };
+  if (ctx.activeTabUrl) return { domain: undefined, url: ctx.activeTabUrl, domainSource: "inferred" };
+  return {
+    domain: undefined, url: undefined, domainSource: "unresolved",
+    note: "No domain or url was given, and no browser tab is online to infer one from. Pass domain or url explicitly, or connect a browser first.",
+  };
+}
+
 export function handleCoreCognitiveTool(tool: string, args: Record<string, any>, res: Response, ctx: CognitiveContext = { session: HUB_SESSION }): boolean {
       if (tool === "web_recall") {
         try {
+          const { domain, url, domainSource, note } = resolveRecallCue(args, ctx);
           const resData = cognitiveStore.recall({
-            domain: args.domain ? String(args.domain) : undefined,
-            url: args.url ? String(args.url) : undefined,
+            domain,
+            url,
             intent: args.intent ? String(args.intent) : undefined,
             profile: args.profile ? String(args.profile) : undefined,
           });
-          res.json({ success: true, ok: true, data: resData });
+          res.json({ success: true, ok: true, data: { ...resData, domainSource, ...(note ? { note } : {}) } });
         } catch (e: any) {
           res.json({ success: true, ok: false, data: { error: `Recall failed: ${e.message}` } });
         }
