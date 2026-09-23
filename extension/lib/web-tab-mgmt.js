@@ -94,8 +94,15 @@ export async function execWebWindow(args = {}) {
       };
     }
     if (action === 'focus') {
-      const winId = Number(args.windowId);
-      if (!winId) return makeError(ERROR_CODES.BAD_ARGS, 'windowId is required for focus action.');
+      let winId = Number(args.windowId) || 0;
+      if (!winId && args.tabId) {
+        // Mirror the fallback the default/update path below already does: a caller that only
+        // has a tabId (the common case right after web_navigate/web_click) shouldn't have to
+        // look up windowId separately just to focus it.
+        const t = await chrome.tabs.get(Number(args.tabId)).catch(() => null);
+        if (t && t.windowId) winId = t.windowId;
+      }
+      if (!winId) return makeError(ERROR_CODES.BAD_ARGS, 'windowId (or a resolvable tabId) is required for focus action.');
       const win = await chrome.windows.update(winId, { focused: true });
       return { ok: true, data: { windowId: win.id, focused: win.focused, state: win.state } };
     }
@@ -107,10 +114,19 @@ export async function execWebWindow(args = {}) {
     }
 
     const tabs = await chrome.tabs.query({});
-    let winId = args.windowId;
+    let winId = args.windowId ? Number(args.windowId) : null;
     if (!winId) {
-      const t = (args.tabId ? tabs.find((x) => x.id === args.tabId) : null) || tabs.find((x) => x.active) || tabs[0];
-      winId = t && t.windowId;
+      if (args.tabId) {
+        // An explicit tabId that can't be found (closed, or owned by a different profile/window)
+        // used to fall straight through to "the active tab of some window" below — silently
+        // moving/resizing/focusing the WRONG window. Fail loudly instead.
+        const t = tabs.find((x) => x.id === Number(args.tabId));
+        if (!t) return makeError(ERROR_CODES.NO_ACTIVE_TAB, `Tab ${args.tabId} was not found (it may belong to a different window/profile, or have been closed).`);
+        winId = t.windowId;
+      } else {
+        const t = tabs.find((x) => x.active) || tabs[0];
+        winId = t && t.windowId;
+      }
     }
     if (!winId) return makeError(ERROR_CODES.NO_ACTIVE_TAB, 'No window found.');
     const updates = {};
