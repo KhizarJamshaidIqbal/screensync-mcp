@@ -281,6 +281,10 @@ After driving the page, call **`web_events` {since: <lastSeq>}** to see what act
   the human's click (a badge on the toolbar icon). `USER_DECLINED` means they said no: do not retry, ask
   what they want. `APPROVAL_TIMEOUT` means nobody answered: tell them it is waiting, then retry once they
   can look. Your own `confirmed` / `force` arguments do nothing there.
+- A risky step inside `web_flow_run`, `web_replay`, `web_fanout` or `web_tab_fanout` is put to a person (the
+  extension's approval queue) exactly like the same direct call: one prompt per step, and per browser in a fanout.
+  A scheduled flow (`web_flow_schedule`) runs with nobody watching and the hub asks no one, so never schedule a
+  flow with a destructive step.
 - A site you have no grant for answers "Read/Action access not granted for origin X". **Ask, do not send the
   user to the dashboard:** `web_request_access {url, reason}` opens a focused window on their screen (plus the
   badge and the popup queue) where they choose Deny / Allow once (read + act for 15 min) / Always allow. It

@@ -9,9 +9,9 @@ import { generateFlow, generatePlaywright } from "./codegen.js";
 import { createProfileRegistry, BrowserInstance, BrowserWindowInfo, type DispatchDecision } from "./profile-registry.js";
 import { trackToolExecution } from "./cognitive-auto-tracker.js";
 import { sessionOf } from "./cognitive-spine-observer.js";
-import { forRelay, gateBeforeRelay, humanCanBeAsked, type GateDecision } from "./cognitive-policy.js";
+import { forRelay, gateBeforeRelay, refusedByGate, type GateDecision } from "./cognitive-policy.js";
 import { mountExtensionRoutes } from "./web-ext-routes.js";
-import { sendRouteRefusal } from "./web-multi-dispatch.js";
+import { createStepDispatch, sendRouteRefusal, type StepResult } from "./web-multi-dispatch.js";
 import { handleCognitiveTool } from "./web-cognitive-handlers.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
@@ -118,6 +118,8 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         targetProfile,
       });
     });
+  // A step of web_flow_run / web_replay / web_fanout / web_tab_fanout meets the approval gate like a direct call.
+  const gatedStep = createStepDispatch(registry.resolveDispatch, request);
 
     // ── Persisted Flows Library: save / list / run / delete ──────────────
     // Recorded steps can be saved under a name (with editable steps and
@@ -210,6 +212,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       vars: Record<string, string>,
       stopOnError: boolean,
       stepTimeoutMs: number,
+      send: (tool: string, args: Record<string, unknown>, timeoutMs: number) => Promise<StepResult> = request,
     ): Promise<{ results: Array<Record<string, unknown>>; okAll: boolean; executed: number }> => {
       const results: Array<Record<string, unknown>> = [];
       let okAll = true;
@@ -226,8 +229,8 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         }
           const stepArgs = substituteTokens(step.args ?? {}, vars, results) as Record<string, unknown>;
         broadcast({ type: "web_replay_step", at: new Date().toISOString(), flow: flow.name, step: i + 1, of: flow.steps.length, tool: stepTool });
-        const r = await request(stepTool, stepArgs, stepTimeoutMs);
-        results.push({ step: i + 1, tool: stepTool, ok: r.ok, data: r.data, error: r.error });
+        const r = await send(stepTool, stepArgs, stepTimeoutMs);
+        results.push({ step: i + 1, tool: stepTool, ...r });
         executed++;
         if (!r.ok) {
           okAll = false;
@@ -396,8 +399,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         for (const { target, decision, skipped } of plan.passes) {
           const who = { browser: target.name, browserId: target.instanceId };
           if (skipped || !decision) { results.push({ ...who, ok: false, skipped: true, reason: skipped }); continue; }
-          const r = await request(innerTool, innerArgs, timeoutMs, undefined, decision);
-          results.push({ ...who, ok: r.ok, data: r.data, error: r.error });
+          results.push({ ...who, ...(await gatedStep(innerTool, innerArgs, timeoutMs, session, decision)) });
         }
         const ran = results.filter((r) => !r.skipped);
         res.json({ success: true, ok: ran.length > 0 && ran.every((r) => r.ok), data: { tool: innerTool, matched: targets.length, ran: ran.length, results } });
@@ -449,7 +451,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         const vars = (args.vars && typeof args.vars === "object" ? args.vars : {}) as Record<string, string>;
         const stopOnError = args.stopOnError !== false;
         const stepTimeoutMs = Math.min(Math.max(Number(args.stepTimeoutMs) || 45_000, 5_000), 60_000);
-        const run = await executeFlow(flow, vars, stopOnError, stepTimeoutMs);
+        const run = await executeFlow(flow, vars, stopOnError, stepTimeoutMs, (t, a, ms) => gatedStep(t, a, ms, session));
         res.json({ success: true, ok: run.okAll, data: { flow: flow.name, vars: Object.keys(vars), total: flow.steps.length, executed: run.executed, okAll: run.okAll, results: run.results } });
         return;
       }
@@ -713,8 +715,8 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
           }
           const stepArgs = substituteTokens(step.args ?? {}, {}, results) as Record<string, unknown>;
           broadcast({ type: "web_replay_step", at: new Date().toISOString(), step: i + 1, of: steps.length, tool: stepTool });
-          const r = await request(stepTool, stepArgs, stepTimeoutMs);
-          results.push({ step: i + 1, tool: stepTool, ok: r.ok, data: r.data, error: r.error });
+          const r = await gatedStep(stepTool, stepArgs, stepTimeoutMs, session);
+          results.push({ step: i + 1, tool: stepTool, ...r });
           if (!r.ok) {
             okAll = false;
             if (stopOnError) break;
@@ -759,8 +761,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         }
         const results: Array<Record<string, unknown>> = [];
         for (const t of tabs) {
-          const r = await request(innerTool, { ...innerArgs, tabId: t.tabId }, timeoutMs, undefined, route);
-          results.push({ tabId: t.tabId, url: t.url, ok: r.ok, data: r.data, error: r.error });
+          results.push({ tabId: t.tabId, url: t.url, ...(await gatedStep(innerTool, { ...innerArgs, tabId: t.tabId }, timeoutMs, session, route)) });
         }
         res.json({ success: true, ok: results.every((r) => r.ok), data: { tool: innerTool, ...from, matched: tabs.length, results } });
         return;
@@ -810,7 +811,7 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
       // while browsers are online is left to the routing refusal below; either way nothing is relayed or asked.
       const route = registry.resolveDispatch(args);
       const gate = gateBeforeRelay(tool, args, session);
-      if (gate?.block && !humanCanBeAsked(route) && (route.ok || route.onlineProfiles.length === 0)) {
+      if (gate && refusedByGate(gate, route)) {
         res.json({ success: false, ok: false, error: gate.message, data: { gate: gate.decision } });
         return;
       }
