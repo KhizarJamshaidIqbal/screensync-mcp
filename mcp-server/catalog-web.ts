@@ -53,7 +53,7 @@ export function webToolDefinitions() {
     {
       name: "web_screenshot",
       description:
-        "Captures the currently active browser tab as an inline image (what the user is actually looking at). Requires the extension connected with Web access enabled.",
+        "Captures the currently active browser tab as an inline image (what the user is actually looking at). Requires the extension connected with Web access enabled. Chrome's capture API only ever sees the foreground tab of a focused window, so a background/inactive tab (or tabId) is briefly activated and its window focused first — this is automatic, not something you need to call web_window for. Waits for an actual painted frame (not just 'load complete') before capturing, so it will not return a stale/blank frame right after a navigation.",
       inputSchema: {
         type: "object",
         properties: {
@@ -513,7 +513,7 @@ export function webToolDefinitions() {
     {
       name: "web_element_screenshot",
       description:
-        "Captures a pixel-perfect cropped screenshot of a specific DOM element using Chrome DevTools Protocol clip capture. Supports Playwright locators (e.g. xpath=, role=, text=, placeholder=, label=) and standard CSS selectors.",
+        "Captures a pixel-perfect cropped screenshot of a specific DOM element using Chrome DevTools Protocol clip capture. Supports Playwright locators (e.g. xpath=, role=, text=, placeholder=, label=) and standard CSS selectors. Waits for an actual painted frame before capturing, so a call right after a scroll or DOM change (e.g. scrollIntoView()) returns the settled element, not a blank/stale clip.",
       inputSchema: {
         type: "object",
         properties: {

@@ -5,7 +5,8 @@ import { ssReadBuffer, ssEval, ssStorage, ssPerf, ssWaitFor, ssKey, ssHover, ssS
 import { attachCdp, detachCdp } from './web-adv-core.js';
 import { cdpWaitNetworkIdle } from './web-adv-net.js';
 import { cdpInput, cdpUploadFile, cdpKeyCombo, cdpMouse, cdpTouch, cdpClipboard } from './web-adv-input.js';
-import { cdpScreenshot, cdpPdf, cdpElementScreenshot, cdpAXTree, cdpExportHar, cdpCoverage, cdpScreencast, cdpMhtml } from './web-adv-capture.js';
+import { cdpScreenshot, cdpPdf, cdpAXTree, cdpExportHar, cdpCoverage, cdpScreencast, cdpMhtml } from './web-adv-capture.js';
+import { cdpElementScreenshot } from './web-element-screenshot.js';
 import { cdpNetworkMock, cdpRoute, cdpDialogRule, cdpWaitForResponse, cdpWaitForRequest, cdpWebSocketTraffic, cdpNetworkAuth, cdpCacheControl, cdpNetworkRules } from './web-adv-net.js';
 import { cdpEmulate, cdpGrantPermissions, cdpSetTimezone, cdpSetGeolocation, cdpThrottleNetwork, cdpSetColorScheme, cdpEmulateMedia } from './web-adv-emulate.js';
 import { cdpEval, cdpEvalExpression, cdpRunCode } from './web-adv-eval.js';

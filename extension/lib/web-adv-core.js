@@ -72,6 +72,23 @@ export async function rawAttach(target) {
 }
 
 
+/**
+ * Waits for a real painted frame on an ALREADY-ATTACHED CDP session, via a double
+ * requestAnimationFrame round-trip run inside the page (the same guarantee tab-resolve.js's
+ * waitForPaintReady gives the non-CDP capture path): `Page.enable` / status:'complete' only means
+ * the load event fired, the compositor can still be a frame or two behind, especially right after a
+ * navigation or a scroll. Every CDP pixel capture shares this ONE helper — cdpScreenshot and
+ * cdpElementScreenshot both call it — so a capture added later gets the same guard for free instead
+ * of needing its own copy. Best-effort: a page that cannot evaluate (rare) just skips the wait, the
+ * capture proceeds as before.
+ */
+export async function cdpWaitPaintReady(target) {
+  await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+    expression: 'new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))',
+    awaitPromise: true,
+  }).catch(() => {});
+}
+
 function cdpBusy(tabId) {
   const busy = (m) => m && m.has(tabId);
   return Boolean(busy(activeMocks) || busy(activeRoutes) || busy(activeDialogRules)
