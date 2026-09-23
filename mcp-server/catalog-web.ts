@@ -53,12 +53,13 @@ export function webToolDefinitions() {
     {
       name: "web_screenshot",
       description:
-        "Captures the currently active browser tab as an inline image (what the user is actually looking at). Requires the extension connected with Web access enabled. Chrome's capture API only ever sees the foreground tab of a focused window, so a background/inactive tab (or tabId) is briefly activated and its window focused first — this is automatic, not something you need to call web_window for. Waits for an actual painted frame (not just 'load complete') before capturing, so it will not return a stale/blank frame right after a navigation.",
+        "Captures the currently active browser tab as an inline image (what the user is actually looking at). Requires the extension connected with Web access enabled. Chrome's capture API only ever sees the foreground tab of a focused window, so a background/inactive tab (or tabId) is briefly activated and its window focused first — this is automatic, not something you need to call web_window for. Waits for an actual painted frame (not just 'load complete') before capturing, so it will not return a stale/blank frame right after a navigation. When the person is using the browser, pass background: true instead: nothing is activated or focused, a tab that is not in front is captured through CDP, and if that is impossible the call fails fast with CAPTURE_UNAVAILABLE and no image, never another page's pixels.",
       inputSchema: {
         type: "object",
         properties: {
           format: { type: "string", enum: ["png", "jpeg"], default: "jpeg", description: "Image format — use png for deterministic visual baselines." },
-          tabId: { type: "integer", description: "Optional background tab ID." },
+          tabId: { type: "integer", description: "Optional background tab ID. It is brought to the front for the capture unless background is true." },
+          background: { type: "boolean", default: false, description: "Capture without activating the tab or focusing its window (through CDP when the tab is not in front); fails fast with CAPTURE_UNAVAILABLE rather than return another page. Use it when the person is using the browser." },
         },
         additionalProperties: false,
       },
