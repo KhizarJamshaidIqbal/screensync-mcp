@@ -125,6 +125,30 @@ export async function waitForTabComplete(tabId, timeoutMs = 20000) {
 }
 
 /**
+ * Waits for the tab to complete at least one full paint cycle via a double
+ * requestAnimationFrame round-trip. `status: 'complete'` (what waitForTabComplete above waits
+ * on) only means the load event fired — the renderer's compositor can still be a frame or two
+ * behind, especially right after a full navigation, so a screenshot taken immediately after can
+ * capture stale/blank <img> rects even though the DOM/network layer already fully loaded and
+ * decoded them. Two consecutive rAFs is the standard guarantee that a paint has happened since
+ * this was scheduled; on an already-idle page it resolves in ~2 frames (tens of ms), so callers
+ * can await this unconditionally before any pixel capture, not only right after navigation.
+ * Best-effort: a restricted or unreachable tab just skips the wait; capture proceeds as before.
+ * @param {number} tabId
+ * @returns {Promise<void>}
+ */
+export async function waitForPaintReady(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: Number(tabId) },
+      func: () => new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
+      }),
+    });
+  } catch { /* best-effort — restricted/unreachable tab just skips the wait */ }
+}
+
+/**
  * Finds an open tab matching a given origin or domain, or creates one if missing.
  * @param {string} originOrUrl - Target origin (e.g. 'https://x.com') or URL
  * @param {boolean} [createIfMissing=true]
