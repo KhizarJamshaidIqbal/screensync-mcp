@@ -1,7 +1,40 @@
 {
-  "generatedAt": "2026-09-23T16:44:41Z",
+  "generatedAt": "2026-09-23T18:10:32Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
+    {
+      "sha": "50a249a",
+      "date": "2026-09-23",
+      "ts": 1790186410,
+      "parts": [
+        {
+          "stream": "extension",
+          "streamLabel": "Extension",
+          "version": "1.14.0",
+          "build": "",
+          "display": "1.14.0",
+          "date": "2026-09-23",
+          "ts": 1790186410,
+          "sha": "50a249a",
+          "groups": {
+            "NEW": [
+              "Page through a long aria snapshot with offset",
+              "Web_screenshot background option that never takes focus"
+            ],
+            "IMPROVED": [],
+            "FIXED": [
+              "Read tables inside a closed details and flag visible columns",
+              "Web_expect answers on a background tab",
+              "Bound the paint wait before a capture, skip hidden pages",
+              "Wait for paint before web_element_screenshot capture"
+            ]
+          },
+          "count": 6
+        }
+      ],
+      "count": 6,
+      "title": "Extension 1.14.0"
+    },
     {
       "sha": "06c2a7e",
       "date": "2026-09-23",
@@ -496,9 +529,9 @@
     }
   ],
   "stats": {
-    "releases": 15,
+    "releases": 16,
     "appReleases": 6,
-    "extensionReleases": 9,
-    "changes": 92
+    "extensionReleases": 10,
+    "changes": 98
   }
 }
