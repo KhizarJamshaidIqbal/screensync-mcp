@@ -34,6 +34,7 @@ import { pickActiveTab, isRestrictedTab, waitForTabComplete, groupAgentTab } fro
 import { makeError, ERROR_CODES } from './errors.js';
 import { getAuditLog, clearAuditLog, exportAuditLog } from './audit.js';
 import { execWebTabs, execWebTab, execWebWindow, execTabPool, execSandboxGroup } from './web-tab-mgmt.js';
+import { execWebScreenshot } from './web-screenshot.js';
 import { validateToolArgs } from './validate.js';
 import { registerWebBridge } from './web-bridge.js';
 import {
@@ -177,22 +178,7 @@ export async function executeWebTool(tool, args = {}) {
       if (action === 'export') return exportAuditLog();
       return getAuditLog(args);
     }
-    case 'web_screenshot': {
-      const tab = await pickActiveTab(args);
-      if (isRestrictedTab(tab)) return makeError(ERROR_CODES.RESTRICTED_PAGE, `Cannot capture restricted tab (${tab.url}).`);
-      const format = args.format === 'png' ? 'png' : 'jpeg';
-      const opts = format === 'png' ? { format: 'png' } : { format: 'jpeg', quality: typeof args.quality === 'number' ? Math.min(100, Math.max(1, args.quality)) : 85 };
-      try {
-        const imageDataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, opts);
-        return { ok: true, data: { imageDataUrl, url: tab.url, title: tab.title, format } };
-      } catch (err) {
-        const cdpRes = await execAdvTool('web_full_screenshot', tab, { format, quality: opts.quality }).catch(() => null);
-        if (cdpRes && cdpRes.ok && cdpRes.data && cdpRes.data.imageDataUrl) {
-          return { ok: true, data: { imageDataUrl: cdpRes.data.imageDataUrl, url: tab.url, title: tab.title, via: 'cdp_fallback', format } };
-        }
-        return makeError(ERROR_CODES.INTERNAL, String((err && err.message) || err));
-      }
-    }
+    case 'web_screenshot': return execWebScreenshot(args);
     case 'web_navigate': {
       const url = String(args.url || '');
       if (!/^https?:/i.test(url)) return makeError(ERROR_CODES.BAD_ARGS, 'Only http(s) URLs are supported.');
