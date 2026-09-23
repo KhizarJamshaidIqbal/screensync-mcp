@@ -6,20 +6,25 @@
 // changes things without using one of the words (`.submit()`, a POST fetch, `document.cookie =`).
 //
 // Now there are two checks, and either one flags the action:
-//   words  the text is split into words (on punctuation, and at camelCase humps, so `#buyNowButton` and
-//          `deletePost` still count) and a word must BE one of the destructive words, not contain one;
+//   words  the text is split into words (on punctuation, and at camelCase humps) and a destructive stem must
+//          START a word, at a word boundary: `deleteAccount`, `#deleteaccount`, `#buyNowButton`, `Payment`,
+//          `autopay` count; a stem inside a word (`backdrop`, `display`, `undeletable`) does not, nor do the
+//          look-alikes `dropdown`, `dropped`, `deleted`, `payload`, `drop-shadow`, `removeEventListener`;
 //   code   a short list of JavaScript constructs that change a page, its data or the account behind it.
 // When in doubt a construct stays flagged: this is a safety net and a false alarm only costs a click.
 //
 // The extension keeps a copy (extension/lib/destructive-vocab.js, and inline in the page-side units
 // web-unit-interact.js / web-unit-action.js, which must be self-contained). extension/test/destructive_vocab.test.js
-// checks that every copy carries the same two patterns below, character for character.
+// checks that every copy carries the same three patterns below, character for character.
 
-/** One destructive word, whole. `deleted`, `dropped`, `dropdown`, `backdrop`, `undeletable` are not. */
-export const DESTRUCTIVE_WORD_RE = /^(?:delet(?:e|es|ing|ion|ions)|remov(?:e|es|ing|al)|destroy(?:s|ing)?|destruction|terminat(?:e|es|ing|ion)|drop(?:s|ping)?|pay(?:s|ing|ment|ments|now|pal)?|purchas(?:e|es|ing)|buy(?:s|ing|now)?|charg(?:e|es|ing))$/;
+/** A word that STARTS with one of these is destructive (payment words also after auto-/re-/pre-/over-/up-/sur-). */
+export const DESTRUCTIVE_WORD_RE = /^(?:(?:auto|re|pre|over|up|sur)?(?:pay|charg|buy)|delet|remov|destroy|terminat|drop|purchas|cancelsubscription)/;
+
+/** ...unless it is one of these look-alikes: a state or a thing, not an action. */
+export const BENIGN_WORD_RE = /^(?:dropdown|dropped|deleted|removed|payload|purchased|destroyed|terminated|charged|buyer)/;
 
 /** Identifiers that contain a destructive word but do nothing destructive. Taken out before splitting. */
-export const BENIGN_IDENTIFIER_RE = /remove(?:All)?(?:Event)?Listeners?|drop[\s_-]?shadow/gi;
+export const BENIGN_IDENTIFIER_RE = /remove(?:All)?(?:Event)?Listeners?|drop[\s_-]?(?:shadow|down)/gi;
 
 /** JavaScript that changes the page, its storage, the session or the server. [label, pattern]. */
 const CODE_RULES: ReadonlyArray<readonly [string, RegExp]> = [
@@ -65,7 +70,7 @@ export function destructiveWords(text: string): string[] {
   const found: string[] = [];
   words.forEach((word, i) => {
     let hit: string | null = null;
-    if (DESTRUCTIVE_WORD_RE.test(word)) hit = word;
+    if (DESTRUCTIVE_WORD_RE.test(word) && !BENIGN_WORD_RE.test(word)) hit = word;
     else if (word === "cancel" && /^subscriptions?$/.test(words[i + 1] ?? "")) hit = "cancel subscription";
     if (hit && !found.includes(hit)) found.push(hit);
   });

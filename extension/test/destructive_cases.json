@@ -21,7 +21,10 @@
       "window.location.pathname === '/tours'",
       "document.cookie.split(';').length",
       "localStorage.getItem('theme')",
-      "document.title"
+      "document.title",
+      "document.querySelector('.nav').classList.contains('dropDown') && toggleDropDown",
+      "[...document.querySelectorAll('.card')].filter((c) => c.dataset.removed !== 'true').map((c) => c.dataset.displayName)",
+      "document.querySelector('#update-banner').textContent"
     ],
     "destructive": [
       "db.exec('DROP TABLE users')",
@@ -44,7 +47,10 @@
       "indexedDB.deleteDatabase('app')",
       "document.querySelector('.delete-account').textContent",
       "document.querySelector('#buyNowButton')",
-      "cancelSubscription()"
+      "cancelSubscription()",
+      "document.querySelector('#deleteaccount').textContent",
+      "api('/v1/removeuser')",
+      "document.querySelector('.autopay-toggle')"
     ]
   },
   "ui": {
@@ -56,7 +62,10 @@
       "div.modal-backdrop",
       "Dropped pins",
       "Save draft",
-      "#save-draft"
+      "#save-draft",
+      "Update profile",
+      "Report a problem",
+      "Buyer guide"
     ],
     "destructive": [
       "Delete account",
@@ -69,7 +78,12 @@
       "Proceed to payment",
       "Cancel subscription",
       "Purchase",
-      "DROP TABLE"
+      "DROP TABLE",
+      "Enable autopay",
+      "Repay loan",
+      "Recharge now",
+      "#deleteaccount",
+      "CANCELSUBSCRIPTION"
     ]
   }
 }

@@ -1,17 +1,21 @@
 // ScreenSync destructive-action vocabulary (extension copy of mcp-server/destructive-vocab.ts).
 //
-// The hub decides what the cognitive gate calls "destructive" with the same two checks: a destructive word must
-// BE a word of the text (split at punctuation and camelCase humps), never sit inside one (`dropdown`, `backdrop`,
-// `display`, `removeEventListener`, `deleted`); and a short list of JavaScript constructs that change a page,
-// its data or the account behind it (`.submit()`, a POST fetch, `document.cookie =`, ...). The page-side units
-// web-unit-interact.js and web-unit-action.js carry the word check inline (they must be self-contained).
-// extension/test/destructive_vocab.test.js keeps all copies identical to the hub.
+// The hub decides what the cognitive gate calls "destructive" with the same two checks. Words: the text is split
+// into words (at punctuation and camelCase humps) and a destructive word must START a word - `deleteAccount`,
+// `#deleteaccount`, `autopay` count, while a stem inside a word (`backdrop`, `display`, `undeletable`) does not,
+// nor do the look-alikes `dropdown`, `dropped`, `deleted`, `payload` or `removeEventListener`. Code: a short list
+// of JavaScript constructs that change a page, its data or the account behind it (`.submit()`, a POST fetch,
+// `document.cookie =`, ...). The page-side units web-unit-interact.js and web-unit-action.js carry the word check
+// inline (they must be self-contained). extension/test/destructive_vocab.test.js keeps all copies identical.
 
-/** One destructive word, whole. `deleted`, `dropped`, `dropdown`, `backdrop`, `undeletable` are not. */
-export const DESTRUCTIVE_WORD_RE = /^(?:delet(?:e|es|ing|ion|ions)|remov(?:e|es|ing|al)|destroy(?:s|ing)?|destruction|terminat(?:e|es|ing|ion)|drop(?:s|ping)?|pay(?:s|ing|ment|ments|now|pal)?|purchas(?:e|es|ing)|buy(?:s|ing|now)?|charg(?:e|es|ing))$/;
+/** A word that STARTS with one of these is destructive (payment words also after auto-/re-/pre-/over-/up-/sur-). */
+export const DESTRUCTIVE_WORD_RE = /^(?:(?:auto|re|pre|over|up|sur)?(?:pay|charg|buy)|delet|remov|destroy|terminat|drop|purchas|cancelsubscription)/;
+
+/** ...unless it is one of these look-alikes: a state or a thing, not an action. */
+export const BENIGN_WORD_RE = /^(?:dropdown|dropped|deleted|removed|payload|purchased|destroyed|terminated|charged|buyer)/;
 
 /** Identifiers that contain a destructive word but do nothing destructive. Taken out before splitting. */
-export const BENIGN_IDENTIFIER_RE = /remove(?:All)?(?:Event)?Listeners?|drop[\s_-]?shadow/gi;
+export const BENIGN_IDENTIFIER_RE = /remove(?:All)?(?:Event)?Listeners?|drop[\s_-]?(?:shadow|down)/gi;
 
 /** JavaScript that changes the page, its storage, the session or the server. [label, pattern]. */
 const CODE_RULES = [
@@ -57,7 +61,7 @@ export function destructiveWords(text) {
   const found = [];
   words.forEach((word, i) => {
     let hit = null;
-    if (DESTRUCTIVE_WORD_RE.test(word)) hit = word;
+    if (DESTRUCTIVE_WORD_RE.test(word) && !BENIGN_WORD_RE.test(word)) hit = word;
     else if (word === "cancel" && /^subscriptions?$/.test(words[i + 1] ?? "")) hit = "cancel subscription";
     if (hit && !found.includes(hit)) found.push(hit);
   });

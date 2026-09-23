@@ -49,14 +49,20 @@ const literal = (src, name) => {
   assert.ok(m, `${name} is declared as one regex literal`);
   return m[1];
 };
-const WORD = literal(hub, 'DESTRUCTIVE_WORD_RE');
-const BENIGN = literal(hub, 'BENIGN_IDENTIFIER_RE');
-assert.equal(String(vocab.DESTRUCTIVE_WORD_RE), WORD, 'lib/destructive-vocab.js word list matches the hub');
-assert.equal(String(vocab.BENIGN_IDENTIFIER_RE), BENIGN, 'lib/destructive-vocab.js benign identifiers match the hub');
+const patterns = {
+  DESTRUCTIVE_WORD_RE: literal(hub, 'DESTRUCTIVE_WORD_RE'),
+  BENIGN_WORD_RE: literal(hub, 'BENIGN_WORD_RE'),
+  BENIGN_IDENTIFIER_RE: literal(hub, 'BENIGN_IDENTIFIER_RE'),
+};
+for (const [name, re] of Object.entries(patterns)) {
+  assert.equal(String(vocab[name]), re, `lib/destructive-vocab.js ${name} matches the hub`);
+}
 for (const unit of ['lib/web-unit-interact.js', 'lib/web-unit-action.js']) {
   const src = read(unit);
-  assert.ok(src.includes(WORD), `${unit} carries the hub's word list`);
-  assert.ok(src.includes(BENIGN), `${unit} carries the hub's benign identifiers`);
+  // The units test words with the patterns written inline (no flags: they are anchored), the identifiers with /gi.
+  assert.ok(src.includes(patterns.DESTRUCTIVE_WORD_RE), `${unit} carries the hub's destructive stems`);
+  assert.ok(src.includes(patterns.BENIGN_WORD_RE), `${unit} carries the hub's look-alikes`);
+  assert.ok(src.includes(patterns.BENIGN_IDENTIFIER_RE), `${unit} carries the hub's benign identifiers`);
   assert.ok(!/\/delete\|remove\|destroy/.test(src), `${unit} no longer matches words inside words`);
 }
 
