@@ -47,7 +47,9 @@ test("catalogue-to-handler consistency guard: zero orphan tools", async () => {
   const extDir = resolve("..", "extension", "lib");
   const webToolsSrc = readFileSync(join(extDir, "web-tools.js"), "utf-8");
   const webAdvSrc = readFileSync(join(extDir, "web-adv.js"), "utf-8");
-  const webHubSrc = readFileSync(resolve("web.ts"), "utf-8");
+  // web.ts plus the modules its flow/recorder/visual-baseline/fanout handlers were split into.
+  const webHubSrc = ["web.ts", "web-flows.ts", "web-recorder.ts", "web-visual-baseline.ts", "web-fanout.ts"]
+    .map((f) => readFileSync(resolve(f), "utf-8")).join("\n");
   const controlHubSrc = readFileSync(resolve("control.ts"), "utf-8");
   const catalogSrc = readFileSync(resolve("catalog.ts"), "utf-8");
 
