@@ -4,7 +4,7 @@
 
 import type { Response } from "express";
 import type { BrowserInstance, createProfileRegistry } from "./profile-registry.js";
-import { sendRouteRefusal } from "./web-multi-dispatch.js";
+import { sendRouteRefusal, withCallBudget } from "./web-multi-dispatch.js";
 import type { GatedStep, WebRelay } from "./web-flows.js";
 
 type Registry = ReturnType<typeof createProfileRegistry>;
@@ -41,11 +41,12 @@ export function createFanout({ registry, request, gatedStep }: { registry: Regis
     // Each pass carries its own browser's decision: no hint or tab id in innerArgs can send it elsewhere.
     const plan = registry.planFanout(targets, innerArgs);
     if (!plan.ok) { sendRouteRefusal(res, plan); return; }
+    const budgeted = withCallBudget(gatedStep); // the passes share one time budget (web-timeouts.ts)
     const results: Array<Record<string, unknown>> = [];
     for (const { target, decision, skipped } of plan.passes) {
       const who = { browser: target.name, browserId: target.instanceId };
       if (skipped || !decision) { results.push({ ...who, ok: false, skipped: true, reason: skipped }); continue; }
-      results.push({ ...who, ...(await gatedStep(innerTool, innerArgs, timeoutMs, session, decision)) });
+      results.push({ ...who, ...(await budgeted(innerTool, innerArgs, timeoutMs, session, decision)) });
     }
     const ran = results.filter((r) => !r.skipped);
     res.json({ success: true, ok: ran.length > 0 && ran.every((r) => r.ok), data: { tool: innerTool, matched: targets.length, ran: ran.length, results } });
@@ -60,6 +61,7 @@ export function createFanout({ registry, request, gatedStep }: { registry: Regis
       return;
     }
     const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 45_000, 5_000), 60_000);
+    const budgeted = withCallBudget(gatedStep); // listing the tabs and every per-tab call share one time budget
     const { tool: _t, tabIds: _ti, urls: _u, activeOnly: _a, args: innerA, ...rest } = args;
     const innerArgs = { ...rest, ...(innerA && typeof innerA === "object" ? (innerA as Record<string, unknown>) : {}) };
     // ONE browser, routed like any call (never "whoever heartbeated last"), lists the tabs AND runs every per-tab
@@ -87,7 +89,7 @@ export function createFanout({ registry, request, gatedStep }: { registry: Regis
     }
     const results: Array<Record<string, unknown>> = [];
     for (const t of tabs) {
-      results.push({ tabId: t.tabId, url: t.url, ...(await gatedStep(innerTool, { ...innerArgs, tabId: t.tabId }, timeoutMs, session, route)) });
+      results.push({ tabId: t.tabId, url: t.url, ...(await budgeted(innerTool, { ...innerArgs, tabId: t.tabId }, timeoutMs, session, route)) });
     }
     res.json({ success: true, ok: results.every((r) => r.ok), data: { tool: innerTool, ...from, matched: tabs.length, results } });
   };

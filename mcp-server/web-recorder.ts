@@ -5,6 +5,7 @@
 import type { Response } from "express";
 import { generateFlow, generatePlaywright } from "./codegen.js";
 import type { Broadcast, FlowEngine, GatedStep } from "./web-flows.js";
+import { withCallBudget } from "./web-multi-dispatch.js";
 
 export function createRecorder({ flows, gatedStep, broadcast }: { flows: Pick<FlowEngine, "saveFlow" | "substituteTokens">; gatedStep: GatedStep; broadcast: Broadcast }) {
   // Teach-once-replay-anywhere recorder: while active, every default-path
@@ -82,6 +83,7 @@ export function createRecorder({ flows, gatedStep, broadcast }: { flows: Pick<Fl
       }
       const stopOnError = args.stopOnError !== false;
       const stepTimeoutMs = Math.min(Math.max(Number(args.stepTimeoutMs) || 45_000, 5_000), 60_000);
+      const budgeted = withCallBudget(gatedStep); // every step of this replay shares one time budget (web-timeouts.ts)
       const results: Array<Record<string, unknown>> = [];
       let okAll = true;
       for (let i = 0; i < steps.length; i++) {
@@ -95,7 +97,7 @@ export function createRecorder({ flows, gatedStep, broadcast }: { flows: Pick<Fl
         }
         const stepArgs = flows.substituteTokens(step.args ?? {}, {}, results) as Record<string, unknown>;
         broadcast({ type: "web_replay_step", at: new Date().toISOString(), step: i + 1, of: steps.length, tool: stepTool });
-        const r = await gatedStep(stepTool, stepArgs, stepTimeoutMs, session);
+        const r = await budgeted(stepTool, stepArgs, stepTimeoutMs, session);
         results.push({ step: i + 1, tool: stepTool, ...r });
         if (!r.ok) {
           okAll = false;

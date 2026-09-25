@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFile
 import path from "node:path";
 import type { Response } from "express";
 import { DATA_DIR, log } from "./config.js";
-import type { createStepDispatch, StepResult } from "./web-multi-dispatch.js";
+import { withCallBudget, type createStepDispatch, type StepResult } from "./web-multi-dispatch.js";
 
 /** The one relay every hub-side call passes through (web.ts request()). */
 export type WebRelay = Parameters<typeof createStepDispatch>[1];
@@ -221,7 +221,8 @@ export function createFlowEngine({ broadcast, request, gatedStep }: { broadcast:
       const vars = (args.vars && typeof args.vars === "object" ? args.vars : {}) as Record<string, string>;
       const stopOnError = args.stopOnError !== false;
       const stepTimeoutMs = Math.min(Math.max(Number(args.stepTimeoutMs) || 45_000, 5_000), 60_000);
-      const run = await executeFlow(flow, vars, stopOnError, stepTimeoutMs, (t, a, ms) => gatedStep(t, a, ms, session));
+      const budgeted = withCallBudget(gatedStep); // every step of this run shares one time budget (web-timeouts.ts)
+      const run = await executeFlow(flow, vars, stopOnError, stepTimeoutMs, (t, a, ms) => budgeted(t, a, ms, session));
       res.json({ success: true, ok: run.okAll, data: { flow: flow.name, vars: Object.keys(vars), total: flow.steps.length, executed: run.executed, okAll: run.okAll, results: run.results } });
       return true;
     }
@@ -266,8 +267,10 @@ export function createFlowEngine({ broadcast, request, gatedStep }: { broadcast:
 
       // Each step meets the approval gate and is attributed to the calling session, like web_flow_run's steps: a
       // destructive click refused as a direct call must not run unasked because it was wrapped in a test.
+      // Every step of every test (retries included) shares one time budget (web-timeouts.ts).
+      const budgeted = withCallBudget(gatedStep);
       const runnerCallback = async (stepTool: string, stepArgs: Record<string, unknown>) => {
-        return await gatedStep(stepTool, stepArgs, 45_000, session);
+        return await budgeted(stepTool, stepArgs, 45_000, session);
       };
 
       const { runTestSuite } = await import("./test-runner.js");

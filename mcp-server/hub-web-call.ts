@@ -12,7 +12,7 @@
 import { randomUUID } from "node:crypto";
 import { AUTH_TOKEN, HTTP_PORT, hubSelfCheck } from "./config.js";
 import { APPROVAL_MAX_MS, APPROVAL_RUN_HEADROOM_MS } from "./web-ext-routes.js";
-import { LONGEST_STEP_WAIT_MS, MULTI_STEP_TOOLS, longWaitBudgetMs } from "./web-timeouts.js";
+import { MULTI_STEP_BUDGET_MS, MULTI_STEP_TOOLS, longWaitBudgetMs } from "./web-timeouts.js";
 
 export type HubWebResult = { ok: boolean; data?: unknown; error?: string; code?: string; retryable?: boolean };
 
@@ -50,8 +50,10 @@ export function callTimeoutOf(args: Record<string, unknown>, tool?: string): num
  * (a person being asked), or the transport gives up first and the real outcome is lost.
  */
 export function transportTimeoutMs(callTimeoutMs: number, tool?: string): number {
-  // A multi-step tool (web_flow_run, web_replay, ...) may hold a long-wait step (web_takeover: up to 10 min).
-  const floor = tool && MULTI_STEP_TOOLS.has(tool) ? Math.max(HUB_MAX_HOLD_MS, LONGEST_STEP_WAIT_MS) : HUB_MAX_HOLD_MS;
+  // A multi-step tool (web_flow_run, web_replay, web_fanout, ...) holds the hub for at most its call budget
+  // (web-timeouts.ts: no step starts once it is spent), and a person asked about its last step may add up to one
+  // approval hold (HUB_MAX_HOLD_MS) on top.
+  const floor = tool && MULTI_STEP_TOOLS.has(tool) ? MULTI_STEP_BUDGET_MS + HUB_MAX_HOLD_MS : HUB_MAX_HOLD_MS;
   return Math.max(callTimeoutMs, floor) + TRANSPORT_MARGIN_MS;
 }
 

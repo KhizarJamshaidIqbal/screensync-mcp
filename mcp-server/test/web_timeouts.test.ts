@@ -4,9 +4,10 @@
 // and web_wait_download for a download (up to 2 min): the catalog advertises those budgets, the extension honours
 // them, and the hub answered TIMEOUT at 65s while the person was still logging in. Ordinary tools are unchanged.
 
+import "./_isolate-data-dir.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HUB_DEFAULT_WAIT_MS, HUB_MAX_WAIT_MS, HUB_MIN_WAIT_MS, LONG_WAIT_MARGIN_MS, LONG_WAIT_TOOLS, LONGEST_STEP_WAIT_MS, hubWaitMs, longWaitBudgetMs, stepWaitMs } from "../web-timeouts.js";
+import { HUB_DEFAULT_WAIT_MS, HUB_MAX_WAIT_MS, HUB_MIN_WAIT_MS, LONG_WAIT_MARGIN_MS, LONG_WAIT_TOOLS, LONGEST_STEP_WAIT_MS, MULTI_STEP_TOOLS, hubWaitMs, longWaitBudgetMs, stepWaitMs } from "../web-timeouts.js";
 
 test("ordinary tools keep the old 5-65s clamp", () => {
   assert.equal(hubWaitMs("web_click", undefined), HUB_DEFAULT_WAIT_MS);
@@ -51,4 +52,38 @@ test("stepWaitMs: a relayed long-wait step keeps its own budget; any other step 
   assert.equal(stepWaitMs("web_click", { timeoutMs: 600_000 }, 45_000), 45_000);
   assert.equal(stepWaitMs("web_takeover", undefined, 45_000), 300_000 + LONG_WAIT_MARGIN_MS);
   assert.equal(LONGEST_STEP_WAIT_MS, 600_000 + LONG_WAIT_MARGIN_MS);
+});
+
+test("a multi-step call's steps share one budget: each waits at most what is left, none starts once it is spent", async () => {
+  const { fitStepToBudget, MULTI_STEP_BUDGET_MS, MIN_STEP_BUDGET_MS } = await import("../web-timeouts.js");
+  const { withCallBudget, CALL_BUDGET_SPENT } = await import("../web-multi-dispatch.js");
+  const { transportTimeoutMs, HUB_MAX_HOLD_MS } = await import("../hub-web-call.js");
+  // Plenty left: unchanged.
+  assert.deepEqual(fitStepToBudget("web_click", { a: 1 }, 45_000, 600_000), { args: { a: 1 }, timeoutMs: 45_000 });
+  assert.deepEqual(fitStepToBudget("web_takeover", { timeoutMs: 600_000 }, 45_000, MULTI_STEP_BUDGET_MS), { args: { timeoutMs: 600_000 }, timeoutMs: 45_000 });
+  // Little left: the relay waits only that long, and a long tool's own budget shrinks so the browser gives up too.
+  assert.deepEqual(fitStepToBudget("web_click", {}, 45_000, 20_000), { args: {}, timeoutMs: 20_000 });
+  const fitted = fitStepToBudget("web_takeover", { timeoutMs: 600_000, reason: "x" }, 45_000, 100_000)!;
+  assert.deepEqual(fitted, { args: { timeoutMs: 100_000 - LONG_WAIT_MARGIN_MS, reason: "x" }, timeoutMs: 45_000 });
+  assert.equal(stepWaitMs("web_takeover", fitted.args, fitted.timeoutMs), 100_000, "the hub's wait for it fits exactly");
+  assert.equal(fitStepToBudget("web_click", {}, 45_000, MIN_STEP_BUDGET_MS - 1), null, "too little left: not started");
+
+  // Two 10-minute takeovers in one call: the second is never sent.
+  let t = 0;
+  const sent: Array<{ tool: string; args: Record<string, unknown>; timeoutMs: number }> = [];
+  const step = withCallBudget(async (tool, args, timeoutMs) => {
+    sent.push({ tool, args, timeoutMs });
+    t += stepWaitMs(tool, args, timeoutMs); // the step holds the hub for its whole wait
+    return { ok: false, code: "TAKEOVER_TIMEOUT" };
+  }, MULTI_STEP_BUDGET_MS, () => t);
+  await step("web_takeover", { timeoutMs: 600_000 }, 45_000, "s");
+  const second = await step("web_takeover", { timeoutMs: 600_000 }, 45_000, "s");
+  assert.equal(sent.length, 1, "the second takeover is not relayed");
+  assert.equal(second.code, CALL_BUDGET_SPENT);
+  assert.equal(second.retryable, false);
+  assert.ok(t <= MULTI_STEP_BUDGET_MS, "the call ended within its budget");
+  // The MCP side outlives the budget plus one approval hold on the last step.
+  for (const multi of MULTI_STEP_TOOLS) {
+    assert.ok(transportTimeoutMs(45_000, multi) > MULTI_STEP_BUDGET_MS + HUB_MAX_HOLD_MS, `${multi}: transport outlives the call budget`);
+  }
 });

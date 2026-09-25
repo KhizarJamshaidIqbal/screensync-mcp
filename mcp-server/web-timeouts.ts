@@ -63,3 +63,29 @@ export const MULTI_STEP_TOOLS: ReadonlySet<string> = new Set(["web_flow_run", "w
 
 /** The longest a single relayed step can hold the hub: the largest long-wait maximum plus its margin. */
 export const LONGEST_STEP_WAIT_MS = Math.max(...Object.values(LONG_WAIT_TOOLS).map((l) => l.maxMs)) + LONG_WAIT_MARGIN_MS;
+
+/**
+ * The most ONE multi-step call (web_fanout over browsers, a flow with several web_takeover steps, a test run's
+ * retries) may spend relaying its steps. The steps share it: each waits at most what is left, and no step starts
+ * once it is spent. Without it the hub could hold the call for 20 minutes while the MCP side, which has to give up
+ * at some point, answered TIMEOUT and the hub went on relaying (a second takeover put in front of a person).
+ */
+export const MULTI_STEP_BUDGET_MS = LONGEST_STEP_WAIT_MS;
+/** A step is not started with less than this left of its call's budget. */
+export const MIN_STEP_BUDGET_MS = HUB_MIN_WAIT_MS;
+
+/**
+ * Fits one step into `remainingMs` of its call's budget: the relay's timeout is capped to it, and a long-wait
+ * tool's own budget (args.timeoutMs, which the extension also honours) is shortened so the browser gives up when
+ * the hub does. null when too little is left to start the step at all.
+ */
+export function fitStepToBudget(
+  tool: string, args: Record<string, unknown>, stepTimeoutMs: number, remainingMs: number,
+): { args: Record<string, unknown>; timeoutMs: number } | null {
+  if (!(remainingMs >= MIN_STEP_BUDGET_MS)) return null;
+  const timeoutMs = Math.min(stepTimeoutMs, remainingMs);
+  const own = longWaitBudgetMs(tool, args?.timeoutMs);
+  if (own === null || own + LONG_WAIT_MARGIN_MS <= remainingMs) return { args, timeoutMs };
+  const fitted = remainingMs - LONG_WAIT_MARGIN_MS;
+  return fitted >= 1_000 ? { args: { ...args, timeoutMs: fitted }, timeoutMs } : null;
+}

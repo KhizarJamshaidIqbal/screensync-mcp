@@ -9,6 +9,7 @@ import type { Response } from "express";
 import type { DispatchDecision } from "./profile-registry.js";
 import { gateBeforeRelay, refusedByGate, type GateDecision } from "./cognitive-policy.js";
 import type { WebToolResult } from "./web.js";
+import { MULTI_STEP_BUDGET_MS, fitStepToBudget } from "./web-timeouts.js";
 
 type Relay = (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision, decided?: DispatchDecision) => Promise<WebToolResult>;
 export type StepResult = WebToolResult & { cognitiveGate?: GateDecision };
@@ -39,5 +40,29 @@ export function createStepDispatch(resolveDispatch: (args: Record<string, unknow
     // sending (unroutable, or its browser's stream is down) keeps the gate's own verdict.
     const relayed = route.ok && !(typeof result.code === "string" && NOT_RELAYED_CODES.has(result.code));
     return { ...result, cognitiveGate: gate.block && relayed ? { ...gate.decision, verdict: "asked" } : gate.decision };
+  };
+}
+
+type Step = ReturnType<typeof createStepDispatch>;
+
+/** Code of a step that was not started because its multi-step call had used its whole time budget. */
+export const CALL_BUDGET_SPENT = "CALL_BUDGET_SPENT";
+
+/**
+ * One multi-step call's steps sharing ONE time budget (web-timeouts.ts MULTI_STEP_BUDGET_MS, counted from when
+ * this is created): each step waits at most what is left, and once too little is left every further step is
+ * answered CALL_BUDGET_SPENT without being relayed, so the call ends before the MCP side stops waiting for it.
+ */
+export function withCallBudget(step: Step, budgetMs = MULTI_STEP_BUDGET_MS, now: () => number = Date.now): Step {
+  const deadline = now() + budgetMs;
+  return async (tool, args, timeoutMs, session, decided) => {
+    const fitted = fitStepToBudget(tool, args, timeoutMs, deadline - now());
+    if (!fitted) {
+      return {
+        ok: false, code: CALL_BUDGET_SPENT, retryable: false,
+        error: `Not run: this multi-step call used its whole time budget (${Math.round(budgetMs / 60_000)} min) on earlier steps, so ${tool} was never sent. Run the remaining steps as a separate call.`,
+      };
+    }
+    return step(tool, fitted.args, fitted.timeoutMs, session, decided);
   };
 }
