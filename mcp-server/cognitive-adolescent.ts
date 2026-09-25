@@ -10,6 +10,7 @@
 // 8. Adult Wisdom Calibration (Baltes: knowledge-rich + uncertainty-humble cognition)
 
 import { asRecord, toMap } from "./cognitive-serial.js";
+import { rekeyByDomain } from "./cognitive-domain.js";
 
 export type EriksonStage =
   | "TRUST_VS_MISTRUST"          // 0-1: does this domain respond reliably at all?
@@ -259,7 +260,10 @@ export class AdolescentCognitionEngine {
   public restoreState(raw: unknown): void {
     const s = asRecord(raw, "adolescent");
     const profiles = toMap<AdolescentProfile>(s.profiles, "adolescent.profiles");
-    this.profiles = profiles;
+    // Re-keyed by the canonical domain (the tool layer canonicalizes args.domain now); the newer profile wins.
+    this.profiles = rekeyByDomain(profiles, (a, b) => (String(b.updatedAt) >= String(a.updatedAt) ? b : a), {
+      fix: (p, key) => (p && typeof p === "object" ? { ...p, domain: key } : p),
+    });
   }
 }
 

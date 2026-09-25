@@ -289,3 +289,55 @@ export function evaluate(rec: SpineRecord, now: number): Evaluation {
     vouch: vouch ? { level: vouch.level, requested: vouch.requested, at: iso(vouch.at)!, reason: vouch.reason } : null,
   };
 }
+
+/**
+ * One record from two that turned out to be the same domain (a store written under an older spelling, see
+ * cognitive-spine.ts restoreState). Evidence is summed, per-session tallies are combined, timestamps keep their
+ * extremes and the more recently active record decides the running state (consecutive failures, the order of
+ * recent outcomes). The higher level survives only when the merged evidence meets that level's requirements;
+ * otherwise the lower of the two, which one record already held on its own evidence.
+ */
+export function mergeRecords(a: SpineRecord, b: SpineRecord, domain: string, now: number): SpineRecord {
+  const [older, newer] = a.lastSeenAt <= b.lastSeenAt ? [a, b] : [b, a];
+  const minOf = (x: number | null, y: number | null) => (x === null ? y : y === null ? x : Math.min(x, y));
+  const maxOf = (x: number | null, y: number | null) => (x === null ? y : y === null ? x : Math.max(x, y));
+  const sessions: Record<string, SessionTally> = { ...older.sessions };
+  for (const [id, t] of Object.entries(newer.sessions)) {
+    const o = sessions[id];
+    sessions[id] = o
+      ? { first: Math.min(o.first, t.first), last: Math.max(o.last, t.last), verified: o.verified + t.verified, weak: o.weak + t.weak, reported: o.reported + t.reported }
+      : { ...t };
+  }
+  const merged: SpineRecord = {
+    domain,
+    level: newer.level,
+    levelSince: newer.levelSince,
+    firstSeenAt: Math.min(a.firstSeenAt, b.firstSeenAt),
+    lastSeenAt: Math.max(a.lastSeenAt, b.lastSeenAt),
+    firstSuccessAt: minOf(a.firstSuccessAt, b.firstSuccessAt),
+    lastSuccessAt: maxOf(a.lastSuccessAt, b.lastSuccessAt),
+    lastFailureAt: maxOf(a.lastFailureAt, b.lastFailureAt),
+    lastBreakerAt: maxOf(a.lastBreakerAt, b.lastBreakerAt),
+    regressedAt: maxOf(a.regressedAt, b.regressedAt),
+    frozenUntil: Math.max(a.frozenUntil, b.frozenUntil),
+    decayedThrough: Math.max(a.decayedThrough, b.decayedThrough),
+    consecutiveFailures: newer.consecutiveFailures,
+    totals: {
+      verified: a.totals.verified + b.totals.verified, weak: a.totals.weak + b.totals.weak, reported: a.totals.reported + b.totals.reported,
+      failures: a.totals.failures + b.totals.failures, breakers: a.totals.breakers + b.totals.breakers,
+    },
+    recent: [...older.recent, ...newer.recent].slice(-RECENT_MAX),
+    sessions,
+    archived: { w: a.archived.w + b.archived.w, sessions: a.archived.sessions + b.archived.sessions },
+    vouches: [...a.vouches, ...b.vouches].sort((x, y) => x.at - y.at).slice(-VOUCH_LOG_MAX),
+    wisdom: !a.wisdom ? b.wisdom : !b.wisdom ? a.wisdom : a.wisdom.at >= b.wisdom.at ? a.wisdom : b.wisdom,
+  };
+  trimSessions(merged);
+  const [low, high] = a.level <= b.level ? [a, b] : [b, a];
+  // A freeze only stops a promotion; it says nothing about whether a level already held is supported.
+  const supported = high.level === 1 || gaps(merged, high.level as 2 | 3 | 4 | 5, now).every((g) => g.startsWith("promotion is frozen"));
+  const kept = supported ? high : low;
+  merged.level = kept.level;
+  merged.levelSince = kept.levelSince;
+  return merged;
+}

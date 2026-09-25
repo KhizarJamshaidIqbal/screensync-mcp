@@ -14,6 +14,7 @@
 // Returning null never means "overwrite me". It means "set me aside and start fresh".
 
 import type { CognitiveMemoryData } from "./cognitive-memory.js";
+import { canonicalDomain, rekeyByDomain } from "./cognitive-domain.js";
 
 export const CURRENT_MEMORY_VERSION = "1.3.0" as const;
 
@@ -54,6 +55,50 @@ const UPGRADES: Record<string, (d: Raw) => Raw> = {
   "1.2.0": (d) => ({ ...d, reflections: isObj(d.reflections) ? d.reflections : {}, version: "1.3.0" }),
 };
 
+
+/**
+ * Every domain in the store in its canonical spelling (cognitive-domain.ts). Before every writer used it, a
+ * store could hold "x.com." (trailing dot), "https://x.com" or a unicode host, which no lookup reaches any more.
+ * Two spellings of one domain are combined, never dropped: facts merge with the more recently verified record's
+ * fields winning, pitfall and reflection lists are concatenated (hygiene merges duplicate pitfalls; the next reflect
+ * pass supersedes reflections by key). A key that is no domain at all is left as
+ * it is. Idempotent, so it runs on every load and needs no version step. Returns whether anything moved.
+ */
+function canonicalizeDomains(data: Raw): boolean {
+  let changed = false;
+  const fixDomainField = <T>(v: T, key: string): T => {
+    if (!isObj(v) || v.domain === key) return v;
+    changed = true;
+    return { ...v, domain: key } as T;
+  };
+  const rekey = <T>(name: "domains" | "pitfalls" | "reflections", merge: (a: T, b: T) => T, fix?: (v: T, key: string) => T) => {
+    const src = data[name] as Record<string, T>;
+    const out = rekeyByDomain(Object.entries(src), merge, { fix });
+    if (out.size !== Object.keys(src).length || [...out.keys()].some((k) => !(k in src))) changed = true;
+    data[name] = Object.fromEntries(out);
+  };
+  const verifiedAt = (v: unknown) => String(isObj(v) ? v.lastVerifiedAt ?? "" : "");
+  rekey<unknown>("domains", (a, b) => {
+    if (!isObj(a) || !isObj(b)) return isObj(a) ? a : b;
+    const [older, newer] = verifiedAt(a) <= verifiedAt(b) ? [a, b] : [b, a];
+    return { ...older, ...newer };
+  }, fixDomainField);
+  const concatLists = (a: unknown, b: unknown) => [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])];
+  const fixEach = (list: unknown, key: string) => (Array.isArray(list) ? list.map((x) => fixDomainField(x, key)) : list);
+  rekey<unknown>("pitfalls", concatLists, fixEach);
+  rekey<unknown>("reflections", concatLists, fixEach);
+  for (const e of data.episodes as unknown[]) {
+    if (!isObj(e) || typeof e.domain !== "string") continue;
+    const canon = canonicalDomain(e.domain);
+    if (canon && canon !== e.domain) { e.domain = canon; changed = true; }
+  }
+  for (const pb of Object.values(data.playbooks as Raw)) {
+    if (!isObj(pb) || typeof pb.domain !== "string") continue;
+    const canon = canonicalDomain(pb.domain);
+    if (canon && canon !== pb.domain) { pb.domain = canon; changed = true; }
+  }
+  return changed;
+}
 
 function parseVersion(v: string): number[] | null {
   const parts = v.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : NaN));
@@ -141,6 +186,8 @@ export function migrateMemory(raw: unknown): { data: CognitiveMemoryData; change
   } else if (!Array.isArray(data.episodes)) {
     return null;
   }
+
+  if (canonicalizeDomains(data)) changed = true;
 
   if (data.version !== CURRENT_MEMORY_VERSION) {
     data.version = CURRENT_MEMORY_VERSION;

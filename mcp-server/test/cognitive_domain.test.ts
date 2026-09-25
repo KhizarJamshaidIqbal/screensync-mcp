@@ -9,6 +9,9 @@ import { canonicalDomain } from "../cognitive-domain.js";
 import { CognitiveSpine, normalizeDomain } from "../cognitive-spine.js";
 import { SpineObserver, hostOf } from "../cognitive-spine-observer.js";
 import { cognitiveStore } from "../cognitive-memory.js";
+import { AdolescentCognitionEngine } from "../cognitive-adolescent.js";
+import { CognitiveLifespanEngine } from "../cognitive-lifespan.js";
+import { migrateMemory } from "../cognitive-memory-migrate.js";
 
 const SPELLINGS = ["x.com", "X.COM", "www.x.com", "WWW.x.com", "x.com:443", "https://x.com", "https://WWW.x.com:443/", "http://x.com/home?tab=1", "  x.com.  ", "https://x.com./path#frag"];
 
@@ -71,4 +74,71 @@ test("M4: a verified success is claimable under any spelling of the domain", () 
   observer.observe({ tool: "web_click", args: { tabId: 7, selector: "#go" }, result: { ok: true }, session });
   observer.observe({ tool: "web_expect", args: { tabId: 7, selector: "#composer", condition: "visible" }, result: { ok: true, data: { passed: true } }, session });
   assert.equal(observer.claimVerifiedCredit(session, "WWW.x.com:443"), true);
+});
+
+// ── stores written before every writer used canonicalDomain are re-keyed on restore / load ──
+
+test("spine restore: legacy spellings of one domain merge into its canonical record; a non-domain key is dropped", () => {
+  const T = Date.UTC(2026, 5, 1);
+  const a = new CognitiveSpine(() => T);
+  a.record("x.com", "verified", "s1", T);
+  a.record("x.com", "verified", "s1", T + 1);
+  a.vouch("x.com", 2, "owner vouched", "s1", T + 2);
+  const b = new CognitiveSpine(() => T);
+  b.record("x.com", "verified", "s2", T + 10);
+  b.record("x.com", "failure", "s2", T + 11);
+  const recOf = (s: CognitiveSpine) => (s.snapshotState() as { records: Array<[string, unknown]> }).records[0][1];
+  const legacy = { records: [["https://x.com", recOf(a)], ["x.com:443", recOf(b)], ["not a domain!!", recOf(b)]] };
+  const revived = new CognitiveSpine(() => T + 100);
+  revived.restoreState(JSON.parse(JSON.stringify(legacy)));
+  assert.deepEqual(revived.domains(), ["x.com"], "one record, under the canonical key");
+  const ev = revived.evaluate("https://WWW.x.com:443/");
+  assert.equal(ev.domain, "x.com");
+  assert.equal(ev.evidence.verified, 3, "the evidence of both spellings is summed");
+  assert.equal(ev.evidence.failures, 1);
+  assert.equal(ev.evidence.sessions, 2);
+  assert.equal(ev.vouch?.reason, "owner vouched", "the vouch survives");
+  const again = new CognitiveSpine(() => T + 100);
+  again.restoreState(revived.snapshotState());
+  assert.equal(JSON.stringify(again.snapshotState()), JSON.stringify(revived.snapshotState()), "idempotent");
+});
+
+test("adolescent and lifespan restore re-key their domain maps", () => {
+  const ado = new AdolescentCognitionEngine();
+  ado.restoreState({ profiles: [["https://x.com", { domain: "https://x.com", updatedAt: "2026-01-01" }], ["x.com.", { domain: "x.com.", updatedAt: "2026-02-01" }]] });
+  const profiles = (ado.snapshotState() as { profiles: Array<[string, { domain: string; updatedAt: string }]> }).profiles;
+  assert.deepEqual(profiles.map(([k, p]) => [k, p.domain, p.updatedAt]), [["x.com", "x.com", "2026-02-01"]], "the newer profile wins");
+  const life = new CognitiveLifespanEngine();
+  life.restoreState({ motorProfiles: [["x.com:443", { domain: "x.com:443", verifiedAt: "2026-01-01" }]], metaphoricMappings: [["https://x.com", [{ id: 1 }]], ["x.com", [{ id: 2 }]]] });
+  const snap = life.snapshotState() as { motorProfiles: Array<[string, { domain: string }]>; metaphoricMappings: Array<[string, unknown[]]> };
+  assert.deepEqual(snap.motorProfiles.map(([k, p]) => [k, p.domain]), [["x.com", "x.com"]]);
+  assert.deepEqual(snap.metaphoricMappings, [["x.com", [{ id: 1 }, { id: 2 }]]], "both spellings' metaphors kept");
+});
+
+test("memory load: facts, pitfalls, reflections, episodes and playbooks move to the canonical domain, idempotently", () => {
+  const raw = {
+    version: "1.3.0", updatedAt: "2026-01-01T00:00:00.000Z",
+    domains: {
+      "x.com.": { domain: "x.com.", framework: "react", lastVerifiedAt: "2026-01-01" },
+      "https://X.com": { domain: "https://X.com", keySelectors: { compose: "#c" }, framework: "vue", lastVerifiedAt: "2026-02-01" },
+      "münchen.de": { domain: "münchen.de", framework: "none" },
+      "???": { domain: "???", framework: "kept as is" },
+    },
+    pitfalls: { "x.com:443": [{ id: "p1", domain: "x.com:443", symptom: "a" }], "x.com": [{ id: "p2", domain: "x.com", symptom: "b" }] },
+    reflections: { "https://x.com": [{ id: "r1", key: "k", domain: "https://x.com" }] },
+    playbooks: { "x.com.::post": { id: "post", name: "post", domain: "x.com.", intent: "post", steps: [] } },
+    episodes: [{ id: "e1", domain: "WWW.x.com", intent: "click", success: true, durationMs: 1, timestamp: "" }],
+  };
+  const out = migrateMemory(JSON.parse(JSON.stringify(raw)))!;
+  assert.equal(out.changed, true);
+  const d = out.data;
+  assert.deepEqual(Object.keys(d.domains).sort(), ["???", "x.com", "xn--mnchen-3ya.de"]);
+  assert.equal(d.domains["x.com"].framework, "vue", "the more recently verified record's fields win");
+  assert.deepEqual(d.domains["x.com"].keySelectors, { compose: "#c" });
+  assert.equal(d.domains["x.com"].domain, "x.com");
+  assert.deepEqual(d.pitfalls["x.com"].map((p) => [p.id, p.domain]), [["p1", "x.com"], ["p2", "x.com"]], "both pitfall lists kept");
+  assert.equal(d.reflections["x.com"][0].domain, "x.com");
+  assert.equal(d.playbooks["x.com.::post"].domain, "x.com", "playbook keys carry no meaning; the domain field moves");
+  assert.equal(d.episodes[0].domain, "x.com");
+  assert.equal(migrateMemory(JSON.parse(JSON.stringify(d)))!.changed, false, "a canonical store is left alone");
 });

@@ -9,9 +9,9 @@
 // "reported" claim. A human vouch is audited, capped at COMPETENT, and never becomes earned level.
 
 import { asRecord, toMap } from "./cognitive-serial.js";
-import { canonicalDomain } from "./cognitive-domain.js";
+import { canonicalDomain, rekeyByDomain } from "./cognitive-domain.js";
 import {
-  LEVEL_NAMES, applyEvidence, applyVouch, evaluate, newRecord,
+  LEVEL_NAMES, applyEvidence, applyVouch, evaluate, mergeRecords, newRecord,
   type EvidenceKind, type Evaluation, type Level, type SessionTally, type SpineRecord, type VouchEntry,
 } from "./cognitive-spine-ladder.js";
 
@@ -178,12 +178,21 @@ export class CognitiveSpine {
     return { records: [...this.records.entries()] };
   }
 
+  /**
+   * Records are re-keyed by the canonical domain: a snapshot from before every writer used it holds keys such as
+   * "https://x.com" or "x.com:443" that key() can no longer reach, so their evidence and vouches were lost and
+   * still counted toward MAX_DOMAINS. Two spellings of one domain are merged (mergeRecords); a key that is no
+   * domain at all could never be reached by key() and is dropped.
+   */
   public restoreState(raw: unknown): void {
     const s = asRecord(raw, "spine");
     const parsed = toMap<unknown>(s.records, "spine.records");
-    const next = new Map<string, SpineRecord>();
-    for (const [domain, value] of parsed) next.set(domain, coerceRecord(domain, value));
-    this.records = next;
+    const coerced: Array<[string, SpineRecord]> = [...parsed].map(([domain, value]) => [domain, coerceRecord(domain, value)]);
+    const now = this.clock();
+    this.records = rekeyByDomain(coerced, (kept, other) => mergeRecords(kept, other, kept.domain, now), {
+      fix: (rec, key) => (rec.domain === key ? rec : { ...rec, domain: key }),
+      dropInvalid: true,
+    });
   }
 }
 

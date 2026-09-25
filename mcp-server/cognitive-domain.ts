@@ -27,3 +27,27 @@ export function canonicalDomain(raw: unknown): string {
   }
   return host.replace(/\.+$/, "").replace(/^(?:www\.)+/, "");
 }
+
+/**
+ * A persisted map re-keyed by canonicalDomain(). Stores written before every writer used the canonical form
+ * hold keys such as "https://x.com", "x.com:443" or "münchen.de" that no lookup can reach any more. Entries
+ * that land on the same canonical key are combined with `merge(kept, other)`; `fix` can rewrite a value's own
+ * domain field. A key that does not parse as a domain is kept as it is (never silently dropped) unless
+ * `dropInvalid` is set.
+ */
+export function rekeyByDomain<T>(
+  entries: Iterable<[string, T]>,
+  merge: (kept: T, other: T) => T,
+  opts: { fix?: (value: T, key: string) => T; dropInvalid?: boolean } = {},
+): Map<string, T> {
+  const out = new Map<string, T>();
+  for (const [raw, value] of entries) {
+    const canon = canonicalDomain(raw);
+    if (!canon && opts.dropInvalid) continue;
+    const key = canon || raw;
+    const v = opts.fix ? opts.fix(value, key) : value;
+    const prev = out.get(key);
+    out.set(key, prev === undefined ? v : merge(prev, v));
+  }
+  return out;
+}

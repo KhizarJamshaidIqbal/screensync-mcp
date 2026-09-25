@@ -6,6 +6,7 @@
 // 4. Gentner's Structure-Mapping Analogical Metaphoric Transfer
 
 import { asRecord, toMap } from "./cognitive-serial.js";
+import { rekeyByDomain } from "./cognitive-domain.js";
 
 export type LifespanStage =
   | "LEVEL_1_INFANT_REFLEX"
@@ -290,8 +291,12 @@ export class CognitiveLifespanEngine {
     const s = asRecord(raw, "lifespan");
     const motorProfiles = toMap<MotorCalibrationProfile>(s.motorProfiles, "lifespan.motorProfiles");
     const metaphoricMappings = toMap<MetaphoricMapping[]>(s.metaphoricMappings, "lifespan.metaphoricMappings");
-    this.motorProfiles = motorProfiles;
-    this.metaphoricMappings = metaphoricMappings;
+    // Re-keyed by the canonical domain (the tool layer canonicalizes args.domain now): the newer calibration wins,
+    // and two spellings' metaphors are kept together.
+    this.motorProfiles = rekeyByDomain(motorProfiles, (a, b) => (String(b.verifiedAt) >= String(a.verifiedAt) ? b : a), {
+      fix: (p, key) => (p && typeof p === "object" ? { ...p, domain: key } : p),
+    });
+    this.metaphoricMappings = rekeyByDomain(metaphoricMappings, (a, b) => [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]);
   }
 }
 
