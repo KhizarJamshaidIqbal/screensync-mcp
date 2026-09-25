@@ -1,7 +1,34 @@
 {
-  "generatedAt": "2026-09-25T20:21:04Z",
+  "generatedAt": "2026-09-25T20:48:43Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
+    {
+      "sha": "b94d315",
+      "date": "2026-09-26",
+      "ts": 1790369310,
+      "parts": [
+        {
+          "stream": "extension",
+          "streamLabel": "Extension",
+          "version": "1.14.2",
+          "build": "",
+          "display": "1.14.2",
+          "date": "2026-09-26",
+          "ts": 1790369310,
+          "sha": "b94d315",
+          "groups": {
+            "NEW": [],
+            "IMPROVED": [],
+            "FIXED": [
+              "Reconnect the live stream within seconds after a hub restart"
+            ]
+          },
+          "count": 1
+        }
+      ],
+      "count": 1,
+      "title": "Extension 1.14.2"
+    },
     {
       "sha": "112e9f9",
       "date": "2026-09-26",
@@ -570,9 +597,9 @@
     }
   ],
   "stats": {
-    "releases": 17,
+    "releases": 18,
     "appReleases": 6,
-    "extensionReleases": 11,
-    "changes": 111
+    "extensionReleases": 12,
+    "changes": 112
   }
 }
