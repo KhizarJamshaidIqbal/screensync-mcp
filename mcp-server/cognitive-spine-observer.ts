@@ -116,7 +116,9 @@ export class SpineObserver {
   /**
    * The domain a result belongs to. Most tools name it (url / origin / domain, or a url in the reply);
    * a click or an assertion does not, so those inherit the last domain seen on the same tab, or else
-   * in the same session within CONTEXT_TTL_MS.
+   * in the same session within CONTEXT_TTL_MS. A call that names a url of its own which is no site (localhost,
+   * file:, about:, chrome:) is on no domain: it inherits nothing, and the tab and session forget their last
+   * domain, so neither it nor the clicks that follow on that page are filed under the site visited before.
    */
   public resolveDomain(args: Record<string, unknown>, data: unknown, session: string, now: number): string {
     const tabId = args.tabId ?? (data as { tabId?: unknown } | null | undefined)?.tabId;
@@ -126,6 +128,13 @@ export class SpineObserver {
       this.sessionDomain.set(session, { domain: direct, t: now });
       if (tabKey) this.tabDomain.set(tabKey, { domain: direct, t: now });
       return direct;
+    }
+    const named = [args.url, args.origin, (data as { url?: unknown } | null | undefined)?.url]
+      .some((u) => typeof u === "string" && u.trim() !== "");
+    if (named) {
+      if (tabKey) this.tabDomain.delete(tabKey);
+      this.sessionDomain.delete(session);
+      return "";
     }
     const byTab = tabKey ? this.tabDomain.get(tabKey) : undefined;
     if (byTab && now - byTab.t <= CONTEXT_TTL_MS) return byTab.domain;

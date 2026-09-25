@@ -54,6 +54,21 @@ test("the tracker never logs the local machine or an unresolved domain", () => {
   assert.equal(cognitiveStore.load().episodes.length, before);
 });
 
+test("a local or non-web navigation after a real site is filed under neither, nor are the clicks on that page", () => {
+  const session = "tracker-local-after-site";
+  trackToolExecution("web_navigate", { url: "https://inherit.example/", tabId: 1 }, { ok: true }, 10, session);
+  const onSite = episodesFor(cognitiveStore, "inherit.example").length;
+  trackToolExecution("web_navigate", { url: "http://localhost:3000/admin", tabId: 1 }, { ok: false, error: "net::ERR_CONNECTION_REFUSED" }, 10, session);
+  trackToolExecution("web_navigate", { url: "file:///C:/tmp/a.html" }, { ok: true }, 10, session);
+  trackToolExecution("web_click", { tabId: 1, selector: "#local" }, { ok: true }, 10, session);
+  trackToolExecution("web_click", { selector: "#local" }, { ok: true }, 10, session);
+  assert.equal(episodesFor(cognitiveStore, "inherit.example").length, onSite, "nothing on the local pages lands on inherit.example");
+  // Back on a real site, attribution resumes.
+  trackToolExecution("web_navigate", { url: "https://inherit.example/next", tabId: 1 }, { ok: true }, 10, session);
+  trackToolExecution("web_click", { tabId: 1, selector: "#a" }, { ok: true }, 10, session);
+  assert.equal(episodesFor(cognitiveStore, "inherit.example").length, onSite + 2);
+});
+
 test("M9: tracker episodes are saved once, coalesced, and flushed by stopCognitivePersistence", () => {
   const session = "tracker-defer";
   cognitiveStore.flush();
