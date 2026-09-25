@@ -1,5 +1,5 @@
 // ScreenSync Web Bridge - the calls hub-side tools relay on their own (web_fanout, web_tab_fanout, web_flow_run,
-// web_replay, web_visual_baseline).
+// web_replay, web_test_run, web_visual_baseline).
 //
 // The tool route makes ONE routing decision per call and uses it for everything that call touches: the approval
 // gate and the dispatch. A tool that relays several calls must do the same for each of them. Split out of web.ts,
@@ -12,6 +12,9 @@ import type { WebToolResult } from "./web.js";
 
 type Relay = (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision, decided?: DispatchDecision) => Promise<WebToolResult>;
 export type StepResult = WebToolResult & { cognitiveGate?: GateDecision };
+
+/** Codes with which the relay refuses a call before anything is sent: nobody was asked about it. */
+const NOT_RELAYED_CODES: ReadonlySet<string> = new Set(["BROWSER_STREAM_DOWN"]);
 
 /** Answers a call whose browser could not be decided, the way the tool route answers any routing refusal. */
 export function sendRouteRefusal(res: Response, route: Extract<DispatchDecision, { ok: false }>): void {
@@ -31,6 +34,10 @@ export function createStepDispatch(resolveDispatch: (args: Record<string, unknow
     const gate = gateBeforeRelay(tool, args, session);
     if (gate && refusedByGate(gate, route)) return { ok: false, error: gate.message ?? undefined, data: { gate: gate.decision } };
     const result = await relay(tool, args, timeoutMs, gate?.block ? gate.decision : undefined, route);
-    return gate ? { ...result, cognitiveGate: gate.block ? { ...gate.decision, verdict: "asked" } : gate.decision } : result;
+    if (!gate) return result;
+    // "asked" means it was relayed and a person was asked (cognitive-policy.ts); a step the relay refused before
+    // sending (unroutable, or its browser's stream is down) keeps the gate's own verdict.
+    const relayed = route.ok && !(typeof result.code === "string" && NOT_RELAYED_CODES.has(result.code));
+    return { ...result, cognitiveGate: gate.block && relayed ? { ...gate.decision, verdict: "asked" } : gate.decision };
   };
 }

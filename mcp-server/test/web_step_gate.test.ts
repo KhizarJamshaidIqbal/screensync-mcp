@@ -167,3 +167,17 @@ test("web_test_run: a risky step is put to a person where the browser can ask, a
     }
   }
 });
+
+test("a gated step whose browser's stream is down was never sent: its verdict is not 'asked'", async () => {
+  const hub = await startHub(undefined, { presence: () => false, streamGraceMs: 50 });
+  try {
+    await hub.register({ ...CAPABLE_A, sseAttribution: true });
+    const replay = await withGate("enforce", () => hub.call("web_replay", { steps: [{ tool: "web_click", args: DANGEROUS }] }));
+    const step = replay.data.results[0];
+    assert.equal(step.code, "BROWSER_STREAM_DOWN", JSON.stringify(step));
+    assert.deepEqual(marks(hub), [], "nothing was relayed");
+    assert.equal(step.cognitiveGate?.verdict, "block", "nobody was asked, so it is not reported as asked");
+  } finally {
+    await hub.close();
+  }
+});
