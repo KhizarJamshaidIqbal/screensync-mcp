@@ -54,6 +54,8 @@ function toast(msg, type = 'ok') {
 }
 
 // ── Tab switching ──
+// Diagnostics handle (assigned once mounted below); switchTab can run before that.
+let diag = null;
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabPanels = document.querySelectorAll('.tab-panel');
 
@@ -61,6 +63,7 @@ function switchTab(tabId) {
   for (const btn of tabBtns) btn.classList.toggle('active', btn.dataset.tab === tabId);
   for (const panel of tabPanels) panel.classList.toggle('active', panel.id === `panel-${tabId}`);
   history.replaceState(null, '', '#' + tabId);
+  if (tabId === 'diagnostics' && diag) diag.refresh();
 }
 
 for (const btn of tabBtns) {
@@ -90,7 +93,9 @@ mountCatalog(document.getElementById('catalog'), send);
 mountWebAccess(document.getElementById('web-access'), send);
 renderViewers(document.getElementById('viewers-top'), send);
 mountAgentConsole(document.getElementById('agent-console'), send, toast);
-mountDiagnosticsView(document.getElementById('diagnostics-panel'), send, toast);
+diag = mountDiagnosticsView(document.getElementById('diagnostics-panel'), send, toast, {
+  isVisible: () => Boolean(document.getElementById('panel-diagnostics')?.classList.contains('active')),
+});
 mountThreatStateView(document.getElementById('threat-state-panel'), send, toast);
 
 // ── Header buttons ──
@@ -138,6 +143,8 @@ function connectPort() {
 
 function handlePortMessage(msg) {
   if (!msg) return;
+  // SW state changed: the diagnostics tab re-reads (debounced, only while it is on screen).
+  if (diag && (msg.kind === 'snapshot' || msg.kind === 'sse-status' || msg.kind === 'health')) diag.onPortMessage(msg);
   switch (msg.kind) {
     case 'snapshot':
       if (msg.cache) applySnapshot(msg.cache);
