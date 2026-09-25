@@ -5,6 +5,7 @@ import { createSseSupervisor } from './lib/sse-supervisor.js';
 import { provideSwState } from './lib/sw-state.js';
 import { getInstanceId } from './lib/profile-identity.js';
 import { handleWebRequest, registerWebBridge } from './lib/web-bridge.js';
+import { selfBridgeStatus } from './lib/web-status-self.js';
 import { startAmbientCollector } from './lib/web-ambient.js';
 import { getGrantsForDisplay, saveOriginGrant, revokeOriginGrant, getPendingApprovals, resolveApproval } from './lib/consent.js';
 import { getAuditLog, exportAuditLog } from './lib/audit.js';
@@ -259,7 +260,9 @@ chrome.runtime.onMessage.addListener(ownerMessagesOnly((msg, _sender, sendRespon
             const r = await hubFetch('/api/web/status');
             bridge = r.status || r;
           } catch (e) { bridge = { online: false, error: e.message }; }
-          sendResponse({ ok: true, webAccessEnabled: !!settings.webAccessEnabled, bridge });
+          // `bridge` describes the hub's routing target; `self` is THIS browser (web-status-self.js).
+          const self = selfBridgeStatus(bridge, await getInstanceId().catch(() => null));
+          sendResponse({ ok: true, webAccessEnabled: !!settings.webAccessEnabled, bridge, self });
           break;
         }
         case 'set-web-access': {
@@ -274,7 +277,8 @@ chrome.runtime.onMessage.addListener(ownerMessagesOnly((msg, _sender, sendRespon
           // can prove the loop before trusting it.
           try {
             const result = await hubFetch('/api/web/tool', { method: 'POST', body: { tool: 'web_status', args: {} } });
-            sendResponse({ ok: true, result });
+            const self = selfBridgeStatus(result && result.data, await getInstanceId().catch(() => null));
+            sendResponse({ ok: true, result, self });
           } catch (e) {
             sendResponse({ ok: true, result: { ok: false, error: e.message } });
           }

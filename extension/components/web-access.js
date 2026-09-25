@@ -70,7 +70,8 @@ export function mountWebAccess(el, send) {
     const r = await send({ type: 'get-web-status' });
     if (!r.ok) return;
     toggle.checked = !!r.webAccessEnabled;
-    const b = r.bridge || {};
+    // This browser's own entry on the hub (web-status-self.js), not the hub's routing target.
+    const b = r.self || { online: !!(r.bridge && r.bridge.online), activeTab: r.bridge && r.bridge.activeTab };
     if (b.online && r.webAccessEnabled) {
       pill.className = 'pill ok';
       pill.textContent = 'Bridge live · agents can use my browser';
@@ -153,7 +154,7 @@ export function mountWebAccess(el, send) {
     try {
       const r = await send({ type: 'web-test' });
       const res = r.result || {};
-      if (r.ok && res.ok && res.data && res.data.online) {
+      if (r.ok && res.ok && (r.self ? r.self.online : res.data && res.data.online)) {
         testBtn.textContent = 'Loop OK ✓';
         await refresh();
       } else if (r.ok && res.ok) {
