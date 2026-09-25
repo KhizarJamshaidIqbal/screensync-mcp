@@ -13,7 +13,7 @@ import { recordAuditEntry } from './audit.js';
 import { runWithApproval, stripInternalArgs } from './approval-gate.js';
 import { executeWebTool, isActTool } from './web-tools.js';
 import { requestAccess } from './access-request.js';
-import { admitWebRequest, localizeDeadline } from './web-request-admit.js';
+import { admitWebRequest, localizeDeadline, needsHubConfirmation } from './web-request-admit.js';
 
 export async function registerWebBridge() {
   let tab = null;
@@ -70,7 +70,21 @@ export async function registerWebBridge() {
   } catch {}
 }
 
-export async function handleWebRequest(req) {
+/**
+ * Asks the hub whether a request that may have outlived its wait is still pending; its fresh remainingMs if so,
+ * null if not (or the hub cannot say): running it then could act after the agent was told TIMEOUT.
+ */
+async function stillPendingOnHub(id) {
+  try {
+    const r = await hubFetch(`/api/web/pending/${encodeURIComponent(id)}`, { timeoutMs: 4_000 });
+    return r && r.success === true && Number.isFinite(r.remainingMs) ? r.remainingMs : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @param {object} req the web_request event  @param {{ silenceMs?: number }} [meta] from sse-client.js */
+export async function handleWebRequest(req, meta) {
   const { id, tool, args = {} } = req || {};
   const identity = await getProfileIdentity();
 
@@ -86,6 +100,16 @@ export async function handleWebRequest(req) {
   if (!admit.ok) {
     console.info(`[ss] web_request ${id || '?'} (${tool || '?'}) not run: ${admit.reason}`);
     return;
+  }
+  // A live event that sat in a stalled socket, or reached a sleeping machine late, can outlive the hub's wait
+  // although its remainingMs looks fresh: only the hub knows whether it is still waiting.
+  if (needsHubConfirmation(req, meta)) {
+    const remainingMs = await stillPendingOnHub(id);
+    if (remainingMs == null || remainingMs < 1000) {
+      console.info(`[ss] web_request ${id} (${tool || '?'}) not run: no longer pending on the hub`);
+      return;
+    }
+    req = { ...req, remainingMs };
   }
   // From here on the deadline is on this browser's clock (the hub's may be skewed): see localizeDeadline.
   req = localizeDeadline(req);

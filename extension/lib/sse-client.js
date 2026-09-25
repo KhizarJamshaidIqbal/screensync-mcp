@@ -162,10 +162,11 @@ export class SseClient {
     try { this.onStatus && this.onStatus(status, this.detail); } catch (e) { console.warn('[ss] sse onStatus failed:', e); }
   }
 
-  _dispatch(data) {
+  /** `meta.silenceMs`: how long the stream was silent before this event's bytes began arriving (see _attempt). */
+  _dispatch(data, meta) {
     let ev;
     try { ev = JSON.parse(data); } catch { return; } // malformed event
-    try { this.onEvent && this.onEvent(ev); } catch (e) { console.warn('[ss] sse onEvent failed:', e); }
+    try { this.onEvent && this.onEvent(ev, meta); } catch (e) { console.warn('[ss] sse onEvent failed:', e); }
   }
 
   async _loop(gen, firstDetail) {
@@ -263,12 +264,17 @@ export class SseClient {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    // How long the stream was silent before the bytes now in the buffer began to arrive. An event cannot have
+    // been sent before the data ahead of it arrived, so this bounds how late it is (a network stall, a sleeping
+    // machine): web-bridge.js asks the hub whether a request that may have outlived its wait is still pending.
+    let silenceMs = 0;
     const deliver = (text) => {
       const { events, rest } = parseSseChunk(text);
+      const meta = { silenceMs };
       for (const ev of events) {
         if (gen !== this.gen) return rest; // stopped/restarted by an earlier event's handler
         if (ev.id != null) this.lastEventId = ev.id;
-        this._dispatch(ev.data);
+        this._dispatch(ev.data, meta);
       }
       return rest;
     };
@@ -280,7 +286,9 @@ export class SseClient {
           deliver(buffer + decoder.decode()); // flush a multi-byte char held back by the decoder
           return { status: 'reconnecting', detail: 'stream ended by hub', openedFor: this._now() - openedAt };
         }
-        this.lastDataAt = this._now();
+        const at = this._now();
+        silenceMs = (buffer ? silenceMs : 0) + Math.max(0, at - this.lastDataAt);
+        this.lastDataAt = at;
         this._armLiveness(gen, ctrl);
         buffer = deliver(buffer + decoder.decode(value, { stream: true }));
       }

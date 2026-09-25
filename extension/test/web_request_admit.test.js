@@ -6,7 +6,7 @@ import { createChromeMock } from './harness.js';
 
 globalThis.chrome = createChromeMock();
 
-const { admitWebRequest, localizeDeadline, resetAdmittedRequests } = await import('../lib/web-request-admit.js');
+const { admitWebRequest, localizeDeadline, needsHubConfirmation, resetAdmittedRequests } = await import('../lib/web-request-admit.js');
 
 console.log('[test] running web_request_admit tests...');
 
@@ -45,6 +45,14 @@ assert.equal(localizeDeadline({ id: 'x', deadlineAt: NOW - SKEW, remainingMs: 20
 const untouched = { id: 'y', deadlineAt: 123 };
 assert.equal(localizeDeadline(untouched, NOW), untouched, 'no remainingMs: unchanged');
 
+// ── needsHubConfirmation: a live event that may have outlived the hub's wait is confirmed with the hub ──
+assert.equal(needsHubConfirmation(req('n1', { remainingMs: 45_000 }), { silenceMs: 30_000 }, NOW), false, 'idle keepalive gap');
+assert.equal(needsHubConfirmation(req('n2', { remainingMs: 45_000 }), { silenceMs: 44_500 }, NOW), true, 'silence ~ the whole wait');
+assert.equal(needsHubConfirmation(req('n3', { remainingMs: 5_000 }), { silenceMs: 10_000 }, NOW), true, 'a short wait after a long silence');
+assert.equal(needsHubConfirmation(req('n4', { remainingMs: 30_000, deadlineAt: NOW - 5_000 }), { silenceMs: 0 }, NOW), true,
+  'past its deadline on this clock (late, or a skewed hub): the hub decides');
+assert.equal(needsHubConfirmation(req('n5'), undefined, NOW), false, 'no meta, deadline ahead');
+
 // ── bounded memory: 256-entry LRU ──
 resetAdmittedRequests();
 for (let i = 0; i < 256; i++) assert.equal(admitWebRequest(req(`id${i}`), NOW).ok, true);
@@ -57,26 +65,47 @@ assert.equal(admitWebRequest(req('id1'), NOW).ok, true, 'evicted id admitted aga
 {
   resetAdmittedRequests();
   const posts = [];
+  const pendingOnHub = new Set(['b1']); // what the hub still waits for (GET /api/web/pending/:id)
+  const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   globalThis.fetch = async (url, init = {}) => {
     posts.push({ url: String(url), body: init.body ? JSON.parse(init.body) : null });
-    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    const pendingId = /\/api\/web\/pending\/([^/?]+)/.exec(String(url));
+    if (pendingId) {
+      return pendingOnHub.has(decodeURIComponent(pendingId[1]))
+        ? json({ success: true, remainingMs: 25_000 })
+        : json({ success: false, code: 'NOT_PENDING', error: 'Unknown or already-resolved request id.' }, 404);
+    }
+    return json({ ok: true });
   };
   // Web access off: an admitted request is answered (NO_GRANT) without touching any tab.
   await chrome.storage.local.set({ webAccessEnabled: false, instanceId: 'inst_self', profileEmail: 'me@x.test' });
   const { handleWebRequest } = await import('../lib/web-bridge.js');
   // The hub's clock is a minute behind this browser's: deadlineAt is "in the past" here, remainingMs is not.
+  // The hub is asked (not the local clock), confirms it still waits, and the request runs.
   const live = { ...req('b1'), deadlineAt: Date.now() - 60_000, remainingMs: 30_000, targetInstanceId: 'inst_self' };
-  await handleWebRequest(live);
+  await handleWebRequest(live, { silenceMs: 0 });
   const results = () => posts.filter((p) => p.url.endsWith('/api/web/result'));
+  const checks = () => posts.filter((p) => p.url.includes('/api/web/pending/'));
+  assert.equal(checks().length, 1, 'a deadline already past on this clock is confirmed with the hub');
   assert.equal(results().length, 1, 'a fresh request is answered, whatever the clock skew');
   assert.equal(results()[0].body.id, 'b1');
+  // A live event that sat in a stalled socket longer than the hub's wait: the hub already answered TIMEOUT.
+  const ahead = { ...req('stalled'), deadlineAt: Date.now() + 30_000, remainingMs: 45_000, targetInstanceId: 'inst_self' };
+  await handleWebRequest(ahead, { silenceMs: 60_000 });
+  assert.equal(checks().length, 2, 'a stall longer than the wait is confirmed with the hub');
+  assert.equal(results().length, 1, 'no longer pending on the hub: it runs nothing and posts nothing');
+  // An ordinary live event (short silence, deadline ahead) runs without a round trip to the hub.
+  await handleWebRequest({ ...ahead, id: 'prompt' }, { silenceMs: 2_000 });
+  assert.equal(checks().length, 2, 'no confirmation for an event that cannot have expired');
+  assert.equal(results().length, 2);
   await handleWebRequest({ ...live, replayed: true });
-  assert.equal(results().length, 1, 'the replayed duplicate posts nothing');
+  assert.equal(results().length, 2, 'the replayed duplicate posts nothing');
   await handleWebRequest({ ...live, id: 'b2', remainingMs: 0 });
-  assert.equal(results().length, 1, 'an expired request posts nothing');
+  assert.equal(results().length, 2, 'an expired request posts nothing');
+  pendingOnHub.add('b3');
   await handleWebRequest({ ...live, id: 'b3', targetInstanceId: 'someone-else' });
   await handleWebRequest({ ...live, id: 'b3' });
-  assert.equal(results().length, 2, 'a request for another profile does not consume its id here');
+  assert.equal(results().length, 3, 'a request for another profile does not consume its id here');
 }
 
 console.log('[test] web_request_admit: all passed');

@@ -46,7 +46,7 @@ function broadcast(msg) {
 }
 
 const sse = new SseClient({
-  onEvent: (ev) => {
+  onEvent: (ev, meta) => {
     if (ev && ev.type === 'dev_hot_reload') {
       console.info('[ss] Dev hot reload received from hub. Reloading runtime...');
       try { chrome.runtime.reload(); } catch {}
@@ -56,7 +56,7 @@ const sse = new SseClient({
     // against the user's browser and POST the result back — don't chart it
     // as a normal feed event.
     if (ev && ev.type === 'web_request') {
-      handleWebRequest(ev);
+      handleWebRequest(ev, meta);
       return;
     }
     // Live web_watch frames are high-volume; relay them to the dashboard live

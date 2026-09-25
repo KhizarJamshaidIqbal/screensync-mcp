@@ -351,4 +351,29 @@ async function done(t) {
   await done(t);
 }
 
+// ── meta.silenceMs: how long the stream was silent before an event's bytes began to arrive ──
+// (web-bridge.js asks the hub whether a web_request that may have sat in a stalled socket is still pending.)
+{
+  const t = setup();
+  const metas = [];
+  t.client.onEvent = (ev, meta) => { t.events.push(ev); metas.push(meta); };
+  t.fetchImpl.next('open');
+  t.client.start(HUB, 'tok');
+  await settle();
+  const s = t.fetchImpl.last().stream;
+  t.clock.jump(2_000);
+  s.push('data: {"n":1}\n\n');
+  await settle();
+  t.clock.jump(50_000); // a stall: nothing arrives for 50s (below the 90s liveness window)
+  s.push('data: {"n":2');
+  await settle();
+  t.clock.jump(1_000);
+  s.push('}\n\n');
+  await settle();
+  assert.deepEqual(t.events.map((e) => e.n), [1, 2]);
+  assert.equal(metas[0].silenceMs, 2_000);
+  assert.equal(metas[1].silenceMs, 51_000, 'measured from before the event\'s first bytes, across chunks');
+  await done(t);
+}
+
 console.log('[test] sse_client: all passed');
