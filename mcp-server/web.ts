@@ -187,7 +187,7 @@ export function createWebBridge(
     const entry = typeof e.payload.id === "string" ? pending.get(e.payload.id) : undefined;
     return entry ? { ...entry.payload, deadlineAt: entry.deadlineAt, remainingMs: Math.max(0, entry.deadlineAt - Date.now()) } : null;
   };
-  // A step of web_flow_run / web_replay / web_fanout / web_tab_fanout meets the approval gate like a direct call.
+  // A step of web_flow_run / web_replay / web_test_run / web_fanout / web_tab_fanout meets the approval gate like a direct call.
   const gatedStep = createStepDispatch(registry.resolveDispatch, request);
 
   // Flows library, test runner and schedules (web-flows.ts); the recorder (web-recorder.ts) saves through it.
