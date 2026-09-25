@@ -141,7 +141,7 @@ async function runH6Acceptance() {
 
   proc2.stderr.on("data", (chunk) => {
     const text = chunk.toString();
-    if (text.includes("HTTP port busy — continuing in MCP-only mode")) {
+    if (text.includes("continuing in MCP-only mode")) {
       proc2BusyLogged = true;
       console.log("[acceptance-h6] Process 2 detected port in use: entered MCP-only mode.");
     }
