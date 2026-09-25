@@ -88,8 +88,9 @@ export function connectKitText(): string {
  * IP entry. Pure mDNS — no traffic leaves the LAN.
  */
 export function advertiseHub(): () => void {
+  let bonjour: Bonjour | null = null;
   try {
-    const bonjour = new Bonjour();
+    bonjour = new Bonjour();
     const service: Service = bonjour.publish({
       name: `ScreenSync Hub (${os.hostname()})`,
       type: "screensync-hub",
@@ -97,11 +98,14 @@ export function advertiseHub(): () => void {
       txt: { service: "screensync-hub", transport: "local-http" },
     });
     log("INFO", "mDNS advertisement published", { type: "_screensync-hub._tcp", port: HTTP_PORT });
+    const owned = bonjour;
     return () => {
       service.stop();
-      bonjour.destroy();
+      owned.destroy();
     };
   } catch (error) {
+    // new Bonjour() already opened its multicast sockets; a failed publish must not leave them open.
+    try { bonjour?.destroy(); } catch { /* best effort */ }
     log("WARN", "mDNS advertisement unavailable; manual hub address still works", {
       error: String(error),
     });

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { watch, existsSync, type FSWatcher } from "node:fs";
+import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server as HttpServer } from "node:http";
 import path from "node:path";
@@ -7,10 +7,12 @@ import express from "express";
 import QRCode from "qrcode";
 import { buildCatalog } from "./catalog.js";
 import { osControlSource, setOsControlEnabled } from "./os-control.js";
-import { appApkPath, appManifest, invalidateAppManifest } from "./app-update.js";
-import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, MAX_BODY_BYTES, PAIR_WINDOW_MINUTES, PROJECT_DIR, agentName, isAuthorized, log } from "./config.js";
+import { appApkPath, appManifest } from "./app-update.js";
+import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, MAX_BODY_BYTES, PAIR_WINDOW_MINUTES, SSE_KEEPALIVE_MS, agentName, isAuthorized, log } from "./config.js";
 import { advertiseHub, buildPairingLink, isLoopbackReq, mountPairingRoutes, primaryBaseUrl } from "./hub-pairing.js";
-import { hubEvents, emitHubEvent, lastEventSeq, recentHubEvents, recordHubEvent, type HubEvent } from "./events.js";
+import { hubEvents, emitHubEvent, lastEventSeq, recentHubEvents, type HubEvent } from "./events.js";
+import { createSseHub } from "./hub-sse.js";
+import { startHubWatchers } from "./hub-watchers.js";
 import {
   ensureDataDirs,
   latestFrame,
@@ -24,7 +26,6 @@ import {
   type FrameMetadata,
 } from "./storage.js";
 import { createWebBridge } from "./web.js";
-import { watchExtensionDir } from "./ext-watcher.js";
 import { startCognitivePersistence, stopCognitivePersistence } from "./cognitive-engines.js";
 
 export type HubHandle = {
@@ -116,82 +117,22 @@ export async function startHttpHub(): Promise<HubHandle> {
     res.download(appApkPath(), "screensync.apk");
   });
 
-  // ── Live push (SSE) ──
-  // The phone keeps one persistent connection; the hub pushes frame /
-  // inspection / patch events so the app reacts instantly instead of polling.
-  const sseClients = new Set<express.Response>();
-  // Armed by POST /api/dev/reload — served to extensions on the HTTP heartbeat
-  // so a dead-SSE extension can still be told to reload itself.
-  let hubReloadRequestedAtMs = 0;
-  const broadcast = (payload: object, name = "event") => {
-    const seq = recordHubEvent(payload as Record<string, unknown>);
-    log("INFO", "SSE broadcast", { name, seq, clientsCount: sseClients.size });
-    const line = `id: ${seq}\ndata: ${JSON.stringify(payload)}\n\n`;
-    for (const client of sseClients) {
-      try {
-        client.write(line);
-        (client as any).flush?.();
-      } catch (err) {
-        log("WARN", "SSE write failed", { error: String(err) });
-      }
-    }
-  };
-  hubEvents.on("event", (event: HubEvent) => broadcast(event));
-  const webBridge = createWebBridge(broadcast, () => sseClients.size);
-  const keepalive = setInterval(() => {
-    for (const client of sseClients) client.write(": keepalive\n\n");
-  }, 30_000);
-
-  // ── Zero-Click HMR: File watcher on extension/ directory ──
-  let extWatcher: FSWatcher | null = null;
-  let apkWatcher: FSWatcher | null = null;
-  let apkBroadcastTimer: NodeJS.Timeout | null = null;
-  let lastBroadcastSha = "";
-  const extDir = path.resolve(PROJECT_DIR, "..", "extension");
-  if (existsSync(extDir)) {
-    try {
-      // Only real edits reload: see ext-watcher.ts for why a raw fs.watch event is not enough on Windows.
-      extWatcher = watchExtensionDir(extDir, (file) => {
-        log("INFO", "Extension file changed, broadcasting dev_hot_reload", { file });
-        broadcast({ type: "dev_hot_reload", file });
-      });
-      log("INFO", "Zero-Click HMR file watcher active", { dir: extDir });
-    } catch (err) {
-      log("WARN", "Zero-Click HMR file watcher failed to start", { error: String(err) });
-    }
-  }
-
-  // ---- APK watch: a rebuilt app-release.apk IS the release event ----
-  // The hook the whole update flow hangs off. Build (or CI) writes the APK, the
-  // hub notices within a second, re-hashes it and pushes app_update to every
-  // phone holding an SSE connection - the same trick the extension already used
-  // for its zero-click reload.
-  const apkDir = path.dirname(appApkPath());
-  if (existsSync(apkDir)) {
-    try {
-      apkWatcher = watch(apkDir, (_event, filename) => {
-        if (!filename || !String(filename).startsWith("app-release.apk")) return;
-        // Gradle rewrites the APK several times per build, so debounce and then
-        // compare the hash: one release must produce exactly one event.
-        if (apkBroadcastTimer) clearTimeout(apkBroadcastTimer);
-        apkBroadcastTimer = setTimeout(() => {
-          invalidateAppManifest();
-          void appManifest().then((manifest) => {
-            if (!manifest || manifest.sha256 === lastBroadcastSha) return;
-            lastBroadcastSha = manifest.sha256;
-            log("INFO", "App release changed, broadcasting app_update", {
-              versionName: manifest.versionName,
-              versionCode: manifest.versionCode,
-            });
-            broadcast({ type: "app_update", ...manifest });
-          });
-        }, 1000);
-      });
-      log("INFO", "APK watcher active", { dir: apkDir });
-    } catch (err) {
-      log("WARN", "APK watcher failed to start", { error: String(err) });
-    }
-  }
+  // ── Live push (SSE, hub-sse.ts) ──
+  // The phone and every extension keep one persistent stream; the hub pushes frame / inspection / patch /
+  // web_* events so each client reacts instantly instead of polling.
+  const sse = createSseHub({
+    keepaliveMs: SSE_KEEPALIVE_MS,
+    isAuthorized,
+    onConnect: markPaired,
+    welcome: () => ({ type: "agent_connect", at: new Date().toISOString(), agentName }),
+  });
+  const broadcast = sse.broadcast;
+  // One named listener, so teardown removes exactly what start added (an inline arrow could never be removed).
+  const onHubEvent = (event: HubEvent) => { sse.broadcast(event); };
+  hubEvents.on("event", onHubEvent);
+  const webBridge = createWebBridge(broadcast, () => sse.count());
+  // Zero-Click HMR on extension/ and the release-APK watcher (hub-watchers.ts); closed on stop.
+  const watchers = startHubWatchers(broadcast);
 
   app.post("/api/dev/reload", (req, res) => {
     if (!isAuthorized(req.header("authorization"))) {
@@ -228,48 +169,7 @@ export async function startHttpHub(): Promise<HubHandle> {
     res.json({ success: true, ...state });
   });
 
-  app.get("/api/events", (req, res) => {
-    if (!isAuthorized(req.header("authorization"))) {
-      res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
-      return;
-    }
-    markPaired();
-    if (sseClients.size >= 50) {
-      const oldest = sseClients.values().next().value;
-      if (oldest) {
-        try { oldest.end(); } catch {}
-        sseClients.delete(oldest);
-      }
-    }
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    });
-    res.flushHeaders?.();
-    res.socket?.setNoDelay(true);
-    res.write(": connected\n\n");
-    // Last-Event-ID replay: a reconnecting client tells us the last seq it saw
-    // (SSE standard header or ?lastEventId=) and we replay everything after it.
-    const lastId = Number(req.headers["last-event-id"] ?? (req.query.lastEventId as string | undefined) ?? 0) || 0;
-    if (lastId > 0) {
-      const replayed = recentHubEvents(lastId);
-      for (const e of replayed) {
-        res.write(`id: ${e.seq}\ndata: ${JSON.stringify(e.payload)}\n\n`);
-      }
-      log("INFO", "SSE replay", { fromSeq: lastId, events: replayed.length });
-    }
-    // Immediately replay agent identity so the phone always sees the name
-    // even if it connects after the one-time startup event was emitted.
-    const welcomeEvent = JSON.stringify({ type: "agent_connect", at: new Date().toISOString(), agentName });
-    res.write(`data: ${welcomeEvent}\n\n`);
-    sseClients.add(res);
-    log("INFO", "SSE client connected", { totalClients: sseClients.size });
-    req.on("close", () => {
-      sseClients.delete(res);
-      log("INFO", "SSE client disconnected", { totalClients: sseClients.size });
-    });
-  });
+  sse.mount(app);
 
   // HTTP tail of the sequenced event ring — agents poll this via web_events.
   app.get("/api/events/recent", (req, res) => {
@@ -449,6 +349,14 @@ export async function startHttpHub(): Promise<HubHandle> {
   webBridge.registerRoutes(app);
 
   const server = createServer(app);
+  /** Everything start set up besides the server and mDNS; shared by a failed listen and stop(). */
+  const teardown = () => {
+    webBridge.stopSchedules();
+    stopCognitivePersistence(); // no-op unless persistence had already started
+    watchers.close();
+    hubEvents.off("event", onHubEvent);
+    sse.close();
+  };
   try {
     await new Promise<void>((resolve, reject) => {
       server.once("error", reject);
@@ -460,13 +368,7 @@ export async function startHttpHub(): Promise<HubHandle> {
     // H6 fix: Start schedule timers only after successful server.listen().
     webBridge.startSchedules();
   } catch (listenErr) {
-    clearInterval(keepalive);
-    webBridge.stopSchedules();
-    stopCognitivePersistence(); // no-op unless persistence had already started
-    if (extWatcher) extWatcher.close();
-    hubEvents.off("event", broadcast);
-    for (const client of sseClients) client.end();
-    sseClients.clear();
+    teardown();
     throw listenErr;
   }
   log("INFO", "ScreenSync HTTP hub started", { host: HTTP_HOST, port: HTTP_PORT });
@@ -489,14 +391,8 @@ export async function startHttpHub(): Promise<HubHandle> {
   return {
     server,
     stop: async () => {
-      clearInterval(keepalive);
-      webBridge.stopSchedules();
-      if (extWatcher) extWatcher.close();
-      hubEvents.off("event", broadcast);
-      for (const client of sseClients) client.end();
-      sseClients.clear();
+      teardown();
       stopAdvertising();
-      stopCognitivePersistence();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
   };
