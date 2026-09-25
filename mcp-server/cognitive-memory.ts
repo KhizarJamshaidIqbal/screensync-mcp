@@ -28,12 +28,17 @@ const MEMORY_FILE = path.join(DATA_DIR, "cognitive-memory.json");
 const SAVE_DEBOUNCE_MS = 2_000;
 /** ...but never longer than this after the first one it is holding. */
 const SAVE_MAX_DELAY_MS = 10_000;
+/** After a failed write the next attempt waits SAVE_DEBOUNCE_MS, doubling per failure up to this. */
+const SAVE_RETRY_MAX_MS = 60_000;
 
 export class CognitiveMemoryStore {
   private data: CognitiveMemoryData | null = null;
   private saveTimer: NodeJS.Timeout | null = null;
   private pendingSince = 0;
+  private saveFailures = 0;
   private exitHooked = false;
+  /** Registered only while a save is pending, so a store with nothing to write never writes at exit. */
+  private readonly onExit = (): void => { this.flush(); };
 
   /** `file` is injectable so tests can point a store at a scratch path instead of the real one. */
   constructor(public readonly file: string = MEMORY_FILE) {}
@@ -70,42 +75,58 @@ export class CognitiveMemoryStore {
     return this.data;
   }
 
-  /** Writes the whole store now (atomically). Also writes anything a saveSoon() was still holding. */
+  /**
+   * Writes the whole store now (atomically). Also writes anything a saveSoon() was still holding. A write that
+   * fails leaves the save PENDING and retries it with backoff, so neither a later flush() nor the exit hook can
+   * find "nothing to write" while the file still lacks what is in memory.
+   */
   public save(): void {
-    this.cancelPendingSave();
-    if (!this.data) return;
+    if (!this.data) {
+      this.cancelPendingSave();
+      return;
+    }
     try {
       this.data.updatedAt = new Date().toISOString();
       atomicWriteJson(this.file, this.data);
     } catch (e) {
-      log("ERROR", "Failed to save cognitive memory", { error: String(e) });
+      log("ERROR", "Failed to save cognitive memory; will retry", { error: String(e), failures: this.saveFailures + 1 });
+      this.retryLater();
+      return;
     }
+    this.saveFailures = 0;
+    this.cancelPendingSave();
   }
 
   /**
    * Schedules a coalesced save: SAVE_DEBOUNCE_MS after the last call, and at most SAVE_MAX_DELAY_MS after
    * the first one waiting. Only the tracker's per-call episodes use this - every tool call used to fsync a
    * full rewrite of the file. Everything a caller learns on purpose still saves synchronously. The timer is
-   * unref'd, so flush() runs on stopCognitivePersistence() and on process exit.
+   * unref'd, so flush() also runs on stopCognitivePersistence(), when the MCP host closes stdin (index.ts), on
+   * 'beforeExit' and on 'exit'. A process killed outright (SIGKILL, or TerminateProcess, which is what Windows
+   * does for child.kill()) runs none of those and can lose the episodes of the last debounce window.
    */
   public saveSoon(): void {
     const now = Date.now();
     if (!this.pendingSince) this.pendingSince = now;
+    this.hookExit();
+    // A failed write already has its backoff retry armed: more episodes must not turn it into a write per call.
+    if (this.saveFailures > 0 && this.saveTimer) return;
     if (this.saveTimer) clearTimeout(this.saveTimer);
     const wait = Math.max(0, Math.min(SAVE_DEBOUNCE_MS, this.pendingSince + SAVE_MAX_DELAY_MS - now));
-    this.saveTimer = setTimeout(() => this.flush(), wait);
-    this.saveTimer.unref?.();
-    if (!this.exitHooked) {
-      this.exitHooked = true;
-      process.once("exit", () => this.flush());
-    }
+    this.armTimer(wait);
   }
 
-  /** Writes a deferred save now, if one is waiting. Returns whether it wrote. */
+  /** Forgets a pending save WITHOUT writing it and unhooks the exit flush (tests, before deleting the file's dir). */
+  public dispose(): void {
+    this.saveFailures = 0;
+    this.cancelPendingSave();
+  }
+
+  /** Writes a deferred save now, if one is waiting. Returns whether it wrote (a failed write stays pending). */
   public flush(): boolean {
     if (!this.pendingSince) return false;
     this.save();
-    return true;
+    return this.pendingSince === 0;
   }
 
   public hasPendingSave(): boolean {
@@ -116,6 +137,32 @@ export class CognitiveMemoryStore {
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = null;
     this.pendingSince = 0;
+    if (this.exitHooked) {
+      this.exitHooked = false;
+      process.off("beforeExit", this.onExit);
+      process.off("exit", this.onExit);
+    }
+  }
+
+  private hookExit(): void {
+    if (this.exitHooked) return;
+    this.exitHooked = true;
+    process.on("beforeExit", this.onExit);
+    process.on("exit", this.onExit);
+  }
+
+  private armTimer(wait: number): void {
+    this.saveTimer = setTimeout(() => { this.saveTimer = null; this.flush(); }, wait);
+    this.saveTimer.unref?.();
+  }
+
+  /** Keeps the save pending (flush() and the exit hook still write it) and tries again after a backoff. */
+  private retryLater(): void {
+    this.saveFailures += 1;
+    if (!this.pendingSince) this.pendingSince = Date.now();
+    this.hookExit();
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.armTimer(Math.min(SAVE_RETRY_MAX_MS, SAVE_DEBOUNCE_MS * 2 ** Math.min(this.saveFailures - 1, 10)));
   }
 
   /** The shared canonical form (cognitive-domain.ts): the spine and the observer key by the same string. */

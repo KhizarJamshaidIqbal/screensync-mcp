@@ -84,6 +84,20 @@ export function startCognitivePersistence(): HydrateReport[] {
   }
 }
 
+/**
+ * Writes what is waiting to be written, without stopping anything: called when the MCP host closes our stdin
+ * (index.ts), which on Windows is often followed by TerminateProcess, where no signal or exit handler runs.
+ * The registry is flushed only in the process that started it (the port owner): a relay never writes it.
+ */
+export function flushCognitiveState(): void {
+  try {
+    cognitiveStore.flush();
+    if (cognitiveRegistry.isStarted()) cognitiveRegistry.flush();
+  } catch (error) {
+    log("ERROR", "Cognitive flush on host hang-up failed", { error: String(error) });
+  }
+}
+
 /** Final flush + stop. Safe to call when persistence never started. */
 export function stopCognitivePersistence(): string[] {
   try {

@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { agentName, HTTP_PORT, hubSelfCheck, log } from "./config.js";
 import { emitHubEvent } from "./events.js";
 import { startHttpHub } from "./hub.js";
+import { flushCognitiveState } from "./cognitive-engines.js";
 import { createMcpServer } from "./mcp.js";
 
 // Structured logging for failures Node would otherwise print unformatted (or, for an uncaught exception,
@@ -88,6 +89,10 @@ async function main() {
   const server = createMcpServer();
   await server.connect(new StdioServerTransport());
   log("INFO", "ScreenSync MCP stdio server connected");
+  // The MCP host closing our stdin is often the last thing we see: on Windows it then kills us with
+  // TerminateProcess, which runs no signal or exit handler. Write the deferred cognitive state now.
+  process.stdin.once("end", flushCognitiveState);
+  process.stdin.once("close", flushCognitiveState);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

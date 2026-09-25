@@ -24,7 +24,9 @@ export function ep(over: Partial<ExecutionEpisode> = {}): ExecutionEpisode {
 /** A store on its own scratch file, for tests that must not share state. */
 export function scratchStore(): { store: CognitiveMemoryStore; cleanup: () => void } {
   const dir = mkdtempSync(path.join(tmpdir(), "cognitive-4b-"));
-  return { store: new CognitiveMemoryStore(path.join(dir, "memory.json")), cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  const store = new CognitiveMemoryStore(path.join(dir, "memory.json"));
+  // dispose() first: a save still pending would otherwise recreate the deleted dir from the exit hook.
+  return { store, cleanup: () => { store.dispose(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 /**

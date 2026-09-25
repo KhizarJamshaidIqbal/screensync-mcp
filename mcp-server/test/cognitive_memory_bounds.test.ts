@@ -5,7 +5,11 @@
 import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { CognitiveMemoryStore, cognitiveStore } from "../cognitive-memory.js";
+import { flushCognitiveState } from "../cognitive-engines.js";
 import type { CognitiveMemoryData, DomainPitfall, ProceduralPlaybook } from "../cognitive-memory.js";
 import { runHippocampalConsolidation, type GoldPlaybookMeta } from "../cognitive-consolidation.js";
 import {
@@ -143,6 +147,50 @@ test("saveSoon: 20 deferred learns cost at most 2 writes, flush persists them, a
     assert.equal(store.hasPendingSave(), false);
     assert.equal(JSON.parse(readFileSync(store.file, "utf8")).episodes.filter((e: { domain: string }) => e.domain === "burst.example").length, 21);
   } finally { cleanup(); }
+});
+
+test("a failed write stays pending: flush() and the exit hook still write it once the disk recovers", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cognitive-fail-"));
+  const blocker = path.join(dir, "blocker"); // a FILE where the store's directory should be: every write fails
+  writeFileSync(blocker, "x");
+  const store = new CognitiveMemoryStore(path.join(blocker, "memory.json"));
+  const exitHooks = () => process.listenerCount("exit");
+  const base = exitHooks();
+  try {
+    store.learn({ action: "episode", domain: "retry.example", data: episode(1), deferSave: true });
+    assert.equal(store.flush(), false, "the write failed, so flush() says nothing was written");
+    assert.equal(store.hasPendingSave(), true, "and the save is still pending (it used to be cleared before the write)");
+    assert.equal(exitHooks(), base + 1, "the exit hook still holds it");
+    rmSync(blocker);
+    assert.equal(store.flush(), true, "once the disk recovers the pending episodes are written");
+    assert.equal(JSON.parse(readFileSync(store.file, "utf8")).episodes.filter((e: { domain: string }) => e.domain === "retry.example").length, 1);
+    assert.equal(store.hasPendingSave(), false);
+    assert.equal(exitHooks(), base, "nothing pending: no exit hook");
+  } finally {
+    store.dispose();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("dispose() drops a pending save and its exit hook, so a deleted scratch dir is never recreated at exit", () => {
+  const { store, cleanup } = scratchStore();
+  const base = process.listenerCount("exit");
+  store.learn({ action: "episode", domain: "leak.example", data: episode(1), deferSave: true });
+  assert.equal(process.listenerCount("exit"), base + 1);
+  const dir = path.dirname(store.file);
+  cleanup();
+  assert.equal(store.hasPendingSave(), false);
+  assert.equal(process.listenerCount("exit"), base, "no exit hook left to recreate the dir");
+  assert.equal(existsSync(dir), false);
+});
+
+test("flushCognitiveState(): the host hanging up writes the tracker's deferred episodes at once", () => {
+  cognitiveStore.learn({ action: "episode", domain: "hangup.example", data: episode(1), deferSave: true });
+  assert.equal(cognitiveStore.hasPendingSave(), true);
+  flushCognitiveState();
+  assert.equal(cognitiveStore.hasPendingSave(), false);
+  assert.equal(JSON.parse(readFileSync(cognitiveStore.file, "utf8")).episodes.some((e: { domain: string }) => e.domain === "hangup.example"), true);
+  assert.match(readFileSync(new URL("../index.ts", import.meta.url), "utf8"), /process\.stdin\.once\("end", flushCognitiveState\)/, "index.ts flushes on stdin end");
 });
 
 test("M2: consolidation keeps the newest 50 episodes of EACH domain, not 50 overall", () => {
