@@ -22,6 +22,7 @@ const { startHttpHub } = await import("../hub.js");
 const { hubEvents, emitHubEvent } = await import("../events.js");
 const { DATA_DIR } = await import("../config.js");
 const { startHubWatchers } = await import("../hub-watchers.js");
+const { advertiseHub } = await import("../hub-pairing.js");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const auth = { Authorization: "Bearer hub-lifecycle-token" };
@@ -118,4 +119,19 @@ test("startHubWatchers().close() closes both watchers and cancels a pending APK 
   await sleep(1200);
   assert.deepEqual(broadcasts, [], "nothing fires after close()");
   rmSync(dir, { recursive: true, force: true });
+});
+
+test("mDNS errors are logged, never thrown into the process (index.ts exits on an uncaught exception)", async () => {
+  const { EventEmitter } = await import("node:events");
+  const mdns = new EventEmitter();
+  let errorCallback: ((err: unknown) => void) | undefined;
+  let destroyed = 0;
+  const fake = { server: { mdns }, publish: () => ({ stop() {} }), destroy() { destroyed += 1; } };
+  const stop = advertiseHub((onError) => { errorCallback = onError; return fake as never; });
+  assert.equal(typeof errorCallback, "function", "bonjour-service gets an error callback (its default rethrows)");
+  assert.doesNotThrow(() => errorCallback!(Object.assign(new Error("send ENETUNREACH 224.0.0.251:5353"), { code: "ENETUNREACH" })));
+  assert.ok(mdns.listenerCount("error") >= 1, "multicast-dns bind errors have a listener");
+  assert.doesNotThrow(() => mdns.emit("error", Object.assign(new Error("bind EADDRINUSE"), { code: "EADDRINUSE" })));
+  stop();
+  assert.equal(destroyed, 1);
 });

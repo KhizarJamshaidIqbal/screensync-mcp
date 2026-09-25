@@ -82,15 +82,28 @@ export function connectKitText(): string {
 }
 
 
+/** Builds the Bonjour instance; its error callback receives every asynchronous mDNS send/bind error. */
+export type BonjourFactory = (onError: (err: unknown) => void) => Bonjour;
+
 /**
  * Advertises the hub as `_screensync-hub._tcp` so the Flutter app's
  * Bonsoir scanner (HubDiscoveryService) can find it with zero manual
  * IP entry. Pure mDNS — no traffic leaves the LAN.
+ *
+ * mDNS is a convenience, so none of its errors may reach the process: without an error callback bonjour-service
+ * rethrows a failed answer send (ENETUNREACH after a Wi-Fi drop or sleep/resume) inside a dgram callback, and
+ * multicast-dns emits bind errors on an emitter nobody listened to. Either was an uncaught exception, on which
+ * index.ts exits the hub.
  */
-export function advertiseHub(): () => void {
+export function advertiseHub(make: BonjourFactory = (onError) => new Bonjour({}, onError)): () => void {
   let bonjour: Bonjour | null = null;
+  const onError = (err: unknown) => {
+    log("WARN", "mDNS error; the advertisement may be unavailable, the manual hub address still works", { error: String(err) });
+  };
   try {
-    bonjour = new Bonjour();
+    bonjour = make(onError);
+    (bonjour as unknown as { server?: { mdns?: { on?: (ev: string, fn: (err: unknown) => void) => void } } })
+      .server?.mdns?.on?.("error", onError);
     const service: Service = bonjour.publish({
       name: `ScreenSync Hub (${os.hostname()})`,
       type: "screensync-hub",
