@@ -259,9 +259,38 @@ test("a large replayed web_request never evicts the client it is replayed to (th
     assert.equal(sse.hasInstance("back"), true);
     const got = res.chunks.join("");
     for (const want of ['"id":"big1"', '"id":"big2"', "agent_connect"]) assert.ok(got.includes(want), `received ${want}`);
-    // After the handshake the backlog counts again: a reader that never drains is evicted by the next write.
+    // A broadcast that arrives before the replay has drained (a web_frame from a watch) is judged only on what
+    // was queued on top of the handshake, so it does not evict the reader and restart the replay loop.
+    sse.broadcast({ type: "later" });
+    assert.equal(sse.hasInstance("back"), true, "a broadcast right after a large replay does not evict");
+    // A reader that takes nothing more is still evicted once the NEW backlog passes the limit.
+    sse.broadcast({ type: "later", blob: "q".repeat(200) });
+    assert.equal(sse.hasInstance("back"), true);
     sse.broadcast({ type: "later" });
     assert.equal(sse.hasInstance("back"), false, "a reader that never takes its backlog is still evicted");
+  } finally {
+    sse.close();
+  }
+});
+
+test("once the socket has drained after the handshake, the backlog is judged normally again", () => {
+  const sse = createSseHub({ keepaliveMs: 60_000, isAuthorized: () => true, maxBufferedBytes: 100, welcome: () => ({ type: "agent_connect" }) });
+  try {
+    const first = sse.broadcast({ type: "web_request", id: "big", blob: "z".repeat(1_000) });
+    let handler: ((req: any, res: any) => void) | undefined;
+    sse.mount({ get: (_path: string, h: any) => { handler = h; } } as any);
+    const req = Object.assign(new EventEmitter(), {
+      query: { client: "extension", instanceId: "drained" }, headers: { "last-event-id": String(first - 1) }, header: () => "Bearer t",
+    });
+    const res = new FakeRes();
+    const write = res.write.bind(res);
+    res.write = (chunk: string) => { res.writableLength += Buffer.byteLength(chunk); return write(chunk); };
+    handler!(req, res);
+    res.writableLength = 0;
+    res.emit("drain");
+    res.writableLength = 101;
+    sse.broadcast({ type: "later" });
+    assert.equal(sse.hasInstance("drained"), false, "after a drain the handshake allowance is gone");
   } finally {
     sse.close();
   }

@@ -49,7 +49,14 @@ export type SseHub = {
   close: () => void;
 };
 
-type Client = { res: Response; kind: SseClientKind; instanceId: string | null; connectedAt: number };
+type Client = {
+  res: Response;
+  kind: SseClientKind;
+  instanceId: string | null;
+  connectedAt: number;
+  /** What the handshake left queued: not held against the reader until the socket has drained once. */
+  handshakeBytes: number;
+};
 
 export const REPLAY_LIMIT = 500;
 const INSTANCE_ID_MAX = 128;
@@ -94,7 +101,10 @@ export function createSseHub(opts: SseHubOptions): SseHub {
   /**
    * Writes one chunk; false (and the client dropped) when it is gone or has stopped reading. `judgeBacklog` is
    * false for the writes of a stream's own handshake (connected, replay, welcome): they run in one synchronous
-   * burst, so whatever is queued then is what the hub just wrote, not what the reader failed to take.
+   * burst, so whatever is queued then is what the hub just wrote, not what the reader failed to take. Until the
+   * socket drains once, later writes are judged only on what is queued ON TOP of that handshake: a replayed
+   * upload can take seconds to reach a remote reader, and a web_frame broadcast in that window must not evict it
+   * (it would reconnect, get the same replay and be evicted again until the request expired).
    */
   const safeWrite = (c: Client, chunk: string, judgeBacklog = true): boolean => {
     const { res } = c;
@@ -105,7 +115,7 @@ export function createSseHub(opts: SseHubOptions): SseHub {
     // Measured BEFORE this write: what is still queued from earlier writes is what the reader failed to take.
     // (Right after a write the queue always holds that chunk, so one large frame must not evict a healthy reader,
     // and nor must a replay of a large pending web_request followed by the welcome: see handle().)
-    if (judgeBacklog && res.writableLength > maxBufferedBytes) {
+    if (judgeBacklog && res.writableLength - c.handshakeBytes > maxBufferedBytes) {
       log("WARN", "SSE client evicted: not reading its stream", {
         kind: c.kind, instanceId: c.instanceId, bufferedBytes: res.writableLength, maxBufferedBytes,
       });
@@ -157,6 +167,7 @@ export function createSseHub(opts: SseHubOptions): SseHub {
       kind: clientKindOf(req.query.client),
       instanceId: sanitizeInstanceId(req.query.instanceId),
       connectedAt: Date.now(),
+      handshakeBytes: 0,
     };
     // Every way a stream can end removes it exactly once; 'error' must have a listener or a reset socket
     // becomes an uncaught exception, which index.ts turns into a hub exit.
@@ -202,6 +213,11 @@ export function createSseHub(opts: SseHubOptions): SseHub {
     // even if it connects after the one-time startup event was emitted.
     const welcome = opts.welcome?.();
     if (welcome && !safeWrite(c, `data: ${JSON.stringify(welcome)}\n\n`, false)) return;
+    const queued = res.writableLength ?? 0;
+    if (queued > 0) {
+      c.handshakeBytes = queued;
+      res.once("drain", () => { c.handshakeBytes = 0; });
+    }
     log("INFO", "SSE client connected", { kind: c.kind, instanceId: c.instanceId, totalClients: clients.size });
   };
 
