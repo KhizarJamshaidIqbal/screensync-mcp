@@ -12,7 +12,7 @@
 import { randomUUID } from "node:crypto";
 import { AUTH_TOKEN, HTTP_PORT, hubSelfCheck } from "./config.js";
 import { APPROVAL_MAX_MS, APPROVAL_RUN_HEADROOM_MS } from "./web-ext-routes.js";
-import { longWaitBudgetMs } from "./web-timeouts.js";
+import { LONGEST_STEP_WAIT_MS, MULTI_STEP_TOOLS, longWaitBudgetMs } from "./web-timeouts.js";
 
 export type HubWebResult = { ok: boolean; data?: unknown; error?: string; code?: string; retryable?: boolean };
 
@@ -49,8 +49,10 @@ export function callTimeoutOf(args: Record<string, unknown>, tool?: string): num
  * How long this side waits for the hub's HTTP answer. Never shorter than the hub may legitimately hold the call
  * (a person being asked), or the transport gives up first and the real outcome is lost.
  */
-export function transportTimeoutMs(callTimeoutMs: number): number {
-  return Math.max(callTimeoutMs, HUB_MAX_HOLD_MS) + TRANSPORT_MARGIN_MS;
+export function transportTimeoutMs(callTimeoutMs: number, tool?: string): number {
+  // A multi-step tool (web_flow_run, web_replay, ...) may hold a long-wait step (web_takeover: up to 10 min).
+  const floor = tool && MULTI_STEP_TOOLS.has(tool) ? Math.max(HUB_MAX_HOLD_MS, LONGEST_STEP_WAIT_MS) : HUB_MAX_HOLD_MS;
+  return Math.max(callTimeoutMs, floor) + TRANSPORT_MARGIN_MS;
 }
 
 /** No hub is listening (or the name does not resolve): the only case that means "start the hub". */
@@ -141,7 +143,7 @@ export async function callHubWebTool(
   }
 
   const timeoutMs = callTimeoutOf(args, tool);
-  const signal = AbortSignal.timeout(opts.transportTimeoutMs ?? transportTimeoutMs(timeoutMs));
+  const signal = AbortSignal.timeout(opts.transportTimeoutMs ?? transportTimeoutMs(timeoutMs, tool));
   const startedAt = Date.now();
   let res: Response;
   let body: { ok?: boolean; data?: unknown; error?: string; code?: unknown; retryable?: unknown };

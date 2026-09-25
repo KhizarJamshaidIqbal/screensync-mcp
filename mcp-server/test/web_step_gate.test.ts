@@ -181,3 +181,23 @@ test("a gated step whose browser's stream is down was never sent: its verdict is
     await hub.close();
   }
 });
+
+test("a long-wait step inside a flow, replay or test run waits its own budget, not the 5-60s step clamp", async () => {
+  const hub = await startHub();
+  try {
+    await hub.register(CAPABLE_A);
+    const steps = [{ tool: "web_takeover", args: { reason: "login", timeoutMs: 200_000 } }, { tool: "web_click", args: HARMLESS }];
+    await hub.call("web_flow_save", { name: "login-flow", steps });
+    assert.equal((await hub.call("web_flow_run", { name: "login-flow", stepTimeoutMs: 10_000 })).ok, true);
+    assert.equal((await hub.call("web_replay", { steps, stepTimeoutMs: 10_000 })).ok, true);
+    await hub.call("web_test_run", { steps });
+    const waits = hub.relayed.map((r) => `${r.tool}:${(r as unknown as { remainingMs: number }).remainingMs}`);
+    assert.deepEqual(waits, [
+      "web_takeover:205000", "web_click:10000", // flow run: the takeover's 200s + margin; the click keeps the clamp
+      "web_takeover:205000", "web_click:10000", // replay
+      "web_takeover:205000", "web_click:45000", // test run
+    ]);
+  } finally {
+    await hub.close();
+  }
+});

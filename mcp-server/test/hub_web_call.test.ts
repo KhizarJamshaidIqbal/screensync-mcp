@@ -187,4 +187,9 @@ test("a long-wait tool (web_takeover, web_request_help, web_wait_download) gets 
   assert.ok(transportTimeoutMs(callTimeoutOf({ timeoutMs: 600_000 }, "web_takeover")) > 600_000, "the transport outlives it");
   assert.equal(callTimeoutOf({ timeoutMs: 25_000 }, "web_expect"), 30_000, "any other tool: the ordinary rule");
   assert.equal(callTimeoutOf({ timeoutMs: 600_000 }), 120_000, "no tool named: the ordinary rule, unchanged");
+  // A multi-step tool may relay a web_takeover step: the transport outlives that step's longest wait.
+  for (const multi of ["web_flow_run", "web_replay", "web_fanout", "web_tab_fanout", "web_test_run"]) {
+    assert.ok(transportTimeoutMs(callTimeoutOf({}, multi), multi) > 605_000, `${multi}: the transport outlives a 10-minute step`);
+  }
+  assert.ok(transportTimeoutMs(callTimeoutOf({}, "web_click"), "web_click") < 600_000, "an ordinary tool is unchanged");
 });

@@ -14,7 +14,7 @@ import { createFlowEngine } from "./web-flows.js";
 import { createRecorder } from "./web-recorder.js";
 import { handleVisualBaseline } from "./web-visual-baseline.js";
 import { createFanout } from "./web-fanout.js";
-import { hubWaitMs, LONG_WAIT_TOOLS } from "./web-timeouts.js";
+import { hubWaitMs, LONG_WAIT_TOOLS, stepWaitMs } from "./web-timeouts.js";
 import type { SseRingEvent } from "./hub-sse.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
@@ -138,8 +138,11 @@ export function createWebBridge(
     }
   };
 
-  const request = async (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision, decided?: DispatchDecision): Promise<WebToolResult> => {
+  const request = async (tool: string, args: Record<string, unknown>, relayTimeoutMs: number, gate?: GateDecision, decided?: DispatchDecision): Promise<WebToolResult> => {
     if (closed) return stopping();
+    // A long-wait step (web_takeover, ...) inside a flow, replay, fanout or test run waits its own budget, not the
+    // relay's 5-60s step clamp (web-timeouts.ts); the tool route already passes exactly that, so it is unchanged.
+    const timeoutMs = stepWaitMs(tool, args, relayTimeoutMs);
     // Every relay (tool route, flows, schedules, replay, fanout) passes through here, so this is where a call
     // that cannot be pinned to exactly one browser instance is stopped: the extension runs an untargeted
     // web_request in EVERY connected profile. Routing order (tabId/windowId owner, hint, selectedProfile,

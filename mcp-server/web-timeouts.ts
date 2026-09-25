@@ -46,3 +46,20 @@ export function hubWaitMs(tool: string, requested: unknown): number {
   if (budget !== null) return budget + LONG_WAIT_MARGIN_MS;
   return Math.min(Math.max(positive(requested) ?? HUB_DEFAULT_WAIT_MS, HUB_MIN_WAIT_MS), HUB_MAX_WAIT_MS);
 }
+
+/**
+ * The hub's wait for ONE relayed call, whatever relays it (the tool route, web_flow_run, web_replay, web_fanout,
+ * web_tab_fanout, web_test_run, schedules): a long-wait tool never waits less than its own budget (hubWaitMs), even
+ * when the relay clamps its steps to 5-60s. Otherwise a web_takeover step in a flow was answered TIMEOUT after at
+ * most 60s while the person was still logging in, and the flow went on without them. Every other tool keeps the
+ * relay's own timeout.
+ */
+export function stepWaitMs(tool: string, args: Record<string, unknown> | undefined, stepTimeoutMs: number): number {
+  return LONG_WAIT_TOOLS[tool] ? Math.max(stepTimeoutMs, hubWaitMs(tool, args?.timeoutMs)) : stepTimeoutMs;
+}
+
+/** Hub tools that relay other web_* calls as their steps, so one of those steps may be a long wait. */
+export const MULTI_STEP_TOOLS: ReadonlySet<string> = new Set(["web_flow_run", "web_replay", "web_fanout", "web_tab_fanout", "web_test_run"]);
+
+/** The longest a single relayed step can hold the hub: the largest long-wait maximum plus its margin. */
+export const LONGEST_STEP_WAIT_MS = Math.max(...Object.values(LONG_WAIT_TOOLS).map((l) => l.maxMs)) + LONG_WAIT_MARGIN_MS;

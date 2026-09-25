@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HUB_DEFAULT_WAIT_MS, HUB_MAX_WAIT_MS, HUB_MIN_WAIT_MS, LONG_WAIT_MARGIN_MS, LONG_WAIT_TOOLS, hubWaitMs, longWaitBudgetMs } from "../web-timeouts.js";
+import { HUB_DEFAULT_WAIT_MS, HUB_MAX_WAIT_MS, HUB_MIN_WAIT_MS, LONG_WAIT_MARGIN_MS, LONG_WAIT_TOOLS, LONGEST_STEP_WAIT_MS, hubWaitMs, longWaitBudgetMs, stepWaitMs } from "../web-timeouts.js";
 
 test("ordinary tools keep the old 5-65s clamp", () => {
   assert.equal(hubWaitMs("web_click", undefined), HUB_DEFAULT_WAIT_MS);
@@ -42,4 +42,13 @@ test("longWaitBudgetMs: null for every other tool, and without a tool", () => {
   assert.equal(longWaitBudgetMs(undefined, 600_000), null);
   assert.equal(longWaitBudgetMs("web_takeover", undefined), 300_000);
   assert.equal(longWaitBudgetMs("web_takeover", 60_000), 60_000);
+});
+
+test("stepWaitMs: a relayed long-wait step keeps its own budget; any other step keeps the relay's timeout", () => {
+  assert.equal(stepWaitMs("web_takeover", { timeoutMs: 200_000 }, 60_000), 200_000 + LONG_WAIT_MARGIN_MS);
+  assert.equal(stepWaitMs("web_takeover", {}, 60_000), 300_000 + LONG_WAIT_MARGIN_MS, "the tool's default budget");
+  assert.equal(stepWaitMs("web_wait_download", { timeoutMs: 1_000 }, 45_000), 45_000, "never shorter than the relay's timeout");
+  assert.equal(stepWaitMs("web_click", { timeoutMs: 600_000 }, 45_000), 45_000);
+  assert.equal(stepWaitMs("web_takeover", undefined, 45_000), 300_000 + LONG_WAIT_MARGIN_MS);
+  assert.equal(LONGEST_STEP_WAIT_MS, 600_000 + LONG_WAIT_MARGIN_MS);
 });
