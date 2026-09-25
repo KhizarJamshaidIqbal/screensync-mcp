@@ -60,6 +60,7 @@ export class SseClient {
     this.reconnects = 0; // connection loops begun after the first one (lifetime of this client)
     this.backoffMs = 0;
     this.nextRetryAt = null;
+    this.maxBackoffMs = null; // per-hub cap on the backoff sleep (a loopback hub retries sooner)
     this._baseDelay = 0;
     this._liveness = null;
     this._connectTimer = null;
@@ -74,7 +75,7 @@ export class SseClient {
   /** The stream is open right now (UI truth). */
   get open() { return this.state === 'open'; }
 
-  start(url, token, { instanceId = null } = {}) {
+  start(url, token, { instanceId = null, maxBackoffMs = null } = {}) {
     const base = String(url || '').replace(/\/+$/, '');
     const key = sseCredKey(base, token, instanceId);
     if (this.active && key === this.credKey) return false;
@@ -82,6 +83,7 @@ export class SseClient {
     this.url = base;
     this.token = token;
     this.instanceId = instanceId || null;
+    this.maxBackoffMs = maxBackoffMs || null;
     this.credKey = key;
     this.attempt = 0;
     this._baseDelay = 0;
@@ -204,7 +206,7 @@ export class SseClient {
   // Exponential backoff with +-20% jitter; it only resets after a stream that stayed open long enough.
   _scheduleBackoff(openedFor) {
     if (openedFor >= SSE_STABLE_MS || !this._baseDelay) this._baseDelay = SSE_BACKOFF_BASE_MS;
-    else this._baseDelay = Math.min(this._baseDelay * 2, SSE_BACKOFF_MAX_MS);
+    else this._baseDelay = Math.min(this._baseDelay * 2, this.maxBackoffMs || SSE_BACKOFF_MAX_MS);
     this.attempt += 1;
     this.backoffMs = Math.round(this._baseDelay * (0.8 + 0.4 * this._random()));
   }

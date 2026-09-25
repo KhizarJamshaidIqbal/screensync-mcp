@@ -31,6 +31,10 @@ export const SSE_STALE_MS = SSE_LIVENESS_MS + 30000;
 export const SSE_CONNECT_TIMEOUT_MS = 15000;
 export const SSE_BACKOFF_BASE_MS = 1000;
 export const SSE_BACKOFF_MAX_MS = 30000;
+// A hub on this machine is cheap to retry: cap the wait so a restarted hub is back within seconds.
+export const SSE_BACKOFF_MAX_LOOPBACK_MS = 5000;
+// In a longer backoff, ensure() probes /health and retries at once when the hub answers.
+export const SSE_BACKOFF_PROBE_AFTER_MS = 4000;
 export const SSE_STABLE_MS = 30000;
 export const SSE_UNAUTHORIZED_RETRY_MS = 300000;
 export const SSE_WAKE_MIN_GAP_MS = 2000;

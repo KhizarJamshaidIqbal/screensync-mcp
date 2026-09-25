@@ -13,7 +13,7 @@ const C = await import('../lib/constants.js');
 
 console.log('[test] running sse_supervisor tests...');
 
-function setup(settings, { random = () => 0.5 } = {}) {
+function setup(settings, { random = () => 0.5, probe = null } = {}) {
   const clock = createClock();
   const fetchImpl = createFetch();
   const statuses = [];
@@ -22,11 +22,13 @@ function setup(settings, { random = () => 0.5 } = {}) {
     onStatus: (s, d) => statuses.push([s, d]),
     fetchImpl, now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer, random,
   });
-  const s = { hubUrl: 'http://localhost:3999/', token: 'tok', onboardingComplete: true, ...settings };
+  // A LAN hub by default: its backoff may grow to SSE_BACKOFF_MAX_MS (a loopback hub is capped lower).
+  const s = { hubUrl: 'http://192.168.1.20:3999/', token: 'tok', onboardingComplete: true, ...settings };
   const sup = createSseSupervisor(client, {
     getSettings: async () => ({ ...s }),
     getInstanceId: async () => 'inst_test',
     now: clock.now,
+    probe,
   });
   return { clock, fetchImpl, statuses, client, sup, s, last: () => statuses[statuses.length - 1] };
 }
@@ -72,7 +74,7 @@ for (const [random, jitter] of [[() => 0.5, 1], [() => 0, 0.8], [() => 0.9999, 1
 
 // ── URL, token and attribution come from settings (localhost normalised, trailing slash stripped) ──
 {
-  const t = setup({ token: '' }); // loopback hub without a saved token -> the local default
+  const t = setup({ hubUrl: 'http://localhost:3999/', token: '' }); // loopback hub without a saved token -> the local default
   assert.equal(await t.sup.ensure('boot'), 'start');
   await settle();
   const u = new URL(t.fetchImpl.last().url);
@@ -178,6 +180,44 @@ for (const [random, jitter] of [[() => 0.5, 1], [() => 0, 0.8], [() => 0.9999, 1
   assert.equal(t.client.open, true, 'connected as soon as the health probe saw the hub');
   assert.equal(t.sup.snapshot().state, 'open');
   assert.equal(t.sup.hubReachable(), false, 'no-op while open');
+  await finish(t);
+}
+
+// ── a loopback hub caps the backoff at SSE_BACKOFF_MAX_LOOPBACK_MS, so a restarted local hub is back in seconds ──
+{
+  const t = setup({ hubUrl: 'http://127.0.0.1:3999/' });
+  await t.sup.ensure('boot');
+  await settle();
+  for (let i = 0; i < 8; i++) await t.clock.advance(t.client.backoffMs);
+  assert.equal(t.client.backoffMs, C.SSE_BACKOFF_MAX_LOOPBACK_MS, 'loopback backoff never exceeds the loopback cap');
+  const before = t.fetchImpl.calls.length;
+  t.fetchImpl.next('open');
+  await t.clock.advance(C.SSE_BACKOFF_MAX_LOOPBACK_MS);
+  assert.equal(t.fetchImpl.calls.length, before + 1);
+  assert.equal(t.client.open, true, 'reconnected within one capped backoff');
+  await finish(t);
+}
+
+// ── ensure() during a long backoff probes the hub and reconnects at once when it answers ──
+{
+  let up = false;
+  let probes = 0;
+  const t = setup({}, { probe: async () => { probes += 1; return up; } });
+  await t.sup.ensure('boot');
+  await settle();
+  for (let i = 0; i < 6; i++) await t.clock.advance(t.client.backoffMs);
+  assert.equal(t.client.backoffMs, C.SSE_BACKOFF_MAX_MS);
+  await t.clock.advance(1_000); // mid-sleep: far more than SSE_BACKOFF_PROBE_AFTER_MS left
+  assert.equal(await t.sup.ensure('offscreen-ping'), 'backoff', 'hub still down: keep sleeping');
+  assert.equal(probes, 1);
+  up = true;
+  t.fetchImpl.next('open');
+  await t.clock.advance(3_000);
+  assert.equal(await t.sup.ensure('offscreen-ping'), 'woken', 'hub answered the probe');
+  await settle();
+  assert.equal(t.client.open, true, 'connected without waiting out the backoff');
+  assert.equal(await t.sup.ensure('offscreen-ping'), 'ok');
+  assert.equal(probes, 2, 'no probe while the stream is open');
   await finish(t);
 }
 

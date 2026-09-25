@@ -76,7 +76,11 @@ const sse = new SseClient({
 });
 
 // When to (re)connect lives in the supervisor: ensure() is safe to call from every wake-up source below.
-const sup = createSseSupervisor(sse, { getInstanceId });
+const sup = createSseSupervisor(sse, {
+  getInstanceId,
+  // Cuts a long backoff short once /health answers again (e.g. right after a hub restart).
+  probe: (url) => probeHub(url, 2_000).then(() => true, () => false),
+});
 provideSwState('sse', () => sup.snapshot());
 provideSwState('health', () => ({ ok: cache.healthOk, latencyMs: cache.latencyMs, checkedAt: cache.healthCheckedAt }));
 
