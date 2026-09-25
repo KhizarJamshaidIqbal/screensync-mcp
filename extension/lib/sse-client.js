@@ -252,6 +252,13 @@ export class SseClient {
       return { status: 'error', detail: HTTP_DETAIL[res.status] || `${res.status} — hub refused the event stream, retrying...` };
     }
     if (!res.body) return { status: 'reconnecting', detail: 'hub sent no stream body' };
+    // Another server on the hub's port (a dev server, a captive portal, a proxy) can answer 200 with HTML or
+    // JSON: that is not a live stream, and must not show 'connected' until its body ends.
+    const type = String((res.headers && res.headers.get('content-type')) || '').toLowerCase();
+    if (!type.startsWith('text/event-stream')) {
+      cancelBody(res);
+      return { status: 'error', detail: `hub answered /api/events with ${type || 'no content type'}, not an event stream (port conflict?)` };
+    }
 
     const openedAt = this._now();
     this.openedAt = openedAt;

@@ -351,6 +351,21 @@ async function done(t) {
   await done(t);
 }
 
+// ── a 200 that is not an event stream (another server on the hub's port) is an error, never 'connected' ──
+{
+  const t = setup();
+  t.fetchImpl.next('html');
+  t.client.start(HUB, 'tok');
+  await settle();
+  assert.equal(t.client.open, false, 'an HTML page is not a live stream');
+  assert.equal(t.client.state, 'backoff');
+  assert.equal(t.statuses.some(([s]) => s === 'connected'), false, 'never reported connected');
+  assert.equal(t.lastStatus()[0], 'error');
+  assert.match(t.lastStatus()[1], /text\/html.*not an event stream \(port conflict\?\)/);
+  assert.equal(t.fetchImpl.last().stream.cancelled, true, 'the page body is cancelled');
+  await done(t);
+}
+
 // ── meta.silenceMs: how long the stream was silent before an event's bytes began to arrive ──
 // (web-bridge.js asks the hub whether a web_request that may have sat in a stalled socket is still pending.)
 {

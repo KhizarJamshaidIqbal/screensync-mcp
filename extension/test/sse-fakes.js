@@ -51,7 +51,7 @@ function abortError() {
 }
 
 /** An open event stream the test controls. */
-function makeStream(signal, status = 200) {
+function makeStream(signal, status = 200, type = 'text/event-stream') {
   const s = { cancelled: false, closed: false };
   const body = new ReadableStream({
     start(c) { s.ctl = c; },
@@ -62,14 +62,15 @@ function makeStream(signal, status = 200) {
     s.closed = true;
     try { s.ctl.error(abortError()); } catch { /* already closed */ }
   });
-  s.res = new Response(body, { status, headers: { 'content-type': 'text/event-stream' } });
+  s.res = new Response(body, { status, headers: { 'content-type': type } });
   s.push = (text) => s.ctl.enqueue(typeof text === 'string' ? enc.encode(text) : text);
   s.end = () => { if (!s.closed) { s.closed = true; s.ctl.close(); } };
   return s;
 }
 
 /**
- * fetch fake. Queue per-call behaviours with next(kind): 'open' (200 stream), a number (that HTTP status with
+ * fetch fake. Queue per-call behaviours with next(kind): 'open' (200 stream), 'html' (200, not a stream: another
+ * server on the port), a number (that HTTP status with
  * a cancellable body), 'hang' (never answers until aborted) or 'down' (network error). Unqueued calls use
  * the fallback (default 'down'). Every call is recorded with its url, headers and stream.
  */
@@ -88,7 +89,8 @@ export function createFetch() {
         init.signal.addEventListener('abort', () => reject(abortError()));
         return undefined;
       }
-      call.stream = makeStream(init.signal, kind === 'open' ? 200 : kind);
+      call.stream = kind === 'html' ? makeStream(init.signal, 200, 'text/html; charset=utf-8')
+        : makeStream(init.signal, kind === 'open' ? 200 : kind);
       return resolve(call.stream.res);
     });
   };
