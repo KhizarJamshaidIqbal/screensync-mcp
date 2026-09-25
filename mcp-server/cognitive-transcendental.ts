@@ -24,6 +24,7 @@ import {
 } from "./cognitive-transcendental-data.js";
 import { destructiveCode, destructiveWords } from "./destructive-vocab.js";
 import { asRecord, toMap } from "./cognitive-serial.js";
+import { rekeyByDomain } from "./cognitive-domain.js";
 
 // Kept importable from here so existing importers do not have to change.
 export { CHALLENGE_FINGERPRINTS };
@@ -460,7 +461,13 @@ export class TranscendentalCognitionEngine {
   public restoreState(raw: unknown): void {
     const s = asRecord(raw, "transcendental");
     const threats = toMap<ThreatRecord>(s.threats, "transcendental.threats");
-    this.threats = threats;
+    // Re-keyed by the canonical domain the handlers now look up (web-cognitive-handlers.ts): a breaker saved under
+    // "www.x.com" must not reset to ARMED for "x.com". Two spellings keep the worse fear and trip count, and the
+    // state of the one that tripped last.
+    this.threats = rekeyByDomain(threats, (a, b) => {
+      const [older, newer] = String(a.lastTrippedAt ?? "") <= String(b.lastTrippedAt ?? "") ? [a, b] : [b, a];
+      return { ...older, ...newer, fearWeight: Math.max(a.fearWeight, b.fearWeight), consecutiveTrips: Math.max(a.consecutiveTrips, b.consecutiveTrips) };
+    });
   }
 }
 

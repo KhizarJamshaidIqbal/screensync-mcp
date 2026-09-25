@@ -10,6 +10,7 @@
 // 8. Sweller Cognitive Load Theory budgeting (intrinsic + extraneous + germane vs capacity)
 
 import { asRecord, toMap } from "./cognitive-serial.js";
+import { rekeyByDomain } from "./cognitive-domain.js";
 
 export interface ForgettingItem {
   id: string;
@@ -257,8 +258,17 @@ export class CognitiveDynamicsEngine {
       }
       sourceTrust.set(domain, inner);
     }
-    this.intentions = intentions;
-    this.sourceTrust = sourceTrust;
+    // Re-keyed by the canonical domain the handlers now look up (web-cognitive-handlers.ts), or an intention saved
+    // under "https://x.com" would never fire for "x.com". Two spellings' intentions are kept (oldest dropped past
+    // 50, as register does) and their trust maps merged, the lower trust winning for a source both scored.
+    this.intentions = rekeyByDomain(intentions, (a, b) =>
+      [...a, ...b].sort((x, y) => String(x.registeredAt).localeCompare(String(y.registeredAt))).slice(-50),
+    { fix: (list, key) => list.map((it) => (it.domain === key ? it : { ...it, domain: key })) });
+    this.sourceTrust = rekeyByDomain(sourceTrust, (a, b) => {
+      const merged = new Map(a);
+      for (const [source, t] of b) merged.set(source, merged.has(source) ? Math.min(merged.get(source)!, t) : t);
+      return merged;
+    });
   }
 }
 

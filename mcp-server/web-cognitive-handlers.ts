@@ -16,10 +16,17 @@ import { canonicalDomain } from "./cognitive-domain.js";
  * object is never mutated.
  */
 function withCanonicalDomain(args: Record<string, any>): Record<string, any> {
-  if (typeof args?.domain !== "string") return args;
-  const canonical = canonicalDomain(args.domain);
-  return canonical && canonical !== args.domain ? { ...args, domain: canonical } : args;
+  let out = args;
+  for (const field of DOMAIN_FIELDS) {
+    if (typeof args?.[field] !== "string") continue;
+    const canonical = canonicalDomain(args[field]);
+    if (canonical && canonical !== args[field]) out = { ...out, [field]: canonical };
+  }
+  return out;
 }
+
+/** Every argument a cognitive handler reads as a domain (transfer and mentoring tools name two). */
+const DOMAIN_FIELDS = ["domain", "sourceDomain", "targetDomain", "pupilDomain", "mentorDomain"] as const;
 
 /**
  * Handles every cognitive/developmental tool call on the web bridge.

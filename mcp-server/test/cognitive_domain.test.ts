@@ -179,3 +179,28 @@ test("memory load: two spellings' keySelectors are merged name by name, reflecti
   assert.ok(list.length <= MAX_PER_DOMAIN);
   assert.ok(list.every((r, i) => i === 0 || list[i - 1].createdAt >= r.createdAt), "ordered newest first throughout");
 });
+
+test("transcendental and dynamics restore re-key their domain maps, merging two spellings", async () => {
+  const { TranscendentalCognitionEngine } = await import("../cognitive-transcendental.js");
+  const { CognitiveDynamicsEngine } = await import("../cognitive-dynamics.js");
+  const threat = (fearWeight: number, consecutiveTrips: number, lastTrippedAt: string, breakerState: string) =>
+    ({ fearWeight, consecutiveTrips, breakerState, lastFingerprint: null, lastTrippedAt, cleanEncounters: 0 });
+  const tr = new TranscendentalCognitionEngine();
+  tr.restoreState({ threats: [["www.x.com", threat(0.9, 2, "2026-01-01", "TRIPPED")], ["x.com", threat(0.2, 0, "2026-02-01", "EXTINGUISHING")]] });
+  const threats = (tr.snapshotState() as { threats: Array<[string, any]> }).threats;
+  assert.deepEqual(threats.map(([k]) => k), ["x.com"], "the breaker saved under www.x.com is reachable as x.com");
+  assert.equal(threats[0][1].consecutiveTrips, 2, "the worse trip count is kept");
+  assert.equal(threats[0][1].fearWeight, 0.9);
+  assert.equal(threats[0][1].breakerState, "EXTINGUISHING", "the state of the record that tripped last");
+
+  const dy = new CognitiveDynamicsEngine();
+  const intention = (id: string, domain: string, registeredAt: string) => ({ id, domain, triggerEvent: "modal_appears", actionPlan: "close it", registeredAt, fired: 0 });
+  dy.restoreState({
+    intentions: [["https://x.com", [intention("a", "https://x.com", "2026-01-01")]], ["x.com", [intention("b", "x.com", "2026-02-01")]]],
+    sourceTrust: [["https://x.com", [["dom", 0.9], ["ocr", 0.4]]], ["x.com", [["dom", 0.6]]]],
+  });
+  const fired = dy.prospectiveMemory({ action: "check", domain: "x.com", observedEvent: "modal_appears" } as any) as { fired: Array<{ id: string; domain: string }> };
+  assert.deepEqual(fired.fired.map((f) => [f.id, f.domain]), [["a", "x.com"], ["b", "x.com"]], "both spellings' intentions fire for x.com");
+  const snap = dy.snapshotState() as { sourceTrust: Array<[string, Array<[string, number]>]> };
+  assert.deepEqual(snap.sourceTrust, [["x.com", [["dom", 0.6], ["ocr", 0.4]]]], "trust maps merged, the lower trust winning");
+});
