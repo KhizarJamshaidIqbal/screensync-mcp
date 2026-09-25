@@ -97,6 +97,27 @@ test("facts: size and keySelectors caps refuse, and never trim what was stored",
   } finally { cleanup(); }
 });
 
+test("facts: a legacy record over the caps does not lock the domain; only what a write sends is judged", () => {
+  const { store, cleanup } = scratchStore();
+  try {
+    // Written before the caps existed: keySelectors an array, and a huge note.
+    const mem = store.load();
+    mem.domains["legacy.example"] = { domain: "legacy.example", keySelectors: ["#compose"] as unknown as Record<string, string> } as never;
+    store.learn({ action: "fact", domain: "legacy.example", data: { framework: "react" } });
+    const fact = store.load().domains["legacy.example"] as unknown as Record<string, unknown>;
+    assert.equal(fact.framework, "react", "a write that does not touch the legacy keySelectors goes through");
+    assert.deepEqual(fact.keySelectors, ["#compose"], "and the legacy field is kept as it was");
+    (mem.domains["legacy.example"] as unknown as Record<string, unknown>).notes = "n".repeat(20_000);
+    assert.throws(() => store.learn({ action: "fact", domain: "legacy.example", data: { more: "m".repeat(100) } }), /notes \(20002 bytes, already stored\)/,
+      "a write that makes an oversized record larger is refused, naming the stored field that is too big");
+    store.learn({ action: "fact", domain: "legacy.example", data: { notes: "short", keySelectors: null } });
+    const cleaned = store.load().domains["legacy.example"] as unknown as Record<string, unknown>;
+    assert.equal(cleaned.notes, "short");
+    assert.equal("keySelectors" in cleaned, false, "keySelectors: null removes them");
+    assert.throws(() => store.learn({ action: "fact", domain: "legacy.example", data: { keySelectors: ["#a"] } }), /must be an object/);
+  } finally { cleanup(); }
+});
+
 test("saveSoon: 20 deferred learns cost at most 2 writes, flush persists them, and the file parses", () => {
   const { store, cleanup } = scratchStore();
   try {

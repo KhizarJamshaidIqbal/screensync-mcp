@@ -117,21 +117,39 @@ export function admitPitfall(mem: CognitiveMemoryData, domain: string, pf: Domai
 
 /**
  * The fact record a `fact` learn would produce, checked against the caps. Spread semantics are unchanged
- * (a field in `data` replaces the stored one); a result over the caps is refused, never silently trimmed.
+ * (a field in `data` replaces the stored one; `keySelectors: null` removes them); a result over the caps is
+ * refused, never silently trimmed.
+ *
+ * Only what the caller sends is judged. A record stored before these caps existed may hold keySelectors that
+ * are not an object, too many of them, or more than FACT_MAX_BYTES: it is kept as it is, a write that does not
+ * touch the offending field still goes through, and a write only fails the byte cap when it makes the record
+ * larger. Otherwise such a domain's facts were locked behind an error about a field the caller never sent.
  */
 export function mergeFact(existing: DomainSemanticMemory | undefined, domain: string, data: Record<string, unknown>, now: string): DomainSemanticMemory {
-  const next = { ...(existing ?? { domain }), ...data, domain, lastVerifiedAt: now } as DomainSemanticMemory;
-  const selectors = next.keySelectors;
-  if (selectors !== undefined && (typeof selectors !== "object" || selectors === null || Array.isArray(selectors))) {
-    throw new Error("data.keySelectors must be an object of name -> selector.");
+  const sent = data.keySelectors;
+  if (sent !== undefined && sent !== null && (typeof sent !== "object" || Array.isArray(sent))) {
+    throw new Error("data.keySelectors must be an object of name -> selector (or null to remove them).");
   }
-  const selectorCount = selectors ? Object.keys(selectors).length : 0;
-  if (selectorCount > FACT_MAX_KEY_SELECTORS) {
-    throw new Error(`a domain keeps at most ${FACT_MAX_KEY_SELECTORS} keySelectors (this write has ${selectorCount}). Nothing was stored.`);
+  if (sent) {
+    const selectorCount = Object.keys(sent).length;
+    if (selectorCount > FACT_MAX_KEY_SELECTORS) {
+      throw new Error(`a domain keeps at most ${FACT_MAX_KEY_SELECTORS} keySelectors (this write has ${selectorCount}). Nothing was stored.`);
+    }
   }
-  const bytes = Buffer.byteLength(JSON.stringify(next), "utf8");
-  if (bytes > FACT_MAX_BYTES) {
-    throw new Error(`the facts for ${domain} would take ${bytes} bytes (limit ${FACT_MAX_BYTES}). Nothing was stored; keep facts short and put long procedures in a playbook.`);
+  const next = { ...(existing ?? { domain }), ...data, domain, lastVerifiedAt: now } as DomainSemanticMemory & Record<string, unknown>;
+  if (sent === null) delete next.keySelectors;
+  const bytes = jsonBytes(next);
+  const before = existing ? jsonBytes({ ...existing, lastVerifiedAt: now }) : 0;
+  if (bytes > FACT_MAX_BYTES && bytes > before) {
+    const largest = Object.keys(next)
+      .map((k) => ({ k, n: jsonBytes(next[k]) }))
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 3)
+      .map(({ k, n }) => `${k} (${n} bytes${k in data ? "" : ", already stored"})`)
+      .join(", ");
+    throw new Error(`the facts for ${domain} would take ${bytes} bytes (limit ${FACT_MAX_BYTES}); the largest fields are ${largest}. Nothing was stored; keep facts short, put long procedures in a playbook, or send a shorter value for a stored field to replace it.`);
   }
   return next;
 }
+
+const jsonBytes = (v: unknown): number => Buffer.byteLength(JSON.stringify(v) ?? "", "utf8");
