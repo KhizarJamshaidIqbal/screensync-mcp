@@ -53,6 +53,29 @@ async function loadInitialStatus() {
 }
 loadInitialStatus();
 
+// Live status: the pill follows the service worker's SSE/health changes instead of freezing at open time.
+async function refreshStatus() {
+  try {
+    const r = await send({ type: 'get-status' });
+    if (r && r.cache) updateStatusPill(pill, r.cache);
+  } catch { /* service worker restarting: the next tick retries */ }
+}
+
+function connectStatusPort() {
+  try {
+    const port = chrome.runtime.connect({ name: 'popup' });
+    port.onMessage.addListener((msg) => {
+      if (!msg) return;
+      if (msg.kind === 'snapshot' && msg.cache) updateStatusPill(pill, msg.cache);
+      else if (msg.kind === 'sse-status' || msg.kind === 'health') refreshStatus();
+    });
+    port.onDisconnect.addListener(() => setTimeout(connectStatusPort, 1000));
+  } catch {
+    setTimeout(connectStatusPort, 2000);
+  }
+}
+connectStatusPort();
+
 // Thumbnail refresh
 async function refreshThumb() {
   const f = await send({ type: 'get-latest-frame' });
@@ -82,6 +105,7 @@ refreshDevice();
 setInterval(() => {
   refreshThumb();
   refreshDevice();
+  refreshStatus();
 }, 3000);
 
 // Interactive frame tap in popup
