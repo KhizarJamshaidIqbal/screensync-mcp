@@ -1,7 +1,81 @@
 {
-  "generatedAt": "2026-09-23T16:44:41Z",
+  "generatedAt": "2026-09-25T20:21:04Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
+    {
+      "sha": "112e9f9",
+      "date": "2026-09-26",
+      "ts": 1790367618,
+      "parts": [
+        {
+          "stream": "extension",
+          "streamLabel": "Extension",
+          "version": "1.14.1",
+          "build": "",
+          "display": "1.14.1",
+          "date": "2026-09-26",
+          "ts": 1790367618,
+          "sha": "112e9f9",
+          "groups": {
+            "NEW": [
+              "Shared service-worker state registry and hub url helpers"
+            ],
+            "IMPROVED": [
+              "Diagnostics driven by the real payload (stream B)"
+            ],
+            "FIXED": [
+              "Treat a 200 that is not text/event-stream as an sse error",
+              "Confirm a web_request with the hub when it may have outlived its wait",
+              "Judge onboarding and the web access tab on this browser's hub entry",
+              "Judge web_request expiry on the hub's relative remainingMs",
+              "Use isLoopbackHub for the onboarding host-permission check",
+              "Mint one browser instance id when callers race at first boot",
+              "Keep the popup status live and verify a real stream in onboarding",
+              "Never run a replayed or expired web request",
+              "Make the sse stream state truthful and stop the reconnect storm",
+              "Drive the diagnostics tab from the real payload",
+              "Report real sse, uptime and grant counts in diagnostics"
+            ]
+          },
+          "count": 13
+        }
+      ],
+      "count": 13,
+      "title": "Extension 1.14.1"
+    },
+    {
+      "sha": "d69e1c4",
+      "date": "2026-09-23",
+      "ts": 1790358271,
+      "parts": [
+        {
+          "stream": "extension",
+          "streamLabel": "Extension",
+          "version": "1.14.0",
+          "build": "",
+          "display": "1.14.0",
+          "date": "2026-09-23",
+          "ts": 1790358271,
+          "sha": "d69e1c4",
+          "groups": {
+            "NEW": [
+              "Page through a long aria snapshot with offset",
+              "Web_screenshot background option that never takes focus"
+            ],
+            "IMPROVED": [],
+            "FIXED": [
+              "Read tables inside a closed details and flag visible columns",
+              "Web_expect answers on a background tab",
+              "Bound the paint wait before a capture, skip hidden pages",
+              "Wait for paint before web_element_screenshot capture"
+            ]
+          },
+          "count": 6
+        }
+      ],
+      "count": 6,
+      "title": "Extension 1.14.0"
+    },
     {
       "sha": "06c2a7e",
       "date": "2026-09-23",
@@ -496,9 +570,9 @@
     }
   ],
   "stats": {
-    "releases": 15,
+    "releases": 17,
     "appReleases": 6,
-    "extensionReleases": 9,
-    "changes": 92
+    "extensionReleases": 11,
+    "changes": 111
   }
 }
