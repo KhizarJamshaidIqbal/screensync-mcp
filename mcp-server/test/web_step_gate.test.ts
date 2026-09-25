@@ -11,7 +11,11 @@
 import "./_isolate-data-dir.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CAPABLE_A, OLD_B, DANGEROUS, HARMLESS, startHub, withGate, askedPerson, tabsAnswer, sleep, type Hub } from "./_web-hub-harness.js";
+import { once } from "node:events";
+import type { AddressInfo } from "node:net";
+import express from "express";
+import { CAPABLE_A, OLD_B, DANGEROUS, HARMLESS, headers, startHub, withGate, askedPerson, tabsAnswer, sleep, type Hub, type ToolReply } from "./_web-hub-harness.js";
+import { createWebBridge } from "../web.js";
 
 const gateRefusal = /^USER_CONFIRMATION_REQUIRED \(cognitive gate\)/;
 const RISKY_FLOW = [{ tool: "web_click", args: HARMLESS }, { tool: "web_click", args: DANGEROUS }];
@@ -123,25 +127,57 @@ test("tab fanout: every risky per-tab call is put to a person; the tab listing i
   }
 });
 
-// Scheduled runs are unattended, so they are deliberately NOT put to a person: a prompt nobody is there to answer
-// would hold every run up. Nor does the hub gate them - see the report of this change for that gap. This pins
-// the unattended half: a scheduled step leaves the hub unmarked, exactly as before.
-test("scheduled runs stay unattended: the hub never holds a scheduled step for a person", async () => {
+// Scheduled runs are unattended, so they are never put to a person: a prompt nobody is there to answer would hold
+// every run up. Nor may scheduling be a way around the gate: a step the gate would put to a person, or one that
+// waits for a person (web_takeover), is refused in a scheduled run and never relayed; a harmless step runs unmarked.
+test("scheduled runs stay unattended: a gated or person-only step is refused, never relayed unmarked", async () => {
   const hub = await startHub();
   try {
     await hub.register(CAPABLE_A);
     await withGate("enforce", async () => {
-      await hub.call("web_flow_save", { name: "scheduled-risky", steps: [{ tool: "web_click", args: DANGEROUS }] });
-      const sched = await hub.call("web_flow_schedule", { flow: "scheduled-risky", everyMinutes: 0.05 });
+      const steps = [{ tool: "web_click", args: HARMLESS }, { tool: "web_click", args: DANGEROUS }, { tool: "web_takeover", args: { reason: "login" } }];
+      await hub.call("web_flow_save", { name: "scheduled-risky", steps });
+      const sched = await hub.call("web_flow_schedule", { flow: "scheduled-risky", everyMinutes: 0.05, stopOnError: false });
       assert.equal(sched.ok, true, JSON.stringify(sched));
       for (let waited = 0; hub.relayed.length === 0 && waited < 8_000; waited += 100) await sleep(100);
+      await sleep(300);
       await hub.call("web_flow_unschedule", { id: sched.data.id });
     });
     assert.ok(hub.relayed.length >= 1, "the schedule ran");
-    assert.deepEqual(marks(hub).slice(0, 1), ["web_click->inst-a"]);
+    assert.ok(marks(hub).every((m) => m === "web_click->inst-a"), `only unmarked clicks: ${marks(hub)}`);
+    assert.ok(hub.relayed.every((r) => r.args.selector === HARMLESS.selector), "the risky click and the takeover were never relayed");
   } finally {
     hub.bridge.stopSchedules();
     await hub.close();
+  }
+});
+
+test("schedules: a run still going makes the next tick a no-op; an interval past the timer limit is refused", async () => {
+  const relayed: string[] = [];
+  const bridge = createWebBridge((p) => { if ((p as { type?: string }).type === "web_request") relayed.push((p as { tool: string }).tool); });
+  const app = express();
+  app.use(express.json());
+  bridge.registerRoutes(app);
+  const server = app.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const call = async (tool: string, args: Record<string, unknown>) =>
+    (await (await fetch(`${base}/api/web/tool`, { method: "POST", headers, body: JSON.stringify({ tool, args }) })).json()) as ToolReply;
+  try {
+    await fetch(`${base}/api/web/register`, { method: "POST", headers, body: JSON.stringify(CAPABLE_A) });
+    // Nobody answers: each run's click waits its full 45s, far longer than the 3s interval.
+    await call("web_flow_save", { name: "slow", steps: [{ tool: "web_click", args: HARMLESS }] });
+    const sched = await call("web_flow_schedule", { flow: "slow", everyMinutes: 0.05 });
+    assert.equal(sched.ok, true, JSON.stringify(sched));
+    await sleep(7_500); // ticks at ~3s and ~6s
+    assert.deepEqual(relayed, ["web_click"], "the second tick did not start a run on top of the first");
+    const tooLong = await call("web_flow_schedule", { flow: "slow", everyMinutes: 43_200 });
+    assert.equal(tooLong.ok, false, "30 days would overflow the timer to 1ms and run continuously");
+    assert.match(String(tooLong.error), /maximum \d+/);
+  } finally {
+    bridge.stopSchedules();
+    bridge.close();
+    await new Promise<void>((r) => server.close(() => r()));
   }
 });
 

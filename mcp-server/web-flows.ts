@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFile
 import path from "node:path";
 import type { Response } from "express";
 import { DATA_DIR, log } from "./config.js";
+import { gateBeforeRelay } from "./cognitive-policy.js";
 import { withCallBudget, type createStepDispatch, type StepResult } from "./web-multi-dispatch.js";
 
 /** The one relay every hub-side call passes through (web.ts request()). */
@@ -19,6 +20,12 @@ type FlowStep = { tool?: string; args?: Record<string, unknown> };
 type SavedFlow = { name: string; steps: FlowStep[] };
 
 export type FlowEngine = ReturnType<typeof createFlowEngine>;
+
+/** The longest interval a Node timer can hold (2^31-1 ms); a longer one fires after 1ms. */
+const MAX_TIMER_MS = 2_147_483_647;
+const MAX_EVERY_MINUTES = Math.floor(MAX_TIMER_MS / 60_000);
+/** Steps that wait for a person to act, which an unattended schedule cannot have. */
+const PERSON_TOOLS: ReadonlySet<string> = new Set(["web_takeover", "web_request_help", "web_request_access"]);
 
 export function createFlowEngine({ broadcast, request, gatedStep }: { broadcast: Broadcast; request: WebRelay; gatedStep: GatedStep }) {
   // ── Persisted Flows Library: save / list / run / delete ──────────────
@@ -141,7 +148,38 @@ export function createFlowEngine({ broadcast, request, gatedStep }: { broadcast:
       try { return JSON.parse(readFileSync(path.join(SCHEDULES_DIR, f), "utf8")); } catch { return null; }
     }).filter(Boolean);
   };
+  // A scheduled run is unattended: nobody is there to answer a person's prompt. A step that needs one (a takeover,
+  // a help or access request, or a step the cognitive gate would put to a person) is refused, never relayed
+  // unmarked: scheduling a flow must not be a way around the gate web_flow_run and web_test_run apply.
+  const scheduledSend = (id: string) => async (tool: string, args: Record<string, unknown>, timeoutMs: number): Promise<StepResult> => {
+    if (PERSON_TOOLS.has(tool)) {
+      return { ok: false, code: "SCHEDULE_REFUSED", error: `${tool} waits for a person, so it cannot run in an unattended schedule; run the flow with web_flow_run instead.` };
+    }
+    const gate = gateBeforeRelay(tool, args, `schedule:${id}`);
+    if (gate?.block) {
+      return {
+        ok: false, code: "USER_CONFIRMATION_REQUIRED", data: { gate: gate.decision },
+        error: `USER_CONFIRMATION_REQUIRED (cognitive gate): ${gate.decision.reason} A scheduled run is unattended, so nobody can approve it: run the flow with web_flow_run, or allowlist the domain.`,
+      };
+    }
+    return request(tool, args, timeoutMs);
+  };
+  const running = new Set<string>();
   const runScheduled = async (id: string) => {
+    // One run of a schedule at a time: a run that outlasts its interval makes the next tick a no-op, instead of
+    // runs piling up (each relaying its own steps to the browser).
+    if (running.has(id)) {
+      log("INFO", "Scheduled flow run skipped: the previous run is still going", { schedule: id });
+      return;
+    }
+    running.add(id);
+    try {
+      await runScheduledOnce(id);
+    } finally {
+      running.delete(id);
+    }
+  };
+  const runScheduledOnce = async (id: string) => {
     const schedules = loadSchedules();
     const sched = schedules.find((s) => (s as { id?: string }).id === id) as
       | { id: string; flow: string; vars: Record<string, string>; stopOnError: boolean; everyMinutes: number }
@@ -154,7 +192,7 @@ export function createFlowEngine({ broadcast, request, gatedStep }: { broadcast:
     const flow = loadFlow(sched.flow);
     if (!flow) return;
     const startedAt = Date.now();
-    const run = await executeFlow(flow, sched.vars || {}, sched.stopOnError !== false, 45_000);
+    const run = await executeFlow(flow, sched.vars || {}, sched.stopOnError !== false, 45_000, scheduledSend(id));
     // persist last-run status back into the schedule file
     try {
       writeFileSync(schedulePath(id), JSON.stringify({ ...sched, lastRunAt: new Date().toISOString(), lastRunOk: run.okAll, lastRunExecuted: run.executed, lastRunMs: Date.now() - startedAt }, null, 2));
@@ -163,7 +201,8 @@ export function createFlowEngine({ broadcast, request, gatedStep }: { broadcast:
     log("INFO", "Scheduled flow run", { schedule: id, flow: sched.flow, okAll: run.okAll, executed: run.executed });
   };
   const startScheduleTimer = (sched: { id: string; everyMinutes: number }) => {
-    const ms = Math.max(Math.round(sched.everyMinutes * 60_000), 3_000);
+    // setInterval turns anything above MAX_TIMER_MS into 1ms, which would run the flow continuously.
+    const ms = Math.min(Math.max(Math.round(sched.everyMinutes * 60_000), 3_000), MAX_TIMER_MS);
     const timer = setInterval(() => { runScheduled(sched.id).catch(() => {}); }, ms);
     scheduleTimers.set(sched.id, timer);
   };
@@ -288,8 +327,8 @@ export function createFlowEngine({ broadcast, request, gatedStep }: { broadcast:
         return true;
       }
       const everyMinutes = Number(args.everyMinutes);
-      if (!Number.isFinite(everyMinutes) || everyMinutes < 0.05) {
-        res.status(400).json({ success: false, ok: false, error: "web_flow_schedule requires everyMinutes (minimum 0.05 = every 3 seconds; use ≥1440 for daily)." });
+      if (!Number.isFinite(everyMinutes) || everyMinutes < 0.05 || everyMinutes > MAX_EVERY_MINUTES) {
+        res.status(400).json({ success: false, ok: false, error: `web_flow_schedule requires everyMinutes (minimum 0.05 = every 3 seconds, maximum ${MAX_EVERY_MINUTES} = about 24 days; use 1440 for daily).` });
         return true;
       }
       const vars = (args.vars && typeof args.vars === "object" ? args.vars : {}) as Record<string, string>;
