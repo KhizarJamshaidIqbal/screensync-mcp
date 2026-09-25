@@ -10,7 +10,7 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import express from "express";
 import { AUTH_TOKEN } from "../config.js";
-import { createWebBridge } from "../web.js";
+import { createWebBridge, type WebBridgeOptions } from "../web.js";
 
 // The cognitive gate is covered elsewhere (cognitive_gate.e2e.ts); a test that needs it turns it on with withGate().
 process.env.SCREEN_SYNC_COGNITIVE_GATE = "off";
@@ -23,8 +23,11 @@ export const A = { instanceId: "inst-a", browserId: "inst-a", browserName: "chro
 export const B = { instanceId: "inst-b", browserId: "inst-b", browserName: "chrome", profileEmail: "b@profile.test", webAccessEnabled: true, approvals: true };
 export const SOLO = { ...A, instanceId: "inst-solo", browserId: "inst-solo", profileEmail: "solo@profile.test" };
 
+/** Stream information for the bridge (web_stream_gate.test.ts); none = every stream counts as up, as before. */
+export type HubOptions = WebBridgeOptions & { sseCount?: () => number };
+
 /** One bridge on an ephemeral port. Every relayed web_request is recorded, and answered as the addressed extension would. */
-export async function startHub(answer: (ev: Relayed) => unknown = (ev) => ({ ranIn: ev.targetInstanceId })) {
+export async function startHub(answer: (ev: Relayed) => unknown = (ev) => ({ ranIn: ev.targetInstanceId }), opts: HubOptions = {}) {
   const relayed: Relayed[] = [];
   let base = "";
   const bridge = createWebBridge((payload) => {
@@ -38,7 +41,7 @@ export async function startHub(answer: (ev: Relayed) => unknown = (ev) => ({ ran
         body: JSON.stringify({ id: ev.id, ok: true, data: answer(ev), ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: ev.targetBrowser || "chrome" }),
       }).catch(() => {});
     });
-  }, () => 2);
+  }, opts.sseCount ?? (() => 2), { presence: opts.presence, streamGraceMs: opts.streamGraceMs });
   const app = express();
   app.use(express.json({ limit: "5mb" }));
   bridge.registerRoutes(app);

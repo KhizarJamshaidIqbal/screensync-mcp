@@ -131,10 +131,12 @@ export async function startHttpHub(): Promise<HubHandle> {
   // One named listener, so teardown removes exactly what start added (an inline arrow could never be removed).
   const onHubEvent = (event: HubEvent) => { sse.broadcast(event); };
   hubEvents.on("event", onHubEvent);
-  // web.ts types this getter as a client count. The view's valueOf() keeps numeric use correct, and
-  // profile-registry statusPayload() reads per-browser stream state (attributed streams) from the object.
-  const sseView = Object.assign(sseViewOf(sse), { valueOf: () => sse.count() });
-  const webBridge = createWebBridge(broadcast, () => sseView as unknown as number);
+  // profile-registry statusPayload() reads per-browser stream state (attributed streams) from the view; the bridge
+  // refuses a call fast (BROWSER_STREAM_DOWN) when its target's own stream is down (S1), and a reconnecting
+  // extension's Last-Event-ID replay re-sends only web_requests the hub still waits for, with their full args.
+  const sseView = sseViewOf(sse);
+  const webBridge = createWebBridge(broadcast, () => sseView, { presence: (instanceId) => sse.hasInstance(instanceId) });
+  sse.setReplayPayload(webBridge.replayPayload);
   // Zero-Click HMR on extension/ and the release-APK watcher (hub-watchers.ts); closed on stop.
   const watchers = startHubWatchers(broadcast);
 

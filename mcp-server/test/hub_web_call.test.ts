@@ -177,3 +177,14 @@ test("a non-hub error response (no ok/error/success field at all) is flagged as 
     await stop(server);
   }
 });
+
+test("a long-wait tool (web_takeover, web_request_help, web_wait_download) gets its own budget, not the 120s cap", () => {
+  assert.equal(callTimeoutOf({}, "web_takeover"), 300_000 + IN_PAGE_MARGIN_MS, "web_takeover's default 5 min");
+  assert.equal(callTimeoutOf({ timeoutMs: 600_000 }, "web_takeover"), 600_000 + IN_PAGE_MARGIN_MS);
+  assert.equal(callTimeoutOf({ timeoutMs: 3_600_000 }, "web_takeover"), 600_000 + IN_PAGE_MARGIN_MS, "capped at the catalog max");
+  assert.equal(callTimeoutOf({}, "web_request_help"), 120_000 + IN_PAGE_MARGIN_MS);
+  assert.equal(callTimeoutOf({ timeoutMs: 90_000 }, "web_wait_download"), 90_000 + IN_PAGE_MARGIN_MS);
+  assert.ok(transportTimeoutMs(callTimeoutOf({ timeoutMs: 600_000 }, "web_takeover")) > 600_000, "the transport outlives it");
+  assert.equal(callTimeoutOf({ timeoutMs: 25_000 }, "web_expect"), 30_000, "any other tool: the ordinary rule");
+  assert.equal(callTimeoutOf({ timeoutMs: 600_000 }), 120_000, "no tool named: the ordinary rule, unchanged");
+});

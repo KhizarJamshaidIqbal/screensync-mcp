@@ -10,6 +10,8 @@ type PendingRequest = {
   timer: ReturnType<typeof setTimeout>;
   /** Set once the extension has asked for more time, so it cannot keep a request alive forever. */
   extended?: boolean;
+  /** When the hub stops waiting (epoch ms). A replayed web_request carries it, so it moves whenever the timer does. */
+  deadlineAt?: number;
 };
 
 export interface ExtensionRouteDeps {
@@ -61,9 +63,12 @@ export function mountExtensionRoutes(app: Express, { isAuthorized, broadcast, pe
     }
     const id = String(b.id);
     const asked = Math.min(Math.max(Number(b.ms) || 0, 1_000), APPROVAL_MAX_MS);
-    const waitMs = asked + APPROVAL_RUN_HEADROOM_MS;
+    // More time, never less: a long-wait call (web_takeover's minutes) that also asks a person keeps its own deadline.
+    const now = Date.now();
+    const waitMs = Math.max(asked + APPROVAL_RUN_HEADROOM_MS, (entry.deadlineAt ?? 0) - now);
     clearTimeout(entry.timer);
     entry.extended = true;
+    entry.deadlineAt = now + waitMs;
     entry.timer = setTimeout(() => {
       pending.delete(id);
       // The extension answers APPROVAL_TIMEOUT itself when nobody decides in time; getting here means it went quiet

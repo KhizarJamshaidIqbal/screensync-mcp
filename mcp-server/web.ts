@@ -3,7 +3,7 @@ import type { Express, Request, Response } from "express";
 import { isAuthorized, log } from "./config.js";
 import { emitHubEvent, webEventsReply } from "./events.js";
 import { createFrameStore } from "./web-frame.js";
-import { createProfileRegistry, type DispatchDecision } from "./profile-registry.js";
+import { createProfileRegistry, type BrowserInstance, type DispatchDecision, type SseView } from "./profile-registry.js";
 import { trackToolExecution } from "./cognitive-auto-tracker.js";
 import { sessionOf } from "./cognitive-spine-observer.js";
 import { forRelay, gateBeforeRelay, refusedByGate, type GateDecision } from "./cognitive-policy.js";
@@ -14,6 +14,8 @@ import { createFlowEngine } from "./web-flows.js";
 import { createRecorder } from "./web-recorder.js";
 import { handleVisualBaseline } from "./web-visual-baseline.js";
 import { createFanout } from "./web-fanout.js";
+import { hubWaitMs, LONG_WAIT_TOOLS } from "./web-timeouts.js";
+import type { SseRingEvent } from "./hub-sse.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -26,6 +28,10 @@ export type WebToolResult = { ok: boolean; data?: unknown; error?: string; code?
 type Pending = {
   resolve: (r: WebToolResult) => void;
   timer: ReturnType<typeof setTimeout>;
+  /** The web_request exactly as relayed (images intact), for replay to an extension that reconnects meanwhile. */
+  payload: Record<string, unknown>;
+  /** When the hub stops waiting; /api/web/awaiting moves it (web-ext-routes.ts). */
+  deadlineAt: number;
   extended?: boolean;
   targetBrowser?: string | null;
   targetInstanceId?: string | null;
@@ -39,9 +45,30 @@ export type WebBridge = {
   armReloadRequested: () => void;
   startSchedules: () => void;
   stopSchedules: () => void;
+  /** What a Last-Event-ID replay sends for a ring event (hub-sse.ts setReplayPayload), or null to skip it. */
+  replayPayload: (e: SseRingEvent) => Record<string, unknown> | null;
 };
 
-export function createWebBridge(broadcast: (payload: object, name?: string) => void, getSseClientCount?: () => number): WebBridge {
+export type WebBridgeOptions = {
+  /**
+   * Whether the browser `instanceId`'s own SSE stream is open (hub-sse.ts hasInstance); null = unknown. Asked only
+   * for a browser that attributes its stream (sseAttribution); an older one is judged by "any stream is open".
+   * Without it the bridge knows nothing about streams and relays as before (in-process tests).
+   */
+  presence?: (instanceId: string) => boolean | null;
+  /** How long a call waits for a dropped stream to come back before it fails with BROWSER_STREAM_DOWN. */
+  streamGraceMs?: number;
+};
+
+/** A service worker restart or a network blip reconnects within a few seconds; a dead stream does not. */
+export const STREAM_GRACE_MS = 5_000;
+const STREAM_POLL_MS = 50;
+
+export function createWebBridge(
+  broadcast: (payload: object, name?: string) => void,
+  getSseClientCount?: () => number | SseView,
+  opts: WebBridgeOptions = {},
+): WebBridge {
   const pending = new Map<string, Pending>();
   const frameStore = createFrameStore(broadcast);
 
@@ -59,38 +86,82 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
     return registry.statusPayload(sseClients);
   };
 
-  const request = (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision, decided?: DispatchDecision): Promise<WebToolResult> =>
-    new Promise((resolve) => {
-      // Every relay (tool route, flows, schedules, replay, fanout) passes through here, so this is where a call
-      // that cannot be pinned to exactly one browser instance is stopped: the extension runs an untargeted
-      // web_request in EVERY connected profile. Routing order (tabId/windowId owner, hint, selectedProfile,
-      // heuristic) lives in profile-registry.ts resolveDispatch(); a caller that already acted on one passes `decided`.
-      const route = decided ?? registry.resolveDispatch(args);
-      if (!route.ok) {
-        resolve({ ok: false, error: route.error, data: { code: route.code, onlineProfiles: route.onlineProfiles } });
-        return;
-      }
+  // ── S1: is the target browser's live event stream up? ──
+  // Requests reach the extension ONLY over its SSE stream, while its heartbeat (HTTP) keeps it "online" for 90s
+  // after that stream died: a call relayed then waited out its whole timeout (45-65s) for nothing.
+  const streamGraceMs = Math.max(0, opts.streamGraceMs ?? STREAM_GRACE_MS);
+  const sseClientCount = () => {
+    const v = getSseClientCount?.();
+    return typeof v === "number" ? v : v ? v.count() : 0;
+  };
+  const streamUp = (target: BrowserInstance): boolean => {
+    if (!opts.presence) return true; // no stream information: relay as before
+    if (target.sseAttribution) return opts.presence(target.instanceId) !== false;
+    return getSseClientCount ? sseClientCount() > 0 : true;
+  };
+  /** null once the target's stream is up (waiting up to streamGraceMs for it to come back), else the refusal. */
+  const streamRefusal = async (target: BrowserInstance): Promise<WebToolResult | null> => {
+    if (streamUp(target)) return null;
+    const startedAt = Date.now();
+    const deadline = startedAt + streamGraceMs;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, Math.max(1, Math.min(STREAM_POLL_MS, deadline - Date.now()))));
+      if (streamUp(target)) return null;
+    }
+    const who = target.profileEmail || target.profileName || target.instanceId;
+    const waitedMs = Date.now() - startedAt;
+    log("WARN", "Web call refused: the target browser's event stream is down", { instanceId: target.instanceId, waitedMs });
+    return {
+      ok: false, code: "BROWSER_STREAM_DOWN", retryable: true,
+      error: `The browser's live event stream (SSE) to the hub is down, so ${who} (${target.name}) cannot receive this call; nothing was sent. ` +
+        "The extension reconnects on its own: retry in a few seconds. If it keeps failing, open the ScreenSync extension dashboard (web_status shows sseConnected per browser).",
+      data: { code: "BROWSER_STREAM_DOWN", instanceId: target.instanceId, waitedMs },
+    };
+  };
+
+  const request = async (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision, decided?: DispatchDecision): Promise<WebToolResult> => {
+    // Every relay (tool route, flows, schedules, replay, fanout) passes through here, so this is where a call
+    // that cannot be pinned to exactly one browser instance is stopped: the extension runs an untargeted
+    // web_request in EVERY connected profile. Routing order (tabId/windowId owner, hint, selectedProfile,
+    // heuristic) lives in profile-registry.ts resolveDispatch(); a caller that already acted on one passes `decided`.
+    const route = decided ?? registry.resolveDispatch(args);
+    if (!route.ok) return { ok: false, error: route.error, data: { code: route.code, onlineProfiles: route.onlineProfiles } };
+    // ...and where a call to a browser that cannot hear it (its stream is down) fails fast instead of timing out.
+    const down = await streamRefusal(route.target);
+    if (down) return down;
+    return new Promise((resolve) => {
       const id = randomUUID();
       const timer = setTimeout(() => {
         pending.delete(id);
         resolve({ ok: false, code: "TIMEOUT", error: `Timed out after ${timeoutMs}ms waiting for the browser extension.` });
       }, timeoutMs);
       const { name: targetBrowser, instanceId: targetInstanceId, profileEmail: targetEmail, profileName: targetProfile } = route.target;
-
-      pending.set(id, { resolve, timer, targetBrowser, targetInstanceId, targetEmail, targetProfile });
-      broadcast({
+      const deadlineAt = Date.now() + timeoutMs;
+      const payload = {
         type: "web_request",
         id,
         tool,
         // Internal flags are dropped HERE, the one place every relay passes through, and the gate's request for a
         // person is added only after. deadlineAt tells the extension how long the hub will wait.
-        args: forRelay(args, gate), deadlineAt: Date.now() + timeoutMs,
+        args: forRelay(args, gate), deadlineAt,
         targetBrowser,
         targetInstanceId,
         targetEmail,
         targetProfile,
-      });
+      };
+      pending.set(id, { resolve, timer, payload, deadlineAt, targetBrowser, targetInstanceId, targetEmail, targetProfile });
+      broadcast(payload);
     });
+  };
+
+  // A reconnecting extension replays what it missed (Last-Event-ID). A web_request goes out again only while the
+  // hub still waits for it, with its full args (the ring keeps a copy with images truncated) and its CURRENT
+  // deadline; an answered or expired one is skipped, so it never runs after the caller was answered.
+  const replayPayload = (e: SseRingEvent): Record<string, unknown> | null => {
+    if (e.payload?.type !== "web_request") return e.payload;
+    const entry = typeof e.payload.id === "string" ? pending.get(e.payload.id) : undefined;
+    return entry ? { ...entry.payload, deadlineAt: entry.deadlineAt } : null;
+  };
   // A step of web_flow_run / web_replay / web_fanout / web_tab_fanout meets the approval gate like a direct call.
   const gatedStep = createStepDispatch(registry.resolveDispatch, request);
 
@@ -258,8 +329,16 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         res.status(httpStatus).json({ success: false, ok: false, error, code, onlineProfiles, data: { code, onlineProfiles } });
         return;
       }
-      // 65 s, not 60: a tool with a 60 s browser-side budget still gets the MCP side's 5 s margin (hub-web-call.ts).
-      const timeoutMs = Math.min(Math.max(Number(b.timeoutMs) || 45_000, 5_000), 65_000);
+      // S1: the target cannot hear a call while its event stream is down. Refused here, before the call is counted
+      // as a tool run by events, the recorder or tracking (request() checks again for flows, replay and fanout).
+      const down = await streamRefusal(route.target);
+      if (down) {
+        res.status(503).json({ success: false, ok: false, error: down.error, code: down.code, retryable: true, data: down.data });
+        return;
+      }
+      // 5-65s (65, not 60: a 60s browser-side budget still gets the MCP side's 5s margin, hub-web-call.ts); a
+      // long-wait tool (web-timeouts.ts) waits its own budget from args.timeoutMs, up to its catalog maximum.
+      const timeoutMs = hubWaitMs(tool, LONG_WAIT_TOOLS[tool] ? args.timeoutMs : b.timeoutMs);
       const startedAt = Date.now();
       const result = await request(tool, args, timeoutMs, gate?.block ? gate.decision : undefined, route);
       emitHubEvent("tool", tool, result.ok);
@@ -337,5 +416,6 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
     armReloadRequested,
     startSchedules: flows.startSchedules,
     stopSchedules: flows.stopSchedules,
+    replayPayload,
   };
 }
