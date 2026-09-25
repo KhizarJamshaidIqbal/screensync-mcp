@@ -10,7 +10,7 @@
 //   - only a refused connection or an unknown host says the hub is not reachable.
 
 import { randomUUID } from "node:crypto";
-import { AUTH_TOKEN, HTTP_PORT } from "./config.js";
+import { AUTH_TOKEN, HTTP_PORT, hubSelfCheck } from "./config.js";
 import { APPROVAL_MAX_MS, APPROVAL_RUN_HEADROOM_MS } from "./web-ext-routes.js";
 
 export type HubWebResult = { ok: boolean; data?: unknown; error?: string; code?: string; retryable?: boolean };
@@ -84,6 +84,18 @@ export function describeHubFailure(error: unknown, url: string, waitedMs: number
   };
 }
 
+/** Quick, single-shot check that a real ScreenSync hub (not some unrelated service) answers at `baseUrl`. */
+async function isRealHub(baseUrl: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(1500) });
+    if (!res.ok) return false;
+    const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    return body?.service === "screensync-hub";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Round-trips a web_* tool through the HTTP hub, which relays it over SSE to the ScreenSync browser extension.
  * Goes through HTTP (not in-process calls) so it also works when this stdio server runs MCP-only beside another
@@ -94,7 +106,33 @@ export async function callHubWebTool(
   args: Record<string, unknown>,
   opts: { baseUrl?: string; token?: string; transportTimeoutMs?: number } = {},
 ): Promise<HubWebResult> {
-  const url = `${opts.baseUrl ?? `http://127.0.0.1:${HTTP_PORT}`}/api/web/tool`;
+  const baseUrl = opts.baseUrl ?? `http://127.0.0.1:${HTTP_PORT}`;
+  const url = `${baseUrl}/api/web/tool`;
+
+  // Fail fast + self-heal: this process's own startHttpHub() found a non-ScreenSync service squatting on the
+  // port (index.ts). Every previous version of this function would still round-trip the full call to that
+  // service anyway, wait out the whole 45s-2min timeout, and report its accidental reply as an opaque
+  // "Hub replied 404" — repeatable forever, with nothing pointing at the real cause (this was observed live:
+  // web_status and web_navigate both failed identically for 20+ minutes of retries). Re-probe /health first:
+  // if a real hub is reachable now (the conflicting process was closed, or the hub was restarted on this port),
+  // recover automatically with no restart needed; otherwise say so immediately instead of doing the doomed call.
+  if (!hubSelfCheck.ok) {
+    if (await isRealHub(baseUrl)) {
+      hubSelfCheck.ok = true;
+      hubSelfCheck.detail = null;
+    } else {
+      return {
+        ok: false,
+        code: "HUB_PORT_CONFLICT",
+        error: hubSelfCheck.detail ??
+          `ScreenSync hub is not reachable at ${url}: another service is answering on this port instead of the ` +
+          `ScreenSync hub (possible port conflict or outdated hub). Check what is listening (Windows: ` +
+          `netstat -ano | findstr :${HTTP_PORT}; macOS/Linux: lsof -i :${HTTP_PORT}), stop it or start the hub ` +
+          `on another port (SCREEN_SYNC_PORT), then retry.`,
+      };
+    }
+  }
+
   const timeoutMs = callTimeoutOf(args);
   const signal = AbortSignal.timeout(opts.transportTimeoutMs ?? transportTimeoutMs(timeoutMs));
   const startedAt = Date.now();
@@ -113,6 +151,22 @@ export async function callHubWebTool(
     })) as typeof body;
   } catch (error) {
     return { ok: false, ...describeHubFailure(error, url, Date.now() - startedAt) };
+  }
+  // A response with no `ok`/`error`/`success` key at all did not come from this hub's /api/web/tool handler,
+  // even though the socket connected — e.g. a DIFFERENT local server now holds the port this process was told
+  // to use (SCREEN_SYNC_PORT mismatch between processes, or the hub exited and something else took its place
+  // mid-session). Say that plainly instead of the bare, undiagnosable "Hub replied 404" this used to fall back
+  // to — mirrors the same "possible port conflict or outdated hub" detection the extension's sse-client.js
+  // already does for its /api/events connection.
+  const looksLikeHub = body && (typeof body.ok === "boolean" || typeof body.error === "string" || "success" in body);
+  if (!res.ok && !looksLikeHub) {
+    return {
+      ok: false,
+      code: "HUB_UNEXPECTED_RESPONSE",
+      error: `Hub replied ${res.status} at ${url}, but the response didn't look like the ScreenSync hub at all ` +
+        `(possible port conflict or outdated hub — something else may be listening on port ${HTTP_PORT}). ` +
+        `Check web_status; if it also fails the same way, verify with 'curl ${baseUrl}/health'.`,
+    };
   }
   return {
     ok: body.ok === true,

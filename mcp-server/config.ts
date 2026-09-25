@@ -37,3 +37,20 @@ export function log(level: string, message: string, context: Record<string, unkn
 export function isAuthorized(header: string | undefined): boolean {
   return header === `Bearer ${AUTH_TOKEN}`;
 }
+
+/**
+ * Whether THIS process's own attempt to become the HTTP hub (see index.ts) is known-good, and if not, why.
+ *
+ * Root cause this closes: when startHttpHub() loses an EADDRINUSE/EACCES race and the occupying service is
+ * confirmed to NOT be a ScreenSync hub, index.ts used to log an error and continue anyway — every later
+ * web_* (or control_*) tool call then round-tripped to whatever unrelated service holds the port, which
+ * naturally answers with its own 404 (or worse) for /api/web/tool. The MCP layer had no way to tell "the hub never came
+ * up" apart from "the hub is fine but this one call failed", so the agent just saw an opaque "Hub replied 404"
+ * repeated forever. hub-web-call.ts checks this before every round trip and self-heals the moment a real hub
+ * becomes reachable (see callHubWebTool), so this object is mutated in place, never reassigned.
+ */
+export const hubSelfCheck: { ok: boolean; detail: string | null; checkedAt: number } = {
+  ok: true,
+  detail: null,
+  checkedAt: 0,
+};
