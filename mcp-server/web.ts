@@ -142,8 +142,9 @@ export function createWebBridge(
         id,
         tool,
         // Internal flags are dropped HERE, the one place every relay passes through, and the gate's request for a
-        // person is added only after. deadlineAt tells the extension how long the hub will wait.
-        args: forRelay(args, gate), deadlineAt,
+        // person is added only after. deadlineAt tells the extension how long the hub will wait; remainingMs says
+        // the same relative to now, which the extension trusts over deadlineAt (the two clocks can differ).
+        args: forRelay(args, gate), deadlineAt, remainingMs: timeoutMs,
         targetBrowser,
         targetInstanceId,
         targetEmail,
@@ -160,7 +161,7 @@ export function createWebBridge(
   const replayPayload = (e: SseRingEvent): Record<string, unknown> | null => {
     if (e.payload?.type !== "web_request") return e.payload;
     const entry = typeof e.payload.id === "string" ? pending.get(e.payload.id) : undefined;
-    return entry ? { ...entry.payload, deadlineAt: entry.deadlineAt } : null;
+    return entry ? { ...entry.payload, deadlineAt: entry.deadlineAt, remainingMs: Math.max(0, entry.deadlineAt - Date.now()) } : null;
   };
   // A step of web_flow_run / web_replay / web_fanout / web_tab_fanout meets the approval gate like a direct call.
   const gatedStep = createStepDispatch(registry.resolveDispatch, request);

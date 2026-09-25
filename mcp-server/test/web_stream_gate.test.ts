@@ -149,12 +149,16 @@ test("replayPayload: a pending web_request replays whole with its current deadli
     assert.equal(replayed.id, live.id);
     assert.equal((replayed.args as Record<string, unknown>).dataUrl, image, "full args, not the truncated ring copy");
     assert.equal(replayed.deadlineAt, live.deadlineAt);
+    // Relative time left, on the hub's clock: the extension trusts it over deadlineAt (clocks can be skewed).
+    assert.equal(live.remainingMs, 10_000, "the live event carries the whole wait as remainingMs");
+    assert.ok(Number(replayed.remainingMs) > 8_000 && Number(replayed.remainingMs) <= 10_000, `replay remainingMs ${replayed.remainingMs}`);
 
     // The extension asks for more time (a person is being asked): the replay carries the new deadline.
     const awaiting = await post("/api/web/awaiting", { id: live.id, ms: 30_000 });
     assert.equal(awaiting.status, 200);
     const later = bridge.replayPayload(ringCopy)!;
     assert.ok(Number(later.deadlineAt) > Number(live.deadlineAt) + 20_000, `deadline moved: ${live.deadlineAt} -> ${later.deadlineAt}`);
+    assert.ok(Number(later.remainingMs) > 20_000, `remainingMs follows the moved deadline: ${later.remainingMs}`);
 
     // Answered: never replayed again.
     await post("/api/web/result", { id: live.id, ok: true, data: { uploaded: true }, instanceId: "inst-a", browserName: "chrome" });
