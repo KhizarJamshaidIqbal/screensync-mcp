@@ -8,7 +8,7 @@ import QRCode from "qrcode";
 import { buildCatalog } from "./catalog.js";
 import { osControlSource, setOsControlEnabled } from "./os-control.js";
 import { appApkPath, appManifest } from "./app-update.js";
-import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, MAX_BODY_BYTES, PAIR_WINDOW_MINUTES, SSE_KEEPALIVE_MS, agentName, isAuthorized, log } from "./config.js";
+import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, HUB_VERSION, MAX_BODY_BYTES, PAIR_WINDOW_MINUTES, SSE_KEEPALIVE_MS, agentName, isAuthorized, log } from "./config.js";
 import { advertiseHub, buildPairingLink, isLoopbackReq, mountPairingRoutes, primaryBaseUrl } from "./hub-pairing.js";
 import { hubEvents, emitHubEvent, lastEventSeq, recentHubEvents, type HubEvent } from "./events.js";
 import { createSseHub } from "./hub-sse.js";
@@ -73,7 +73,7 @@ export async function startHttpHub(): Promise<HubHandle> {
     res.json({
       ok: true,
       service: "screensync-hub",
-      version: "1.12.0",
+      version: HUB_VERSION,
       port: HTTP_PORT,
       latestFrameAt: latest?.receivedAt ?? null,
     });

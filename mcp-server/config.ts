@@ -1,9 +1,22 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 export const PROJECT_DIR =
   path.basename(currentDir) === "dist" ? path.dirname(currentDir) : currentDir;
+
+// The hub's release version, reported by /health. Read from package.json (shipped in the hub zip) so it
+// can never go stale the way a hard-coded string did.
+function readHubVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(PROJECT_DIR, "package.json"), "utf8")) as { version?: unknown };
+    return typeof pkg.version === "string" && pkg.version ? pkg.version : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+export const HUB_VERSION = readHubVersion();
 
 export const DATA_DIR = process.env.SCREEN_SYNC_DATA_DIR || path.join(PROJECT_DIR, "data");
 export const FRAMES_DIR = path.join(DATA_DIR, "frames");

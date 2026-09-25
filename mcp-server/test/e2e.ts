@@ -5,7 +5,7 @@
 // the hub's real upload route, so it passes on a machine that has never received a frame.
 
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { crc32, deflateSync } from "node:zlib";
@@ -81,6 +81,10 @@ const client = new Client({ name: "screensync-e2e", version: "1.0.0" });
 try {
   await client.connect(transport);
   await waitForHealth();
+  // /health reports the hub's real release version (package.json), not a hard-coded string.
+  const health = (await (await fetch(`${BASE}/health`)).json()) as { version?: string };
+  const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
+  assert.equal(health.version, pkg.version, "/health version comes from package.json");
   // The data dir is empty: give the screenshot tools something real to return.
   await uploadFrame(0);
   await uploadFrame(1);
