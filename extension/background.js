@@ -9,6 +9,7 @@ import { getTakeoverStatus, resumeTakeover } from './lib/takeover.js';
 import { listJobs, cancelJob } from './lib/jobs.js';
 import { execExtensionDiagnostics } from './lib/web-diag.js';
 import { fetchThreatState } from './lib/threat-state.js';
+import { setupContextMenus, installMenusAndCommands } from './lib/sw-menus.js';
 import { ownerMessagesOnly, ownerPortsOnly, lockStorageToOwnerContexts } from './lib/owner-pages.js';
 import {
   GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, EVENT_LOG_CAP,
@@ -154,82 +155,7 @@ if (chrome.tabs && chrome.tabs.onUpdated) {
 
 ensureOffscreenDoc().catch(() => {});
 
-function setupContextMenus() {
-  if (!chrome.contextMenus) return;
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: 'screensync-root',
-      title: 'ScreenSync MCP',
-      contexts: ['all'],
-    });
-    chrome.contextMenus.create({
-      id: 'screensync-send-phone',
-      parentId: 'screensync-root',
-      title: 'Send text to Phone (Type)',
-      contexts: ['selection'],
-    });
-    chrome.contextMenus.create({
-      id: 'screensync-open-phone',
-      parentId: 'screensync-root',
-      title: 'Open link on Phone',
-      contexts: ['link'],
-    });
-    chrome.contextMenus.create({
-      id: 'screensync-sidepanel',
-      parentId: 'screensync-root',
-      title: 'Open ScreenSync Side Panel',
-      contexts: ['page', 'action'],
-    });
-  });
-}
-
-if (chrome.contextMenus && chrome.contextMenus.onClicked) {
-  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-    try {
-      if (info.menuItemId === 'screensync-send-phone' && info.selectionText) {
-        await api.control('type', { text: info.selectionText });
-      } else if (info.menuItemId === 'screensync-open-phone' && info.linkUrl) {
-        await api.control('open_url', { url: info.linkUrl });
-      } else if (info.menuItemId === 'screensync-sidepanel') {
-        if (chrome.sidePanel && chrome.sidePanel.open && tab) {
-          chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {
-            chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
-          });
-        } else {
-          chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
-        }
-      }
-    } catch (e) {
-      console.warn('[ss] contextMenu action failed:', e);
-    }
-  });
-}
-
-if (chrome.commands && chrome.commands.onCommand) {
-  chrome.commands.onCommand.addListener(async (cmd) => {
-    if (cmd === 'toggle-web-access') {
-      const s = await getSettings();
-      const next = !s.webAccessEnabled;
-      const updated = await saveSettings({ webAccessEnabled: next });
-      await registerWebBridge();
-      broadcast({ kind: 'settings', settings: updated });
-    } else if (cmd === 'open-side-panel') {
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        if (tab && chrome.sidePanel && chrome.sidePanel.open) {
-          // Await, so a rejection is caught here instead of becoming an unhandled
-          // promise rejection that silently drops the keyboard shortcut.
-          await chrome.sidePanel.open({ windowId: tab.windowId });
-        } else {
-          chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
-        }
-      } catch (e) {
-        console.warn('[ss] open sidepanel command failed, opening dashboard tab:', e);
-        chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
-      }
-    }
-  });
-}
+installMenusAndCommands({ broadcast });
 
 chrome.runtime.onInstalled.addListener(async () => {
   setupContextMenus();
