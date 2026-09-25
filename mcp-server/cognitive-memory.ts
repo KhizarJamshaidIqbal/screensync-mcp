@@ -7,6 +7,7 @@
 
 import path from "node:path";
 import { DATA_DIR, log } from "./config.js";
+import { canonicalDomain } from "./cognitive-domain.js";
 import { atomicWriteJson, quarantine, readJsonSafe } from "./cognitive-state.js";
 import { migrateMemory } from "./cognitive-memory-migrate.js";
 import { getDefaultSeededMemory } from "./cognitive-memory-seed.js";
@@ -71,15 +72,9 @@ export class CognitiveMemoryStore {
     }
   }
 
+  /** The shared canonical form (cognitive-domain.ts): the spine and the observer key by the same string. */
   public normalizeDomain(raw?: string): string {
-    const input = String(raw ?? "").trim();
-    if (!input) return "";
-    try {
-      const u = new URL(input.startsWith("http") ? input : `https://${input}`);
-      return u.hostname.replace(/^www\./, "").toLowerCase();
-    } catch {
-      return input.replace(/^www\./, "").toLowerCase();
-    }
+    return canonicalDomain(String(raw ?? ""));
   }
 
   public recall(cue: {
