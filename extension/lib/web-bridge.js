@@ -13,7 +13,7 @@ import { recordAuditEntry } from './audit.js';
 import { runWithApproval, stripInternalArgs } from './approval-gate.js';
 import { executeWebTool, isActTool } from './web-tools.js';
 import { requestAccess } from './access-request.js';
-import { admitWebRequest } from './web-request-admit.js';
+import { admitWebRequest, localizeDeadline } from './web-request-admit.js';
 
 export async function registerWebBridge() {
   let tab = null;
@@ -87,6 +87,8 @@ export async function handleWebRequest(req) {
     console.info(`[ss] web_request ${id || '?'} (${tool || '?'}) not run: ${admit.reason}`);
     return;
   }
+  // From here on the deadline is on this browser's clock (the hub's may be skewed): see localizeDeadline.
+  req = localizeDeadline(req);
 
   const startedAt = Date.now();
   let out;
