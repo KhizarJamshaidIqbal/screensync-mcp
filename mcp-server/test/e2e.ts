@@ -1,19 +1,89 @@
+// Protocol e2e: spawns the built hub over stdio and walks the core MCP surface.
+//
+// Fully isolated (M12): its own temp data dir, its own token and port 3014, so it never touches the
+// developer's data/ (frames, cognitive memory) or a live hub on 3000. It uploads its own screenshots through
+// the hub's real upload route, so it passes on a machine that has never received a frame.
+
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { crc32, deflateSync } from "node:zlib";
+import { randomBytes } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+
+const PORT = 3014;
+const TOKEN = "e2e-protocol-token";
+const BASE = `http://127.0.0.1:${PORT}`;
+const DATA_DIR = mkdtempSync(path.join(tmpdir(), "screensync-e2e-protocol-"));
+
+/** A real PNG (signature, IHDR, IDAT, IEND with valid CRCs) of random pixels, so it stays well over 1000 base64 chars. */
+function makePng(width: number, height: number): Buffer {
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body) >>> 0);
+    return Buffer.concat([len, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // colour type: RGB
+  const rows = Buffer.concat(Array.from({ length: height }, () => Buffer.concat([Buffer.from([0]), randomBytes(width * 3)])));
+  return Buffer.concat([
+    Buffer.from("89504e470d0a1a0a", "hex"),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(rows)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+async function waitForHealth(timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`${BASE}/health`);
+      if (res.ok) return;
+    } catch { /* not up yet */ }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  throw new Error(`Hub on :${PORT} did not become healthy in time`);
+}
+
+async function uploadFrame(i: number): Promise<void> {
+  const res = await fetch(`${BASE}/api/screens/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}` },
+    body: JSON.stringify({
+      imageDataUrl: `data:image/png;base64,${makePng(48, 32).toString("base64")}`,
+      filename: `e2e-frame-${i}.png`,
+      timestamp: new Date(Date.now() - (2 - i) * 1000).toISOString(),
+      deviceModel: "e2e synthetic device",
+    }),
+  });
+  assert.equal(res.status, 201, `frame ${i} upload failed: ${res.status} ${await res.text()}`);
+}
 
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: ["dist/index.js"],
   env: {
     ...process.env,
-    SCREEN_SYNC_PORT: "3001",
+    SCREEN_SYNC_PORT: String(PORT),
+    SCREEN_SYNC_TOKEN: TOKEN,
+    SCREEN_SYNC_DATA_DIR: DATA_DIR,
   } as Record<string, string>,
 });
 const client = new Client({ name: "screensync-e2e", version: "1.0.0" });
 
 try {
   await client.connect(transport);
+  await waitForHealth();
+  // The data dir is empty: give the screenshot tools something real to return.
+  await uploadFrame(0);
+  await uploadFrame(1);
 
   const tools = await client.listTools();
   const toolNames = tools.tools.map((tool) => tool.name);
@@ -92,6 +162,7 @@ try {
   assert(image && image.type === "image");
   assert(["image/png", "image/jpeg"].includes(image.mimeType));
   assert(image.data.length > 1000);
+  assert.equal(image.mimeType, "image/png");
 
   process.stdout.write(
     JSON.stringify(
@@ -109,4 +180,5 @@ try {
   );
 } finally {
   await client.close();
+  rmSync(DATA_DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }
