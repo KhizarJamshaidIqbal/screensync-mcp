@@ -8,7 +8,7 @@ import { trackToolExecution } from "./cognitive-auto-tracker.js";
 import { sessionOf } from "./cognitive-spine-observer.js";
 import { forRelay, gateBeforeRelay, refusedByGate, type GateDecision } from "./cognitive-policy.js";
 import { mountExtensionRoutes } from "./web-ext-routes.js";
-import { createStepDispatch } from "./web-multi-dispatch.js";
+import { createStepDispatch, notRelayed, wasNotRelayed } from "./web-multi-dispatch.js";
 import { handleCognitiveTool } from "./web-cognitive-handlers.js";
 import { createFlowEngine } from "./web-flows.js";
 import { createRecorder } from "./web-recorder.js";
@@ -139,7 +139,7 @@ export function createWebBridge(
   };
 
   const request = async (tool: string, args: Record<string, unknown>, relayTimeoutMs: number, gate?: GateDecision, decided?: DispatchDecision): Promise<WebToolResult> => {
-    if (closed) return stopping();
+    if (closed) return notRelayed(stopping());
     // A long-wait step (web_takeover, ...) inside a flow, replay, fanout or test run waits its own budget, not the
     // relay's 5-60s step clamp (web-timeouts.ts); the tool route already passes exactly that, so it is unchanged.
     const timeoutMs = stepWaitMs(tool, args, relayTimeoutMs);
@@ -148,11 +148,11 @@ export function createWebBridge(
     // web_request in EVERY connected profile. Routing order (tabId/windowId owner, hint, selectedProfile,
     // heuristic) lives in profile-registry.ts resolveDispatch(); a caller that already acted on one passes `decided`.
     const route = decided ?? registry.resolveDispatch(args);
-    if (!route.ok) return { ok: false, error: route.error, data: { code: route.code, onlineProfiles: route.onlineProfiles } };
+    if (!route.ok) return notRelayed({ ok: false, error: route.error, data: { code: route.code, onlineProfiles: route.onlineProfiles } });
     // ...and where a call to a browser that cannot hear it (its stream is down) fails fast instead of timing out.
     const down = await streamRefusal(route.target);
-    if (down) return down;
-    if (closed) return stopping(); // stopped during the stream grace wait
+    if (down) return notRelayed(down);
+    if (closed) return notRelayed(stopping()); // stopped during the stream grace wait
     return new Promise((resolve) => {
       const id = randomUUID();
       const timer = setTimeout(() => {
@@ -366,11 +366,18 @@ export function createWebBridge(
       const timeoutMs = hubWaitMs(tool, LONG_WAIT_TOOLS[tool] ? args.timeoutMs : b.timeoutMs);
       const startedAt = Date.now();
       const result = await request(tool, args, timeoutMs, gate?.block ? gate.decision : undefined, route);
-      emitHubEvent("tool", tool, result.ok);
-      recorder.capture(tool, args);
-      log("INFO", "Web tool round trip", { tool, ok: result.ok, durationMs: Date.now() - startedAt });
-      trackToolExecution(tool, args, result, Date.now() - startedAt, session);
-      res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.retryable !== undefined ? { retryable: result.retryable } : {}), ...(gate ? { cognitiveGate: gate.block ? { ...gate.decision, verdict: "asked" } : gate.decision } : {}) });
+      const sent = !wasNotRelayed(result);
+      // A call that was never sent, or one abandoned because the hub is stopping, says nothing about the site: it is
+      // not counted as a tool run by events, the recorder or tracking (a Ctrl+C during a takeover is not a failure).
+      if (sent && result.code !== "HUB_STOPPING") {
+        emitHubEvent("tool", tool, result.ok);
+        recorder.capture(tool, args);
+        trackToolExecution(tool, args, result, Date.now() - startedAt, session);
+      }
+      log("INFO", "Web tool round trip", { tool, ok: result.ok, sent, durationMs: Date.now() - startedAt });
+      // "asked" only when it was sent: a person can only have been asked about a call that reached the browser.
+      const verdict = gate ? (gate.block && sent ? { ...gate.decision, verdict: "asked" } : gate.decision) : undefined;
+      res.json({ success: result.ok, ok: result.ok, data: result.data, error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.retryable !== undefined ? { retryable: result.retryable } : {}), ...(verdict ? { cognitiveGate: verdict } : {}) });
     });
 
     app.post("/api/web/result", (req: Request, res: Response) => {

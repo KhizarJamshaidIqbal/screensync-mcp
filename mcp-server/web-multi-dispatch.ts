@@ -14,8 +14,15 @@ import { MULTI_STEP_BUDGET_MS, fitStepToBudget } from "./web-timeouts.js";
 type Relay = (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision, decided?: DispatchDecision) => Promise<WebToolResult>;
 export type StepResult = WebToolResult & { cognitiveGate?: GateDecision };
 
-/** Codes with which the relay refuses a call before anything is sent: nobody was asked about it. */
-const NOT_RELAYED_CODES: ReadonlySet<string> = new Set(["BROWSER_STREAM_DOWN"]);
+/**
+ * Marks a result request() gave WITHOUT sending anything (unroutable, stream down, hub stopping before the send):
+ * nobody was asked and nothing ran. Non-enumerable, so it never reaches a caller's JSON or a spread copy.
+ */
+export function notRelayed(r: WebToolResult): WebToolResult {
+  return Object.defineProperty(r, "notRelayed", { value: true, enumerable: false });
+}
+/** True for a result request() gave without sending anything (see notRelayed()). */
+export const wasNotRelayed = (r: WebToolResult): boolean => (r as { notRelayed?: boolean }).notRelayed === true;
 
 /** Answers a call whose browser could not be decided, the way the tool route answers any routing refusal. */
 export function sendRouteRefusal(res: Response, route: Extract<DispatchDecision, { ok: false }>): void {
@@ -37,8 +44,9 @@ export function createStepDispatch(resolveDispatch: (args: Record<string, unknow
     const result = await relay(tool, args, timeoutMs, gate?.block ? gate.decision : undefined, route);
     if (!gate) return result;
     // "asked" means it was relayed and a person was asked (cognitive-policy.ts); a step the relay refused before
-    // sending (unroutable, or its browser's stream is down) keeps the gate's own verdict.
-    const relayed = route.ok && !(typeof result.code === "string" && NOT_RELAYED_CODES.has(result.code));
+    // sending (unroutable, its browser's stream is down, or the hub stopping before the send) keeps the gate's
+    // own verdict. A HUB_STOPPING for a call that WAS sent is still "asked": the person may have seen the prompt.
+    const relayed = route.ok && !wasNotRelayed(result);
     return { ...result, cognitiveGate: gate.block && relayed ? { ...gate.decision, verdict: "asked" } : gate.decision };
   };
 }

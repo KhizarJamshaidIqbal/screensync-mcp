@@ -241,6 +241,31 @@ test("a gated step whose browser's stream is down was never sent: its verdict is
   }
 });
 
+test("a gated call the stopping hub never sent is not 'asked', and is not tracked as a failed run of the site", async () => {
+  const hub = await startHub();
+  try {
+    await hub.register(CAPABLE_A);
+    const { cognitiveStore } = await import("../cognitive-memory.js");
+    const episodes = () => cognitiveStore.load().episodes.length;
+    const before = episodes();
+    hub.bridge.close(); // a Ctrl+C: every later relay is refused before anything is sent
+    await withGate("enforce", async () => {
+      const direct = await hub.call("web_click", DANGEROUS);
+      assert.equal(direct.code, "HUB_STOPPING");
+      assert.equal(direct.cognitiveGate?.verdict, "block", "the direct route: nobody was asked");
+      const flow = await hub.call("web_replay", { steps: [{ tool: "web_click", args: DANGEROUS }], stopOnError: false });
+      const step = flow.data.results[0];
+      assert.equal(step.code, "HUB_STOPPING");
+      assert.equal(step.cognitiveGate?.verdict, "block", "a multi-step call's step: nobody was asked");
+      assert.equal("notRelayed" in direct || "notRelayed" in step, false, "the internal marker never reaches a caller");
+    });
+    assert.deepEqual(marks(hub), [], "nothing was relayed");
+    assert.equal(episodes(), before, "no failure episode recorded against the domain");
+  } finally {
+    await hub.close();
+  }
+});
+
 test("a long-wait step inside a flow, replay or test run waits its own budget, not the 5-60s step clamp", async () => {
   const hub = await startHub();
   try {
