@@ -21,9 +21,30 @@ async function readError(res) {
   return new HubError(res.status, msg);
 }
 
+export const DEFAULT_HUB_URL = 'http://127.0.0.1:3000';
+
+// Canonical hub base URL: trimmed, localhost -> 127.0.0.1 (avoids ::1 resolution),
+// no trailing slash; empty/missing -> the default local hub.
+export function normalizeHubBase(url) {
+  const raw = String(url ?? '').trim();
+  if (!raw) return DEFAULT_HUB_URL;
+  return raw.replace(/^(https?:\/\/)localhost(?=[:/?#]|$)/i, '$1127.0.0.1').replace(/\/+$/, '');
+}
+
+// True when the (normalized) hub URL points at this machine's loopback interface.
+export function isLoopbackHub(url) {
+  let host;
+  try {
+    host = new URL(normalizeHubBase(url)).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return host === 'localhost' || host === '[::1]' || /^127(\.\d{1,3}){3}$/.test(host);
+}
+
 export async function hubFetch(path, { method = 'GET', body, url, token, timeoutMs = 10_000 } = {}) {
   const s = await getSettings();
-  const base = (url ?? s.hubUrl).replace('://localhost:', '://127.0.0.1:').replace(/\/$/, '');
+  const base = normalizeHubBase(url ?? s.hubUrl);
   const tk = token ?? s.token;
   const headers = { Authorization: `Bearer ${tk}` };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -49,7 +70,7 @@ export async function hubFetch(path, { method = 'GET', body, url, token, timeout
 // Unauthenticated liveness probe with latency measurement and strict identity validation.
 export async function probeHub(url, timeoutMs = 6_000) {
   const t0 = Date.now();
-  const base = (url || 'http://127.0.0.1:3000').replace('://localhost:', '://127.0.0.1:').replace(/\/$/, '');
+  const base = normalizeHubBase(url);
   let res;
   try {
     res = await fetch(base + '/health', {

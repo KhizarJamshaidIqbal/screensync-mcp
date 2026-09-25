@@ -24,7 +24,16 @@ export const MDNS_TYPE = '_screensync-hub._tcp';
 
 export const HEALTH_ALARM = 'health-poll';
 export const HEALTH_PERIOD_S = 30;
-export const SSE_LIVENESS_MS = 60000;
+// SSE timing contract (hub keepalive is 30s; see lib/sse-client.js).
+export const SSE_KEEPALIVE_EXPECTED_MS = 30000;
+export const SSE_LIVENESS_MS = 90000;
+export const SSE_STALE_MS = SSE_LIVENESS_MS + 30000;
+export const SSE_CONNECT_TIMEOUT_MS = 15000;
+export const SSE_BACKOFF_BASE_MS = 1000;
+export const SSE_BACKOFF_MAX_MS = 30000;
+export const SSE_STABLE_MS = 30000;
+export const SSE_UNAUTHORIZED_RETRY_MS = 300000;
+export const SSE_WAKE_MIN_GAP_MS = 2000;
 export const EVENT_LOG_CAP = 50;
 
 // Bundled fallback if the live setup guide cannot be fetched.
