@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-09-23T18:10:32Z",
+  "generatedAt": "2026-09-25T17:45:23Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
     {
-      "sha": "50a249a",
+      "sha": "d69e1c4",
       "date": "2026-09-23",
-      "ts": 1790186410,
+      "ts": 1790358271,
       "parts": [
         {
           "stream": "extension",
@@ -14,8 +14,8 @@
           "build": "",
           "display": "1.14.0",
           "date": "2026-09-23",
-          "ts": 1790186410,
-          "sha": "50a249a",
+          "ts": 1790358271,
+          "sha": "d69e1c4",
           "groups": {
             "NEW": [
               "Page through a long aria snapshot with offset",
