@@ -39,6 +39,14 @@ test("M6: a failed type on the same tab is a failure episode for that domain", (
   assert.match(String(typed[0].notes), /Element not found/);
 });
 
+test("a dead browser event stream is neutral: it says nothing about the domain", () => {
+  const session = "tracker-stream-down";
+  trackToolExecution("web_navigate", { url: "https://stream.example/", tabId: 2 }, { ok: true }, 20, session);
+  trackToolExecution("web_click", { tabId: 2, selector: "#a" }, { ok: false, error: "BROWSER_STREAM_DOWN: The browser's live event stream (SSE) to the hub is down" }, 20, session);
+  const click = episodesFor(cognitiveStore, "stream.example", "click")[0];
+  assert.equal(click.outcome, "neutral");
+});
+
 test("the tracker never logs the local machine or an unresolved domain", () => {
   const before = cognitiveStore.load().episodes.length;
   trackToolExecution("web_navigate", { url: "http://localhost:3000/" }, { ok: true }, 10, "tracker-local");

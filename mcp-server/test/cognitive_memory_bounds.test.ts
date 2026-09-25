@@ -6,7 +6,8 @@ import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import type { DomainPitfall } from "../cognitive-memory.js";
+import type { CognitiveMemoryData, DomainPitfall, ProceduralPlaybook } from "../cognitive-memory.js";
+import { runHippocampalConsolidation, type GoldPlaybookMeta } from "../cognitive-consolidation.js";
 import {
   EPISODES_PER_DOMAIN, EPISODES_TOTAL, FACT_MAX_KEY_SELECTORS, PITFALLS_PER_DOMAIN, PITFALL_CODE_MAX, PITFALL_TEXT_MAX,
 } from "../cognitive-memory-limits.js";
@@ -121,4 +122,36 @@ test("saveSoon: 20 deferred learns cost at most 2 writes, flush persists them, a
     assert.equal(store.hasPendingSave(), false);
     assert.equal(JSON.parse(readFileSync(store.file, "utf8")).episodes.filter((e: { domain: string }) => e.domain === "burst.example").length, 21);
   } finally { cleanup(); }
+});
+
+test("M2: consolidation keeps the newest 50 episodes of EACH domain, not 50 overall", () => {
+  const mem = { version: "1.3.0", updatedAt: "", domains: {}, playbooks: {}, pitfalls: {}, reflections: {}, episodes: [] } as unknown as CognitiveMemoryData;
+  for (let i = 0; i < 80; i += 1) mem.episodes.push({ id: `busy_${i}`, timestamp: new Date(i).toISOString(), domain: "busy.example", intent: "click", success: true, durationMs: 1 });
+  for (let i = 0; i < 5; i += 1) mem.episodes.push({ id: `calm_${i}`, timestamp: new Date(i).toISOString(), domain: "calm.example", intent: "click", success: true, durationMs: 1 });
+  const { data, report } = runHippocampalConsolidation(mem);
+  assert.equal(data.episodes.filter((e) => e.domain === "busy.example").length, 50);
+  assert.equal(data.episodes.filter((e) => e.domain === "calm.example").length, 5, "a quiet domain keeps its history");
+  assert.equal(data.episodes.find((e) => e.domain === "busy.example")?.id, "busy_30", "the oldest of the busy domain went");
+  assert.equal(report.bronzePrunedCount, 30);
+});
+
+test("M3: LTP/LTD come from a playbook's own counters once it has 3 runs, and never archive it", () => {
+  const pb = (id: string, over: Partial<ProceduralPlaybook>): ProceduralPlaybook => ({ id, name: id, domain: "ltp.example", intent: "publish", description: "", environmentalProbes: [], preconditions: [], steps: [], successCount: 0, ...over });
+  const mem = {
+    version: "1.3.0", updatedAt: "", domains: {}, pitfalls: {}, reflections: {},
+    // Episodes whose intent is a TOOL name: they can never match a playbook's task intent.
+    episodes: [{ id: "e1", timestamp: "", domain: "ltp.example", intent: "click", success: false, durationMs: 1 }],
+    playbooks: {
+      good: pb("good", { successCount: 9, failureCount: 1, status: "verified" }),
+      bad: pb("bad", { successCount: 1, failureCount: 4, consecutiveFailures: 4, status: "verified" }),
+      fresh: pb("fresh", { successCount: 1, failureCount: 0 }),
+    },
+  } as unknown as CognitiveMemoryData;
+  const gold: Record<string, GoldPlaybookMeta> = { bad: { confidenceScore: 0.05, consecutiveFailures: 5, status: "deprecated", lastConsolidatedAt: "" } };
+  const { report, goldMeta } = runHippocampalConsolidation(mem, {}, gold);
+  assert.deepEqual(report.strengthenedPlaybooks, ["good"]);
+  assert.deepEqual(report.decayedPlaybooks, ["bad"]);
+  assert.ok(goldMeta.good.confidenceScore > 0.8);
+  assert.deepEqual(report.prunedPlaybooks, [], "consolidation never archives a playbook");
+  assert.equal(mem.playbooks.bad.status, "verified", "the failing playbook is left to its outcome ledger");
 });

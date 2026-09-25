@@ -39,9 +39,10 @@ const MAX_CONTEXT = 300;
 /**
  * Refusals and outages that say nothing about competence: the extension's own guards (origin grants in
  * consent.js: "Read/Action/Cookie access not granted for origin ...", the rate limiter, the human's
- * confirmation) and the plumbing (no browser, timed out waiting for it). Strings taken from the code.
+ * confirmation) and the plumbing (no browser, timed out waiting for it, the browser's live event stream to
+ * the hub being down - BROWSER_STREAM_DOWN). Strings taken from the code.
  */
-export const NEUTRAL_ERROR_RE = /web access is disabled|USER_CONFIRMATION_REQUIRED|approval request|access not granted for origin|rate.?limit|waiting for the browser extension|no connected browser|not reachable|extension not connected/i;
+export const NEUTRAL_ERROR_RE = /web access is disabled|USER_CONFIRMATION_REQUIRED|approval request|access not granted for origin|rate.?limit|waiting for the browser extension|no connected browser|not reachable|extension not connected|live event stream|BROWSER_STREAM_DOWN/i;
 const TRIVIAL_SELECTORS = new Set(["body", "html", ":root", "*", "document", "css=body", "css=html", "css=:root"]);
 
 export interface ToolResultLike { ok: boolean; data?: unknown; error?: string }

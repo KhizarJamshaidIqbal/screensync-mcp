@@ -1,6 +1,6 @@
 // ScreenSync Hippocampal Memory Consolidation (AP-CE Tier 4)
 // Medallion Lakehouse Architecture for Cognitive Memory:
-// - Bronze: Ephemeral sensory traces & raw execution episodes (50-run retention)
+// - Bronze: Ephemeral sensory traces & raw execution episodes (50-run retention per domain)
 // - Silver: Structured domain/intent telemetry, probe accuracy & latency distributions
 // - Gold: Consolidated Master Playbooks with Long-Term Potentiation (LTP) & Synaptic Decay (LTD)
 
@@ -42,7 +42,10 @@ export interface ConsolidationReport {
   sanitizedWisdomEntries: number;
 }
 
+/** Bronze episodes kept PER DOMAIN. A global limit let one busy domain erase every other domain's history. */
 const BRONZE_RETENTION_LIMIT = 50;
+/** A playbook with at least this many reported runs is judged on its own record, not its intent's episodes. */
+const MIN_OWN_RUNS = 3;
 const COLD_STANDBY_DAYS = 30;
 
 /**
@@ -81,9 +84,14 @@ export function sanitizeSwarmWisdom<T>(obj: T): T {
  * Runs Hippocampal Consolidation across the Cognitive Memory Store:
  * 1. Aggregates Bronze episodes into Silver performance metrics.
  * 2. Applies Long-Term Potentiation (LTP) on successful playbooks.
- * 3. Applies Long-Term Depression (LTD) & synaptic pruning on failing branches.
+ * 3. Applies Long-Term Depression (LTD) on failing playbooks. Advisory only: consolidation never archives
+ *    or deletes a playbook (the outcome ledger in cognitive-skills.ts owns a playbook's lifecycle).
  * 4. Flags cold playbooks (>30 days inactive) as cold_standby.
- * 5. Prunes raw Bronze buffer to BRONZE_RETENTION_LIMIT.
+ * 5. Prunes the raw Bronze buffer to the newest BRONZE_RETENTION_LIMIT episodes of each domain.
+ *
+ * A playbook is judged on its OWN outcome counters once it has MIN_OWN_RUNS runs. Before that it falls back
+ * to the success rate of episodes with the same domain::intent - which rarely matches, because tracker
+ * episodes carry the tool name ("click") as their intent while playbooks carry a task ("post").
  */
 export function runHippocampalConsolidation(
   memData: CognitiveMemoryData,
@@ -148,22 +156,30 @@ export function runHippocampalConsolidation(
       lastConsolidatedAt: new Date().toISOString()
     };
 
-    const metricKey = `${pb.domain}::${pb.intent}`;
-    const metric = silverStore[metricKey];
+    const ownRuns = (pb.successCount ?? 0) + (pb.failureCount ?? 0);
+    let rate: number | null = null;
+    let failingStreak = false;
+    if (ownRuns >= MIN_OWN_RUNS) {
+      rate = (pb.successCount ?? 0) / ownRuns;
+      failingStreak = (pb.consecutiveFailures ?? 0) >= 3;
+    } else {
+      const metric = silverStore[`${pb.domain}::${pb.intent}`];
+      if (metric) rate = metric.successRate;
+    }
 
-    if (metric) {
-      if (metric.successRate >= 0.8) {
-        meta.confidenceScore = Math.min(1.0, Number((meta.confidenceScore + 0.1).toFixed(2)));
-        meta.consecutiveFailures = 0;
-        meta.status = "active";
-        strengthened.push(pbId);
-      } else if (metric.successRate < 0.5) {
+    if (rate !== null) {
+      if (failingStreak || rate < 0.5) {
         meta.confidenceScore = Math.max(0.0, Number((meta.confidenceScore - 0.25).toFixed(2)));
         meta.consecutiveFailures += 1;
         decayed.push(pbId);
         if (meta.consecutiveFailures >= 3 || meta.confidenceScore < 0.2) {
           meta.status = "deprecated";
         }
+      } else if (rate >= 0.8) {
+        meta.confidenceScore = Math.min(1.0, Number((meta.confidenceScore + 0.1).toFixed(2)));
+        meta.consecutiveFailures = 0;
+        meta.status = "active";
+        strengthened.push(pbId);
       }
     }
 
@@ -178,31 +194,22 @@ export function runHippocampalConsolidation(
     goldMetaStore[pbId] = meta;
   }
 
-  // 3. Synaptic pruning of dead playbooks - by ARCHIVING them, never by deleting.
-  //    This used to `delete playbooks[pbId]`, destroying a recipe a human may have spent real effort on,
-  //    with no way back. It was reachable only because goldMetaStore is rebuilt empty on every call, so
-  //    no playbook ever accumulated enough failures to qualify; a persisted store would have started
-  //    erasing them. Deprecated is the honest state: kept, never offered (cognitive-skills.ts).
-  for (const [pbId, meta] of Object.entries(goldMetaStore)) {
-    const pb = playbooks[pbId];
-    if (!pb || pb.status === "deprecated") continue;
-    if (meta.status === "deprecated" && meta.confidenceScore <= 0.1) {
-      playbooks[pbId] = {
-        ...pb,
-        status: "deprecated",
-        deprecatedAt: new Date().toISOString(),
-        deprecatedReason: `consolidation: confidence fell to ${meta.confidenceScore} after ${meta.consecutiveFailures} consecutive failing passes`,
-      };
-      pruned.push(pbId);
-    }
-  }
+  // 3. No synaptic pruning here. This used to archive a playbook whose gold meta reached "deprecated", but
+  //    the meta is rebuilt empty on every call, so the path was unreachable; judging playbooks on their own
+  //    counters would have made it live and let a summary pass retire a recipe the outcome ledger still
+  //    trusts. A playbook is retired by its outcomes (cognitive-skills.ts) or by hygiene, never here.
 
-  // 4. Bronze Layer Pruning (Preserve latest BRONZE_RETENTION_LIMIT traces)
-  let prunedCount = 0;
-  if (episodes.length > BRONZE_RETENTION_LIMIT) {
-    prunedCount = episodes.length - BRONZE_RETENTION_LIMIT;
-    memData.episodes = episodes.slice(-BRONZE_RETENTION_LIMIT);
+  // 4. Bronze Layer Pruning (the newest BRONZE_RETENTION_LIMIT traces of each domain; stored oldest first)
+  const seen = new Map<string, number>();
+  const keep = new Array<boolean>(episodes.length).fill(false);
+  for (let i = episodes.length - 1; i >= 0; i -= 1) {
+    const n = (seen.get(episodes[i].domain) ?? 0) + 1;
+    seen.set(episodes[i].domain, n);
+    keep[i] = n <= BRONZE_RETENTION_LIMIT;
   }
+  const retained = episodes.filter((_, i) => keep[i]);
+  const prunedCount = episodes.length - retained.length;
+  if (prunedCount > 0) memData.episodes = retained;
 
   const report: ConsolidationReport = {
     timestamp: new Date().toISOString(),
