@@ -1,6 +1,9 @@
 import { getSettings, saveSettings } from './lib/storage.js';
-import { api, probeHub, hubFetch } from './lib/api.js';
+import { api, probeHub, hubFetch, isLoopbackHub } from './lib/api.js';
 import { SseClient } from './lib/sse-client.js';
+import { createSseSupervisor } from './lib/sse-supervisor.js';
+import { provideSwState } from './lib/sw-state.js';
+import { getInstanceId } from './lib/profile-identity.js';
 import { handleWebRequest, registerWebBridge } from './lib/web-bridge.js';
 import { startAmbientCollector } from './lib/web-ambient.js';
 import { getGrantsForDisplay, saveOriginGrant, revokeOriginGrant, getPendingApprovals, resolveApproval } from './lib/consent.js';
@@ -12,7 +15,7 @@ import { fetchThreatState } from './lib/threat-state.js';
 import { setupContextMenus, installMenusAndCommands } from './lib/sw-menus.js';
 import { ownerMessagesOnly, ownerPortsOnly, lockStorageToOwnerContexts } from './lib/owner-pages.js';
 import {
-  GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, EVENT_LOG_CAP,
+  GUIDE_URL, FALLBACK_GUIDE, HEALTH_ALARM, EVENT_LOG_CAP, DEFAULT_TOKEN,
 } from './lib/constants.js';
 
 console.info('[ss] sw boot');
@@ -28,6 +31,8 @@ const cache = {
   lastFrameAt: null,
   sseStatus: 'stopped',
   sseDetail: null,
+  sse: null, // SseClient.snapshot(): state/open/lastDataAt/backoff... (sseStatus stays for the status pill)
+  healthCheckedAt: null,
   events: [],
 };
 
@@ -64,28 +69,20 @@ const sse = new SseClient({
   onStatus: (s, detail) => {
     cache.sseStatus = s;
     cache.sseDetail = detail || null;
+    cache.sse = sse.snapshot();
     broadcast({ kind: 'sse-status', status: s, detail });
   },
 });
 
-async function ensureSse() {
-  const s = await getSettings();
-  const isLoopback = /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?/i.test(s.hubUrl || '');
-  if (!s.onboardingComplete && !isLoopback) return;
-  if (sse.isUnauthorized) return;
-  const token = s.token || (isLoopback ? 'screensync-local-dev' : '');
-  if (!token) return;
-  const hubUrl = (s.hubUrl || 'http://127.0.0.1:3000').replace('://localhost:', '://127.0.0.1:');
-  // Zombie recovery: the offscreen keep-alive prevents SW recycling, so a
-  // hub restart can leave the stream silently dead while `connected` stays
-  // true. If no bytes arrived within the keepalive window, force-restart.
-  if (sse.stale()) {
-    console.warn('[ss] SSE stale (no keepalive within 90s) — forcing reconnect');
-    sse.start(hubUrl, token);
-    return;
-  }
-  if (sse.connected) return;
-  sse.start(hubUrl, token);
+// When to (re)connect lives in the supervisor: ensure() is safe to call from every wake-up source below.
+const sup = createSseSupervisor(sse, { getInstanceId });
+provideSwState('sse', () => sup.snapshot());
+provideSwState('health', () => ({ ok: cache.healthOk, latencyMs: cache.latencyMs, checkedAt: cache.healthCheckedAt }));
+
+// The cache with a fresh SSE snapshot (lastDataAt moves on every keepalive without a status change).
+function liveCache() {
+  cache.sse = sse.snapshot();
+  return cache;
 }
 
 async function pollHealth() {
@@ -95,20 +92,21 @@ async function pollHealth() {
     cache.healthOk = true;
     cache.latencyMs = h.latencyMs;
     cache.lastFrameAt = h.latestFrameAt ?? cache.lastFrameAt;
-    const isLoopback = /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?/i.test(s.hubUrl || '');
-    if (isLoopback && (!s.onboardingComplete || !s.token)) {
+    sup.hubReachable(); // the hub is back: end a long SSE backoff sleep now
+    if (isLoopbackHub(s.hubUrl) && (!s.onboardingComplete || !s.token)) {
       await saveSettings({
-        token: s.token || 'screensync-local-dev',
+        token: s.token || DEFAULT_TOKEN,
         onboardingComplete: true,
       });
-      await ensureSse();
+      await sup.ensure('auto-onboard');
       await registerWebBridge();
     }
   } catch {
     cache.healthOk = false;
     cache.latencyMs = null;
   }
-  broadcast({ kind: 'health', cache });
+  cache.healthCheckedAt = Date.now();
+  broadcast({ kind: 'health', cache: liveCache() });
 }
 
 async function ensureOffscreenDoc() {
@@ -131,14 +129,14 @@ chrome.alarms.create(HEALTH_ALARM, { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener(async (a) => {
   if (a.name !== HEALTH_ALARM) return;
   await pollHealth();
-  await ensureSse(); // revive SSE if the SW was terminated
+  await sup.ensure('alarm'); // revive SSE if the SW was terminated
   await registerWebBridge(); // keeps web-bridge presence fresh on the hub
   await ensureOffscreenDoc();
 });
 
 if (chrome.tabs && chrome.tabs.onActivated) {
   chrome.tabs.onActivated.addListener(async () => {
-    await ensureSse();
+    await sup.ensure('tab-activated');
     await registerWebBridge();
     await ensureOffscreenDoc();
   });
@@ -146,7 +144,7 @@ if (chrome.tabs && chrome.tabs.onActivated) {
 if (chrome.tabs && chrome.tabs.onUpdated) {
   chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo) => {
     if (changeInfo.status === 'complete') {
-      await ensureSse();
+      await sup.ensure('page-loaded');
       await registerWebBridge();
       await ensureOffscreenDoc();
     }
@@ -175,7 +173,7 @@ async function boot() {
   isBooting = true;
   try {
     await pollHealth();
-    await ensureSse();
+    await sup.ensure('boot');
     await registerWebBridge();
     await ensureOffscreenDoc();
   } catch (e) {
@@ -197,7 +195,7 @@ chrome.runtime.onConnect.addListener(ownerPortsOnly((port) => {
   ports.add(port);
   port.onDisconnect.addListener(() => ports.delete(port));
   getSettings().then((settings) => {
-    try { port.postMessage({ kind: 'snapshot', cache, settings }); } catch { /* closed */ }
+    try { port.postMessage({ kind: 'snapshot', cache: liveCache(), settings }); } catch { /* closed */ }
   });
 }));
 
@@ -219,7 +217,7 @@ chrome.runtime.onMessage.addListener(ownerMessagesOnly((msg, _sender, sendRespon
       switch (msg.type) {
         case 'get-status': {
           const settings = await getSettings();
-          sendResponse({ ok: true, cache, settings });
+          sendResponse({ ok: true, cache: liveCache(), settings });
           break;
         }
         case 'probe': {
@@ -246,8 +244,7 @@ chrome.runtime.onMessage.addListener(ownerMessagesOnly((msg, _sender, sendRespon
           break;
         case 'update-settings': {
           const settings = await saveSettings(msg.patch);
-          sse.stop();
-          await ensureSse();
+          await sup.ensure('settings', { retryUnauthorized: true });
           pollHealth();
           await registerWebBridge();
           broadcast({ kind: 'settings', settings });
@@ -384,7 +381,7 @@ chrome.runtime.onMessage.addListener(ownerMessagesOnly((msg, _sender, sendRespon
           break;
         }
         case 'offscreen-ping':
-          await ensureSse();
+          await sup.ensure('offscreen-ping');
           await registerWebBridge();
           sendResponse({ ok: true, pong: Date.now() });
           break;
@@ -422,7 +419,7 @@ if (chrome.runtime.onMessageExternal) {
       try {
         console.info('[ss] external message received:', msg, 'from:', sender?.url);
         await pollHealth();
-        await ensureSse();
+        await sup.ensure('external');
         await registerWebBridge();
         await ensureOffscreenDoc();
         if (msg && msg.type === 'reload') {
