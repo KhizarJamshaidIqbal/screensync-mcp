@@ -264,8 +264,10 @@ export function createFlowEngine({ broadcast, request, gatedStep }: { broadcast:
         }
       }
 
+      // Each step meets the approval gate and is attributed to the calling session, like web_flow_run's steps: a
+      // destructive click refused as a direct call must not run unasked because it was wrapped in a test.
       const runnerCallback = async (stepTool: string, stepArgs: Record<string, unknown>) => {
-        return await request(stepTool, stepArgs, 45_000);
+        return await gatedStep(stepTool, stepArgs, 45_000, session);
       };
 
       const { runTestSuite } = await import("./test-runner.js");

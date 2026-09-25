@@ -144,3 +144,26 @@ test("scheduled runs stay unattended: the hub never holds a scheduled step for a
     await hub.close();
   }
 });
+
+test("web_test_run: a risky step is put to a person where the browser can ask, and refused where it cannot", async () => {
+  for (const [browser, expectAsked] of [[CAPABLE_A, true], [OLD_B, false]] as const) {
+    const hub = await startHub();
+    try {
+      await hub.register(browser);
+      const direct = await withGate("enforce", () => hub.call("web_click", DANGEROUS));
+      hub.relayed.length = 0;
+      // Wrapping the refused (or asked) direct call in a test must not relay it unmarked.
+      const run = await withGate("enforce", () => hub.call("web_test_run", { steps: [{ tool: "web_click", args: DANGEROUS }] }));
+      if (expectAsked) {
+        assert.equal(direct.cognitiveGate?.verdict, "asked", "fixture: the direct call asks a person");
+        assert.deepEqual(marks(hub), ["web_click+asked->inst-a"]);
+      } else {
+        assert.match(String(direct.error), gateRefusal, "fixture: the direct call is refused");
+        assert.deepEqual(marks(hub), [], "nothing reaches an extension that would just run it");
+        assert.equal(run.ok, false);
+      }
+    } finally {
+      await hub.close();
+    }
+  }
+});
