@@ -27,6 +27,13 @@ export const MAX_BODY_BYTES = "18mb";
  */
 export const PAIR_WINDOW_MINUTES = Number(process.env.SCREEN_SYNC_PAIR_WINDOW_MINUTES ?? "10");
 
+/**
+ * Interval of the `: keepalive` comment on every SSE stream (/api/events), in ms. The extension treats a
+ * silent stream as dead after its liveness window (90s), so this must stay well below that. Clamped to
+ * 100..120000; the low floor exists for tests, which shorten it to see a keepalive within a second.
+ */
+export const SSE_KEEPALIVE_MS = Math.min(120_000, Math.max(100, Number(process.env.SCREEN_SYNC_SSE_KEEPALIVE_MS) || 30_000));
+
 /** Default AI agent label surfaced on the phone. Override via env SCREEN_SYNC_AGENT_NAME. */
 export const agentName = process.env.SCREEN_SYNC_AGENT_NAME || "Claude";
 

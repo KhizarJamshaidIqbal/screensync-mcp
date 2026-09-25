@@ -5,7 +5,8 @@
 import { readFileSync, existsSync } from "fs";
 import path from "path";
 
-const PRESENCE_TTL_MS = 600_000;
+/** A browser counts as online this long after its last heartbeat (the extension heartbeats every 30s). */
+export const PRESENCE_TTL_MS = 90_000;
 
 export type BrowserWindowInfo = {
   id: number;
@@ -30,7 +31,34 @@ export type BrowserInstance = {
   tab: { url?: string; title?: string } | null;
   windows: BrowserWindowInfo[];
   userAgent: string | null;
+  /** The extension opens its SSE stream with ?client=extension&instanceId=, so the hub can tell whether THIS
+   * browser's stream is up (1.14.1+). Older extensions leave it false and are judged by "any stream is up". */
+  sseAttribution: boolean;
 };
+
+/**
+ * What statusPayload() knows about the hub's SSE streams. `streamUp` answers for one browser: its own
+ * attributed stream when the extension attributes it, else whether any stream is open (older extensions).
+ */
+export type SseView = {
+  count: () => number;
+  extensionCount: () => number;
+  streamUp: (inst: BrowserInstance) => boolean;
+};
+
+/** The streams hub-sse.ts tracks, as the SseView the registry reads. */
+export function sseViewOf(sse: { count(): number; extensionCount(): number; hasInstance(id: string): boolean }): SseView {
+  return {
+    count: () => sse.count(),
+    extensionCount: () => sse.extensionCount(),
+    streamUp: (inst) => (inst.sseAttribution ? sse.hasInstance(inst.instanceId) : sse.count() > 0),
+  };
+}
+
+/** A bare client count (older callers and tests): nothing is attributed, so any stream counts for every browser. */
+function viewOfCount(count: number): SseView {
+  return { count: () => count, extensionCount: () => 0, streamUp: () => count > 0 };
+}
 
 export type LocalChromeProfile = {
   dir: string;
@@ -156,6 +184,7 @@ export function createProfileRegistry() {
       tab: body.tab && typeof body.tab === "object" ? (body.tab as { url?: string; title?: string }) : null,
       windows,
       userAgent: typeof body.userAgent === "string" ? body.userAgent : null,
+      sseAttribution: body.sseAttribution === true,
     };
 
     if (typeof body.webAccessEnabled !== "boolean" && instances.has(instanceId)) {
@@ -269,7 +298,7 @@ export function createProfileRegistry() {
         `selected profile '${selectedProfile}' is offline; reconnect it, or call web_profile {action:'select', profile:'<online profile>'} with an online profile, or web_profile {action:'select'} with no profile to clear the selection. Online profiles: ${listed}.`);
     }
     if (online.length === 0) {
-      return refuse(503, "NO_BROWSER_ONLINE", "No browser is online: no ScreenSync extension has sent this hub a heartbeat in the last 10 minutes. Open the extension so it reconnects, then retry.");
+      return refuse(503, "NO_BROWSER_ONLINE", "No browser is online: no ScreenSync extension has sent this hub a heartbeat in the last 90 seconds. Open the extension so it reconnects, then retry.");
     }
     // Unreachable while resolveTarget() picks some instance whenever one is online; kept so a future change
     // to that heuristic fails closed instead of broadcasting.
@@ -314,16 +343,20 @@ export function createProfileRegistry() {
     };
   };
 
-  const statusPayload = (sseClients: number) => {
+  const statusPayload = (sse: number | SseView) => {
+    const view = typeof sse === "number" ? viewOfCount(sse) : sse;
     const online = listOnline();
     // The top level describes the browser a call with no routing hints is sent to: the same
     // resolveTarget() that request() in web.ts uses. Not online[0] - with two profiles connected the
     // latest heartbeat is often the OTHER logged-in account. null when selectedProfile matches nothing.
     const target = resolveTarget();
+    // Whether THAT browser's event stream is up, not whether any client (the phone, say) holds one.
+    const streamUp = target ? view.streamUp(target) : online.some(view.streamUp);
     return {
-      online: sseClients > 0 && online.length > 0,
-      sseConnected: sseClients > 0,
-      sseClients,
+      online: streamUp && online.length > 0,
+      sseConnected: streamUp,
+      sseClients: view.count(),
+      sseExtensionClients: view.extensionCount(),
       webAccessEnabled: [...instances.values()].some((b) => b.webAccessEnabled),
       selectedProfile,
       targetInstanceId: target ? target.instanceId : null,
@@ -346,6 +379,8 @@ export function createProfileRegistry() {
         windowCount: b.windows.length,
         windows: b.windows,
         userAgent: b.userAgent,
+        sseConnected: view.streamUp(b),
+        sseAttributed: b.sseAttribution,
       })),
     };
   };
