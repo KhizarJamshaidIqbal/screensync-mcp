@@ -320,6 +320,8 @@ After driving the page, call **`web_events` {since: <lastSeq>}** to see what act
 | "Read/Action access not granted for origin X" | `web_request_access {url, reason}`; on `pending` call again with the same url; on `USER_DECLINED` ask in chat. |
 | `TIMEOUT` "The browser didn't answer within Ns" | Not a hub outage. Ask the user to look for a ScreenSync approval (notification / card on the page / popup); check `web_events`, then retry. |
 | `HUB_UNREACHABLE` "hub is not reachable" | The hub refused the connection: ask the user to start it (`npm start` / start-hub). |
+| `BROWSER_STREAM_DOWN` (503, `retryable: true`) | That browser's live SSE stream to the hub is down (the hub waited ~5s for it). It reconnects on its own — within ~5s for a local hub. Wait a few seconds and retry; check `web_status` → `browsers[].sseConnected` for that instance, or `web_extension_diagnostics` → `sse.state` / `sse.nextRetryAt`. |
+| Is the live stream healthy? | `web_status`: top-level `sseConnected` and `sseExtensionClients`, and per browser `sseConnected` + `sseAttributed` (its own stream, not "any client"). `web_extension_diagnostics`: `sse{state, open, lastDataAgeSeconds, reconnects, nextRetryAt}`, `sw.uptimeSeconds`, `hub{reachable, latencyMs, health.version}`. |
 | Weird/stale results | `web_extension_reload`, wait 5s, `web_status`. |
 | Wrong browser answered | Pass `__browser` hint (see §5). |
 
