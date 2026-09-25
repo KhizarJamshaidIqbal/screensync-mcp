@@ -9,8 +9,8 @@
 // code, and persisting a seed pins an old copy of it over every future build's seed. Left out, and
 // why (re-check when a writer is wired, then add the engine here with a round-trip test):
 //   graph          static seeded topology; nothing ever calls addNode/addEdge on it.
-//   replay         its whole "episodic log" is one hard-coded seed episode; logEpisode has no caller.
-//                  (Real episodes live in cognitiveStore, which is already durable.)
+//   replay         holds no state of its own: web_episodic_query reads, and logEpisode writes, the real
+//                  episodes in cognitiveStore, which is already durable.
 //   lineage        recordMutation has no caller, so the history is always empty.
 //   metacognition  recordLatency has no caller; reads fall back to a built-in default series.
 //   warming        recordFailure/recordSuccess have no caller, so this breaker never leaves CLOSED.
@@ -18,7 +18,8 @@
 //   contracts      ephemeral recovery snapshots of unsaved page text (web_contract_check). They hold
 //                  whatever the user had typed into a form, so writing them to disk would turn a
 //                  safety net into a privacy leak. Losing them on restart is the correct behaviour.
-//   cognitiveStore already durable on its own (cognitive-memory.json), with its own migrations.
+//   cognitiveStore already durable on its own (cognitive-memory.json), with its own migrations. Its only
+//                  deferred write (tracker episodes, saveSoon) is flushed by stopCognitivePersistence().
 //   development    a pure VIEW of the spine (its stage, scaffolding and counters are recomputed on every
 //                  read), so there is nothing of its own to save. maturation and lifespan save only the
 //                  state tools really write (the epistemic graph; motor calibration and metaphors); their
@@ -27,6 +28,7 @@
 import { log } from "./config.js";
 import { cognitiveRegistry, type HydrateReport, type PersistableEngine } from "./cognitive-persistence.js";
 import { globalAdolescentEngine } from "./cognitive-adolescent.js";
+import { cognitiveStore } from "./cognitive-memory.js";
 import { globalDynamicsEngine } from "./cognitive-dynamics.js";
 import { globalFederatedCatalog } from "./cognitive-federation.js";
 import { globalLifespanEngine } from "./cognitive-lifespan.js";
@@ -84,6 +86,11 @@ export function startCognitivePersistence(): HydrateReport[] {
 
 /** Final flush + stop. Safe to call when persistence never started. */
 export function stopCognitivePersistence(): string[] {
+  try {
+    cognitiveStore.flush(); // tracker episodes still waiting on their coalesced save
+  } catch (error) {
+    log("ERROR", "Final cognitive memory flush failed", { error: String(error) });
+  }
   try {
     return cognitiveRegistry.stop();
   } catch (error) {

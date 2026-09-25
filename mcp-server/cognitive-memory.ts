@@ -7,6 +7,7 @@
 
 import path from "node:path";
 import { DATA_DIR, log } from "./config.js";
+import { canonicalDomain } from "./cognitive-domain.js";
 import { atomicWriteJson, quarantine, readJsonSafe } from "./cognitive-state.js";
 import { migrateMemory } from "./cognitive-memory-migrate.js";
 import { getDefaultSeededMemory } from "./cognitive-memory-seed.js";
@@ -17,14 +18,22 @@ import { HUB_OWNED_FIELDS, applyOutcome, asCandidate, isFastPath, statusOf, type
 import { scorePlaybooks } from "./cognitive-recall-score.js";
 import { freeEditKey, keyOf, storageKey, uniqueId } from "./cognitive-playbook-keys.js";
 import { runReflectionPass, type ReflectionPassResult } from "./cognitive-reflection.js";
+import { admitPitfall, capEpisodes, clampPitfall, mergeFact } from "./cognitive-memory-limits.js";
 
 import type { CognitiveMemoryData, DomainPitfall, ExecutionEpisode, PlaybookBranch, PlaybookStep, ProceduralPlaybook } from "./cognitive-memory-types.js";
 export type { CognitiveMemoryData, DomainPitfall, DomainSemanticMemory, ExecutionEpisode, PlaybookBranch, PlaybookStep, ProceduralPlaybook, StateProbe } from "./cognitive-memory-types.js";
 
 const MEMORY_FILE = path.join(DATA_DIR, "cognitive-memory.json");
+/** A deferred save waits this long for more writes to coalesce with... */
+const SAVE_DEBOUNCE_MS = 2_000;
+/** ...but never longer than this after the first one it is holding. */
+const SAVE_MAX_DELAY_MS = 10_000;
 
 export class CognitiveMemoryStore {
   private data: CognitiveMemoryData | null = null;
+  private saveTimer: NodeJS.Timeout | null = null;
+  private pendingSince = 0;
+  private exitHooked = false;
 
   /** `file` is injectable so tests can point a store at a scratch path instead of the real one. */
   constructor(public readonly file: string = MEMORY_FILE) {}
@@ -61,7 +70,9 @@ export class CognitiveMemoryStore {
     return this.data;
   }
 
+  /** Writes the whole store now (atomically). Also writes anything a saveSoon() was still holding. */
   public save(): void {
+    this.cancelPendingSave();
     if (!this.data) return;
     try {
       this.data.updatedAt = new Date().toISOString();
@@ -71,15 +82,45 @@ export class CognitiveMemoryStore {
     }
   }
 
-  public normalizeDomain(raw?: string): string {
-    const input = String(raw ?? "").trim();
-    if (!input) return "";
-    try {
-      const u = new URL(input.startsWith("http") ? input : `https://${input}`);
-      return u.hostname.replace(/^www\./, "").toLowerCase();
-    } catch {
-      return input.replace(/^www\./, "").toLowerCase();
+  /**
+   * Schedules a coalesced save: SAVE_DEBOUNCE_MS after the last call, and at most SAVE_MAX_DELAY_MS after
+   * the first one waiting. Only the tracker's per-call episodes use this - every tool call used to fsync a
+   * full rewrite of the file. Everything a caller learns on purpose still saves synchronously. The timer is
+   * unref'd, so flush() runs on stopCognitivePersistence() and on process exit.
+   */
+  public saveSoon(): void {
+    const now = Date.now();
+    if (!this.pendingSince) this.pendingSince = now;
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    const wait = Math.max(0, Math.min(SAVE_DEBOUNCE_MS, this.pendingSince + SAVE_MAX_DELAY_MS - now));
+    this.saveTimer = setTimeout(() => this.flush(), wait);
+    this.saveTimer.unref?.();
+    if (!this.exitHooked) {
+      this.exitHooked = true;
+      process.once("exit", () => this.flush());
     }
+  }
+
+  /** Writes a deferred save now, if one is waiting. Returns whether it wrote. */
+  public flush(): boolean {
+    if (!this.pendingSince) return false;
+    this.save();
+    return true;
+  }
+
+  public hasPendingSave(): boolean {
+    return this.pendingSince !== 0;
+  }
+
+  private cancelPendingSave(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = null;
+    this.pendingSince = 0;
+  }
+
+  /** The shared canonical form (cognitive-domain.ts): the spine and the observer key by the same string. */
+  public normalizeDomain(raw?: string): string {
+    return canonicalDomain(String(raw ?? ""));
   }
 
   public recall(cue: {
@@ -162,6 +203,8 @@ export class CognitiveMemoryStore {
     domain: string;
     intent?: string;
     data: Record<string, any>;
+    /** Coalesce the write (saveSoon) instead of saving now. Honoured for episodes only. */
+    deferSave?: boolean;
   }) {
     const mem = this.load();
     const domain = this.normalizeDomain(params.domain);
@@ -238,19 +281,14 @@ export class CognitiveMemoryStore {
           codeSnippet: pf.codeSnippet ? String(pf.codeSnippet) : undefined,
           discoveredAt: new Date().toISOString()
         };
-        if (!mem.pitfalls[domain]) mem.pitfalls[domain] = [];
-        mem.pitfalls[domain].push(pitfall);
-        entryId = id;
+        const clamped = clampPitfall(pitfall);
+        const admitted = admitPitfall(mem, domain, pitfall); // throws, storing nothing, when the domain is full
+        entryId = admitted.id;
+        note = [note, admitted.note, clamped.length ? `Shortened over-long field(s): ${clamped.join(", ")}.` : undefined].filter(Boolean).join(" ") || undefined;
         break;
       }
       case "fact": {
-        const existing = mem.domains[domain] || { domain };
-        mem.domains[domain] = {
-          ...existing,
-          ...params.data,
-          domain,
-          lastVerifiedAt: new Date().toISOString()
-        };
+        mem.domains[domain] = mergeFact(mem.domains[domain], domain, params.data, new Date().toISOString());
         entryId = domain;
         break;
       }
@@ -273,7 +311,7 @@ export class CognitiveMemoryStore {
           ...(typeof ep.outcome === "string" ? { outcome: ep.outcome as ExecutionEpisode["outcome"] } : {}),
         };
         mem.episodes.push(episode);
-        if (mem.episodes.length > 200) mem.episodes.shift();
+        capEpisodes(mem, domain);
         entryId = id;
         break;
       }
@@ -281,7 +319,8 @@ export class CognitiveMemoryStore {
         throw new Error(`Unknown learn action: ${params.action}`);
     }
 
-    this.save();
+    if (params.deferSave && params.action === "episode") this.saveSoon();
+    else this.save();
     return {
       learned: true, action: params.action, domain, entryId,
       ...(params.action === "playbook" ? { status: "candidate" as SkillStatus } : {}),

@@ -9,6 +9,7 @@
 // "reported" claim. A human vouch is audited, capped at COMPETENT, and never becomes earned level.
 
 import { asRecord, toMap } from "./cognitive-serial.js";
+import { canonicalDomain } from "./cognitive-domain.js";
 import {
   LEVEL_NAMES, applyEvidence, applyVouch, evaluate, newRecord,
   type EvidenceKind, type Evaluation, type Level, type SessionTally, type SpineRecord, type VouchEntry,
@@ -16,7 +17,8 @@ import {
 
 const MAX_DOMAINS = 500;
 
-export const normalizeDomain = (raw: string): string => raw.toLowerCase().trim().replace(/^www\./, "");
+/** The spine's key for a domain: the shared canonical form (see cognitive-domain.ts). */
+export const normalizeDomain = (raw: string): string => canonicalDomain(raw);
 
 // ── strict (de)serialisation: a bad snapshot must throw, never half-apply ──
 

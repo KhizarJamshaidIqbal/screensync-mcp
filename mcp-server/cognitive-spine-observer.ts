@@ -16,7 +16,8 @@
 // An unrecognised refusal string is scored as a failure. That errs toward a LOWER level, which is the
 // safe direction for a level that will gate risky actions.
 
-import { globalSpine, normalizeDomain, type CognitiveSpine } from "./cognitive-spine.js";
+import { canonicalDomain } from "./cognitive-domain.js";
+import { globalSpine, type CognitiveSpine } from "./cognitive-spine.js";
 import type { EvidenceKind } from "./cognitive-spine-ladder.js";
 
 /** Page-mutating tools whose outcome an assertion can meaningfully verify. */
@@ -38,9 +39,10 @@ const MAX_CONTEXT = 300;
 /**
  * Refusals and outages that say nothing about competence: the extension's own guards (origin grants in
  * consent.js: "Read/Action/Cookie access not granted for origin ...", the rate limiter, the human's
- * confirmation) and the plumbing (no browser, timed out waiting for it). Strings taken from the code.
+ * confirmation) and the plumbing (no browser, timed out waiting for it, the browser's live event stream to
+ * the hub being down - BROWSER_STREAM_DOWN). Strings taken from the code.
  */
-export const NEUTRAL_ERROR_RE = /web access is disabled|USER_CONFIRMATION_REQUIRED|approval request|access not granted for origin|rate.?limit|waiting for the browser extension|no connected browser|not reachable|extension not connected/i;
+export const NEUTRAL_ERROR_RE = /web access is disabled|USER_CONFIRMATION_REQUIRED|approval request|access not granted for origin|rate.?limit|waiting for the browser extension|no connected browser|not reachable|extension not connected|live event stream|BROWSER_STREAM_DOWN/i;
 const TRIVIAL_SELECTORS = new Set(["body", "html", ":root", "*", "document", "css=body", "css=html", "css=:root"]);
 
 export interface ToolResultLike { ok: boolean; data?: unknown; error?: string }
@@ -53,17 +55,20 @@ export function sessionOf(header: string | undefined, now: number = Date.now()):
   return clean || `http:${new Date(now).toISOString().slice(0, 10)}`;
 }
 
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * The canonical domain of an http(s) URL or a bare host ("x.com", "WWW.x.com:443"). Anything else (other
+ * schemes, paths without a host, free text) and the local machine itself resolve to "".
+ */
 export function hostOf(raw: unknown): string {
   const s = typeof raw === "string" ? raw.trim() : "";
   if (!s) return "";
-  let host = "";
-  if (s.startsWith("http://") || s.startsWith("https://")) {
-    try { host = new URL(s).hostname; } catch { return ""; }
-  } else if (s.includes(".") && !s.includes(" ") && !s.includes("/")) {
-    host = s;
-  }
-  host = normalizeDomain(host);
-  return host === "localhost" || host === "127.0.0.1" ? "" : host;
+  const lower = s.toLowerCase();
+  const isHttp = lower.startsWith("http://") || lower.startsWith("https://");
+  if (!isHttp && !(s.includes(".") && !s.includes(" ") && !s.includes("/"))) return "";
+  const host = canonicalDomain(s);
+  return LOCAL_HOSTS.has(host) ? "" : host;
 }
 
 /** True when an assertion cannot tell us anything: it targets the whole document, or nothing at all. */
@@ -100,7 +105,7 @@ export class SpineObserver {
    * the hub can have SEEN an act followed by a passing assertion, and each sighting backs one report.
    */
   public claimVerifiedCredit(session: string, domain: string, now: number = this.clock()): boolean {
-    const key = `${session}|${normalizeDomain(domain)}`;
+    const key = `${session}|${canonicalDomain(domain)}`;
     const fresh = (this.credits.get(key) ?? []).filter((t) => now - t <= CREDIT_TTL_MS);
     if (fresh.length === 0) { this.credits.delete(key); return false; }
     fresh.shift();

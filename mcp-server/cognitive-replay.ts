@@ -4,7 +4,7 @@
 // 2. Endel Tulving's Episodic Memory (Autobiographical context & spatio-temporal recall)
 // 3. Data-Agent-Kit: data_autocleaning, accidental_data_loss_prevention & bigquery_graph
 
-import { cognitiveStore, type DomainPitfall, type ProceduralPlaybook, type PlaybookStep, type PlaybookBranch, type StateProbe } from "./cognitive-memory.js";
+import { cognitiveStore, type DomainPitfall, type ExecutionEpisode, type ProceduralPlaybook, type PlaybookStep, type PlaybookBranch, type StateProbe } from "./cognitive-memory.js";
 import { statusOf } from "./cognitive-skills.js";
 
 export interface CounterfactualScenario {
@@ -45,6 +45,8 @@ export interface EpisodicRecord {
   branchTraversed?: string;
   probesObserved: Record<string, boolean>;
   lessonsLearned?: string;
+  /** The hub's own classification of the run, when it observed one (ExecutionEpisode.outcome). */
+  hubOutcome?: ExecutionEpisode["outcome"];
 }
 
 export interface HygieneProfileReport {
@@ -87,31 +89,34 @@ const orphansOf = (pb: ProceduralPlaybook): PlaybookBranch[] => {
   return (pb.branches ?? []).filter((b) => !probed.has(b.whenSignal) && !String(b.whenSignal).startsWith("food_burning"));
 };
 
+/** How a stored episode reads as an autobiographical record. */
+function toEpisodicRecord(e: ExecutionEpisode): EpisodicRecord {
+  return {
+    id: e.id,
+    domain: e.domain,
+    intent: e.intent,
+    timestamp: e.timestamp,
+    latencyMs: Number(e.durationMs) || 0,
+    outcome: e.success ? "success" : "failure",
+    probesObserved: e.conditionSignals ?? {},
+    ...(e.notes ? { lessonsLearned: e.notes } : {}),
+    ...(e.outcome ? { hubOutcome: e.outcome } : {}),
+  };
+}
+
 export class CognitiveReplayAndHygieneEngine {
-  private episodicLog: EpisodicRecord[] = [];
-
-  constructor() {
-    this.seedEpisodicHistory();
-  }
-
-  private seedEpisodicHistory(): void {
-    // Seed verified episodic trace for x.com
-    this.episodicLog.push({
-      id: "ep_x_publish_001",
-      domain: "x.com",
-      intent: "post",
-      timestamp: "2026-09-18T10:43:12.000Z",
-      tabId: 108,
-      latencyMs: 640,
-      outcome: "success",
-      branchTraversed: "skip_compose_nav",
-      probesObserved: {
-        flame_is_lit_auth_active: true,
-        pan_already_on_fire_compose_open: true,
-        food_burning_unsaved_draft_dialog: false,
-      },
-      lessonsLearned: "Draft.js textarea responds instantly to execCommand insertText when compose modal is already open.",
-    });
+  /**
+   * The playbook a replay should simulate. An id (what web_recall returns, e.g. "pb_x_publish_post") or a
+   * name is looked up the way every other reader does (findPlaybook); a raw storage key is still accepted.
+   * Only a live playbook of THIS domain qualifies: an archived one, or another domain's, is never replayed.
+   */
+  private replayTarget(domain: string, playbookId?: string): ProceduralPlaybook | undefined {
+    const d = cognitiveStore.normalizeDomain(domain);
+    const live = (pb: ProceduralPlaybook | undefined): ProceduralPlaybook | undefined =>
+      pb && statusOf(pb) !== "deprecated" && cognitiveStore.normalizeDomain(pb.domain) === d ? pb : undefined;
+    const playbooks = cognitiveStore.load().playbooks || {};
+    if (playbookId) return cognitiveStore.findPlaybook(d, playbookId) ?? live(playbooks[playbookId]);
+    return Object.values(playbooks).find((pb) => live(pb) !== undefined);
   }
 
   public simulateOfflineReplay(params: {
@@ -120,11 +125,7 @@ export class CognitiveReplayAndHygieneEngine {
     counterfactualScenarios?: CounterfactualScenario[];
     autoSynthesizeBranch?: boolean;
   }): ReplayReport {
-    const data = cognitiveStore.load();
-    const playbooks = Object.values(data.playbooks || {}).filter((p) => p.domain === params.domain);
-    const playbook = (params.playbookId
-      ? data.playbooks[params.playbookId]
-      : playbooks[0]) as ProceduralPlaybook | undefined;
+    const playbook = this.replayTarget(params.domain, params.playbookId);
 
     if (!playbook) {
       return {
@@ -272,17 +273,21 @@ export class CognitiveReplayAndHygieneEngine {
     };
   }
 
+  /**
+   * Autobiographical recall over the REAL episodes in the durable store, newest first. This used to read an
+   * in-memory log seeded with one invented x.com episode, so it answered the same fiction on every hub.
+   */
   public queryEpisodicMemory(params: {
     domain?: string;
     intent?: string;
     outcome?: "success" | "failure";
     limit?: number;
   }): { episodes: EpisodicRecord[]; totalCount: number; autobiographicalSummary: string } {
-    let filtered = this.episodicLog;
+    let filtered = [...cognitiveStore.load().episodes].reverse().map(toEpisodicRecord);
 
     if (params.domain) {
-      const clean = params.domain.toLowerCase().trim();
-      filtered = filtered.filter((e) => e.domain.toLowerCase() === clean);
+      const clean = cognitiveStore.normalizeDomain(params.domain);
+      filtered = filtered.filter((e) => cognitiveStore.normalizeDomain(e.domain) === clean);
     }
     if (params.intent) {
       filtered = filtered.filter((e) => e.intent.toLowerCase() === params.intent?.toLowerCase());
@@ -291,7 +296,7 @@ export class CognitiveReplayAndHygieneEngine {
       filtered = filtered.filter((e) => e.outcome === params.outcome);
     }
 
-    const max = params.limit || 20;
+    const max = params.limit && params.limit > 0 ? Math.floor(params.limit) : 20;
     const episodes = filtered.slice(0, max);
     const successCount = filtered.filter((e) => e.outcome === "success").length;
     const avgLatency = filtered.length > 0
@@ -309,17 +314,25 @@ export class CognitiveReplayAndHygieneEngine {
     };
   }
 
+  /** Records an episode in the durable store (the same one the tracker and web_learn write). */
   public logEpisode(episode: Omit<EpisodicRecord, "id" | "timestamp">): EpisodicRecord {
-    const full: EpisodicRecord = {
-      ...episode,
-      id: "ep_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
-      timestamp: new Date().toISOString(),
-    };
-    this.episodicLog.unshift(full);
-    if (this.episodicLog.length > 100) {
-      this.episodicLog.pop();
-    }
-    return full;
+    const id = "ep_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+    const learned = cognitiveStore.learn({
+      action: "episode",
+      domain: episode.domain,
+      intent: episode.intent,
+      data: {
+        id,
+        intent: episode.intent,
+        success: episode.outcome === "success",
+        durationMs: episode.latencyMs,
+        conditionSignals: episode.probesObserved,
+        notes: episode.lessonsLearned,
+        ...(episode.hubOutcome ? { outcome: episode.hubOutcome } : {}),
+      },
+    });
+    const stored = cognitiveStore.load().episodes.find((e) => e.id === learned.entryId);
+    return stored ? { ...toEpisodicRecord(stored), ...(episode.tabId !== undefined ? { tabId: episode.tabId } : {}), ...(episode.branchTraversed ? { branchTraversed: episode.branchTraversed } : {}) } : { ...episode, id, timestamp: new Date().toISOString() };
   }
 
   /**
