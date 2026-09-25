@@ -14,6 +14,7 @@ import { createFlowEngine } from "./web-flows.js";
 import { createRecorder } from "./web-recorder.js";
 import { handleVisualBaseline } from "./web-visual-baseline.js";
 import { createFanout } from "./web-fanout.js";
+import { hubWaitMs, LONG_WAIT_TOOLS } from "./web-timeouts.js";
 
 // Web bridge: gives AI agents supervised access to the user's browser through
 // the ScreenSync extension. The MCP tool handler (possibly a separate stdio
@@ -258,8 +259,9 @@ export function createWebBridge(broadcast: (payload: object, name?: string) => v
         res.status(httpStatus).json({ success: false, ok: false, error, code, onlineProfiles, data: { code, onlineProfiles } });
         return;
       }
-      // 65 s, not 60: a tool with a 60 s browser-side budget still gets the MCP side's 5 s margin (hub-web-call.ts).
-      const timeoutMs = Math.min(Math.max(Number(b.timeoutMs) || 45_000, 5_000), 65_000);
+      // 5-65s (65, not 60: a 60s browser-side budget still gets the MCP side's 5s margin, hub-web-call.ts); a
+      // long-wait tool (web-timeouts.ts) waits its own budget from args.timeoutMs, up to its catalog maximum.
+      const timeoutMs = hubWaitMs(tool, LONG_WAIT_TOOLS[tool] ? args.timeoutMs : b.timeoutMs);
       const startedAt = Date.now();
       const result = await request(tool, args, timeoutMs, gate?.block ? gate.decision : undefined, route);
       emitHubEvent("tool", tool, result.ok);

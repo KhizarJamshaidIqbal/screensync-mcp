@@ -12,6 +12,7 @@
 import { randomUUID } from "node:crypto";
 import { AUTH_TOKEN, HTTP_PORT, hubSelfCheck } from "./config.js";
 import { APPROVAL_MAX_MS, APPROVAL_RUN_HEADROOM_MS } from "./web-ext-routes.js";
+import { longWaitBudgetMs } from "./web-timeouts.js";
 
 export type HubWebResult = { ok: boolean; data?: unknown; error?: string; code?: string; retryable?: boolean };
 
@@ -30,8 +31,14 @@ const DEFAULT_CALL_TIMEOUT_MS = 45_000;
  */
 export const IN_PAGE_MARGIN_MS = 5_000;
 
-/** The per-call timeout sent to the hub (the hub clamps it to its own 5-65s range). */
-export function callTimeoutOf(args: Record<string, unknown>): number {
+/**
+ * The per-call timeout sent to the hub (the hub clamps it to its own 5-65s range). A long-wait tool
+ * (web-timeouts.ts: web_takeover, web_request_help, web_wait_download) waits its own budget plus the margin,
+ * up to its catalog maximum, instead of being cut at 120s. `tool` is optional: without it, the ordinary rule.
+ */
+export function callTimeoutOf(args: Record<string, unknown>, tool?: string): number {
+  const long = longWaitBudgetMs(tool, args.timeoutMs);
+  if (long !== null) return long + IN_PAGE_MARGIN_MS;
   const requested = Number(args.timeoutMs);
   return Number.isFinite(requested) && requested > 0
     ? Math.min(Math.max(requested, 1000) + IN_PAGE_MARGIN_MS, 120_000)
@@ -133,7 +140,7 @@ export async function callHubWebTool(
     }
   }
 
-  const timeoutMs = callTimeoutOf(args);
+  const timeoutMs = callTimeoutOf(args, tool);
   const signal = AbortSignal.timeout(opts.transportTimeoutMs ?? transportTimeoutMs(timeoutMs));
   const startedAt = Date.now();
   let res: Response;
