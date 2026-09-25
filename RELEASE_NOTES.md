@@ -1,5 +1,21 @@
 # ScreenSync MCP — Release Notes
 
+## Version 1.14.1 (live connection you can trust) — 2026-09-26
+
+The side panel's Diagnostics tab said **SSE Stream: Offline**, **Uptime: N/A** and **0 grants** while the header said **SSE Live** and the connection was fine. The tab was reading fields the extension never sent. This release makes every status the extension shows come from the real connection, and fixes the reasons the live link could quietly stop working.
+
+- **Diagnostics shows the truth.** The live stream state (`Live · data 4s ago`, `Reconnecting in 8s`, `Unauthorized — check token`, `Stopped`), real uptime, open tabs, storage, grants and waiting approvals, refreshed on its own while the tab is open. `web_extension_diagnostics` returns the same data, and no longer hands agents your full list of granted sites, only a count.
+- **The live stream recovers on its own.** A wrong pairing token no longer stops it for good: fixing the token (or waiting five minutes) brings it back. Stopping it is shown as stopped, not "SSE Live". A hub that is down is retried with a growing delay instead of a burst on every page load, and a stream the hub closes is reported and reopened.
+- **Nothing is lost or run twice across a reconnect.** The extension resumes from the last event it saw, so a command sent during a short gap still arrives, and a command that has expired or already ran is never run again.
+- **A dead stream fails fast.** If a browser's live stream is down, a tool call to it now answers within seconds with `BROWSER_STREAM_DOWN` instead of waiting 45–65 seconds. `web_status` reports each browser's own stream, and a closed browser drops out after 90 seconds instead of 10 minutes.
+- **Long waits get their full time.** `web_takeover`, `web_request_help` and `web_wait_download` wait as long as they advertise, including inside flows, replays and fanouts. `web_test_run` and scheduled flows now go through the approval gate.
+- **Memory keeps what it learns.** `https://www.x.com/`, `x.com:443` and `x.com` are one site; clicks, typing and checks are remembered, not only navigations; `web_episodic_query` answers from real history; one busy site no longer pushes every other site's memory out.
+- **The hub is harder to crash.** Broken connections, slow readers and network-discovery errors are handled instead of taking the hub down, and stopping the hub cleans up after itself.
+
+Most fixes are in the hub as well as the extension: update both.
+
+---
+
 ## Version 1.14.0 (background tabs) — 2026-09-23
 
 An agent working in its own window reads tabs you are not looking at. Several tools behaved as if those tabs were in front; this release makes them work in the background, and adds four options.
