@@ -6,6 +6,8 @@
  * extension opens its stream as ?client=extension&instanceId=<its id> and heartbeats sseAttribution:true, so
  * the hub can tell whether THAT browser's stream is up.
  *
+ * A call to a browser whose own stream is down fails fast with BROWSER_STREAM_DOWN (S1).
+ *
  * Also: the keepalive interval comes from SCREEN_SYNC_SSE_KEEPALIVE_MS (here 300ms), and a browser counts as
  * online for 90s after a heartbeat (profile_registry.test.ts covers the clock).
  *
@@ -135,6 +137,21 @@ try {
   const down = await until(webStatus, (s) => s.sseClients === 1, 3000, "the extension stream to be dropped");
   assert.equal(down.sseConnected, false);
   assert.equal(down.online, false);
+
+  // 3b. S1: a call to that browser fails fast (BROWSER_STREAM_DOWN after the 5s grace), not after a 45s timeout,
+  // and nothing is relayed (the phone's stream never sees a web_request).
+  const clickStartedAt = Date.now();
+  const click = await fetch(`${BASE}/api/web/tool`, {
+    method: "POST", headers: json, body: JSON.stringify({ tool: "web_click", args: { selector: "#save" }, timeoutMs: 45_000 }),
+  });
+  const clickMs = Date.now() - clickStartedAt;
+  const clickBody = (await click.json()) as { ok: boolean; code?: string; retryable?: boolean; error?: string };
+  assert.equal(click.status, 503, JSON.stringify(clickBody));
+  assert.equal(clickBody.ok, false);
+  assert.equal(clickBody.code, "BROWSER_STREAM_DOWN", JSON.stringify(clickBody));
+  assert.equal(clickBody.retryable, true);
+  assert.ok(clickMs < 8_000, `must fail in < 8s, not after the call timeout (took ${clickMs}ms)`);
+  assert.ok(!phone.text().includes('"type":"web_request"'), "nothing was relayed to a browser that cannot hear it");
 
   // 4. The keepalive keeps flowing on the remaining stream.
   const before = phone.text().split(": keepalive").length;
