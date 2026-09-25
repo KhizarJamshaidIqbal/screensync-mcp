@@ -5,7 +5,8 @@
 //      level can move from hub-seen behaviour, and it is stricter than this file used to be: it used to
 //      hand out +5 XP and +1.2 "cognitive years" for any ok:true, including a web_expect that FAILED
 //      (which returns ok:true with passed:false), and it scored the safety layer's own refusals as trauma.
-//   2. The execution is logged as an episode in the durable memory store, as before.
+//   2. The execution is logged as an episode in the durable memory store, under the domain the observer
+//      resolved (so a click inherits its tab's domain), with a coalesced save.
 
 import { cognitiveStore } from "./cognitive-memory.js";
 import { hostOf, observeToolResult } from "./cognitive-spine-observer.js";
@@ -19,18 +20,26 @@ export function trackToolExecution(
   session: string = "http",
 ): void {
   let outcome: string | null = null;
+  let observedDomain = "";
   try {
-    outcome = observeToolResult(tool, args, result, session).outcome;
+    const observed = observeToolResult(tool, args, result, session);
+    outcome = observed.outcome;
+    observedDomain = observed.domain;
   } catch {
     // Non-blocking inline telemetry
   }
 
   try {
-    const domain = hostOf(args.url) || hostOf(args.origin) || hostOf((result.data as { url?: unknown } | null | undefined)?.url) || hostOf(args.domain);
+    // The observer's domain first: a click, a type or an assertion names no url, and the observer knows
+    // which domain the tab (or else the session) was last on. Recomputing it from the args here used to
+    // mean only tools that carry a url ever produced an episode (M6).
+    const domain = observedDomain || hostOf(args.url) || hostOf(args.origin) || hostOf((result.data as { url?: unknown } | null | undefined)?.url) || hostOf(args.domain);
     if (!domain) return;
 
     cognitiveStore.learn({
       action: "episode",
+      // One coalesced write for a burst of calls, not an fsync'd rewrite of the store per call (M9).
+      deferSave: true,
       domain,
       intent: tool.replace(/^web_/, ""),
       data: {
