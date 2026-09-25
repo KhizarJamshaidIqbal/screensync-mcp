@@ -13,6 +13,7 @@ import { recordAuditEntry } from './audit.js';
 import { runWithApproval, stripInternalArgs } from './approval-gate.js';
 import { executeWebTool, isActTool } from './web-tools.js';
 import { requestAccess } from './access-request.js';
+import { admitWebRequest } from './web-request-admit.js';
 
 export async function registerWebBridge() {
   let tab = null;
@@ -55,6 +56,9 @@ export async function registerWebBridge() {
         // This build puts a risky action in front of a person before it runs (approval-gate.js). The hub
         // only hands a gated call to a browser that says so: an older extension would just run it.
         approvals: true,
+        // This build opens its SSE stream with ?client=extension&instanceId=..., so the hub can tell whether THIS
+        // browser's stream is up rather than any client's (a phone counts too).
+        sseAttribution: true,
         extensionVersion: chrome.runtime.getManifest().version,
       },
     });
@@ -73,6 +77,14 @@ export async function handleWebRequest(req) {
   // Strict Zero Cross-Talk Guard:
   // If targeted to a specific profile, instance, or email, drop immediately if not for us.
   if (!matchesSelfTarget(req, identity)) {
+    return;
+  }
+
+  // A replayed request (SSE Last-Event-ID) that already ran here, or whose hub-side wait is over, runs nothing
+  // and posts nothing: the hub has already answered the agent.
+  const admit = admitWebRequest(req);
+  if (!admit.ok) {
+    console.info(`[ss] web_request ${id || '?'} (${tool || '?'}) not run: ${admit.reason}`);
     return;
   }
 

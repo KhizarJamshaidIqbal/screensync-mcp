@@ -27,21 +27,31 @@ export const RUNTIME_ID = (typeof chrome !== 'undefined' && chrome.runtime && ch
 export const BROWSER_NAME = detectBrowserName();
 
 let cachedInstanceId = null;
+let instanceIdLoading = null;
 
-export async function getInstanceId() {
-  if (cachedInstanceId) return cachedInstanceId;
+async function loadInstanceId() {
   const s = await getSettings();
-  if (s.instanceId && typeof s.instanceId === 'string' && s.instanceId.trim()) {
-    cachedInstanceId = s.instanceId.trim();
-    return cachedInstanceId;
-  }
+  if (s.instanceId && typeof s.instanceId === 'string' && s.instanceId.trim()) return s.instanceId.trim();
   const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID().slice(0, 8)
     : Math.random().toString(36).slice(2, 10);
   const newId = `inst_${BROWSER_NAME}_${Date.now().toString(36)}_${randomPart}`;
   await saveSettings({ instanceId: newId });
-  cachedInstanceId = newId;
-  return cachedInstanceId;
+  return newId;
+}
+
+// Single-flight: a fresh service worker calls this from boot, the alarm, tab events and the SSE supervisor at
+// once. With empty storage (first install, or storage cleared) each caller used to mint its own id, so the hub
+// saw a second, phantom browser instance that no request could ever reach.
+export async function getInstanceId() {
+  if (cachedInstanceId) return cachedInstanceId;
+  if (!instanceIdLoading) {
+    instanceIdLoading = loadInstanceId().then(
+      (id) => { cachedInstanceId = id; return id; },
+      (e) => { instanceIdLoading = null; throw e; },
+    );
+  }
+  return instanceIdLoading;
 }
 
 export async function detectProfileUserInfo() {

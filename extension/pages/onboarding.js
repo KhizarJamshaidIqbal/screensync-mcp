@@ -176,15 +176,16 @@ $('btn-connect').onclick = async () => {
     }
     await send({ type: 'update-settings', patch: { hubUrl: url, token, onboardingComplete: true } });
 
-    // Verify SSE stream and browser registration before reporting success
+    // Verify BOTH the live SSE stream (really open, not just an attempt in flight) and the hub-side browser
+    // registration before reporting success: either alone leaves agents' web_* calls timing out.
     let fullyVerified = false;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       await new Promise((resolve) => setTimeout(resolve, 300));
       const statusRes = await send({ type: 'get-web-status' }).catch(() => null);
       const isOnline = statusRes?.bridge?.online === true;
       const sseRes = await send({ type: 'get-status' }).catch(() => null);
-      const sseOk = sseRes?.cache?.sseStatus === 'connected';
-      if (isOnline || sseOk) {
+      const sseOk = sseRes?.cache?.sse?.open === true;
+      if (isOnline && sseOk) {
         fullyVerified = true;
         break;
       }

@@ -1,149 +1,294 @@
-import { SSE_LIVENESS_MS } from './constants.js';
+import {
+  SSE_LIVENESS_MS, SSE_STALE_MS, SSE_CONNECT_TIMEOUT_MS, SSE_BACKOFF_BASE_MS, SSE_BACKOFF_MAX_MS,
+  SSE_STABLE_MS, SSE_WAKE_MIN_GAP_MS,
+} from './constants.js';
+import { parseSseChunk } from './sse-parse.js';
 
-// MV3 service workers have no EventSource — parse text/event-stream over
-// fetch + ReadableStream instead. The hub emits `data: {json}\n\n` events
-// plus `: keepalive` comments every 30s.
+// MV3 service workers have no EventSource, so text/event-stream is read over fetch + ReadableStream.
+// The hub sends `id: <seq>\ndata: {json}\n\n` events and a `: keepalive` comment every 30s.
+//
+// One state machine, one loop per generation (every start/restart/stop bumps `gen`; a stale loop, timer
+// or read notices and exits without touching the new one):
+//   idle          status 'stopped'      (emitted synchronously by stop())
+//   connecting    status 'connecting'   (handshake, aborted after SSE_CONNECT_TIMEOUT_MS)
+//   open          status 'connected'    (the stream is really open: the only state the UI calls "live")
+//   backoff       status 'reconnecting' (network / stream end / liveness) or 'error' (404/429/5xx)
+//   unauthorized  status 'error'        ('401 — wrong pairing token'; the loop ends, the supervisor decides)
+
+const HTTP_DETAIL = {
+  404: '404 — hub endpoint /api/events not found (possible port conflict or outdated hub)',
+  429: '429 — too many connections, retrying...',
+};
+
+/** Identity of a connection: same key + active client = nothing to do. */
+export function sseCredKey(url, token, instanceId) {
+  return `${String(url || '').replace(/\/+$/, '')}|${token || ''}|${instanceId || ''}`;
+}
+
+function abortWith(ctrl, reason) {
+  if (!ctrl || ctrl.signal.aborted) return;
+  ctrl.ssReason = reason;
+  try { ctrl.abort(); } catch { /* already aborted */ }
+}
+
+function cancelBody(res) {
+  try { Promise.resolve(res && res.body && res.body.cancel()).catch(() => {}); } catch { /* locked/absent */ }
+}
+
 export class SseClient {
-  constructor({ onEvent, onStatus }) {
+  constructor({ onEvent, onStatus, fetchImpl, now, setTimer, clearTimer, random } = {}) {
     this.onEvent = onEvent;
     this.onStatus = onStatus;
-    this.abort = null;
-    this.livenessTimer = null;
-    this.stopped = true;
-    this.backoff = 1000;
-    this._generation = 0;
-    this.connectingSince = null;
-    this.unauthorized = false;
+    this._fetch = fetchImpl || ((url, init) => fetch(url, init));
+    this._now = now || (() => Date.now());
+    this._setTimer = setTimer || ((fn, ms) => setTimeout(fn, ms));
+    this._clearTimer = clearTimer || ((t) => clearTimeout(t));
+    this._random = random || Math.random;
+    this.state = 'idle';
+    this.detail = null;
+    this.since = this._now();
+    this.url = null;
+    this.token = null;
+    this.instanceId = null;
+    this.credKey = null;
+    this.gen = 0;
+    this.ctrl = null;
+    this.openedAt = null;
+    this.lastDataAt = null;
+    this.lastEventId = null;
+    this.attempt = 0; // consecutive failed attempts since the stream was last open
+    this.reconnects = 0; // connection loops begun after the first one (lifetime of this client)
+    this.backoffMs = 0;
+    this.nextRetryAt = null;
+    this._baseDelay = 0;
+    this._liveness = null;
+    this._connectTimer = null;
+    this._wake = null;
+    this._lastWakeAt = -Infinity;
+    this._started = false;
   }
 
-  start(url, token) {
-    this.stop();
-    this._generation += 1;
-    const gen = this._generation;
-    this._stoppedByUser = false;
-    this.stopped = false;
-    this.unauthorized = false;
-    this.url = url;
+  /** connecting | open | backoff: a loop is running (supervisor only). */
+  get active() { return this.state === 'connecting' || this.state === 'open' || this.state === 'backoff'; }
+
+  /** The stream is open right now (UI truth). */
+  get open() { return this.state === 'open'; }
+
+  start(url, token, { instanceId = null } = {}) {
+    const base = String(url || '').replace(/\/+$/, '');
+    const key = sseCredKey(base, token, instanceId);
+    if (this.active && key === this.credKey) return false;
+    if (base !== this.url) this.lastEventId = null; // another hub's sequence numbers mean nothing here
+    this.url = base;
     this.token = token;
-    this._loop(gen);
+    this.instanceId = instanceId || null;
+    this.credKey = key;
+    this.attempt = 0;
+    this._baseDelay = 0;
+    this._begin();
+    return true;
   }
 
-  stop() {
-    this._generation += 1;
-    this.stopped = true;
-    this._stoppedByUser = true;
-    this.connectingSince = null;
-    if (this.abort) this.abort.abort();
-    this.abort = null;
-    clearTimeout(this.livenessTimer);
+  /** Tear down and reconnect now with the same credentials (e.g. the stream went stale). */
+  restart(reason) {
+    if (!this.url) return false;
+    this._begin(reason);
+    return true;
   }
 
-  get connected() {
-    return !this.stopped && this.abort !== null;
+  stop(reason) {
+    if (this.state === 'idle') return;
+    this.gen += 1;
+    this._teardown('stopped');
+    this._set('idle', 'stopped', reason || null);
   }
 
-  get isUnauthorized() {
-    return this.unauthorized;
+  /** Cut a backoff sleep short (e.g. the health probe just reached the hub). Rate-limited. */
+  wake(_reason) {
+    if (this.state !== 'backoff' || !this._wake) return false;
+    const t = this._now();
+    if (t - this._lastWakeAt < SSE_WAKE_MIN_GAP_MS) return false;
+    this._lastWakeAt = t;
+    this._wake();
+    return true;
   }
 
-  // Zombie detection: the hub sends a keepalive every 30s. If we believe we
-  // are connected but no bytes arrived within 90s, the stream is dead
-  // (e.g. the hub restarted) — the caller should force a reconnect.
-  // L2 fix: during the initial handshake, connectingSince suppresses false stale() triggers.
-  stale() {
-    if (this.connectingSince && Date.now() - this.connectingSince < 45_000) {
-      return false;
-    }
-    return this.connected && (!this.lastDataAt || Date.now() - this.lastDataAt > 90_000);
+  /** Open but silent for longer than the liveness watchdog should ever allow (e.g. timers were frozen). */
+  stale(now = this._now()) {
+    return this.state === 'open' && this.lastDataAt != null && now - this.lastDataAt > SSE_STALE_MS;
   }
 
-  _status(s, detail) {
-    this.onStatus && this.onStatus(s, detail);
+  snapshot() {
+    return {
+      state: this.state,
+      open: this.open,
+      active: this.active,
+      detail: this.detail,
+      since: this.since,
+      openedAt: this.openedAt,
+      lastDataAt: this.lastDataAt,
+      lastEventId: this.lastEventId,
+      attempt: this.attempt,
+      reconnects: this.reconnects,
+      backoffMs: this.backoffMs,
+      nextRetryAt: this.nextRetryAt,
+      hubUrl: this.url,
+    };
   }
 
-  async _loop(gen) {
-    while (!this.stopped && this._generation === gen) {
-      this.abort = new AbortController();
-      this.connectingSince = Date.now();
+  _begin(reason) {
+    this.gen += 1;
+    this._teardown(reason || 'restarted');
+    if (this._started) this.reconnects += 1;
+    this._started = true;
+    this._loop(this.gen, reason || null);
+  }
+
+  _teardown(reason) {
+    this._clearTimer(this._liveness);
+    this._clearTimer(this._connectTimer);
+    this._liveness = null;
+    this._connectTimer = null;
+    abortWith(this.ctrl, reason);
+    this.ctrl = null;
+    this.nextRetryAt = null;
+    if (this._wake) this._wake(); // release a backoff sleep so its (now stale) loop exits
+  }
+
+  _set(state, status, detail) {
+    this.state = state;
+    this.detail = detail ?? null;
+    this.since = this._now();
+    try { this.onStatus && this.onStatus(status, this.detail); } catch (e) { console.warn('[ss] sse onStatus failed:', e); }
+  }
+
+  _dispatch(data) {
+    let ev;
+    try { ev = JSON.parse(data); } catch { return; } // malformed event
+    try { this.onEvent && this.onEvent(ev); } catch (e) { console.warn('[ss] sse onEvent failed:', e); }
+  }
+
+  async _loop(gen, firstDetail) {
+    let detail = firstDetail;
+    while (gen === this.gen) {
+      const ctrl = new AbortController();
+      this.ctrl = ctrl;
+      this._set('connecting', 'connecting', detail);
+      detail = null;
+      let out;
       try {
-        this._status('connecting');
-        const res = await fetch(this.url.replace(/\/$/, '') + '/api/events', {
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-            Accept: 'text/event-stream',
-          },
-          cache: 'no-store',
-          signal: this.abort.signal,
-        });
-        if (this._generation !== gen) return;
-        if (res.status === 401) {
-          this.unauthorized = true;
-          this._status('error', '401 — wrong pairing token');
-          this.stop();
-          return;
-        }
-        if (res.status === 404) {
-          this._status('error', '404 — hub endpoint /api/events not found (possible port conflict or outdated hub)');
-          await new Promise((r) => setTimeout(r, 5000));
-          continue;
-        }
-        if (res.status === 429) {
-          this._status('error', '429 — too many connections, retrying...');
-          await new Promise((r) => setTimeout(r, 3000));
-          continue;
-        }
-        if (!res.ok) throw new Error(`SSE ${res.status}`);
-
-        this.backoff = 1000;
-        this._status('connected');
-        this._armLiveness();
-        this.lastDataAt = Date.now();
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          this._armLiveness();
-          this.lastDataAt = Date.now();
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split('\n\n');
-          buffer = parts.pop();
-          for (const part of parts) {
-            const line = part.split('\n').find((l) => l.startsWith('data:'));
-            if (!line) continue; // keepalive comment
-            try {
-              this.onEvent && this.onEvent(JSON.parse(line.slice(5).trim()));
-            } catch { /* malformed event */ }
-          }
-        }
+        out = await this._attempt(gen, ctrl);
       } catch (e) {
-        // A liveness-timeout abort (silent TCP death, e.g. hub restart) must
-        // RECONNECT, not break — that AbortError previously killed the client
-        // permanently, leaving a zombie: heartbeat alive, events never delivered.
-        if (this.stopped || this._generation !== gen) break;
-        if (e && e.name === 'AbortError' && !this._stoppedByUser) {
-          this._status('reconnecting', 'liveness timeout — forcing reconnect');
-        } else if (e && e.name === 'AbortError') {
-          break;
-        } else {
-          this._status('reconnecting', String(e.message || e));
+        out = { status: 'reconnecting', detail: ctrl.ssReason || String((e && e.message) || e) };
+      } finally {
+        if (gen === this.gen) {
+          this._clearTimer(this._liveness);
+          this._clearTimer(this._connectTimer);
+          this._liveness = null;
+          this._connectTimer = null;
+          this.ctrl = null;
         }
       }
-      this.abort = null;
-      if (this.stopped || this._generation !== gen) break;
-      await new Promise((r) => setTimeout(r, this.backoff));
-      if (this.stopped || this._generation !== gen) break;
-      this.backoff = Math.min(this.backoff * 2, 30000);
+      if (gen !== this.gen || !out) return;
+      if (out.unauthorized) {
+        this._set('unauthorized', 'error', '401 — wrong pairing token');
+        return;
+      }
+      this._scheduleBackoff(out.openedFor || 0);
+      this._set('backoff', out.status, out.detail);
+      await this._sleep(gen, this.backoffMs);
     }
-    if (this.stopped && this._generation === gen) this._status('stopped');
   }
 
-  _armLiveness() {
-    clearTimeout(this.livenessTimer);
-    this.livenessTimer = setTimeout(() => {
-      if (!this.stopped && this.abort) this.abort.abort();
+  // Exponential backoff with +-20% jitter; it only resets after a stream that stayed open long enough.
+  _scheduleBackoff(openedFor) {
+    if (openedFor >= SSE_STABLE_MS || !this._baseDelay) this._baseDelay = SSE_BACKOFF_BASE_MS;
+    else this._baseDelay = Math.min(this._baseDelay * 2, SSE_BACKOFF_MAX_MS);
+    this.attempt += 1;
+    this.backoffMs = Math.round(this._baseDelay * (0.8 + 0.4 * this._random()));
+  }
+
+  _sleep(gen, ms) {
+    this.nextRetryAt = this._now() + ms;
+    return new Promise((resolve) => {
+      let timer = null;
+      const done = () => {
+        this._clearTimer(timer);
+        if (this._wake === done) this._wake = null;
+        if (gen === this.gen) this.nextRetryAt = null;
+        resolve();
+      };
+      this._wake = done;
+      timer = this._setTimer(done, ms);
+    });
+  }
+
+  _armLiveness(gen, ctrl) {
+    this._clearTimer(this._liveness);
+    this._liveness = this._setTimer(() => {
+      if (gen !== this.gen || this.state !== 'open' || this.ctrl !== ctrl) return;
+      abortWith(ctrl, `liveness timeout — no data for ${Math.round(SSE_LIVENESS_MS / 1000)}s`);
     }, SSE_LIVENESS_MS);
+  }
+
+  async _attempt(gen, ctrl) {
+    const q = new URLSearchParams({ client: 'extension' });
+    if (this.instanceId) q.set('instanceId', this.instanceId);
+    const headers = { Authorization: `Bearer ${this.token}`, Accept: 'text/event-stream' };
+    if (this.lastEventId != null) headers['Last-Event-ID'] = this.lastEventId;
+    this._connectTimer = this._setTimer(() => {
+      if (gen === this.gen && this.state === 'connecting' && this.ctrl === ctrl) {
+        abortWith(ctrl, `connect timeout after ${Math.round(SSE_CONNECT_TIMEOUT_MS / 1000)}s`);
+      }
+    }, SSE_CONNECT_TIMEOUT_MS);
+    const res = await this._fetch(`${this.url}/api/events?${q}`, { headers, cache: 'no-store', signal: ctrl.signal });
+    this._clearTimer(this._connectTimer);
+    this._connectTimer = null;
+    if (gen !== this.gen) { cancelBody(res); return null; }
+    if (res.status === 401) { cancelBody(res); return { unauthorized: true }; }
+    if (!res.ok) {
+      cancelBody(res);
+      return { status: 'error', detail: HTTP_DETAIL[res.status] || `${res.status} — hub refused the event stream, retrying...` };
+    }
+    if (!res.body) return { status: 'reconnecting', detail: 'hub sent no stream body' };
+
+    const openedAt = this._now();
+    this.openedAt = openedAt;
+    this.lastDataAt = openedAt;
+    this.attempt = 0;
+    this.backoffMs = 0;
+    this._set('open', 'connected', null);
+    this._armLiveness(gen, ctrl);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    const deliver = (text) => {
+      const { events, rest } = parseSseChunk(text);
+      for (const ev of events) {
+        if (gen !== this.gen) return rest; // stopped/restarted by an earlier event's handler
+        if (ev.id != null) this.lastEventId = ev.id;
+        this._dispatch(ev.data);
+      }
+      return rest;
+    };
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (gen !== this.gen) return null;
+        if (done) {
+          deliver(buffer + decoder.decode()); // flush a multi-byte char held back by the decoder
+          return { status: 'reconnecting', detail: 'stream ended by hub', openedFor: this._now() - openedAt };
+        }
+        this.lastDataAt = this._now();
+        this._armLiveness(gen, ctrl);
+        buffer = deliver(buffer + decoder.decode(value, { stream: true }));
+      }
+    } catch (e) {
+      if (gen !== this.gen) return null;
+      return { status: 'reconnecting', detail: ctrl.ssReason || String((e && e.message) || e), openedFor: this._now() - openedAt };
+    } finally {
+      try { reader.releaseLock(); } catch { /* nothing to release */ }
+    }
   }
 }
