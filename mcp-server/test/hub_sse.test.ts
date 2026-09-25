@@ -14,6 +14,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import express from "express";
 import { createSseHub, sanitizeInstanceId, type SseHub, type SseHubOptions } from "../hub-sse.js";
+import { EXTENSION_SSE_LIVENESS_MS, sseKeepaliveMs } from "../config.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -239,6 +240,33 @@ test("backpressure is judged on the backlog before a write: one large event neve
   }
 });
 
+test("a large replayed web_request never evicts the client it is replayed to (the handshake is one burst)", () => {
+  const sse = createSseHub({ keepaliveMs: 60_000, isAuthorized: () => true, maxBufferedBytes: 100, welcome: () => ({ type: "agent_connect" }) });
+  try {
+    const first = sse.broadcast({ type: "web_request", id: "big1", blob: "z".repeat(1_000) });
+    sse.broadcast({ type: "web_request", id: "big2", blob: "z".repeat(1_000) });
+    let handler: ((req: any, res: any) => void) | undefined;
+    sse.mount({ get: (_path: string, h: any) => { handler = h; } } as any);
+    const req = Object.assign(new EventEmitter(), {
+      query: { client: "extension", instanceId: "back" }, headers: { "last-event-id": String(first - 1) }, header: () => "Bearer t",
+    });
+    // Nothing drains within one tick (Windows IOCP, or a chunk larger than the kernel buffer): the queue only grows.
+    const res = new FakeRes();
+    const write = res.write.bind(res);
+    res.write = (chunk: string) => { res.writableLength += Buffer.byteLength(chunk); return write(chunk); };
+    handler!(req, res);
+    assert.equal(res.destroyed, false, "not evicted by its own replay");
+    assert.equal(sse.hasInstance("back"), true);
+    const got = res.chunks.join("");
+    for (const want of ['"id":"big1"', '"id":"big2"', "agent_connect"]) assert.ok(got.includes(want), `received ${want}`);
+    // After the handshake the backlog counts again: a reader that never drains is evicted by the next write.
+    sse.broadcast({ type: "later" });
+    assert.equal(sse.hasInstance("back"), false, "a reader that never takes its backlog is still evicted");
+  } finally {
+    sse.close();
+  }
+});
+
 test("a reader that stops reading is evicted above maxBufferedBytes while the others keep receiving", async () => {
   const hub = await serve({ maxBufferedBytes: 64 * 1024 });
   const paused: http.ClientRequest[] = [];
@@ -389,4 +417,14 @@ test("close() clears the keepalive timer, ends every stream and refuses new ones
   await sleep(80);
   assert.equal(c.text().length, before, "no keepalive after close()");
   await hub.close();
+});
+
+test("config: the keepalive interval can never reach the extension's liveness window", () => {
+  assert.equal(sseKeepaliveMs(undefined), 30_000, "default");
+  assert.equal(sseKeepaliveMs("300"), 300, "tests may shorten it");
+  assert.equal(sseKeepaliveMs("5"), 100, "floor");
+  for (const raw of ["90000", "100000", "120000", "9999999"]) {
+    const ms = sseKeepaliveMs(raw);
+    assert.ok(ms <= EXTENSION_SSE_LIVENESS_MS / 2, `${raw} -> ${ms}: an idle stream would be aborted as silent`);
+  }
 });
