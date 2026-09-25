@@ -1,6 +1,7 @@
 import { parsePairing } from '../lib/pairing.js';
 import { buildAgentSetupPrompt, buildHubTroubleshootPrompt } from '../lib/connect-kit.js';
 import { PROBE_URLS, DEFAULT_TOKEN } from '../lib/constants.js';
+import { isLoopbackHub } from '../lib/api.js';
 
 const $ = (id) => document.getElementById(id);
 const send = (msg) => chrome.runtime.sendMessage(msg);
@@ -154,7 +155,7 @@ $('btn-connect').onclick = async () => {
   }
 
   try {
-    const isLocal = /localhost|127\.0\.0\.1/.test(url);
+    const isLocal = isLoopbackHub(url);
     if (!isLocal) {
       const alreadyHas = await chrome.permissions.contains({ origins: [url + '/*'] }).catch(() => false);
       if (!alreadyHas) {
