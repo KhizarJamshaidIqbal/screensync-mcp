@@ -8,7 +8,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createProfileRegistry } from "../profile-registry.js";
+import { createProfileRegistry, PRESENCE_TTL_MS, sseViewOf } from "../profile-registry.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -203,4 +203,85 @@ test("dispatch: an id only one browser reports routes to it exactly as before", 
   assert.equal(c.ok && c.target.instanceId, "inst-c", "the owner is ground truth, over the selection");
   const byWindow = registry.resolveDispatch({ windowId: 9, __browser: "any" });
   assert.equal(byWindow.ok && byWindow.target.instanceId, "inst-c");
+});
+
+// Presence and the SSE view (1.14.1). A browser is online for 90s after its last heartbeat (it heartbeats every
+// 30s), not 10 minutes. web_status's sseConnected describes the routed browser's OWN event stream when the
+// extension attributes its stream (?client=extension&instanceId=): the phone's stream no longer makes a browser
+// with a dead stream look connected.
+
+test("presence: a browser is online for 90s after its last heartbeat, then offline", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-25T12:00:00Z") });
+  assert.equal(PRESENCE_TTL_MS, 90_000);
+  const registry = createProfileRegistry();
+  registry.register({ ...A, windows: [] });
+  t.mock.timers.tick(89_000);
+  assert.deepEqual(registry.listOnline().map((b) => b.instanceId), ["inst-a"], "89s after the heartbeat: online");
+  t.mock.timers.tick(2_000);
+  assert.deepEqual(registry.listOnline(), [], "91s after the heartbeat: offline");
+  const d = registry.resolveDispatch({});
+  assert.equal(!d.ok && d.code, "NO_BROWSER_ONLINE");
+  assert.match(!d.ok ? d.error : "", /in the last 90 seconds/);
+  registry.register({ ...A, windows: [] });
+  assert.equal(registry.listOnline().length, 1, "the next heartbeat brings it back");
+});
+
+/** An SSE hub stand-in: `streams` lists attributed instance ids; `anonymous` counts other streams (a phone). */
+const fakeSse = (streams: string[], anonymous = 0) =>
+  sseViewOf({ count: () => streams.length + anonymous, extensionCount: () => streams.length, hasInstance: (id) => streams.includes(id) });
+
+type SseStatus = { online: boolean; sseConnected: boolean; sseClients: number; sseExtensionClients: number; targetInstanceId: string | null; browsers: Array<{ instanceId: string; sseConnected: boolean; sseAttributed: boolean }> };
+
+test("sse: only a phone stream is open, so an attributed browser is NOT connected", () => {
+  const registry = createProfileRegistry();
+  registry.register({ ...A, sseAttribution: true, windows: [] });
+  const s = registry.statusPayload(fakeSse([], 1)) as SseStatus;
+  assert.equal(s.sseClients, 1);
+  assert.equal(s.sseExtensionClients, 0);
+  assert.equal(s.sseConnected, false, "the phone's stream does not count for the browser");
+  assert.equal(s.online, false);
+  assert.deepEqual(s.browsers.map((b) => [b.instanceId, b.sseConnected, b.sseAttributed]), [["inst-a", false, true]]);
+  const up = registry.statusPayload(fakeSse(["inst-a"], 1)) as SseStatus;
+  assert.equal(up.sseConnected, true);
+  assert.equal(up.online, true);
+  assert.equal(up.sseExtensionClients, 1);
+  assert.equal(up.browsers[0].sseConnected, true);
+});
+
+test("sse: an extension that does not attribute its stream is judged by any open stream, as before", () => {
+  const registry = createProfileRegistry();
+  registry.register({ ...A, windows: [] });
+  const s = registry.statusPayload(fakeSse([], 1)) as SseStatus;
+  assert.equal(s.sseConnected, true);
+  assert.equal(s.online, true);
+  assert.deepEqual(s.browsers.map((b) => [b.sseConnected, b.sseAttributed]), [[true, false]]);
+  assert.equal((registry.statusPayload(fakeSse([], 0)) as SseStatus).sseConnected, false);
+});
+
+test("sse: the top level follows the routed browser's own stream; each browser reports its own", async () => {
+  const registry = await twoProfiles({ aFocused: true });
+  registry.register({ ...A, sseAttribution: true, windows: [{ id: 10, focused: true, activeTab: { tabId: 100, ...tabA } }] });
+  registry.register({ ...B, sseAttribution: true, windows: [{ id: 20, focused: false, activeTab: { tabId: 200, ...tabB } }] });
+  const view = fakeSse(["inst-a"]);
+  const byId = (s: SseStatus) => Object.fromEntries(s.browsers.map((b) => [b.instanceId, b.sseConnected]));
+  const a = registry.statusPayload(view) as SseStatus;
+  assert.equal(a.targetInstanceId, "inst-a");
+  assert.equal(a.sseConnected, true);
+  assert.deepEqual(byId(a), { "inst-a": true, "inst-b": false });
+  registry.setSelectedProfile("b@profile.test");
+  const b = registry.statusPayload(view) as SseStatus;
+  assert.equal(b.targetInstanceId, "inst-b");
+  assert.equal(b.sseConnected, false, "B's stream is down even though A's is up");
+  assert.equal(b.online, false);
+});
+
+test("sse: a bare client count still works (older callers): any stream counts, nothing is attributed", () => {
+  const registry = createProfileRegistry();
+  registry.register({ ...A, sseAttribution: true, windows: [] });
+  const s = registry.statusPayload(2) as SseStatus;
+  assert.equal(s.sseClients, 2);
+  assert.equal(s.sseExtensionClients, 0);
+  assert.equal(s.sseConnected, true);
+  assert.equal(s.online, true);
+  assert.equal((registry.statusPayload(0) as SseStatus).sseConnected, false);
 });

@@ -13,6 +13,7 @@ import { advertiseHub, buildPairingLink, isLoopbackReq, mountPairingRoutes, prim
 import { hubEvents, emitHubEvent, lastEventSeq, recentHubEvents, type HubEvent } from "./events.js";
 import { createSseHub } from "./hub-sse.js";
 import { startHubWatchers } from "./hub-watchers.js";
+import { sseViewOf } from "./profile-registry.js";
 import {
   ensureDataDirs,
   latestFrame,
@@ -130,7 +131,10 @@ export async function startHttpHub(): Promise<HubHandle> {
   // One named listener, so teardown removes exactly what start added (an inline arrow could never be removed).
   const onHubEvent = (event: HubEvent) => { sse.broadcast(event); };
   hubEvents.on("event", onHubEvent);
-  const webBridge = createWebBridge(broadcast, () => sse.count());
+  // web.ts types this getter as a client count. The view's valueOf() keeps numeric use correct, and
+  // profile-registry statusPayload() reads per-browser stream state (attributed streams) from the object.
+  const sseView = Object.assign(sseViewOf(sse), { valueOf: () => sse.count() });
+  const webBridge = createWebBridge(broadcast, () => sseView as unknown as number);
   // Zero-Click HMR on extension/ and the release-APK watcher (hub-watchers.ts); closed on stop.
   const watchers = startHubWatchers(broadcast);
 
