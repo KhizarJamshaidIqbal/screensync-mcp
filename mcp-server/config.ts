@@ -27,12 +27,24 @@ export const MAX_BODY_BYTES = "18mb";
  */
 export const PAIR_WINDOW_MINUTES = Number(process.env.SCREEN_SYNC_PAIR_WINDOW_MINUTES ?? "10");
 
+/** The extension aborts an SSE stream that stays silent this long (extension/lib/constants.js SSE_LIVENESS_MS). */
+export const EXTENSION_SSE_LIVENESS_MS = 90_000;
+/** The slowest keepalive allowed: half the extension's liveness window, so one late keepalive never kills a stream. */
+export const SSE_KEEPALIVE_MAX_MS = EXTENSION_SSE_LIVENESS_MS / 2;
+
 /**
- * Interval of the `: keepalive` comment on every SSE stream (/api/events), in ms. The extension treats a
- * silent stream as dead after its liveness window (90s), so this must stay well below that. Clamped to
- * 100..120000; the low floor exists for tests, which shorten it to see a keepalive within a second.
+ * Interval of the `: keepalive` comment on every SSE stream (/api/events), in ms, from SCREEN_SYNC_SSE_KEEPALIVE_MS
+ * (default 30000). The extension treats a silent stream as dead after its liveness window (90s), so a slower
+ * keepalive would make every idle stream reconnect every 90s: clamped to 100..SSE_KEEPALIVE_MAX_MS, with a warning.
+ * The low floor exists for tests, which shorten it to see a keepalive within a second.
  */
-export const SSE_KEEPALIVE_MS = Math.min(120_000, Math.max(100, Number(process.env.SCREEN_SYNC_SSE_KEEPALIVE_MS) || 30_000));
+export function sseKeepaliveMs(raw: string | undefined): number {
+  const asked = Number(raw) || 30_000;
+  const ms = Math.min(SSE_KEEPALIVE_MAX_MS, Math.max(100, asked));
+  if (ms !== asked) log("WARN", "SCREEN_SYNC_SSE_KEEPALIVE_MS clamped", { asked, used: ms, max: SSE_KEEPALIVE_MAX_MS });
+  return ms;
+}
+export const SSE_KEEPALIVE_MS = sseKeepaliveMs(process.env.SCREEN_SYNC_SSE_KEEPALIVE_MS);
 
 /** Default AI agent label surfaced on the phone. Override via env SCREEN_SYNC_AGENT_NAME. */
 export const agentName = process.env.SCREEN_SYNC_AGENT_NAME || "Claude";
