@@ -229,3 +229,36 @@ test("close(): a pending long-wait call is answered HUB_STOPPING at once, and la
     await new Promise<void>((r) => server.close(() => r()));
   }
 });
+
+test("GET /api/web/pending/:id: the hub says whether it still waits (the extension asks before a late event runs)", async () => {
+  const relayed: Array<Record<string, any>> = [];
+  const bridge = createWebBridge((p) => { relayed.push(p as Record<string, any>); });
+  const app = express();
+  app.use(express.json());
+  bridge.registerRoutes(app);
+  const server = app.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const post = (route: string, body: unknown) => fetch(`${base}${route}`, { method: "POST", headers, body: JSON.stringify(body) });
+  try {
+    await post("/api/web/register", A);
+    const call = post("/api/web/tool", { tool: "web_click", args: CLICK });
+    const t0 = Date.now();
+    while (!relayed.some((p) => p.type === "web_request") && Date.now() - t0 < 2_000) await sleep(10);
+    const id = String(relayed.find((p) => p.type === "web_request")?.id);
+    assert.equal((await fetch(`${base}/api/web/pending/${id}`)).status, 401, "the bearer guard holds");
+    const live = await fetch(`${base}/api/web/pending/${id}`, { headers });
+    assert.equal(live.status, 200);
+    const body = (await live.json()) as { success: boolean; remainingMs: number };
+    assert.equal(body.success, true);
+    assert.ok(body.remainingMs > 30_000 && body.remainingMs <= 45_000, `remainingMs on the hub's clock (${body.remainingMs})`);
+    await post("/api/web/result", { id, ok: true, data: {}, instanceId: A.instanceId });
+    await call;
+    const gone = await fetch(`${base}/api/web/pending/${id}`, { headers });
+    assert.equal(gone.status, 404);
+    assert.equal(((await gone.json()) as { code?: string }).code, "NOT_PENDING", "answered: the extension must not run it");
+  } finally {
+    bridge.close();
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});

@@ -43,6 +43,23 @@ export function mountExtensionRoutes(app: Express, { isAuthorized, broadcast, pe
     res.json({ success: true });
   });
 
+  // Is the hub still waiting for this request? The extension asks before running a live web_request that may
+  // have sat in a stalled socket past the hub's wait (its remainingMs was measured when the hub wrote it), so
+  // an action never runs after the agent was answered TIMEOUT. Read-only: it never extends the wait.
+  app.get("/api/web/pending/:id", (req: Request, res: Response) => {
+    if (!isAuthorized(req.header("authorization"))) {
+      res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
+      return;
+    }
+    const entry = pending.get(String(req.params.id ?? ""));
+    if (!entry) {
+      res.status(404).json({ success: false, code: "NOT_PENDING", error: "Unknown or already-resolved request id." });
+      return;
+    }
+    const remainingMs = entry.deadlineAt != null ? Math.max(0, entry.deadlineAt - Date.now()) : null;
+    res.json({ success: true, remainingMs });
+  });
+
   // A person is being asked about a request the extension is holding. Without this the hub would give up
   // on it after its ordinary timeout - typically before they have finished reading - and the action could
   // then run after the agent had already been told it timed out. One extension per request, and bounded.
