@@ -79,11 +79,30 @@ export function formatJUnitXml(suite: TestSuiteResult): string {
 }
 
 /**
+ * Outcomes a retry must not repeat: a person declined or did not answer an approval prompt, the cognitive gate
+ * refused the step, the call ran out of its time budget, or the hub is stopping. Retrying would put the same
+ * prompt in front of the person again (USER_DECLINED says "Do not retry it") or wait out the same window again.
+ */
+const FINAL_CODES: ReadonlySet<string> = new Set([
+  "USER_DECLINED", "APPROVAL_TIMEOUT", "USER_CONFIRMATION_REQUIRED", "CALL_BUDGET_SPENT", "HUB_STOPPING",
+]);
+
+type StepOutcome = { ok: boolean; data?: unknown; error?: string; code?: string };
+
+/** True when a failed step must end its test case with no retry (see FINAL_CODES; data.gate = refused by the gate). */
+export function isFinalFailure(res: StepOutcome): boolean {
+  if (res.ok) return false;
+  if (typeof res.code === "string" && FINAL_CODES.has(res.code)) return true;
+  const data = res.data as { gate?: unknown } | null | undefined;
+  return Boolean(data && typeof data === "object" && data.gate != null);
+}
+
+/**
  * Executes a test suite against a step runner callback with retries.
  */
 export async function runTestSuite(
   suite: TestSuiteDef,
-  stepRunner: (tool: string, args: Record<string, unknown>) => Promise<{ ok: boolean; data?: unknown; error?: string }>
+  stepRunner: (tool: string, args: Record<string, unknown>) => Promise<StepOutcome>
 ): Promise<TestSuiteResult> {
   const startTime = Date.now();
   const testResults: TestCaseResult[] = [];
@@ -98,8 +117,9 @@ export async function runTestSuite(
     let lastError: string | undefined;
     let lastStepResults: Array<Record<string, unknown>> = [];
     let executedCount = 0;
+    let final = false;
 
-    while (attempts <= maxRetries && !success) {
+    while (attempts <= maxRetries && !success && !final) {
       attempts++;
       lastError = undefined;
       lastStepResults = [];
@@ -115,6 +135,7 @@ export async function runTestSuite(
           if (!res.ok) {
             stepFail = true;
             lastError = res.error || `Step ${i + 1} (${step.tool}) failed`;
+            if (isFinalFailure(res)) final = true;
             if (tc.stopOnError !== false) break;
           }
         } catch (e) {

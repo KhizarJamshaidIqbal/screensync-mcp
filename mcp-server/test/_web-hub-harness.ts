@@ -35,10 +35,13 @@ export async function startHub(answer: (ev: Relayed) => unknown = (ev) => ({ ran
     if (ev?.type !== "web_request") return;
     relayed.push(ev);
     setImmediate(() => {
+      // An answer of the form { __reply: { ok: false, code, error } } is posted as that failure (e.g. USER_DECLINED).
+      const a = answer(ev) as { __reply?: Record<string, unknown> } | undefined;
+      const reply = a && typeof a === "object" && a.__reply ? a.__reply : { ok: true, data: a };
       fetch(`${base}/api/web/result`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ id: ev.id, ok: true, data: answer(ev), ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: ev.targetBrowser || "chrome" }),
+        body: JSON.stringify({ id: ev.id, ...reply, ...(ev.targetInstanceId ? { instanceId: ev.targetInstanceId } : {}), browserName: ev.targetBrowser || "chrome" }),
       }).catch(() => {});
     });
   }, opts.sseCount ?? (() => 2), { presence: opts.presence, streamGraceMs: opts.streamGraceMs });

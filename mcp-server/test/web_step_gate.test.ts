@@ -168,6 +168,29 @@ test("web_test_run: a risky step is put to a person where the browser can ask, a
   }
 });
 
+test("web_test_run: a person who declined a gated step is not asked again by the test's retries", async () => {
+  const declined = { __reply: { ok: false, code: "USER_DECLINED", error: "The user declined this action. Do not retry it." } };
+  const hub = await startHub((ev) => (ev.tool === "web_click" ? declined : { ranIn: ev.targetInstanceId }));
+  try {
+    await hub.register(CAPABLE_A);
+    const run = await withGate("enforce", () => hub.call("web_test_run", { steps: [{ tool: "web_click", args: DANGEROUS }], retries: 3 }));
+    assert.deepEqual(marks(hub), ["web_click+asked->inst-a"], "asked once, not once per retry");
+    assert.equal(run.ok, false);
+    assert.equal(run.data.tests[0].attempts, 1);
+    // A step the gate refuses outright (nobody can be asked) is not retried either.
+    const old = await startHub();
+    try {
+      await old.register(OLD_B);
+      const refused = await withGate("enforce", () => old.call("web_test_run", { steps: [{ tool: "web_click", args: DANGEROUS }], retries: 3 }));
+      assert.equal(refused.data.tests[0].attempts, 1);
+    } finally {
+      await old.close();
+    }
+  } finally {
+    await hub.close();
+  }
+});
+
 test("a gated step whose browser's stream is down was never sent: its verdict is not 'asked'", async () => {
   const hub = await startHub(undefined, { presence: () => false, streamGraceMs: 50 });
   try {
