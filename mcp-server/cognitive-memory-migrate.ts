@@ -60,10 +60,34 @@ const UPGRADES: Record<string, (d: Raw) => Raw> = {
  * Every domain in the store in its canonical spelling (cognitive-domain.ts). Before every writer used it, a
  * store could hold "x.com." (trailing dot), "https://x.com" or a unicode host, which no lookup reaches any more.
  * Two spellings of one domain are combined, never dropped: facts merge with the more recently verified record's
- * fields winning, pitfall and reflection lists are concatenated (hygiene merges duplicate pitfalls; the next reflect
- * pass supersedes reflections by key). A key that is no domain at all is left as
+ * fields winning (object fields such as keySelectors merged name by name), pitfall lists are concatenated (hygiene
+ * merges duplicate pitfalls), and reflection lists are merged newest first, one per key (mergeReflections). A key that is no domain at all is left as
  * it is. Idempotent, so it runs on every load and needs no version step. Returns whether anything moved.
  */
+/** cognitive-reflection.ts MAX_PER_DOMAIN (not imported: that module imports this one's importers). */
+export const REFLECTIONS_PER_DOMAIN = 30;
+
+/**
+ * Two spellings' reflection lists as ONE list in the shape recall() assumes: newest first, one reflection per
+ * key (the newest, so a later verdict supersedes an earlier one as a reflect pass would), at most
+ * REFLECTIONS_PER_DOMAIN. Concatenated in key order instead, recall's first five could all be the older
+ * spelling's, including an insight a newer reflection had already contradicted.
+ */
+function mergeReflections(list: unknown[]): unknown[] {
+  const at = (r: unknown) => String(isObj(r) ? r.createdAt ?? "" : "");
+  const seen = new Set<string>();
+  const out: unknown[] = [];
+  for (const r of [...list].sort((x, y) => (at(x) < at(y) ? 1 : at(x) > at(y) ? -1 : 0))) {
+    const key = isObj(r) && typeof r.key === "string" ? r.key : null;
+    if (key !== null) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    out.push(r);
+  }
+  return out.slice(0, REFLECTIONS_PER_DOMAIN);
+}
+
 function canonicalizeDomains(data: Raw): boolean {
   let changed = false;
   const fixDomainField = <T>(v: T, key: string): T => {
@@ -81,12 +105,18 @@ function canonicalizeDomains(data: Raw): boolean {
   rekey<unknown>("domains", (a, b) => {
     if (!isObj(a) || !isObj(b)) return isObj(a) ? a : b;
     const [older, newer] = verifiedAt(a) <= verifiedAt(b) ? [a, b] : [b, a];
-    return { ...older, ...newer };
+    // One level deep: a field both records hold as an object (keySelectors) is merged name by name, the newer
+    // record winning per name, so a selector only the older spelling had learned is not lost.
+    const merged: Raw = { ...older, ...newer };
+    for (const [k, v] of Object.entries(newer)) {
+      if (isObj(v) && isObj(older[k])) merged[k] = { ...older[k], ...v };
+    }
+    return merged;
   }, fixDomainField);
   const concatLists = (a: unknown, b: unknown) => [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])];
   const fixEach = (list: unknown, key: string) => (Array.isArray(list) ? list.map((x) => fixDomainField(x, key)) : list);
   rekey<unknown>("pitfalls", concatLists, fixEach);
-  rekey<unknown>("reflections", concatLists, fixEach);
+  rekey<unknown>("reflections", (a, b) => mergeReflections(concatLists(a, b)), fixEach);
   for (const e of data.episodes as unknown[]) {
     if (!isObj(e) || typeof e.domain !== "string") continue;
     const canon = canonicalDomain(e.domain);

@@ -22,6 +22,10 @@ export function canonicalDomain(raw: unknown): string {
   let host: string;
   try {
     host = new URL(HAS_SCHEME.test(input) ? input : `https://${input}`).hostname;
+    // A scheme the URL standard does not know (foo://, chrome-extension://) keeps an opaque, percent-encoded host
+    // ("m%C3%BCnchen.de"). Parsing it again as a web host gives the punycode spelling an https:// input gets, so
+    // the result is the same on the next call (idempotent) instead of moving to another key on the next load.
+    if (host) host = new URL(`https://${host}`).hostname;
   } catch {
     return "";
   }

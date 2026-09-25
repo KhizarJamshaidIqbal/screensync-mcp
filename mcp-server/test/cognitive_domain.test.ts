@@ -142,3 +142,40 @@ test("memory load: facts, pitfalls, reflections, episodes and playbooks move to 
   assert.equal(d.episodes[0].domain, "x.com");
   assert.equal(migrateMemory(JSON.parse(JSON.stringify(d)))!.changed, false, "a canonical store is left alone");
 });
+
+test("canonicalDomain stays idempotent for a unicode host behind a scheme the URL standard does not know", () => {
+  for (const s of ["foo://münchen.de", "chrome-extension://münchen/x", "FOO://WWW.München.de:8080/a"]) {
+    const once = canonicalDomain(s);
+    assert.ok(once.startsWith("xn--"), `${s} -> ${once}: punycode, not an opaque percent-encoded host`);
+    assert.equal(canonicalDomain(once), once, s);
+  }
+  assert.equal(canonicalDomain("foo://münchen.de"), canonicalDomain("https://münchen.de"));
+});
+
+test("memory load: two spellings' keySelectors are merged name by name, reflections newest first and one per key", async () => {
+  const { MAX_PER_DOMAIN } = await import("../cognitive-reflection.js");
+  const { REFLECTIONS_PER_DOMAIN } = await import("../cognitive-memory-migrate.js");
+  assert.equal(REFLECTIONS_PER_DOMAIN, MAX_PER_DOMAIN, "the migration caps a merged list like a reflect pass");
+  const refl = (id: string, key: string, createdAt: string, verdict = "works") => ({ id, key, verdict, domain: "x", createdAt });
+  const many = Array.from({ length: 25 }, (_, i) => refl(`old${i}`, `k${i}`, `2026-01-${String(i + 1).padStart(2, "0")}`));
+  const raw = {
+    version: "1.3.0", updatedAt: "2026-01-01T00:00:00.000Z",
+    domains: {
+      "x.com.": { domain: "x.com.", keySelectors: { login: "#l", compose: "#old" }, lastVerifiedAt: "2026-01" },
+      "x.com": { domain: "x.com", keySelectors: { compose: "#c" }, lastVerifiedAt: "2026-02" },
+    },
+    pitfalls: {}, playbooks: {}, episodes: [],
+    reflections: {
+      "x.com.": many,
+      "x.com": [refl("new0", "k0", "2026-03-01", "broken"), ...Array.from({ length: 10 }, (_, i) => refl(`new${i + 1}`, `n${i}`, `2026-02-0${(i % 9) + 1}`))],
+    },
+  };
+  const d = migrateMemory(JSON.parse(JSON.stringify(raw)))!.data;
+  assert.deepEqual(d.domains["x.com"].keySelectors, { login: "#l", compose: "#c" }, "the older spelling's login selector is kept");
+  const list = d.reflections["x.com"] as Array<{ id: string; key: string; createdAt: string; verdict: string }>;
+  assert.equal(list[0].id, "new0", "newest first");
+  assert.equal(list.filter((r) => r.key === "k0").length, 1, "one reflection per key");
+  assert.equal(list.find((r) => r.key === "k0")!.verdict, "broken", "the newer verdict supersedes the older one");
+  assert.ok(list.length <= MAX_PER_DOMAIN);
+  assert.ok(list.every((r, i) => i === 0 || list[i - 1].createdAt >= r.createdAt), "ordered newest first throughout");
+});
