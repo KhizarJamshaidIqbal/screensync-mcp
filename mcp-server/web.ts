@@ -47,6 +47,11 @@ export type WebBridge = {
   stopSchedules: () => void;
   /** What a Last-Event-ID replay sends for a ring event (hub-sse.ts setReplayPayload), or null to skip it. */
   replayPayload: (e: SseRingEvent) => Record<string, unknown> | null;
+  /**
+   * The hub is stopping: every pending call is answered HUB_STOPPING (retryable) and its timer cleared, and new
+   * calls are refused. Otherwise stop() waited for the longest pending call, up to ~10 minutes for web_takeover.
+   */
+  close: () => void;
 };
 
 export type WebBridgeOptions = {
@@ -119,7 +124,22 @@ export function createWebBridge(
     };
   };
 
+  let closed = false;
+  const stopping = (): WebToolResult => ({
+    ok: false, code: "HUB_STOPPING", retryable: true,
+    error: "The ScreenSync hub is shutting down, so this browser call was abandoned. Retry once the hub is back.",
+  });
+  const close = () => {
+    closed = true;
+    for (const [id, entry] of [...pending]) {
+      clearTimeout(entry.timer);
+      pending.delete(id);
+      entry.resolve(stopping());
+    }
+  };
+
   const request = async (tool: string, args: Record<string, unknown>, timeoutMs: number, gate?: GateDecision, decided?: DispatchDecision): Promise<WebToolResult> => {
+    if (closed) return stopping();
     // Every relay (tool route, flows, schedules, replay, fanout) passes through here, so this is where a call
     // that cannot be pinned to exactly one browser instance is stopped: the extension runs an untargeted
     // web_request in EVERY connected profile. Routing order (tabId/windowId owner, hint, selectedProfile,
@@ -129,6 +149,7 @@ export function createWebBridge(
     // ...and where a call to a browser that cannot hear it (its stream is down) fails fast instead of timing out.
     const down = await streamRefusal(route.target);
     if (down) return down;
+    if (closed) return stopping(); // stopped during the stream grace wait
     return new Promise((resolve) => {
       const id = randomUUID();
       const timer = setTimeout(() => {
@@ -418,5 +439,6 @@ export function createWebBridge(
     startSchedules: flows.startSchedules,
     stopSchedules: flows.stopSchedules,
     replayPayload,
+    close,
   };
 }

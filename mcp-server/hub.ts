@@ -29,6 +29,9 @@ import {
 import { createWebBridge } from "./web.js";
 import { startCognitivePersistence, stopCognitivePersistence } from "./cognitive-engines.js";
 
+/** How long stop() lets open requests finish before it cuts their connections. */
+const STOP_GRACE_MS = 3_000;
+
 export type HubHandle = {
   server: HttpServer;
   stop: () => Promise<void>;
@@ -358,6 +361,7 @@ export async function startHttpHub(): Promise<HubHandle> {
   /** Everything start set up besides the server and mDNS; shared by a failed listen and stop(). */
   const teardown = () => {
     webBridge.stopSchedules();
+    webBridge.close(); // answers every pending web call now, so server.close() does not wait minutes for them
     stopCognitivePersistence(); // no-op unless persistence had already started
     watchers.close();
     hubEvents.off("event", onHubEvent);
@@ -399,7 +403,12 @@ export async function startHttpHub(): Promise<HubHandle> {
     stop: async () => {
       teardown();
       stopAdvertising();
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      const closed = new Promise<void>((resolve) => server.close(() => resolve()));
+      // Anything still open after a short grace (a slow client, a request mid-flight) is cut rather than awaited.
+      const force = setTimeout(() => server.closeAllConnections(), STOP_GRACE_MS);
+      force.unref();
+      await closed;
+      clearTimeout(force);
     },
   };
 }

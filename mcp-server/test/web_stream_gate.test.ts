@@ -198,3 +198,34 @@ test("/api/web/awaiting never shortens a longer deadline (a long-wait call that 
     await new Promise<void>((r) => server.close(() => r()));
   }
 });
+
+test("close(): a pending long-wait call is answered HUB_STOPPING at once, and later calls are refused", async () => {
+  const relayed: Array<Record<string, any>> = [];
+  const bridge = createWebBridge((p) => { relayed.push(p as Record<string, any>); });
+  const app = express();
+  app.use(express.json());
+  bridge.registerRoutes(app);
+  const server = app.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const post = (route: string, body: unknown) => fetch(`${base}${route}`, { method: "POST", headers, body: JSON.stringify(body) });
+  try {
+    await post("/api/web/register", A);
+    // web_takeover waits up to 10 minutes; a hub stop used to wait for it (server.close() awaits active requests).
+    const call = post("/api/web/tool", { tool: "web_takeover", args: { reason: "login", timeoutMs: 600_000 } });
+    const t0 = Date.now();
+    while (!relayed.some((p) => p.type === "web_request") && Date.now() - t0 < 2_000) await sleep(10);
+    assert.ok(relayed.some((p) => p.type === "web_request"), "fixture: the call is pending");
+    const stoppedAt = Date.now();
+    bridge.close();
+    const body = (await (await call).json()) as Record<string, unknown>;
+    assert.ok(Date.now() - stoppedAt < 1_000, "answered at once, not after the call's 10-minute budget");
+    assert.equal(body.code, "HUB_STOPPING");
+    assert.equal(body.retryable, true);
+    const after = (await (await post("/api/web/tool", { tool: "web_click", args: CLICK })).json()) as Record<string, unknown>;
+    assert.equal(after.code, "HUB_STOPPING", "nothing new is relayed once closed");
+    assert.equal(relayed.filter((p) => p.type === "web_request").length, 1);
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});
