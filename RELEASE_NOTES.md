@@ -1,5 +1,14 @@
 # ScreenSync MCP — Release Notes
 
+## Version 1.14.2 (back within seconds) — 2026-09-26
+
+- **The live stream comes back within seconds after a hub restart.** When the hub on your computer restarted, the extension's retry wait had grown to 30 seconds, so the live link took 20–30 seconds to return. A hub on this computer is now retried at least every 5 seconds, and whenever the extension notices during a longer wait that the hub answers again, it reconnects straight away. A hub that stays down is still retried calmly, never in a burst.
+- **The hub reports its real version.** `/health` said `1.12.0` whatever hub you ran. It now reports the hub's actual release number, so you can see at a glance which hub is running.
+
+Both the extension and the hub changed: update both.
+
+---
+
 ## Version 1.14.1 (live connection you can trust) — 2026-09-26
 
 The side panel's Diagnostics tab said **SSE Stream: Offline**, **Uptime: N/A** and **0 grants** while the header said **SSE Live** and the connection was fine. The tab was reading fields the extension never sent. This release makes every status the extension shows come from the real connection, and fixes the reasons the live link could quietly stop working.
