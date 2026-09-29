@@ -1,7 +1,34 @@
 {
-  "generatedAt": "2026-09-25T20:48:43Z",
+  "generatedAt": "2026-09-29T11:44:07Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
+    {
+      "sha": "a75ec0a",
+      "date": "2026-09-29",
+      "ts": 1790682199,
+      "parts": [
+        {
+          "stream": "extension",
+          "streamLabel": "Extension",
+          "version": "1.14.3",
+          "build": "",
+          "display": "1.14.3",
+          "date": "2026-09-29",
+          "ts": 1790682199,
+          "sha": "a75ec0a",
+          "groups": {
+            "NEW": [],
+            "IMPROVED": [],
+            "FIXED": [
+              "Report what a screenshot really captured"
+            ]
+          },
+          "count": 1
+        }
+      ],
+      "count": 1,
+      "title": "Extension 1.14.3"
+    },
     {
       "sha": "b94d315",
       "date": "2026-09-26",
@@ -597,9 +624,9 @@
     }
   ],
   "stats": {
-    "releases": 18,
+    "releases": 19,
     "appReleases": 6,
-    "extensionReleases": 12,
-    "changes": 112
+    "extensionReleases": 13,
+    "changes": 113
   }
 }
