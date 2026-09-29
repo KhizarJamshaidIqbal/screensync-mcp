@@ -5,7 +5,7 @@
 import "./_isolate-data-dir.js";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { trackToolExecution } from "../cognitive-auto-tracker.js";
+import { isDegradedResult, trackToolExecution } from "../cognitive-auto-tracker.js";
 import { CognitiveMemoryStore, cognitiveStore } from "../cognitive-memory.js";
 import { stopCognitivePersistence } from "../cognitive-engines.js";
 
@@ -45,6 +45,37 @@ test("a dead browser event stream is neutral: it says nothing about the domain",
   trackToolExecution("web_click", { tabId: 2, selector: "#a" }, { ok: false, error: "BROWSER_STREAM_DOWN: The browser's live event stream (SSE) to the hub is down" }, 20, session);
   const click = episodesFor(cognitiveStore, "stream.example", "click")[0];
   assert.equal(click.outcome, "neutral");
+});
+
+test("a result the tool flagged degraded is logged as degraded, and reflection does not count it as a clean success", () => {
+  // Seen live 2026-09-29: stale or mislabelled screenshots answered ok:true, were logged as clean successes,
+  // and reflection then reported "screenshot has succeeded in all 28 recorded runs".
+  const session = "tracker-degraded";
+  const d = "shots.example";
+  const shot = (data: Record<string, unknown>) =>
+    trackToolExecution("web_screenshot", { tabId: 77 }, { ok: true, data: { imageDataUrl: "data:image/jpeg;base64,AA", url: `https://${d}/page`, title: "Page", format: "jpeg", ...data } }, 150, session);
+
+  for (let i = 0; i < 5; i += 1) shot({ paintConfirmed: true });
+  const warning = "The capture went ahead without a freshly painted frame: the page reported document.visibilityState 'hidden'.";
+  shot({ paintConfirmed: false, degraded: true, warning });
+  shot({ navigatedDuringCapture: { before: "https://other.example/", after: `https://${d}/page` }, degraded: true, warning: "The tab navigated while it was being captured." });
+
+  const eps = episodesFor(cognitiveStore, d, "screenshot");
+  assert.equal(eps.length, 7);
+  const clean = eps.slice(0, 5);
+  assert.ok(clean.every((e) => e.success === true && e.outcome === undefined && /completed in/.test(String(e.notes))), "a clean capture is logged exactly as before");
+  const [stale, moved] = eps.slice(5);
+  assert.equal(stale.success, true, "ok:true stays a success at transport level");
+  assert.equal(stale.outcome, "degraded");
+  assert.match(String(stale.notes), /returned a degraded result in 150ms: The capture went ahead without a freshly painted frame/);
+  assert.equal(moved.outcome, "degraded");
+  assert.equal(isDegradedResult({ ok: true, data: { degraded: "yes" } }), false, "only a literal degraded: true counts");
+  assert.equal(isDegradedResult({ ok: false, error: "x", data: { degraded: true } }), false, "a failure stays a failure");
+
+  const [r] = cognitiveStore.reflect({ domain: d, force: true });
+  const reliability = r.insights.find((i) => i.key === "intent_reliability:screenshot")!;
+  assert.doesNotMatch(reliability.insight, /succeeded in all/);
+  assert.match(reliability.insight, /clean result in 5 of 7 .*2 came back degraded/);
 });
 
 test("the tracker never logs the local machine or an unresolved domain", () => {

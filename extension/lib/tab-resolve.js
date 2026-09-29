@@ -124,6 +124,8 @@ export async function waitForTabComplete(tabId, timeoutMs = 20000) {
   });
 }
 
+const PAINT_TIMED_OUT = Symbol('paint-timeout');
+
 /**
  * Waits for the tab to complete at least one full paint cycle via a double
  * requestAnimationFrame round-trip. `status: 'complete'` (what waitForTabComplete above waits
@@ -135,24 +137,67 @@ export async function waitForTabComplete(tabId, timeoutMs = 20000) {
  * can await this unconditionally before any pixel capture, not only right after navigation.
  * Best-effort: a restricted or unreachable tab just skips the wait; capture proceeds as before.
  * Bounded by `maxMs`: a hidden tab runs no requestAnimationFrame, and the promise would never settle.
+ *
+ * It never throws and callers may ignore the result, but it now SAYS whether a frame was painted: a
+ * hidden or covered window runs no rAF, the wait ran out, and captureVisibleTab handed back the last
+ * composited frame (seen live 2026-09-29: the pre-scroll hero twice, with ok:true and nothing to say so).
+ *   { painted: true, visibility }                    the double rAF ran, a frame was painted since the call
+ *   { painted: false, reason: 'timeout', visibility } no frame within maxMs; visibility read afterwards if it can be
+ *   { painted: false, reason: 'unavailable', error }  the check could not run in this page
  * @param {number} tabId
  * @param {number} [maxMs=1000]
- * @returns {Promise<void>}
+ * @returns {Promise<{ painted: boolean, visibility?: string, reason?: 'timeout' | 'unavailable', error?: string }>}
  */
 export async function waitForPaintReady(tabId, maxMs = 1000) {
   let timer;
+  let status;
   try {
-    await Promise.race([
+    const res = await Promise.race([
       chrome.scripting.executeScript({
         target: { tabId: Number(tabId) },
         func: () => new Promise((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve({ painted: true, visibility: document.visibilityState })));
         }),
       }),
-      new Promise((resolve) => { timer = setTimeout(resolve, maxMs); }),
+      new Promise((resolve) => { timer = setTimeout(() => resolve(PAINT_TIMED_OUT), maxMs); }),
     ]);
-  } catch { /* best-effort — restricted/unreachable tab just skips the wait */ }
+    status = res === PAINT_TIMED_OUT ? { painted: false, reason: 'timeout' } : paintStatusOf(res);
+  } catch (err) {
+    status = { painted: false, reason: 'unavailable', error: String((err && err.message) || err) };
+  }
   clearTimeout(timer);
+  if (status.reason === 'timeout') {
+    const visibility = await readVisibility(tabId);
+    if (visibility) status.visibility = visibility;
+  }
+  return status;
+}
+
+/** The injection result of the paint wait. A bare `true` (the pre-2026-09-29 script) also means it ran. */
+function paintStatusOf(res) {
+  const r = Array.isArray(res) && res[0] ? res[0].result : undefined;
+  if (r === true) return { painted: true };
+  if (r && typeof r === 'object' && r.painted === true) {
+    return typeof r.visibility === 'string' ? { painted: true, visibility: r.visibility } : { painted: true };
+  }
+  return { painted: false, reason: 'unavailable', error: 'the paint check returned no result' };
+}
+
+/** document.visibilityState of the tab, or undefined. Needs no rAF, so it answers on a hidden page; bounded anyway. */
+async function readVisibility(tabId, maxMs = 250) {
+  let timer;
+  try {
+    const res = await Promise.race([
+      chrome.scripting.executeScript({ target: { tabId: Number(tabId) }, func: () => document.visibilityState }),
+      new Promise((resolve) => { timer = setTimeout(() => resolve(null), maxMs); }),
+    ]);
+    const v = Array.isArray(res) && res[0] ? res[0].result : undefined;
+    return typeof v === 'string' ? v : undefined;
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**

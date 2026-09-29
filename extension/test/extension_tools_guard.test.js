@@ -6,13 +6,17 @@
 // future change quietly turns that off switch into a suggestion.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
-// SS_CATALOG lets a harness point this guard at a mutated copy, to prove it has teeth.
-const catalog = readFileSync(process.env.SS_CATALOG || resolve(ROOT, 'mcp-server', 'catalog-web.ts'), 'utf-8');
+// SS_CATALOG lets a harness point this guard at a mutated copy, to prove it has teeth. Otherwise every
+// catalog-web*.ts file is read: the web tool definitions are split across them (the 500-line rule).
+const MCP = resolve(ROOT, 'mcp-server');
+const catalog = process.env.SS_CATALOG
+  ? readFileSync(process.env.SS_CATALOG, 'utf-8')
+  : readdirSync(MCP).filter((f) => /^catalog-web.*\.ts$/.test(f)).sort().map((f) => readFileSync(resolve(MCP, f), 'utf-8')).join('\n');
 const tools = readFileSync(resolve(ROOT, 'extension', 'lib', 'web-tools.js'), 'utf-8');
 // handleWebRequest - where the web-access gate and the approval gate sit - lives in the bridge module.
 const bridge = readFileSync(resolve(ROOT, 'extension', 'lib', 'web-bridge.js'), 'utf-8');

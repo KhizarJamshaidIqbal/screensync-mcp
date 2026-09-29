@@ -72,10 +72,119 @@ test("reliability: a flawless intent is noted, a flaky one comes with advice, a 
   assert.match(found.insight, /"click" fails often .*3 of 5 runs \(60% failure rate\)/);
   assert.match(String(found.advice), /web_expect/);
 
+  // Failing now and then is still a verdict: without one, an earlier "never failed" claim would never be withdrawn.
+  const mostly = synthesise("site.example", [...Array.from({ length: 9 }, () => ep({ intent: "click" })), ep({ intent: "click", success: false })], NOW)
+    .find((r) => r.kind === "intent_reliability")!;
+  assert.equal(mostly.verdict, "mostly_reliable");
+  assert.match(mostly.insight, /"click" succeeded in 9 of 10 recorded runs on site\.example\./);
+  assert.deepEqual(mostly.evidence, { intent: "click", runs: 10, failures: 1, successRate: 0.9 });
+
   const thin = synthesise("site.example", [ep({ intent: "a" }), ep({ intent: "b" }), ep({ intent: "c" }), ep({ intent: "d" })], NOW);
   assert.deepEqual(thin.filter((r) => r.kind === "intent_reliability"), [], "fewer than three runs of an intent proves nothing");
 
   assert.deepEqual(synthesise("site.example", [ep(), ep()], NOW), [], "and a domain with almost no history says nothing at all");
+});
+
+test("reliability: a result the tool itself flagged degraded is not a clean success", () => {
+  // Seen live 2026-09-29: "screenshot has succeeded in all 28 recorded runs" while at least three of those
+  // captures were a stale frame or another page's pixels. They answered ok:true, so they were logged as clean.
+  const shot = (over: Parameters<typeof ep>[0] = {}) => ep({ intent: "screenshot", ...over });
+  const eps = [...Array.from({ length: 25 }, () => shot()), ...Array.from({ length: 3 }, () => shot({ outcome: "degraded" }))];
+  assert.equal(isInformative(shot({ outcome: "degraded" })), true, "a degraded run is evidence, unlike a refusal");
+
+  const found = synthesise("site.example", eps, NOW).find((r) => r.kind === "intent_reliability")!;
+  assert.equal(found.verdict, "degraded");
+  assert.doesNotMatch(found.insight, /succeeded in all/);
+  assert.match(found.insight, /"screenshot" gave a clean result in 25 of 28 recorded runs on site\.example: 3 came back degraded/);
+  assert.equal(found.evidence.cleanRate, 0.89, "the clean rate leaves the degraded runs out");
+  assert.equal(found.evidence.successRate, 1, "the success rate still counts real failures only");
+  assert.equal(found.evidence.degraded, 3);
+  assert.equal(found.evidence.failures, 0);
+  assert.match(String(found.advice), /warning/);
+
+  // Degraded is not failed: even mostly degraded, an intent is flaky only when it really fails often.
+  const mostly = synthesise("site.example", [shot(), shot({ success: false }), shot({ outcome: "degraded" }), shot({ outcome: "degraded" })], NOW)
+    .find((r) => r.kind === "intent_reliability")!;
+  assert.equal(mostly.verdict, "degraded");
+  assert.equal(mostly.evidence.successRate, 0.75);
+  assert.equal(mostly.evidence.cleanRate, 0.25);
+  assert.match(mostly.insight, /clean result in 1 of 4 .*2 came back degraded .* and 1 failed/);
+  const failing = synthesise("site.example", [shot(), shot({ success: false }), shot({ success: false }), shot({ outcome: "degraded" })], NOW)
+    .find((r) => r.kind === "intent_reliability")!;
+  assert.equal(failing.verdict, "flaky", "real failures still make it flaky, with the degraded runs named beside them");
+  assert.equal(failing.evidence.successRate, 0.5);
+  assert.match(failing.insight, /clean result in 1 of 4 .*1 came back degraded .* and 2 failed/);
+  assert.match(String(failing.advice), /web_expect/);
+
+  // Nothing else is scored differently: without a degraded run the rule is what it always was.
+  const plain = synthesise("site.example", Array.from({ length: 5 }, () => shot({ outcome: "weak" })), NOW).find((r) => r.kind === "intent_reliability")!;
+  assert.equal(plain.verdict, "never_failed");
+  assert.deepEqual(plain.evidence, { intent: "screenshot", runs: 5, successRate: 1 });
+  const flaky = synthesise("site.example", [shot({ success: false }), shot({ success: false }), shot(), shot({ intent: "other" })], NOW).find((r) => r.kind === "intent_reliability")!;
+  assert.deepEqual(flaky.evidence, { intent: "screenshot", runs: 3, failures: 2, successRate: 0.33 });
+
+  const ctx = { seenIntents: new Set(["screenshot"]), previousFailed: false };
+  assert.equal(importanceOf(shot({ outcome: "degraded" }), ctx), 5, "a doubted result is as worth thinking about as a failure");
+  assert.equal(importanceOf(shot(), ctx), 1, "a routine success is unchanged");
+});
+
+test("a degraded run withdraws an earlier never_failed claim about the same intent", () => {
+  const { store, cleanup } = scratchStore();
+  try {
+    const d = "degraded.example";
+    const run = (n: number, outcome?: "degraded") => {
+      for (let i = 0; i < n; i += 1) store.learn({ action: "episode", domain: d, intent: "screenshot", data: { success: true, durationMs: 300, ...(outcome ? { outcome } : {}) } });
+      return store.reflect({ domain: d, force: true });
+    };
+    run(28);
+    assert.match(store.load().reflections[d].find((r) => r.key === "intent_reliability:screenshot")!.insight, /succeeded in all 28 recorded runs/);
+
+    const [again] = run(3, "degraded");
+    assert.equal(again.reflected, true, "a different verdict is a new insight");
+    const now = store.load().reflections[d].filter((r) => r.key === "intent_reliability:screenshot");
+    assert.equal(now.length, 1, "one insight per subject");
+    assert.equal(now[0].verdict, "degraded");
+    assert.doesNotMatch(now[0].insight, /succeeded in all/, "the over-counted claim is gone");
+    assert.equal(store.load().episodes.filter((e) => e.outcome === "degraded").length, 3, "the outcome is persisted on the episode");
+  } finally { cleanup(); }
+});
+
+test("a single real failure withdraws an earlier never_failed claim too", () => {
+  const { store, cleanup } = scratchStore();
+  try {
+    const d = "failed-once.example";
+    for (let i = 0; i < 28; i += 1) store.learn({ action: "episode", domain: d, intent: "screenshot", data: { success: true, durationMs: 300 } });
+    store.reflect({ domain: d, force: true });
+    assert.match(store.load().reflections[d].find((r) => r.key === "intent_reliability:screenshot")!.insight, /succeeded in all 28 recorded runs/);
+
+    store.learn({ action: "episode", domain: d, intent: "screenshot", data: { success: false, durationMs: 300 } });
+    const [again] = store.reflect({ domain: d, force: true });
+    assert.equal(again.reflected, true);
+    const now = store.load().reflections[d].filter((r) => r.key === "intent_reliability:screenshot");
+    assert.equal(now.length, 1, "one insight per subject");
+    assert.equal(now[0].verdict, "mostly_reliable");
+    assert.doesNotMatch(now[0].insight, /succeeded in all/, "the stale claim is gone");
+    assert.match(now[0].insight, /succeeded in 28 of 29 recorded runs/);
+  } finally { cleanup(); }
+});
+
+test("degraded captures do not make a domain look unreliable across several steps", () => {
+  // A degraded screenshot usually says the window was hidden or covered, not that the site broke. Counting it as a
+  // failure made one flaky step plus some degraded captures read as "unreliable across several steps".
+  const d = "a.example";
+  const eps = [
+    ...Array.from({ length: 6 }, () => ep({ domain: d, intent: "click" })), ...Array.from({ length: 4 }, () => ep({ domain: d, intent: "click", success: false })),
+    ...Array.from({ length: 6 }, () => ep({ domain: d, intent: "screenshot" })), ...Array.from({ length: 4 }, () => ep({ domain: d, intent: "screenshot", outcome: "degraded" })),
+    ...Array.from({ length: 5 }, () => ep({ domain: d, intent: "type" })),
+  ];
+  const depth1 = synthesise(d, eps, NOW).map((r): Reflection => ({ ...r, coversThrough: NOW, importanceConsumed: 1 }));
+  const byIntent = (i: string) => depth1.find((r) => r.key === `intent_reliability:${i}`)!;
+  assert.equal(byIntent("click").verdict, "flaky");
+  assert.equal(byIntent("screenshot").verdict, "degraded");
+  assert.equal(byIntent("screenshot").evidence.successRate, 1);
+  assert.equal(byIntent("screenshot").evidence.cleanRate, 0.6);
+  assert.equal(byIntent("type").verdict, "never_failed");
+  assert.equal(synthesiseMeta(d, depth1, NOW).find((r) => r.key === "meta:shaky_intents"), undefined, "one flaky step is not several");
 });
 
 test("failure clustering names the fragile step instead of blaming the domain", () => {

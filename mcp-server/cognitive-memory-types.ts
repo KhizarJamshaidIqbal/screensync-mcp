@@ -114,8 +114,11 @@ export interface ExecutionEpisode {
    * that says nothing about the agent or the domain - the permission layer declining, the human's
    * confirmation pending, no browser attached. Reflection ignores those: counting them as failures
    * taught the hub that a domain was unreliable when the user had simply not granted permission.
+   * "degraded" means the call answered ok:true but the tool itself flagged the result as doubtful
+   * (`data.degraded: true`, e.g. a screenshot whose frame was never repainted or whose tab navigated
+   * mid-capture). `success` stays true, but reflection does not count it as a clean success.
    */
-  outcome?: "verified" | "weak" | "reported" | "failure" | "breaker" | "neutral";
+  outcome?: "verified" | "weak" | "reported" | "failure" | "breaker" | "neutral" | "degraded";
 }
 
 export interface CognitiveMemoryData {

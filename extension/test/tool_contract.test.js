@@ -6,7 +6,7 @@
 // exercises the validator and the declaration surface, not live tabs.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { validateToolArgs } from '../lib/validate.js';
 
@@ -15,8 +15,10 @@ const read = (p) => readFileSync(resolve(ROOT, p), 'utf-8');
 
 console.log('[test] running web tool contract checks...');
 
-const catalogue = read('mcp-server/catalog-web.ts') + read('mcp-server/catalog-web-agent.ts')
-  + read('mcp-server/catalog-web-agent-core.ts') + read('mcp-server/catalog-web-inspect.ts');
+// Every catalog-web*.ts file: the web tool definitions are split across them (the 500-line rule), and a file
+// left out here would let a removed tool come back unnoticed through check 4.
+const catalogue = readdirSync(resolve(ROOT, 'mcp-server')).filter((f) => /^catalog-web.*\.ts$/.test(f)).sort()
+  .map((f) => read(`mcp-server/${f}`)).join('\n');
 const declared = [...catalogue.matchAll(/name:\s*"(web_[a-z0-9_]+)"/g)].map((m) => m[1]);
 assert.ok(declared.length > 100, 'expected a large declared web surface, found ' + declared.length);
 

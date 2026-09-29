@@ -95,6 +95,7 @@ export function importanceOf(ep: ExecutionEpisode, ctx: { seenIntents: Set<strin
   if (!isInformative(ep)) return 0;
   const hadPitfall = (ep.pitfallsEncountered ?? []).length > 0;
   if (!ep.success) return hadPitfall ? 8 : 5;
+  if (ep.outcome === "degraded") return 5; // ok:true, but the tool itself doubted it: as surprising as a failure
   if (ctx.previousFailed) return 5; // recovering from a failure is the most instructive success
   if (!ctx.seenIntents.has(ep.intent)) return 3; // first time this domain did this at all
   return 1;
@@ -138,14 +139,16 @@ function median(values: number[]): number {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-interface Tally { intent: string; runs: number; failures: number; durations: number[] }
+/** `degraded`: ok:true runs the tool itself flagged as doubtful (outcome "degraded"), neither failures nor clean successes. */
+interface Tally { intent: string; runs: number; failures: number; degraded: number; durations: number[] }
 
 function tallyByIntent(episodes: ExecutionEpisode[]): Map<string, Tally> {
   const out = new Map<string, Tally>();
   for (const ep of episodes) {
-    const t = out.get(ep.intent) ?? { intent: ep.intent, runs: 0, failures: 0, durations: [] };
+    const t = out.get(ep.intent) ?? { intent: ep.intent, runs: 0, failures: 0, degraded: 0, durations: [] };
     t.runs += 1;
     if (!ep.success) t.failures += 1;
+    else if (ep.outcome === "degraded") t.degraded += 1;
     if (Number.isFinite(ep.durationMs) && ep.durationMs > 0) t.durations.push(ep.durationMs);
     out.set(ep.intent, t);
   }
@@ -170,16 +173,35 @@ export function synthesise(domain: string, all: ExecutionEpisode[], now: string,
   const domainMedian = allDurations.length ? median(allDurations) : 0;
 
   // 1. Which intents are reliable here, and which are not. Only worth saying with enough runs.
+  //    A degraded run (ok:true, but the tool itself flagged the result as doubtful - a screenshot whose frame
+  //    was never repainted, or whose tab navigated mid-capture) is not a clean success: it keeps an intent
+  //    out of "never failed" and is named, with the share of clean runs in evidence.cleanRate. It is not a
+  //    failure either: successRate and the "flaky" verdict still count real failures only, because a degraded
+  //    capture usually says more about the window than the site, and synthesiseMeta reads successRate as
+  //    "this step breaks here". Every intent with enough runs gets a verdict, so a later failure or degraded
+  //    run always supersedes an earlier "never failed" claim about it.
+  const flakyAdvice = (intent: string) => `Verify each "${intent}" with web_expect before relying on it, and record a pitfall when it fails so the cause is not rediscovered.`;
   for (const t of byIntent.values()) {
     if (t.runs < 3) continue;
     const rate = (t.runs - t.failures) / t.runs;
-    if (t.failures === 0) {
+    if (t.failures === 0 && t.degraded === 0) {
       add("intent_reliability", t.intent, "never_failed", `"${t.intent}" has succeeded in all ${t.runs} recorded runs on ${domain}.`,
         { intent: t.intent, runs: t.runs, successRate: round(rate) }, { intent: t.intent });
+    } else if (t.degraded > 0) {
+      const clean = t.runs - t.failures - t.degraded;
+      const failed = t.failures ? ` and ${t.failures} failed` : "";
+      const flaky = rate < 0.7;
+      add("intent_reliability", t.intent, flaky ? "flaky" : "degraded",
+        `"${t.intent}" gave a clean result in ${clean} of ${t.runs} recorded runs on ${domain}: ${t.degraded} came back degraded (the tool itself flagged the result as doubtful)${failed}.`,
+        { intent: t.intent, runs: t.runs, failures: t.failures, degraded: t.degraded, successRate: round(rate), cleanRate: round(clean / t.runs) },
+        { intent: t.intent, advice: flaky ? flakyAdvice(t.intent) : `A degraded "${t.intent}" result carries degraded: true and a warning naming the cause: read it before relying on the result, fix the cause, and repeat the call.` });
     } else if (rate < 0.7) {
       add("intent_reliability", t.intent, "flaky", `"${t.intent}" fails often on ${domain}: ${t.failures} of ${t.runs} runs (${pct(1 - rate)} failure rate).`,
         { intent: t.intent, runs: t.runs, failures: t.failures, successRate: round(rate) },
-        { intent: t.intent, advice: `Verify each "${t.intent}" with web_expect before relying on it, and record a pitfall when it fails so the cause is not rediscovered.` });
+        { intent: t.intent, advice: flakyAdvice(t.intent) });
+    } else {
+      add("intent_reliability", t.intent, "mostly_reliable", `"${t.intent}" succeeded in ${t.runs - t.failures} of ${t.runs} recorded runs on ${domain}.`,
+        { intent: t.intent, runs: t.runs, failures: t.failures, successRate: round(rate) }, { intent: t.intent });
     }
   }
 

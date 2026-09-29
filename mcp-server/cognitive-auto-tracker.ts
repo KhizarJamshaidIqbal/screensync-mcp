@@ -12,6 +12,16 @@ import { cognitiveStore } from "./cognitive-memory.js";
 import { hostOf, observeToolResult } from "./cognitive-spine-observer.js";
 import type { WebToolResult } from "./web.js";
 
+/**
+ * An ok:true result the tool itself flagged as doubtful with `data.degraded: true` (web_screenshot: a frame
+ * that was never repainted, or a tab that navigated mid-capture). It is logged with outcome "degraded" so
+ * reflection does not count it as a clean success: captures like that, some of them stale, used to read as
+ * "succeeded in all 28 recorded runs".
+ */
+export function isDegradedResult(result: WebToolResult): boolean {
+  return result.ok === true && (result.data as { degraded?: unknown } | null | undefined)?.degraded === true;
+}
+
 export function trackToolExecution(
   tool: string,
   args: Record<string, unknown>,
@@ -36,6 +46,9 @@ export function trackToolExecution(
     const domain = observedDomain || hostOf(args.url) || hostOf(args.origin) || hostOf((result.data as { url?: unknown } | null | undefined)?.url) || hostOf(args.domain);
     if (!domain) return;
 
+    const degraded = isDegradedResult(result);
+    const warning = degraded ? String((result.data as { warning?: unknown }).warning ?? "").slice(0, 300) : "";
+
     cognitiveStore.learn({
       action: "episode",
       // One coalesced write for a burst of calls, not an fsync'd rewrite of the store per call (M9).
@@ -46,11 +59,14 @@ export function trackToolExecution(
         success: result.ok,
         durationMs,
         profile: typeof args.profile === "string" ? args.profile : undefined,
-        notes: result.ok
-          ? `Instant telemetry: ${tool} completed in ${durationMs}ms`
-          : `Instant telemetry: ${tool} failed: ${result.error || "unknown"}`,
-        // Kept so reflection can tell a real failure from the safety layer declining (see ExecutionEpisode).
-        ...(outcome ? { outcome } : {}),
+        notes: degraded
+          ? `Instant telemetry: ${tool} returned a degraded result in ${durationMs}ms${warning ? `: ${warning}` : ""}`
+          : result.ok
+            ? `Instant telemetry: ${tool} completed in ${durationMs}ms`
+            : `Instant telemetry: ${tool} failed: ${result.error || "unknown"}`,
+        // Kept so reflection can tell a real failure from the safety layer declining, and a clean success from
+        // one the tool itself doubted (see ExecutionEpisode).
+        ...(degraded ? { outcome: "degraded" } : outcome ? { outcome } : {}),
       }
     });
   } catch {

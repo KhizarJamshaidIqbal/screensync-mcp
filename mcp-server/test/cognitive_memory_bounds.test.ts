@@ -204,6 +204,15 @@ test("M2: consolidation keeps the newest 50 episodes of EACH domain, not 50 over
   assert.equal(report.bronzePrunedCount, 30);
 });
 
+test("consolidation does not count a degraded run as a clean success in the Silver layer", () => {
+  // ok:true, but the tool itself flagged the result as doubtful (web_screenshot's degraded: true). A young playbook
+  // falls back to this rate, so counting these as clean would strengthen it on results nobody could trust.
+  const mem = { version: "1.3.0", updatedAt: "", domains: {}, playbooks: {}, pitfalls: {}, reflections: {}, episodes: [] } as unknown as CognitiveMemoryData;
+  for (let i = 0; i < 28; i += 1) mem.episodes.push({ id: `shot_${i}`, timestamp: new Date(i).toISOString(), domain: "shots.example", intent: "screenshot", success: true, durationMs: 1, ...(i < 3 ? { outcome: "degraded" as const } : {}) });
+  const { silver } = runHippocampalConsolidation(mem);
+  assert.equal(silver["shots.example::screenshot"].successRate, 0.893, "25 clean of 28, not 28 of 28");
+});
+
 test("M3: LTP/LTD come from a playbook's own counters once it has 3 runs, and never archive it", () => {
   const pb = (id: string, over: Partial<ProceduralPlaybook>): ProceduralPlaybook => ({ id, name: id, domain: "ltp.example", intent: "publish", description: "", environmentalProbes: [], preconditions: [], steps: [], successCount: 0, ...over });
   const mem = {

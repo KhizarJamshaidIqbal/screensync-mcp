@@ -126,7 +126,9 @@ export function runHippocampalConsolidation(
     };
 
     existing.totalExecutions += 1;
-    if (ep.success) existing.successCount += 1;
+    // A degraded run (ok:true, but the tool itself doubted the result) is not a clean success: the same rule as
+    // reflection's tally (cognitive-reflection.ts), since a young playbook falls back to this rate.
+    if (ep.success && ep.outcome !== "degraded") existing.successCount += 1;
     existing.successRate = Number((existing.successCount / existing.totalExecutions).toFixed(3));
     existing.avgDurationMs = Math.round(
       (existing.avgDurationMs * (existing.totalExecutions - 1) + ep.durationMs) / existing.totalExecutions

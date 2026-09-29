@@ -26,6 +26,7 @@ import {
 import { log } from "./config.js";
 import { emitHubEvent } from "./events.js";
 import { promptMessage } from "./prompts.js";
+import { captureMetaText } from "./web-capture-meta.js";
 import {
   latestFrame,
   listFrames,
@@ -112,13 +113,14 @@ export function createMcpServer() {
         // The code (APPROVAL_TIMEOUT, USER_DECLINED, TIMEOUT, HUB_UNREACHABLE, ...) says what to do next.
         if (!r.ok) return textResult({ success: false, error: r.error, ...(r.code ? { code: r.code } : {}), ...(r.retryable !== undefined ? { retryable: r.retryable } : {}) }, true);
         if (request.params.name === "web_screenshot" || request.params.name === "web_full_screenshot" || request.params.name === "web_element_screenshot") {
-          const d = r.data as { imageDataUrl?: string; url?: string; title?: string; fullPage?: boolean; selector?: string } | undefined;
+          const d = r.data as { imageDataUrl?: string; [k: string]: unknown } | undefined;
           const dataUrl = d?.imageDataUrl ?? "";
           const [meta = "image/jpeg", base64 = ""] = dataUrl.includes(",") ? [dataUrl.slice(5, dataUrl.indexOf(";")), dataUrl.split(",", 2)[1]] : [];
           return {
             content: [
               { type: "image" as const, data: base64, mimeType: meta || "image/jpeg" },
-              { type: "text" as const, text: JSON.stringify({ url: d?.url ?? null, title: d?.title ?? null, fullPage: d?.fullPage ?? false, selector: d?.selector ?? null }, null, 2) },
+              // url/title/fullPage/selector as before, plus degraded/warning/paintConfirmed/... when the capture sent them.
+              { type: "text" as const, text: captureMetaText(d) },
             ],
           };
         }
