@@ -1,5 +1,16 @@
 # ScreenSync MCP — Release Notes
 
+## Version 1.14.3 (screenshots that tell the truth) — 2026-09-29
+
+- **A screenshot names the page it really shows.** Its `url` and `title` are now read after the picture is taken, not before. If the tab navigated while it was being captured (for example because another session moved it), the result says so with `navigatedDuringCapture` and a warning, instead of labelling the new page with the old address. If the window has meanwhile switched to another tab, that picture is dropped and the tab is captured through CDP instead.
+- **A stale frame is no longer passed off as fresh.** When the browser window is covered, minimized or hidden, the page paints no new frames, and a capture could return an older picture (for example from before a scroll) with no warning. The result now carries `paintConfirmed: false`, `degraded: true` and a warning that says what to do: retry with `background: true`, or bring the window forward.
+- **The hub stops counting doubtful captures as clean.** Memory used to say "succeeded in all 28 runs" even when some of those screenshots were stale. A result the tool itself flagged as degraded now counts as neither a clean success nor a failure, and a real failure also withdraws an earlier "never failed" claim.
+- **A viewport screenshot stays a viewport screenshot.** When the normal capture failed, the fallback returned the whole page instead of what is on screen.
+
+Both the extension and the hub changed: update both.
+
+---
+
 ## Version 1.14.2 (back within seconds) — 2026-09-26
 
 - **The live stream comes back within seconds after a hub restart.** When the hub on your computer restarted, the extension's retry wait had grown to 30 seconds, so the live link took 20–30 seconds to return. A hub on this computer is now retried at least every 5 seconds, and whenever the extension notices during a longer wait that the hub answers again, it reconnects straight away. A hub that stays down is still retried calmly, never in a burst.
