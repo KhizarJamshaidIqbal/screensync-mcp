@@ -4,6 +4,7 @@ import '../../core/app_theme.dart';
 import '../../models/custom_preset.dart';
 import '../../models/region_favorite.dart';
 import '../../services/settings_service.dart';
+import '../../widgets/app_dialog.dart';
 import '../dashboard/detail_cards.dart';
 import '../privacy_policy_screen.dart';
 
@@ -145,60 +146,62 @@ mixin SettingsCardsMixin<T extends StatefulWidget> on State<T> {
     final nameCtrl = TextEditingController();
     var width = 720;
     var jpeg = true;
-    final result = await showDialog<CustomPreset>(
-      context: context,
+    final result = await AppDialog.showCustom<CustomPreset>(
+      context,
+      barrierLabel: 'New preset',
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('New preset'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(
-                      labelText: 'Name', hintText: 'e.g. Docs scan'),
-                ),
-                const SizedBox(height: 12),
-                const Text('Resolution (long edge)',
-                    style: TextStyle(fontSize: 12)),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final w in const [0, 480, 720, 1080])
-                      ChoiceChip(
-                        label: Text(w == 0 ? 'Native' : '${w}px'),
-                        selected: width == w,
-                        onSelected: (_) => setLocal(() => width = w),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text('Format', style: TextStyle(fontSize: 12)),
-                Wrap(
-                  spacing: 8,
-                  children: [
+        builder: (ctx, setLocal) => AppDialog(
+          eyebrow: 'Capture',
+          title: 'New preset',
+          icon: Icons.tune_rounded,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                    labelText: 'Name', hintText: 'e.g. Docs scan'),
+              ),
+              const SizedBox(height: 12),
+              const Text('Resolution (long edge)',
+                  style: TextStyle(fontSize: 12)),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final w in const [0, 480, 720, 1080])
                     ChoiceChip(
-                      label: const Text('JPEG'),
-                      selected: jpeg,
-                      onSelected: (_) => setLocal(() => jpeg = true),
+                      label: Text(w == 0 ? 'Native' : '${w}px'),
+                      selected: width == w,
+                      onSelected: (_) => setLocal(() => width = w),
                     ),
-                    ChoiceChip(
-                      label: const Text('PNG'),
-                      selected: !jpeg,
-                      onSelected: (_) => setLocal(() => jpeg = false),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text('Format', style: TextStyle(fontSize: 12)),
+              Wrap(
+                spacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: const Text('JPEG'),
+                    selected: jpeg,
+                    onSelected: (_) => setLocal(() => jpeg = true),
+                  ),
+                  ChoiceChip(
+                    label: const Text('PNG'),
+                    selected: !jpeg,
+                    onSelected: (_) => setLocal(() => jpeg = false),
+                  ),
+                ],
+              ),
+            ],
           ),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            FilledButton(
+            AppDialogAction(
+                label: 'Cancel', onPressed: () => Navigator.pop(ctx)),
+            AppDialogAction(
+              label: 'Add',
+              primary: true,
               onPressed: () {
                 final name = nameCtrl.text.trim();
                 if (name.isEmpty) return;
@@ -213,7 +216,6 @@ mixin SettingsCardsMixin<T extends StatefulWidget> on State<T> {
                   ),
                 );
               },
-              child: const Text('Add'),
             ),
           ],
         ),

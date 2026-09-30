@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:screensync_flutter_project/core/app_navigator.dart';
+import 'package:screensync_flutter_project/models/update_progress.dart';
 import 'package:screensync_flutter_project/services/app_update_service.dart';
 import 'package:screensync_flutter_project/services/settings_service.dart';
 import 'package:screensync_flutter_project/widgets/update_gate.dart';
@@ -45,7 +46,11 @@ class _FakeUpdateService extends AppUpdateService {
       dismissed.add(versionCode);
 
   @override
-  Future<String> install(AppUpdateInfo info, {String? token}) async {
+  Future<String> install(
+    AppUpdateInfo info, {
+    String? token,
+    void Function(UpdateProgress progress)? onProgress,
+  }) async {
     installs.add(info);
     return 'Installer opened - confirm the update on screen.';
   }
@@ -112,7 +117,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('home screen'), findsOneWidget);
-    expect(find.text('Update required: 2.5.5'), findsOneWidget);
+    expect(find.text('ScreenSync 2.5.5'), findsOneWidget);
     expect(find.text('Update now'), findsOneWidget);
     expect(find.text('Later'), findsOneWidget);
     expect(fake.checks, 1);
@@ -124,12 +129,12 @@ void main() {
     await tester.pumpWidget(_app(fake));
     await tester.pumpAndSettle();
 
-    expect(find.text('Update required'), findsOneWidget);
+    expect(find.text('UPDATE REQUIRED'), findsOneWidget);
     expect(find.text('Later'), findsNothing);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text('Update required'), findsOneWidget,
+    expect(find.text('UPDATE REQUIRED'), findsOneWidget,
         reason: 'the back button must not dismiss a required update');
   });
 
@@ -192,7 +197,7 @@ void main() {
       fake.result = newer;
       await tester.tap(find.text('Update now'));
       await tester.pumpAndSettle();
-      expect(find.text('Update required: 2.5.6'), findsOneWidget);
+      expect(find.text('ScreenSync 2.5.6'), findsOneWidget);
       expect(fake.installs, <AppUpdateInfo>[newer]);
 
       await tester.tap(find.text('Later'));
@@ -258,12 +263,12 @@ void main() {
 
     await tester.tap(find.text('Later'));
     await tester.pumpAndSettle();
-    expect(find.text('Update required: 2.5.5'), findsNothing);
+    expect(find.text('ScreenSync 2.5.5'), findsNothing);
     expect(fake.dismissed, <int>[33]);
 
     await _resume(tester);
     expect(fake.checks, 2, reason: 'resume still checks');
-    expect(find.text('Update required: 2.5.5'), findsNothing,
+    expect(find.text('ScreenSync 2.5.5'), findsNothing,
         reason: 'but a dismissed build stays quiet');
   });
 
@@ -275,7 +280,7 @@ void main() {
     await _resume(tester);
 
     expect(fake.checks, 0);
-    expect(find.text('Update required: 2.5.5'), findsNothing);
+    expect(find.text('ScreenSync 2.5.5'), findsNothing);
   });
 
   testWidgets('a failing check never surfaces as an unhandled error',
@@ -304,7 +309,7 @@ void main() {
     await tester.tap(find.text('Update now'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Update required: 2.5.5'), findsOneWidget);
+    expect(find.text('ScreenSync 2.5.5'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

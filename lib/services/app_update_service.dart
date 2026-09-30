@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/foundation.dart';
@@ -9,7 +8,10 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/update_progress.dart';
 import 'device_intent_service.dart';
+import 'update_messages.dart';
+import 'update_version.dart';
 
 /// What is known about a newer build, whichever channel owns this install.
 ///
@@ -41,6 +43,11 @@ class AppUpdateInfo {
   /// from pubspec.yaml rather than reading it out of the built APK.
   final String versionSource;
 
+  /// "2.5.5 (33)": the build that is installed now, for the update dialog's
+  /// "this build -> new build" row. Empty when it is not known (Play reports
+  /// only a versionCode, and tests build infos without it).
+  final String installedLabel;
+
   const AppUpdateInfo({
     required this.versionName,
     required this.versionCode,
@@ -51,6 +58,7 @@ class AppUpdateInfo {
     this.playManaged = false,
     this.bearerAuth = false,
     this.versionSource = '',
+    this.installedLabel = '',
   });
 
   /// First 16 hex digits of [sha256] for display; safe for an empty hash (a
@@ -113,6 +121,9 @@ class AppUpdateService {
   @visibleForTesting
   Duration stallTimeout = const Duration(seconds: 30);
 
+  /// Bytes written between flushes of the download sink (see the loop below).
+  static const _flushEvery = 4 << 20;
+
   /// The install source cannot change while the app is running, so the answer is
   /// cached. Test seam, because the cache would otherwise leak between tests.
   @visibleForTesting
@@ -171,45 +182,22 @@ class AppUpdateService {
 
   // ---- Version comparison ----
 
-  /// Numeric comparison of `2.5.4+32`-style versions: negative when [a] is
-  /// older than [b], zero when equal, positive when newer. Segments compare as
-  /// numbers (so 2.5.10 is newer than 2.5.9); the `+build` part breaks ties.
-  static int compareVersions(String a, String b) {
-    final pa = _parseVersion(a);
-    final pb = _parseVersion(b);
-    final length = math.max(pa.segments.length, pb.segments.length);
-    for (var i = 0; i < length; i++) {
-      final x = i < pa.segments.length ? pa.segments[i] : 0;
-      final y = i < pb.segments.length ? pb.segments[i] : 0;
-      if (x != y) return x < y ? -1 : 1;
-    }
-    return pa.build.compareTo(pb.build);
-  }
+  /// See [compareUpdateVersions] (kept here so callers and tests keep one name).
+  static int compareVersions(String a, String b) => compareUpdateVersions(a, b);
 
-  static ({List<int> segments, int build}) _parseVersion(String raw) {
-    final plus = raw.indexOf('+');
-    final name = (plus < 0 ? raw : raw.substring(0, plus)).trim();
-    final build =
-        plus < 0 ? 0 : int.tryParse(raw.substring(plus + 1).trim()) ?? 0;
-    final segments = name.split('.').map((part) {
-      final digits = RegExp(r'^\d+').stringMatch(part.trim());
-      return digits == null ? 0 : int.parse(digits);
-    }).toList();
-    return (segments: segments, build: build);
-  }
-
-  /// Whether the published build is newer than the installed one. The
-  /// versionCode decides when both are known (it is what Android compares);
-  /// otherwise the version names do.
+  /// See [isNewerUpdateBuild].
   static bool isNewerBuild({
     required String installedName,
     required int installedCode,
     required String remoteName,
     required int remoteCode,
-  }) {
-    if (installedCode > 0 && remoteCode > 0) return remoteCode > installedCode;
-    return compareVersions(remoteName, installedName) > 0;
-  }
+  }) =>
+      isNewerUpdateBuild(
+        installedName: installedName,
+        installedCode: installedCode,
+        remoteName: remoteName,
+        remoteCode: remoteCode,
+      );
 
   // ---- Checking ----
 
@@ -317,6 +305,8 @@ class AppUpdateService {
       updateAvailable: body['updateAvailable'] == true && newer,
       bearerAuth: bearer,
       versionSource: body['versionSource']?.toString() ?? '',
+      installedLabel:
+          installed.code > 0 ? '${installed.name} (${installed.code})' : '',
     );
   }
 
@@ -357,8 +347,14 @@ class AppUpdateService {
   /// Runs the update through whichever channel owns [info] and returns a short
   /// human-readable line for the UI. The single place that routes Play versus
   /// hub, so no screen can send a Play-managed update down the APK path.
-  Future<String> install(AppUpdateInfo info, {String? token}) async {
-    if (!info.playManaged) return downloadAndInstall(info, token: token);
+  Future<String> install(
+    AppUpdateInfo info, {
+    String? token,
+    void Function(UpdateProgress progress)? onProgress,
+  }) async {
+    if (!info.playManaged) {
+      return downloadAndInstall(info, token: token, onProgress: onProgress);
+    }
     return switch (await startPlayUpdate()) {
       'installed' => 'Installed - Google Play restarted the app.',
       'canceled' => 'Update cancelled. It is still required.',
@@ -367,27 +363,10 @@ class AppUpdateService {
     };
   }
 
-  /// What to tell the user for a native `installApk` status string.
-  static String installResultMessage(String status) {
-    if (status == 'started') {
-      return 'Installer opened - confirm the update on screen.';
-    }
-    // Also returned when NO settings page opened: a play-flavor build does not
-    // declare REQUEST_INSTALL_PACKAGES, so the OS has nothing to grant.
-    if (status == 'needs_permission') {
-      return "Allow 'Install unknown apps' for ScreenSync in the settings "
-          'page that just opened, come back and tap Update again. If no '
-          'settings page opened, this build cannot install updates itself - '
-          'update ScreenSync from Google Play or reinstall the sideload build.';
-    }
-    if (status.startsWith('error:')) {
-      final why = status.substring('error:'.length).trim();
-      return why.isEmpty
-          ? 'Could not open the installer.'
-          : 'Could not open the installer: $why';
-    }
-    return 'Could not open the installer.';
-  }
+  /// What to tell the user for a native `installApk` status string
+  /// (see [updateInstallResultMessage]).
+  static String installResultMessage(String status) =>
+      updateInstallResultMessage(status);
 
   /// Downloads the published APK, verifies it and opens the installer. Returns
   /// a short human-readable line for the UI / activity feed either way.
@@ -396,7 +375,11 @@ class AppUpdateService {
   /// rejected file is always deleted, and older `screensync-*.apk` files are
   /// purged first so the cache cannot pile up. Error lines never echo the URL:
   /// a legacy hub puts the pairing token in it.
-  Future<String> downloadAndInstall(AppUpdateInfo info, {String? token}) async {
+  Future<String> downloadAndInstall(
+    AppUpdateInfo info, {
+    String? token,
+    void Function(UpdateProgress progress)? onProgress,
+  }) async {
     if (info.url.isEmpty) return 'The hub did not publish a download URL.';
     final File target;
     try {
@@ -421,9 +404,21 @@ class AppUpdateService {
       }
       sink = target.openWrite();
       var written = 0;
+      var flushedAt = 0;
+      onProgress?.call(UpdateProgress.downloading(0, info.sizeBytes));
       await for (final chunk in res.stream.timeout(stallTimeout)) {
         written += chunk.length;
         sink.add(chunk);
+        // Backpressure: an IOSink buffers without limit, so on a slow disk the
+        // "download" would reach 100% in memory (the whole APK in RAM) while
+        // the file is still being written. Flushing every 4 MiB keeps memory
+        // bounded (and lets the network and the disk overlap) while progress
+        // still means "on disk" to within a few percent.
+        if (written - flushedAt >= _flushEvery) {
+          await sink.flush();
+          flushedAt = written;
+        }
+        onProgress?.call(UpdateProgress.downloading(written, info.sizeBytes));
       }
       await sink.flush();
       await sink.close();
@@ -437,6 +432,7 @@ class AppUpdateService {
         return 'Download incomplete: $written of ${info.sizeBytes} bytes.';
       }
       final expected = info.sha256.trim().toLowerCase();
+      onProgress?.call(const UpdateProgress.verifying());
       if (expected.isNotEmpty) {
         final actual =
             (await crypto.sha256.bind(target.openRead()).first).toString();
@@ -466,6 +462,7 @@ class AppUpdateService {
       }
     }
 
+    onProgress?.call(const UpdateProgress.opening());
     return installResultMessage(await DeviceIntentService.installApk(target.path));
   }
 

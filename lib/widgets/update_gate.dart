@@ -7,6 +7,8 @@ import '../blocs/screen_capture_bloc.dart';
 import '../core/app_navigator.dart';
 import '../services/app_update_service.dart';
 import '../services/settings_service.dart';
+import 'app_dialog.dart';
+import 'update/update_dialog.dart';
 
 /// Offers a published update and, for Play builds, blocks until it is installed.
 ///
@@ -26,6 +28,9 @@ import '../services/settings_service.dart';
 ///
 /// Checks run on start and on every resume, unless the user switched automatic
 /// update checks off in Settings.
+///
+/// The dialog itself is [UpdateDialog] (widgets/update/update_dialog.dart), built
+/// on the brand [AppDialog]; this file only decides WHEN to show it.
 class AppUpdateGate extends StatefulWidget {
   const AppUpdateGate({
     super.key,
@@ -50,8 +55,6 @@ class AppUpdateGate extends StatefulWidget {
 
 /// How many frames to wait for the Navigator to exist before giving up.
 const _navigatorAttempts = 120;
-
-enum _GateResult { later }
 
 class _AppUpdateGateState extends State<AppUpdateGate> {
   AppUpdateInfo? _pending;
@@ -144,12 +147,13 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
     try {
       final navigator = await _navigatorContext();
       if (navigator == null || !navigator.mounted || !mounted) return;
-      final result = await showDialog<_GateResult>(
-        context: navigator,
+      final result = await AppDialog.showCustom<UpdateDialogResult>(
+        navigator,
         barrierDismissible: false,
+        barrierLabel: 'Update available',
         builder: (_) => PopScope(
           canPop: false,
-          child: _UpdateDialog(
+          child: UpdateDialog(
             info: info,
             service: _service,
             token: () => SettingsService.instance.pairingToken,
@@ -157,7 +161,7 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
           ),
         ),
       );
-      if (result == _GateResult.later && mounted) _pending = null;
+      if (result == UpdateDialogResult.later && mounted) _pending = null;
     } catch (e) {
       debugPrint('AppUpdateGate: could not show the dialog (${e.runtimeType})');
     } finally {
@@ -179,132 +183,6 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
         }
       },
       child: widget.child,
-    );
-  }
-}
-
-/// The blocking dialog. Owns its own working / status state, so the install
-/// keeps reporting even though the dialog lives in the Navigator's overlay and
-/// not inside the gate's subtree.
-class _UpdateDialog extends StatefulWidget {
-  const _UpdateDialog({
-    required this.info,
-    required this.service,
-    required this.token,
-    required this.refresh,
-  });
-
-  final AppUpdateInfo info;
-  final AppUpdateService service;
-  final String Function() token;
-
-  /// Re-reads the published manifest (see `_AppUpdateGateState._refresh`).
-  final Future<AppUpdateInfo?> Function() refresh;
-
-  @override
-  State<_UpdateDialog> createState() => _UpdateDialogState();
-}
-
-class _UpdateDialogState extends State<_UpdateDialog> {
-  bool _working = false;
-  String? _status;
-
-  /// The manifest this dialog acts on: [_UpdateDialog.info] until a tap on
-  /// "Update now" re-reads it and finds the hub republished.
-  late AppUpdateInfo _info = widget.info;
-
-  Future<void> _act() async {
-    setState(() {
-      _working = true;
-      _status =
-          _info.playManaged ? 'Opening Google Play...' : 'Downloading...';
-    });
-    if (!_info.playManaged) {
-      final fresh = await _refreshed();
-      if (!mounted) return;
-      if (fresh != null && !fresh.updateAvailable) {
-        setState(() {
-          _working = false;
-          _status = 'No update is available any more.';
-        });
-        return;
-      }
-      if (fresh != null) setState(() => _info = fresh);
-    }
-    String line;
-    try {
-      line = await widget.service.install(_info, token: widget.token());
-    } catch (_) {
-      line = 'The update could not be started. Try again.';
-    }
-    if (!mounted) return;
-    setState(() {
-      _working = false;
-      _status = line;
-    });
-  }
-
-  /// Null when the hub cannot be reached: the download below then reports the
-  /// real problem against the info the dialog already has.
-  Future<AppUpdateInfo?> _refreshed() async {
-    try {
-      return await widget.refresh();
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> _later() async {
-    await widget.service.dismiss(_info.versionCode);
-    if (mounted) Navigator.of(context).pop(_GateResult.later);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final info = _info;
-    return AlertDialog(
-      scrollable: true,
-      title: Text(
-        info.playManaged
-            ? 'Update required'
-            : 'Update required: ${info.versionName}',
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            info.playManaged
-                ? 'Google Play has a newer version of ScreenSync '
-                    '(build ${info.versionCode}). Play installs it for '
-                    'you, and the app stays blocked until it is done.'
-                : 'ScreenSync ${info.versionName} is published and this '
-                    'build is out of date. Install it to continue, or '
-                    'choose Later to be asked again tomorrow.',
-          ),
-          if (info.sha256.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 10),
-            Text('SHA-256 ${info.shortSha}',
-                style: const TextStyle(fontSize: 11)),
-          ],
-          if (_status != null) ...<Widget>[
-            const SizedBox(height: 10),
-            Text(_status!, style: const TextStyle(fontSize: 12)),
-          ],
-        ],
-      ),
-      actions: <Widget>[
-        if (!info.playManaged)
-          TextButton(
-            onPressed: _working ? null : _later,
-            child: const Text('Later'),
-          ),
-        FilledButton.icon(
-          onPressed: _working ? null : _act,
-          icon: const Icon(Icons.download_rounded, size: 18),
-          label: Text(_working ? 'Working...' : 'Update now'),
-        ),
-      ],
     );
   }
 }

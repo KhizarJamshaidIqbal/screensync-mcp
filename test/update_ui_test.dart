@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:screensync_flutter_project/screens/mcp/update_card.dart';
 import 'package:screensync_flutter_project/screens/settings/update_section.dart';
+import 'package:screensync_flutter_project/models/update_progress.dart';
 import 'package:screensync_flutter_project/services/app_update_service.dart';
 import 'package:screensync_flutter_project/services/settings_service.dart';
 
@@ -51,7 +52,11 @@ class _FakeService extends AppUpdateService {
   }
 
   @override
-  Future<String> downloadAndInstall(AppUpdateInfo info, {String? token}) async {
+  Future<String> downloadAndInstall(
+    AppUpdateInfo info, {
+    String? token,
+    void Function(UpdateProgress progress)? onProgress,
+  }) async {
     downloads++;
     return 'Installer opened - confirm the update on screen.';
   }
