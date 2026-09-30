@@ -235,8 +235,16 @@ crash to nahi kar raha" wala automatic check chahiye.
 Aur ye **is repo ki read-only check** se chalti hai: `edits.tracks.list`.
 
 15 Sept 2026 ke record ke mutabiq production aur internal dono tracks par vc 31 attach ho chuka tha, aur
-`edits.bundles.list` se confirm hua ke `['25', '31']` mojood thin. Us ke baad `pubspec.yaml` `2.5.4+32`
-par ja chuka hai; vc 32 Play par upload hui ya nahi, ye repo mein record nahi. Andaza na lagayein:
+`edits.bundles.list` se confirm hua ke `['25', '31']` mojood thin.
+
+30 Sept 2026 ko `python tools\play_api.py tracks` (read-only) ne ye dikhaya:
+
+| Track | Release | versionCode | status |
+|---|---|---|---|
+| `production` | 2.5.4 | **32** | completed (live) |
+| `internal` | 2.5.5 | **33** | completed (is din upload hui, `pubspec.yaml` `2.5.5+33`) |
+
+Ye waqt ke saath badalta hai, isliye kisi purani line par bharosa na karein:
 `python tools\play_api.py tracks` chalayein.
 
 ---

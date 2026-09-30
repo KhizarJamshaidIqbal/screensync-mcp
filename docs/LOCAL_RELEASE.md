@@ -25,13 +25,15 @@ dikhati hai. Wo flags khud se kabhi na lagayein: pehle user se poochein** (Secti
 
 ## 0. Abhi kaun sa versionCode kahan hai (padh kar bharosa karein, andaza na lagayein)
 
-- `pubspec.yaml` mein abhi `version: 2.5.4+32` hai, yani **versionName 2.5.4, versionCode 32**.
-- In docs mein aakhri record kiya hua Play state (`docs/PLAY_API_GUIDE.md` Section 8, 15 Sept 2026):
-  **versionCode 31** internal aur production dono par attach tha, aur upload ki hui bundles
-  `['25', '31']` thin. Yani wo aakhri versionCode hai jise docs "live" likhte hain.
-- **versionCode 32 Play par upload hua ya nahi, ye repo mein kahin record nahi hai.** Andaza na
-  lagayein. Pehle chalayein: `python .\tools\play_api.py tracks` (read-only) aur store listing
-  dekhein (`docs/PLAY_API_GUIDE.md` Section 6.2).
+- `pubspec.yaml` mein `version: 2.5.5+33` hai, yani **versionName 2.5.5, versionCode 33**.
+- Play ka state, `python .\tools\play_api.py tracks` (read-only) se **30 Sept 2026** ko dekha
+  (`docs/PLAY_API_GUIDE.md` Section 8):
+  **production = versionCode 32 (2.5.4), completed/live**; **internal = versionCode 33 (2.5.5)**.
+  Yani 33 abhi sirf internal testers ke paas hai; production ko promote karna alag step hai
+  (Section 2.3, user ki ijazat ke saath).
+- Ye state badalta rehta hai. Kisi release ya promote se pehle dobara
+  `python .\tools\play_api.py tracks` chalayein aur store listing dekhein
+  (`docs/PLAY_API_GUIDE.md` Section 6.2); purani line par bharosa na karein.
 
 ---
 
@@ -133,8 +135,8 @@ python .\tools\release_notes.py --list-versions      # base revision dekho
 .\tools\release.ps1 -BumpVersion -Track internal -NotesFromGit -SinceVersion 2.5.4
 ```
 
-`-BumpVersion` sirf build number barhata hai: abhi `2.5.4+32` hai, to ye `2.5.4+33` bana dega.
-`versionName` (2.5.4) wahi rehta hai. versionName badalna ho to `pubspec.yaml`
+`-BumpVersion` sirf build number barhata hai: abhi `2.5.5+33` hai, to ye `2.5.5+34` bana dega.
+`versionName` (2.5.5) wahi rehta hai. versionName badalna ho to `pubspec.yaml`
 khud edit karo, phir bina `-BumpVersion` chalao. **Production ke liye `-BumpVersion` kabhi
 istemal na karein** (Section 2.3): pehle internal par upload karo, phir usi versionCode ko promote karo.
 
@@ -274,7 +276,7 @@ Play har upload par **naya `versionCode`** chahta hai. versionCode `pubspec.yaml
 ki `version:` line ke `+` ke baad wala number hai:
 
 ```
-version: 2.5.4+32
+version: 2.5.5+33
          ^^^^^  ^^
          name   versionCode
 ```

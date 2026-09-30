@@ -65,9 +65,9 @@ python .\tools\release_notes.py --list-versions
 .\tools\release.ps1 -Track internal -BumpVersion -NotesFromGit -SinceVersion 2.5.4
 ```
 
-Abhi `pubspec.yaml` `2.5.4+32` hai. Kaun sa versionCode Play par live hai, ye repo mein aakhri baar
-`31` likha hai (15 Sept 2026); `32` upload hua ya nahi, record nahi. Andaza na lagayein:
-`python .\tools\play_api.py tracks` (`docs/LOCAL_RELEASE.md` Section 0).
+`pubspec.yaml` mein `2.5.5+33` hai. 30 Sept 2026 ko Play par production = versionCode `32` (live),
+internal = `33`. Ye badalta rehta hai, andaza na lagayein: release se pehle
+`python .\tools\play_api.py tracks` chalayein (`docs/LOCAL_RELEASE.md` Section 0).
 
 `release.ps1` andar se ye karta hai:
 `flutter pub get` -> `flutter analyze` -> `flutter test` -> `flutter build appbundle --release --flavor play`
