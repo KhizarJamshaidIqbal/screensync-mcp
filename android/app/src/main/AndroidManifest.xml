@@ -10,9 +10,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!--
+      The install-packages permission used by the hub OTA installer is
+      deliberately NOT declared here: it lives only in the sideload flavor's
+      manifest (src/sideload), so the "play" flavor never carries a restricted
+      permission that Play forbids for self-updates.
+    -->
     <!-- QR pairing scanner -->
-    <!-- In-app OTA updates: hands a downloaded APK to the system installer -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Battery optimization whitelist request -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />

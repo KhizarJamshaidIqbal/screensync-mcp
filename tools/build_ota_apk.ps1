@@ -6,7 +6,14 @@
     Google Play AAB ko per-device split karta hai, is liye Play users ko sirf apna ABI milta hai.
     Magar hub ek SINGLE APK serve karta hai:
 
-        build\app\outputs\flutter-apk\app-release.apk
+        build\app\outputs\flutter-apk\app-sideload-release.apk
+
+    Ye "sideload" flavor hai: sirf isi mein REQUEST_INSTALL_PACKAGES declare hoti hai, jiske
+    bagair phone ka installer OTA update ko cancel kar deta hai. "play" flavor (Play AAB) usay
+    declare nahi karta - Play policy. Dono ka applicationId aur signing ek hi hai.
+
+    Hub version build\app\outputs\apk\sideload\release\output-metadata.json se parhta hai
+    (agar mojood ho), warna pubspec.yaml se.
 
     Aur Flutter ka default `flutter build apk --release` usme TEENO ABIs daal deta hai
     (arm64-v8a + armeabi-v7a + x86_64) - is waqt 73.6 MB. Isme x86_64 ka hissa ~25 MB hai,
@@ -14,6 +21,9 @@
 
     Is script ka default x86_64 hata deta hai. Nateeja: APK ~25 MB chhoti, aur koi real
     phone affected nahi hota (arm64 + 32-bit ARM dono shamil rehte hain).
+
+    Release build ko asli android\app\key.properties chahiye. Ye na ho to Gradle build rok deta
+    hai (debug-signed APK kisi release-signed install ko replace nahi kar sakti).
 
 .PARAMETER Arm64Only
     Sirf arm64-v8a (~30 MB). 2015 ke baad ke taqreeban saare phones arm64 hain, magar bahut
@@ -42,8 +52,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$apk      = Join-Path $repoRoot 'build\app\outputs\flutter-apk\app-release.apk'
+$repoRoot  = Split-Path -Parent $PSScriptRoot
+$apk       = Join-Path $repoRoot 'build\app\outputs\flutter-apk\app-sideload-release.apk'
+# Flavor-less build ka purana naam: sirf "pehle" wali size compare ke liye.
+$legacyApk = Join-Path $repoRoot 'build\app\outputs\flutter-apk\app-release.apk'
+$metadata  = Join-Path $repoRoot 'build\app\outputs\apk\sideload\release\output-metadata.json'
 
 function Write-Head([string]$Text) {
     Write-Host ""
@@ -60,10 +73,16 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) { Fail 'flutter PA
 
 $targets = if ($Arm64Only) { 'android-arm64' } else { 'android-arm,android-arm64' }
 
-$beforeBytes = if (Test-Path -LiteralPath $apk) { (Get-Item -LiteralPath $apk).Length } else { 0 }
+$beforeBytes = 0
+if (Test-Path -LiteralPath $apk) {
+    $beforeBytes = (Get-Item -LiteralPath $apk).Length
+} elseif (Test-Path -LiteralPath $legacyApk) {
+    $beforeBytes = (Get-Item -LiteralPath $legacyApk).Length
+}
 
 Write-Host ''
 Write-Host 'ScreenSync OTA APK (hub ke liye)' -ForegroundColor Green
+Write-Host '  flavor           : sideload'
 Write-Host "  target platforms : $targets"
 if ($Arm64Only) {
     Write-Host '  note             : sirf arm64 - bahut puraane 32-bit phones install nahi kar payenge' -ForegroundColor Yellow
@@ -79,7 +98,7 @@ if ($beforeBytes -gt 0) {
 if ($DryRun) {
     Write-Host ''
     Write-Host "  [dry-run] ye command chalti:" -ForegroundColor Yellow
-    Write-Host "  flutter build apk --release --target-platform $targets"
+    Write-Host "  flutter build apk --release --flavor sideload --target-platform $targets"
     exit 0
 }
 
@@ -89,19 +108,32 @@ if (-not $SkipTests) {
     if ($LASTEXITCODE -ne 0) { Fail "flutter analyze ne exit code $LASTEXITCODE diya." }
 }
 
-Write-Head "Release APK build (flutter build apk --release --target-platform $targets)"
-& flutter build apk --release --target-platform $targets
+Write-Head "Release APK build (flutter build apk --release --flavor sideload --target-platform $targets)"
+& flutter build apk --release --flavor sideload --target-platform $targets
 if ($LASTEXITCODE -ne 0) { Fail "Build fail ho gaya (exit $LASTEXITCODE)." }
 
 if (-not (Test-Path -LiteralPath $apk)) { Fail "APK nahi mili: $apk" }
 $afterBytes = (Get-Item -LiteralPath $apk).Length
 $delta = $beforeBytes - $afterBytes
 
+# Hub isi file se versionCode/versionName parhta hai - check karo ke bani hai aur kya likha hai.
+$metaVersion = '(output-metadata.json nahi mili - hub pubspec.yaml se version lega)'
+if (Test-Path -LiteralPath $metadata) {
+    try {
+        $element = (Get-Content -LiteralPath $metadata -Raw | ConvertFrom-Json).elements | Select-Object -First 1
+        $metaVersion = "{0} ({1})" -f $element.versionName, $element.versionCode
+    } catch {
+        $metaVersion = '(output-metadata.json parhi nahi ja saki)'
+    }
+}
+
 Write-Host ''
 Write-Host '----------------------------------------------------------------' -ForegroundColor Green
 Write-Host ' OTA APK summary' -ForegroundColor Green
 Write-Host '----------------------------------------------------------------' -ForegroundColor Green
+Write-Host "  flavor           : sideload"
 Write-Host "  target platforms : $targets"
+Write-Host "  version (hub)    : $metaVersion"
 Write-Host ("  nayi APK         : {0:N2} MB" -f ($afterBytes / 1MB))
 if ($beforeBytes -gt 0) {
     Write-Host ("  pehle            : {0:N2} MB" -f ($beforeBytes / 1MB))
@@ -115,11 +147,11 @@ if ($beforeBytes -gt 0) {
 }
 Write-Host '----------------------------------------------------------------' -ForegroundColor Green
 Write-Host ''
-Write-Host ' Ab hub khud is APK ko serve karega: app-update.ts isi path ko parhta hai, aur' -ForegroundColor DarkGray
-Write-Host ' APK badalne par hub SSE par app_update broadcast karta hai.' -ForegroundColor DarkGray
-Write-Host ' versionCode wahi rehta hai (pubspec se), is liye jo phone already usi build par hai' -ForegroundColor DarkGray
-Write-Host ' usay ye update nazar nahi aayega - safar agle version bump par shuru hoga.' -ForegroundColor DarkGray
+Write-Host ' Ab hub khud is APK ko serve karega: mcp-server isi path (app-sideload-release.apk, phir' -ForegroundColor DarkGray
+Write-Host ' purana app-release.apk) ko parhta hai, aur APK badalne par hub SSE par app_update' -ForegroundColor DarkGray
+Write-Host ' broadcast karta hai. versionCode wahi rehta hai (pubspec se), is liye jo phone already' -ForegroundColor DarkGray
+Write-Host ' usi build par hai usay ye update nazar nahi aayega - safar agle version bump par shuru hoga.' -ForegroundColor DarkGray
 Write-Host ''
-Write-Host ' NOTE: Play ke liye AAB alag build hoti hai (flutter build appbundle). Ye script usay' -ForegroundColor DarkGray
-Write-Host ' nahi chhooti.' -ForegroundColor DarkGray
+Write-Host ' NOTE: Play ke liye AAB alag build hoti hai (flutter build appbundle --flavor play, ya' -ForegroundColor DarkGray
+Write-Host ' tools\release.ps1). Ye script usay nahi chhooti.' -ForegroundColor DarkGray
 exit 0

@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Sideload flavor only: lets the app hand the APK it downloaded from the
+      desktop hub to the system package installer (MainActivity.installApk ->
+      UpdateInstaller). Android still asks the owner to confirm, and the owner
+      must allow "Install unknown apps" for ScreenSync.
+
+      Play policy forbids self-updating through this permission, so the "play"
+      flavor does not declare it and updates through Play In-App Updates.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+</manifest>

@@ -6,9 +6,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
@@ -29,9 +31,19 @@ class UpdateCheckWorker(appContext: Context, params: WorkerParameters) :
     Worker(appContext, params) {
 
     companion object {
-        private const val WORK_NAME = "screensync-play-update-check"
+        // The "-v2" job carries the network constraint. KEEP never rewrites an
+        // existing job, so phones that already scheduled the old battery-only
+        // job would keep it forever: it is cancelled and replaced once.
+        private const val WORK_NAME = "screensync-play-update-check-v2"
+        private const val LEGACY_WORK_NAME = "screensync-play-update-check"
         private const val CHANNEL_ID = "screensync_app_update"
         private const val NOTIFICATION_ID = 4203
+        private const val TAG = "ScreenSync"
+
+        // Dart's shared_preferences plugin keeps "autoUpdateCheck" in the
+        // "FlutterSharedPreferences" file under the key "flutter.autoUpdateCheck".
+        private const val PREFS_FILE = "FlutterSharedPreferences"
+        private const val PREF_AUTO_UPDATE_CHECK = "flutter.autoUpdateCheck"
 
         /// Idempotent: KEEP leaves an existing job alone, so calling this on
         /// every app start does not reset the schedule or pile up duplicates.
@@ -41,17 +53,35 @@ class UpdateCheckWorker(appContext: Context, params: WorkerParameters) :
                     PeriodicWorkRequestBuilder<UpdateCheckWorker>(12, TimeUnit.HOURS)
                         .setConstraints(
                             Constraints.Builder()
+                                // Asking Play with no network can only fail.
+                                .setRequiredNetworkType(NetworkType.CONNECTED)
                                 .setRequiresBatteryNotLow(true)
                                 .build()
                         )
                         .build()
-                WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                val manager = WorkManager.getInstance(context)
+                manager.cancelUniqueWork(LEGACY_WORK_NAME)
+                manager.enqueueUniquePeriodicWork(
                     WORK_NAME,
                     ExistingPeriodicWorkPolicy.KEEP,
                     request,
                 )
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // WorkManager unavailable (rare) - the in-app gate still covers it.
+                Log.w(TAG, "could not schedule the Play update check", e)
+            }
+        }
+
+        /// The owner's "check for updates automatically" switch (default: on).
+        /// Anything unreadable counts as on: a broken prefs file must not
+        /// silently disable updates.
+        private fun autoUpdateCheckEnabled(context: Context): Boolean {
+            return try {
+                context.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
+                    .getBoolean(PREF_AUTO_UPDATE_CHECK, true)
+            } catch (e: Exception) {
+                Log.w(TAG, "could not read the auto-update preference", e)
+                true
             }
         }
 
@@ -80,6 +110,8 @@ class UpdateCheckWorker(appContext: Context, params: WorkerParameters) :
                 .setContentTitle("ScreenSync update available")
                 .setContentText("Build $availableVersionCode is ready. Tap to update now.")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                // Same notification id every run: refresh it, never re-alert.
+                .setOnlyAlertOnce(true)
                 .setAutoCancel(true)
                 .setContentIntent(openApp)
                 .build()
@@ -102,30 +134,46 @@ class UpdateCheckWorker(appContext: Context, params: WorkerParameters) :
                 pm.getInstallerPackageName(applicationContext.packageName)
             }
             installer == "com.android.vending"
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w(TAG, "could not read the install source", e)
             false
         }
     }
 
     override fun doWork(): Result {
+        // The owner switched automatic checks off: no request, no notification.
+        if (!autoUpdateCheckEnabled(applicationContext)) return Result.success()
         if (!playOwnsThisBuild()) return Result.success()
         return try {
             val manager = AppUpdateManagerFactory.create(applicationContext)
+            // Every read of `appUpdateInfo` issues a NEW request, so ask exactly
+            // once and read the result off that same task.
+            val task = manager.appUpdateInfo
             // Task callbacks land on the main thread while this worker runs on a
             // background thread, so wait for the answer: returning immediately
             // would let WorkManager stop us before it arrives.
             val done = CountDownLatch(1)
-            manager.appUpdateInfo.addOnCompleteListener { done.countDown() }
-            if (!done.await(30, TimeUnit.SECONDS)) return Result.success()
-            val info = manager.appUpdateInfo.result
+            task.addOnCompleteListener { done.countDown() }
+            if (!done.await(30, TimeUnit.SECONDS)) {
+                Log.w(TAG, "Play update check timed out")
+                return Result.success()
+            }
+            // `task.result` throws unless the task succeeded.
+            if (!task.isSuccessful) {
+                Log.w(TAG, "Play update check failed", task.exception)
+                return Result.success()
+            }
+            val info = task.result
             if (info != null &&
                 info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
             ) {
                 notifyUpdateAvailable(applicationContext, info.availableVersionCode())
             }
             Result.success()
-        } catch (_: Exception) {
-            // A sideloaded build has no Play to ask - nothing to report.
+        } catch (e: Exception) {
+            // Play unavailable or the request blew up: nothing to report, but
+            // leave a trace instead of a silent no-op.
+            Log.w(TAG, "Play update check crashed", e)
             Result.success()
         }
     }

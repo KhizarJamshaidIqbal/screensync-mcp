@@ -34,6 +34,25 @@ android {
         versionName = flutter.versionName
     }
 
+    // Two distribution flavors of the SAME app: identical applicationId (no
+    // suffix) and the same signing config. The only difference is the manifest:
+    //   sideload - src/sideload/AndroidManifest.xml declares
+    //              REQUEST_INSTALL_PACKAGES so the hub OTA installer works.
+    //   play     - does not declare it (Play policy: a store build must update
+    //              through Play In-App Updates).
+    // pubspec.yaml sets `default-flavor: sideload`, so plain `flutter run`,
+    // `flutter build apk` and `flutter test` keep working; the Play bundle
+    // needs `--flavor play`.
+    flavorDimensions "distribution"
+    productFlavors {
+        play {
+            dimension "distribution"
+        }
+        sideload {
+            dimension "distribution"
+        }
+    }
+
     signingConfigs {
         release {
             if (keystorePropertiesFile.exists()) {
@@ -47,8 +66,64 @@ android {
 
     buildTypes {
         release {
+            // Falls back to the debug key only so that CONFIGURATION never
+            // fails (debug builds, `flutter test`, IDE sync). Actually building
+            // a release artifact with it is refused below unless explicitly
+            // allowed: a debug-signed OTA APK cannot replace a release-signed
+            // install, so it would only fail on the phone, silently.
             signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
         }
+    }
+}
+
+// The sideload flavor declares REQUEST_INSTALL_PACKAGES, which Play forbids for
+// a store build. `flutter build appbundle --release` without --flavor would
+// silently pick the default flavor (sideload), so refuse to bundle it.
+gradle.taskGraph.whenReady { graph ->
+    def sideloadBundles = graph.allTasks.findAll { task ->
+        task.project == project &&
+            task.name.startsWith("bundleSideload") && task.name.endsWith("Release")
+    }
+    if (!sideloadBundles.isEmpty()) {
+        throw new GradleException(
+            "Refusing to build a release App Bundle of the 'sideload' flavor: it declares " +
+            "REQUEST_INSTALL_PACKAGES, which Google Play does not allow for a store build.\n" +
+            "  Fix: flutter build appbundle --release --flavor play   (or tools\\release.ps1)\n" +
+            "  The sideload flavor is APK-only (tools\\build_ota_apk.ps1)."
+        )
+    }
+}
+
+// Lazy guard: only when a release assemble/bundle task is really scheduled.
+// Never inline key.properties values into this file (CLAUDE.md section 7).
+gradle.taskGraph.whenReady { graph ->
+    if (keystorePropertiesFile.exists()) return
+    def releaseTasks = graph.allTasks.findAll { task ->
+        task.project == project &&
+            (task.name.startsWith("assemble") || task.name.startsWith("bundle")) &&
+            task.name.endsWith("Release")
+    }
+    if (releaseTasks.isEmpty()) return
+
+    if (System.getenv("SCREENSYNC_ALLOW_DEBUG_SIGNING") == "1") {
+        logger.warn("")
+        logger.warn("################################################################")
+        logger.warn("# WARNING: android/app/key.properties is MISSING.               #")
+        logger.warn("# Signing the RELEASE build with the DEBUG key because          #")
+        logger.warn("# SCREENSYNC_ALLOW_DEBUG_SIGNING=1 is set.                      #")
+        logger.warn("# This APK/AAB can NOT replace a release-signed install and     #")
+        logger.warn("# must NEVER be uploaded to Google Play or served as an update. #")
+        logger.warn("################################################################")
+        logger.warn("")
+    } else {
+        throw new GradleException(
+            "Release build refused: android/app/key.properties was not found, so the " +
+            "release would be signed with the DEBUG key. A debug-signed APK cannot " +
+            "replace a release-signed install (Android rejects it on the phone) and " +
+            "Google Play rejects it outright.\n" +
+            "  Fix: put the real android/app/key.properties (and its keystore) in place.\n" +
+            "  Throwaway local build only: set SCREENSYNC_ALLOW_DEBUG_SIGNING=1 and retry."
+        )
     }
 }
 
