@@ -1,7 +1,36 @@
 {
-  "generatedAt": "2026-09-29T11:44:07Z",
+  "generatedAt": "2026-09-30T17:08:30Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
+    {
+      "sha": "87ff657",
+      "date": "2026-09-30",
+      "ts": 1790788103,
+      "parts": [
+        {
+          "stream": "app",
+          "streamLabel": "App",
+          "version": "2.5.5",
+          "build": "33",
+          "display": "2.5.5 (build 33)",
+          "date": "2026-09-30",
+          "ts": 1790788103,
+          "sha": "87ff657",
+          "groups": {
+            "NEW": [],
+            "IMPROVED": [],
+            "FIXED": [
+              "Ask for screen-capture consent and stop showing \"connected\" when nothing is streaming",
+              "Show the update dialog, verify the download and add an auto-update switch",
+              "Split sideload and play flavors so the hub installer keeps its permission"
+            ]
+          },
+          "count": 3
+        }
+      ],
+      "count": 3,
+      "title": "App 2.5.5 (build 33)"
+    },
     {
       "sha": "a75ec0a",
       "date": "2026-09-29",
@@ -624,9 +653,9 @@
     }
   ],
   "stats": {
-    "releases": 19,
-    "appReleases": 6,
+    "releases": 20,
+    "appReleases": 7,
     "extensionReleases": 13,
-    "changes": 113
+    "changes": 116
   }
 }
