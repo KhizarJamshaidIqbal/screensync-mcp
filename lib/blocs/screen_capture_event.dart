@@ -20,14 +20,20 @@ class TriggerScreenCaptureEvent extends ScreenCaptureEvent {
   final String triggerSource;
   final CaptureQuality? quality;
   final NormRect? crop;
+
+  /// Nonce of the bubble tap that asked for this capture. When set, the
+  /// outcome is written back to the overlay engine so the bubble can show the
+  /// real result instead of assuming success.
+  final Object? requestId;
   const TriggerScreenCaptureEvent({
     this.triggerSource = 'floating_bubble',
     this.quality,
     this.crop,
+    this.requestId,
   });
 
   @override
-  List<Object?> get props => [triggerSource, quality, crop];
+  List<Object?> get props => [triggerSource, quality, crop, requestId];
 }
 
 /// Long-press on the bubble: capture the full display now and hand the raw
@@ -202,9 +208,31 @@ class DeviceNameResolvedEvent extends ScreenCaptureEvent {
 
 /// Device-owner action: start (true) or stop (false) the opt-in live mirror.
 /// Never dispatched from an MCP tool - only from the phone settings switch.
+/// Turning it on asks for screen-capture consent first (foreground only).
 class SetLiveMirrorEvent extends ScreenCaptureEvent {
   final bool enabled;
   const SetLiveMirrorEvent(this.enabled);
   @override
   List<Object?> get props => [enabled];
+}
+
+/// "Grant screen capture" button: asks for MediaProjection consent from the
+/// foreground UI. The only place besides the mirror switch and the bubble start
+/// that may raise the consent dialog; background timers never do.
+class GrantScreenCaptureEvent extends ScreenCaptureEvent {
+  const GrantScreenCaptureEvent();
+}
+
+/// A frame reached the hub (an SSE `frame` event, or this phone's own push
+/// succeeded). Drives the LIVE badge: live means a recent frame, not SSE up.
+class FrameSeenEvent extends ScreenCaptureEvent {
+  final DateTime at;
+  const FrameSeenEvent(this.at);
+  @override
+  List<Object?> get props => [at];
+}
+
+/// Periodic tick that re-evaluates whether the last frame is still recent.
+class FrameFreshnessTickEvent extends ScreenCaptureEvent {
+  const FrameFreshnessTickEvent();
 }

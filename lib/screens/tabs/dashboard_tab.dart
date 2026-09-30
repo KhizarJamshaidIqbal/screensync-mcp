@@ -74,7 +74,8 @@ class _DashboardTabState extends State<DashboardTab> {
                 state.hubOnline == false;
         final simple = SettingsService.instance.simpleMode;
         final metrics = context.read<ScreenCaptureBloc>().metrics;
-        final live = state.liveConnected;
+        // LIVE means a frame arrived recently, not merely that SSE is up.
+        final live = state.framesFresh;
         return ListView(
           controller: _scroll,
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -93,12 +94,16 @@ class _DashboardTabState extends State<DashboardTab> {
               alignment: Alignment.centerLeft,
               child: StatusDotPill(
                 label: online
-                    ? 'Connected · ${state.hubLatencyMs ?? '—'}ms'
+                    ? (state.hubAuthFailed
+                        ? 'Auth problem · re-pair'
+                        : 'Connected · ${state.hubLatencyMs ?? '—'}ms')
                     : (checking
                         ? 'Standing by · ${state.hubLatencyMs ?? '—'}ms'
                         : 'Hub offline'),
                 color: online
-                    ? AppTheme.success
+                    ? (state.hubAuthFailed
+                        ? AppTheme.danger
+                        : AppTheme.success)
                     : (checking ? AppTheme.primary : AppTheme.danger),
               ),
             ),
@@ -125,7 +130,11 @@ class _DashboardTabState extends State<DashboardTab> {
             // "Connect an AI agent" sits above the bubble card, so a new user
             // meets it as soon as setup is done. It hides itself once dismissed.
             if (!simple) const ConnectKitCard(),
-            BubbleStatusCard(running: state.isOverlayRunning)
+            BubbleStatusCard(
+              running: state.isOverlayRunning,
+              captureReady: state.captureReady,
+              consentPending: state.consentPending,
+            )
                 .animate(delay: 160.ms)
                 .fadeIn(duration: 420.ms)
                 .slideY(

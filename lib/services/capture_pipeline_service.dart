@@ -68,10 +68,18 @@ class CapturePipeline {
       ui.Paint()..filterQuality = ui.FilterQuality.medium,
     );
     final picture = recorder.endRecording();
-    final cropped = await picture.toImage(w.round(), h.round());
-    final out = await cropped.toByteData(format: ui.ImageByteFormat.png);
-    source.dispose();
-    cropped.dispose();
+    final ui.Image cropped;
+    final ByteData? out;
+    try {
+      cropped = await picture.toImage(w.round(), h.round());
+      out = await cropped.toByteData(format: ui.ImageByteFormat.png);
+      cropped.dispose();
+    } finally {
+      // Native memory: neither the picture nor the decoded source is reclaimed
+      // by the GC promptly, so release them on every path, including a throw.
+      picture.dispose();
+      source.dispose();
+    }
     if (out == null) {
       throw PlatformException(code: 'crop-encode-failed');
     }
@@ -80,8 +88,14 @@ class CapturePipeline {
 
   static Future<ui.Image> _decode(Uint8List bytes) async {
     final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    return frame.image;
+    try {
+      final frame = await codec.getNextFrame();
+      return frame.image;
+    } finally {
+      // The returned image keeps its own reference; the codec would otherwise
+      // hold its native decode buffers until the GC finalizes it.
+      codec.dispose();
+    }
   }
 
   /// Flutter can only emit PNG/raw from [ui.Image]; JPEG goes through
@@ -91,20 +105,30 @@ class CapturePipeline {
     required int targetWidth,
     required int jpegQuality,
   }) async {
+    // Runs on every live-mirror tick: the codec and the decoded frame are
+    // native allocations, so both are released on every path.
     final codec =
         await ui.instantiateImageCodec(input, targetWidth: targetWidth);
-    final frame = await codec.getNextFrame();
-    final data = await frame.image
-        .toByteData(format: ui.ImageByteFormat.rawStraightRgba);
-    if (data == null) return input;
-    final image = img.Image.fromBytes(
-      width: frame.image.width,
-      height: frame.image.height,
-      bytes: data.buffer,
-      numChannels: 4,
-      order: img.ChannelOrder.rgba,
-    );
-    frame.image.dispose();
+    final img.Image image;
+    try {
+      final frame = await codec.getNextFrame();
+      try {
+        final data = await frame.image
+            .toByteData(format: ui.ImageByteFormat.rawStraightRgba);
+        if (data == null) return input;
+        image = img.Image.fromBytes(
+          width: frame.image.width,
+          height: frame.image.height,
+          bytes: data.buffer,
+          numChannels: 4,
+          order: img.ChannelOrder.rgba,
+        );
+      } finally {
+        frame.image.dispose();
+      }
+    } finally {
+      codec.dispose();
+    }
     return Uint8List.fromList(img.encodeJpg(image, quality: jpegQuality));
   }
 
@@ -131,9 +155,17 @@ class CapturePipeline {
   /// 320px-wide PNG thumbnail for the local gallery grid.
   static Future<Uint8List> thumbnail(Uint8List imageBytes) async {
     final codec = await ui.instantiateImageCodec(imageBytes, targetWidth: 320);
-    final frame = await codec.getNextFrame();
-    final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
-    frame.image.dispose();
+    final ByteData? data;
+    try {
+      final frame = await codec.getNextFrame();
+      try {
+        data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+      } finally {
+        frame.image.dispose();
+      }
+    } finally {
+      codec.dispose();
+    }
     if (data == null) {
       throw PlatformException(code: 'thumb-encode-failed');
     }

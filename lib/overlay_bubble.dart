@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/app_theme.dart';
 import 'services/capture_trigger_bridge.dart';
 import 'services/floating_overlay_service.dart';
 
@@ -11,7 +12,15 @@ import 'services/floating_overlay_service.dart';
 /// (captures the full frame, then the main app opens a full-screen crop
 /// editor — see [_enterSelector] for why we no longer resize this window).
 class OverlayBubbleWidget extends StatefulWidget {
-  const OverlayBubbleWidget({super.key});
+  const OverlayBubbleWidget({
+    super.key,
+    this.resultTimeout = const Duration(seconds: 12),
+  });
+
+  /// Longest the bubble waits for the main engine to report a tap's outcome:
+  /// capture + save + hub upload (8 s cap) fit inside it. Past it the bubble
+  /// says so instead of claiming success.
+  final Duration resultTimeout;
 
   @override
   State<OverlayBubbleWidget> createState() => _OverlayBubbleWidgetState();
@@ -22,6 +31,7 @@ class _OverlayBubbleWidgetState extends State<OverlayBubbleWidget>
   bool _isCapturing = false;
   bool _flash = false;
   bool _success = false;
+  bool _failed = false;
   String? _peekPath;
   int _todayCount = 0;
   int _rippleKey = 0;
@@ -85,9 +95,9 @@ class _OverlayBubbleWidgetState extends State<OverlayBubbleWidget>
   Future<void> _handleTap() async {
     if (_isCapturing) return;
     HapticFeedback.mediumImpact();
-    _bumpCount();
     setState(() {
       _isCapturing = true;
+      _failed = false;
       _flash = true;
       _rippleKey++;
     });
@@ -99,23 +109,42 @@ class _OverlayBubbleWidgetState extends State<OverlayBubbleWidget>
     // send future never completes and the tap handler would hang forever,
     // leaving the bubble stuck in its capturing state. The filesystem
     // bridge below is the reliable trigger channel.
-    await CaptureTriggerBridge.sendCapture();
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    final nonce = await CaptureTriggerBridge.sendCapture();
+    // The capture happens in the main engine (another isolate). Wait for its
+    // answer to THIS request instead of assuming success after a fixed delay:
+    // the old 500 ms guess turned green even when the capture failed, and the
+    // peek read the previous frame's pointer file.
+    final result = await CaptureTriggerBridge.awaitCaptureResult(nonce,
+        timeout: widget.resultTimeout);
     if (!mounted) return;
+    if (result == null || !result.ok) {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _isCapturing = false;
+        _failed = true;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 1600));
+      if (mounted) setState(() => _failed = false);
+      return;
+    }
+    _bumpCount();
     setState(() {
       _isCapturing = false;
       _success = true;
     });
-    _showPeek();
+    _showPeek(result.path);
     await Future<void>.delayed(const Duration(milliseconds: 800));
     if (mounted) setState(() => _success = false);
   }
 
   /// Briefly shows the just-captured frame under the bubble as proof the
   /// capture worked (the overlay engine reads the shared pointer file).
-  Future<void> _showPeek() async {
+  Future<void> _showPeek(String? resultPath) async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
-    final path = await CaptureTriggerBridge.readLatestFramePointer();
+    // The path this very capture reported; the shared pointer file is only a
+    // fallback (it can still hold the previous frame).
+    final path =
+        resultPath ?? await CaptureTriggerBridge.readLatestFramePointer();
     if (path == null || !File(path).existsSync()) return;
     if (!mounted) return;
     setState(() => _peekPath = path);
@@ -145,7 +174,11 @@ class _OverlayBubbleWidgetState extends State<OverlayBubbleWidget>
   Widget build(BuildContext context) => _buildBubble();
 
   Widget _buildBubble() {
-    final accent = _success ? const Color(0xFF10B981) : const Color(0xFF7C3AED);
+    final accent = _failed
+        ? AppTheme.danger
+        : _success
+            ? const Color(0xFF10B981)
+            : const Color(0xFF7C3AED);
     return Material(
       color: Colors.transparent,
       child: GestureDetector(
@@ -171,13 +204,18 @@ class _OverlayBubbleWidgetState extends State<OverlayBubbleWidget>
                         height: _isCapturing ? 54 : 58,
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: _success
-                                ? [const Color(0xFF059669), const Color(0xFF10B981)]
-                                : const [
-                                    Color(0xFF6D28D9),
-                                    Color(0xFF8B5CF6),
-                                    Color(0xFFA78BFA)
-                                  ],
+                            colors: _failed
+                                ? const [Color(0xFFB91C1C), AppTheme.danger]
+                                : _success
+                                    ? [
+                                        const Color(0xFF059669),
+                                        const Color(0xFF10B981)
+                                      ]
+                                    : const [
+                                        Color(0xFF6D28D9),
+                                        Color(0xFF8B5CF6),
+                                        Color(0xFFA78BFA)
+                                      ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -208,9 +246,11 @@ class _OverlayBubbleWidgetState extends State<OverlayBubbleWidget>
                             Icon(
                               _isCapturing
                                   ? Icons.hourglass_top_rounded
-                                  : _success
-                                      ? Icons.check_rounded
-                                      : Icons.camera_alt_rounded,
+                                  : _failed
+                                      ? Icons.error_outline_rounded
+                                      : _success
+                                          ? Icons.check_rounded
+                                          : Icons.camera_alt_rounded,
                               color: Colors.white,
                               size: 26,
                             ),

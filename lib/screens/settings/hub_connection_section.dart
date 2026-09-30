@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../blocs/screen_capture_bloc.dart';
@@ -12,6 +9,8 @@ import '../../widgets/common_widgets.dart';
 import '../../widgets/ref_widgets.dart';
 import '../dashboard/detail_cards.dart';
 import '../pair_scan_screen.dart';
+import 'live_mirror_tile.dart';
+import 'os_control_tile.dart';
 
 /// Hub connection panel: QR pairing, URL/token fields, mDNS discovery and
 /// auto-sync switches.
@@ -193,17 +192,25 @@ class HubConnectionSection extends StatelessWidget {
                         : Icons.wifi_off_rounded,
                     size: 16,
                     color: state.hubOnline == true
-                        ? AppTheme.success
+                        ? (state.hubAuthFailed
+                            ? AppTheme.danger
+                            : AppTheme.success)
                         : dimColor(context)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       state.hubOnline == true
-                          ? 'Connected via ${state.hubSource}'
-                              '${state.hubLatencyMs != null ? ' · ${state.hubLatencyMs}ms' : ''}'
+                          ? (state.hubAuthFailed
+                              ? 'Hub reachable, but it rejected this '
+                                  'pairing token — scan the QR again'
+                              : 'Connected via ${state.hubSource}'
+                                  '${state.hubLatencyMs != null ? ' · ${state.hubLatencyMs}ms' : ''}')
                           : 'Hub offline — auto-discovery will retry',
-                      style:
-                          TextStyle(color: dimColor(context), fontSize: 12),
+                      style: TextStyle(
+                          color: state.hubOnline == true && state.hubAuthFailed
+                              ? AppTheme.danger
+                              : dimColor(context),
+                          fontSize: 12),
                     ),
                   ),
                 ],
@@ -233,140 +240,20 @@ class HubConnectionSection extends StatelessWidget {
                 value: settings.autoSync,
                 onChanged: (v) => settings.autoSync = v,
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                title: const Text('Live mirror (this phone to the hub)',
-                    style: TextStyle(fontSize: 13)),
-                subtitle: Text(
-                    'While on, a low-latency 480p frame is pushed every '
-                    'few seconds so the hub and any connected agent see this '
-                    'screen as it changes. Phone-only switch - no MCP tool '
-                    'can turn it on.',
-                    style: TextStyle(fontSize: 11, color: dimColor(context))),
-                value: settings.liveMirrorEnabled,
-                onChanged: (v) {
-                  settings.liveMirrorEnabled = v;
-                  context.read<ScreenCaptureBloc>().add(SetLiveMirrorEvent(v));
-                },
+              const LiveMirrorTile(),
+              OsControlTile(
+                // Resolved like the rest of the app (manual override, then the
+                // mDNS-discovered hub, then the build default), never from the
+                // manual override alone.
+                hubUrl: context.read<ScreenCaptureBloc>().screenRepository.hubUrl,
+                token:
+                    context.read<ScreenCaptureBloc>().screenRepository.pairingToken,
+                hubOnline: state.hubOnline == true,
               ),
-              const _OsControlTile(),
             ],
           ),
         );
       },
-    );
-  }
-}
-
-
-/// Host-level switch for the OS plane (os_mouse_click / os_type / os_hotkey).
-///
-/// Those tools move the real mouse and type real keys anywhere on the machine, so they are
-/// deliberately NOT inherited from the browser web-access toggle. The value lives on the
-/// hub rather than in local preferences, which is why this tile talks to /api/os-control
-/// instead of using SettingsService like the switches above it.
-class _OsControlTile extends StatefulWidget {
-  const _OsControlTile();
-
-  @override
-  State<_OsControlTile> createState() => _OsControlTileState();
-}
-
-class _OsControlTileState extends State<_OsControlTile> {
-  static const _fallbackHub = String.fromEnvironment('SCREEN_SYNC_HUB_URL',
-      defaultValue: 'http://127.0.0.1:3000');
-  static const _fallbackToken =
-      String.fromEnvironment('SCREEN_SYNC_TOKEN', defaultValue: 'screensync-local-dev');
-
-  bool _enabled = false;
-  bool _busy = true;
-  String _source = 'off';
-  String _error = '';
-
-  String get _hub {
-    final override = SettingsService.instance.hubUrlOverride.trim();
-    final url = override.isNotEmpty ? override : _fallbackHub;
-    return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
-  }
-
-  String get _token {
-    final t = SettingsService.instance.pairingToken.trim();
-    return t.isNotEmpty ? t : _fallbackToken;
-  }
-
-  Map<String, String> _headers({bool json = false}) => {
-        if (json) 'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_token',
-      };
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final res = await http
-          .get(Uri.parse('$_hub/api/os-control'), headers: _headers())
-          .timeout(const Duration(seconds: 8));
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      if (!mounted) return;
-      setState(() {
-        _enabled = body['enabled'] == true;
-        _source = (body['source'] ?? 'off').toString();
-        _busy = false;
-        _error = res.statusCode == 200 ? '' : 'hub said ${res.statusCode}';
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = 'hub unreachable';
-      });
-    }
-  }
-
-  Future<void> _set(bool value) async {
-    setState(() => _busy = true);
-    try {
-      final res = await http
-          .post(Uri.parse('$_hub/api/os-control'),
-              headers: _headers(json: true), body: jsonEncode({'enabled': value}))
-          .timeout(const Duration(seconds: 8));
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      if (!mounted) return;
-      setState(() {
-        _enabled = body['enabled'] == true;
-        _source = (body['source'] ?? 'off').toString();
-        _busy = false;
-        _error = '';
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = 'could not reach the hub';
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final subtitle = _error.isNotEmpty
-        ? '$_error - the setting is unchanged.'
-        : _source == 'env'
-            ? 'Enabled by SCREENSYNC_ALLOW_OS_CONTROL on the hub host.'
-            : 'Lets the agent move the real mouse and type real keys anywhere on this '
-                'computer, not only inside a browser tab. Off by default.';
-    return SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      dense: true,
-      title: const Text('Allow OS-level control', style: TextStyle(fontSize: 13)),
-      subtitle: Text(subtitle, style: TextStyle(fontSize: 11, color: dimColor(context))),
-      value: _enabled,
-      onChanged: _busy || _source == 'env' ? null : _set,
     );
   }
 }

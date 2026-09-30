@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/bug_region.dart';
@@ -12,6 +14,11 @@ import '../services/capture_pipeline_service.dart';
 import '../services/floating_overlay_service.dart';
 import '../services/media_projection_service.dart';
 import 'google_drive_repository.dart';
+
+/// Outcome of the authenticated hub probe ([ScreenRepository.checkHubAuth]).
+/// `/health` is unauthenticated, so a reachable hub says nothing about whether
+/// this phone's token is accepted.
+enum HubAuthStatus { ok, rejected, unknown }
 
 /// Central data access. Resolves hub URL/token from Settings (runtime)
 /// falling back to build-time dart-defines, so LAN sync works on real
@@ -64,7 +71,13 @@ class ScreenRepository {
     return _hubUrlDefine;
   }
 
-  String _resolveToken() => tokenResolver?.call() ?? _pairingTokenDefine;
+  String _resolveToken() {
+    final resolved = tokenResolver?.call().trim();
+    // An empty token would go out as "Bearer " and be refused; treat it as unset.
+    return (resolved == null || resolved.isEmpty)
+        ? _pairingTokenDefine
+        : resolved;
+  }
 
   Uri _endpoint(String path) => Uri.parse('${_resolveHubUrl()}$path');
 
@@ -89,11 +102,19 @@ class ScreenRepository {
   }
 
   /// Captures the current display and applies pipeline preset / crop region.
+  ///
+  /// [allowPrompt] false is for background callers (the live-mirror timer): they
+  /// must never raise the consent dialog, so a session that is not live throws
+  /// instead of calling `prepare()`.
   Future<CapturedFrame> captureCurrentDisplay({
     CaptureQuality quality = CaptureQuality.inspection,
     NormRect? crop,
+    bool allowPrompt = true,
   }) async {
     if (!await MediaProjectionService.isReady()) {
+      if (!allowPrompt) {
+        throw StateError('Screen capture is not active.');
+      }
       final ready = await MediaProjectionService.prepare();
       if (!ready) {
         throw StateError('Screen capture permission was not granted.');
@@ -123,6 +144,48 @@ class ScreenRepository {
     }
   }
 
+  /// One authenticated round trip (`/api/events/recent`, the lightest bearer-
+  /// guarded hub route). A 401/403 means the hub is up but rejects this phone's
+  /// token; anything inconclusive (timeout, 5xx) is [HubAuthStatus.unknown] so a
+  /// flaky network never shows up as an auth problem.
+  Future<HubAuthStatus> checkHubAuth(
+      {Duration timeout = const Duration(seconds: 3)}) async {
+    try {
+      final res = await http
+          .get(_endpoint('/api/events/recent?limit=1'),
+              headers: _authHeaders(json: false))
+          .timeout(timeout);
+      if (res.statusCode == 401 || res.statusCode == 403) {
+        return HubAuthStatus.rejected;
+      }
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return HubAuthStatus.ok;
+      }
+      return HubAuthStatus.unknown;
+    } catch (_) {
+      return HubAuthStatus.unknown;
+    }
+  }
+
+  static const _fallbackDeviceModel = 'Android MediaProjection';
+  String? _deviceModelCache;
+
+  /// Loads the real handset model; tests swap this out.
+  @visibleForTesting
+  Future<String> Function() deviceModelLoader = _loadDeviceModel;
+
+  static Future<String> _loadDeviceModel() async {
+    try {
+      final info = await DeviceInfoPlugin().androidInfo;
+      final model = info.model.trim();
+      if (model.isNotEmpty) return model;
+    } catch (_) {/* not Android / plugin unavailable: use the fallback */}
+    return _fallbackDeviceModel;
+  }
+
+  Future<String> _deviceModel() async =>
+      _deviceModelCache ??= await deviceModelLoader();
+
   /// Push frame to local MCP server over LAN.
   ///
   /// FIX: never throws for connectivity problems — returns `false` so the
@@ -131,6 +194,7 @@ class ScreenRepository {
   Future<bool> pushToLocalMcpServer(CapturedFrame frame) async {
     final watch = Stopwatch()..start();
     try {
+      final deviceModel = await _deviceModel();
       final response = await http
           .post(
             _endpoint('/api/screens/upload'),
@@ -140,7 +204,7 @@ class ScreenRepository {
                   'data:${frame.mimeType};base64,${base64Encode(frame.imageBytes)}',
               'filename': frame.filename,
               'timestamp': frame.timestamp.toIso8601String(),
-              'deviceModel': 'Android MediaProjection',
+              'deviceModel': deviceModel,
               'screenResolution': {
                 'width': frame.width,
                 'height': frame.height

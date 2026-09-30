@@ -62,8 +62,9 @@ class SessionStats extends Equatable {
 }
 
 /// Health bucket derived from current latency, surfaced as the colored pill
-/// the user sees in the hero card.
-enum LinkHealth { excellent, good, slow, poor, offline }
+/// the user sees in the hero card. [authProblem] means the hub answers but
+/// rejects this phone's token, so latency says nothing about a usable link.
+enum LinkHealth { excellent, good, slow, poor, offline, authProblem }
 
 extension LinkHealthLabel on LinkHealth {
   String get label => switch (this) {
@@ -72,6 +73,7 @@ extension LinkHealthLabel on LinkHealth {
         LinkHealth.slow => 'Slow',
         LinkHealth.poor => 'Poor',
         LinkHealth.offline => 'Offline',
+        LinkHealth.authProblem => 'Auth problem',
       };
 }
 
@@ -169,8 +171,16 @@ class ConnectionMetricsService {
   /// is "feels instant", <300ms is "fine for any UI", <800ms is "noticeable",
   /// ≥800ms is "something is wrong". These match the bands shown on the
   /// hero card and the colored sparkline.
-  LinkHealth classifyHealth({required bool online, int? latestMs}) {
+  ///
+  /// [authFailed] (an authenticated hub call was refused) outranks latency: a
+  /// fast link that rejects the token must never read "Excellent".
+  LinkHealth classifyHealth({
+    required bool online,
+    int? latestMs,
+    bool authFailed = false,
+  }) {
     if (!online) return LinkHealth.offline;
+    if (authFailed) return LinkHealth.authProblem;
     final ms = latestMs ?? averageLatency;
     if (ms == null) return LinkHealth.good; // online but no sample yet
     if (ms < 100) return LinkHealth.excellent;

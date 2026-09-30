@@ -58,10 +58,34 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  String get pairingToken =>
-      _prefs.getString(_kToken) ?? 'screensync-local-dev';
+  /// The deliberate LAN dev default the hub also accepts (see mcp-server config).
+  static const defaultPairingToken = 'screensync-local-dev';
+
+  /// The stored token, or [defaultPairingToken] when none is stored.
+  ///
+  /// A stored empty (or whitespace-only) string counts as "none": `?? default`
+  /// only covers null, so a blank value used to slip through and every hub
+  /// call went out as `Authorization: Bearer ` and came back 401.
+  String get pairingToken {
+    final stored = _prefs.getString(_kToken)?.trim();
+    return (stored == null || stored.isEmpty) ? defaultPairingToken : stored;
+  }
+
   set pairingToken(String token) {
-    _prefs.setString(_kToken, token.trim());
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) {
+      // Never persist a blank token: drop the key so the default applies.
+      _prefs.remove(_kToken);
+    } else {
+      _prefs.setString(_kToken, trimmed);
+    }
+    notifyListeners();
+  }
+
+  /// Forgets the stored token (used by Disconnect); reads fall back to the
+  /// default afterwards instead of returning an empty string.
+  void clearPairingToken() {
+    _prefs.remove(_kToken);
     notifyListeners();
   }
 

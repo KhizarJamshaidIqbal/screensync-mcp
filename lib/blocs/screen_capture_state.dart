@@ -67,6 +67,38 @@ class ScreenCaptureState extends Equatable {
   /// on the Connection Hero instead of a static "Your AI" placeholder.
   final String? agentName;
 
+  // ── Live mirror / capture health ──
+
+  /// True while a MediaProjection session is live and capture can work. Fed by
+  /// the native projection-state stream and the periodic `isReady()` poll; it
+  /// is what the bubble card and the mirror tile read instead of assuming.
+  final bool captureReady;
+
+  /// The device owner's live-mirror switch (mirrors the persisted setting, but
+  /// only turns on after screen-capture consent was actually granted).
+  final bool liveMirrorEnabled;
+
+  /// The mirror is on but has been unable to capture for several ticks in a
+  /// row (no projection session). Cleared by the first successful push.
+  final bool mirrorWaiting;
+
+  /// A screen-capture consent prompt is open (mirror switch or "Grant screen
+  /// capture" button); the UI disables both while it is.
+  final bool consentPending;
+
+  /// When a frame last reached the hub (SSE `frame` event or this phone's own
+  /// successful push), by the phone's clock.
+  final DateTime? lastFrameAt;
+
+  /// [lastFrameAt] is recent enough to call the stream live. Kept as state and
+  /// refreshed by a periodic tick so a stalled stream flips back to "waiting"
+  /// without needing another event.
+  final bool framesFresh;
+
+  /// The hub is reachable (`/health`) but refused an authenticated call, i.e.
+  /// this phone's pairing token is wrong. `/health` alone cannot tell.
+  final bool hubAuthFailed;
+
   const ScreenCaptureState({
     this.status = CaptureStatus.idle,
     this.syncMode = SyncMode.hybrid,
@@ -94,6 +126,13 @@ class ScreenCaptureState extends Equatable {
     this.activityFeed = const [],
     this.deviceName,
     this.agentName,
+    this.captureReady = false,
+    this.liveMirrorEnabled = false,
+    this.mirrorWaiting = false,
+    this.consentPending = false,
+    this.lastFrameAt,
+    this.framesFresh = false,
+    this.hubAuthFailed = false,
   });
 
   ScreenCaptureState copyWith({
@@ -123,6 +162,13 @@ class ScreenCaptureState extends Equatable {
     List<ActivityEvent>? activityFeed,
     String? deviceName,
     String? agentName,
+    bool? captureReady,
+    bool? liveMirrorEnabled,
+    bool? mirrorWaiting,
+    bool? consentPending,
+    DateTime? lastFrameAt,
+    bool? framesFresh,
+    bool? hubAuthFailed,
   }) {
     return ScreenCaptureState(
       status: status ?? this.status,
@@ -159,6 +205,13 @@ class ScreenCaptureState extends Equatable {
       activityFeed: activityFeed ?? this.activityFeed,
       deviceName: deviceName ?? this.deviceName,
       agentName: agentName ?? this.agentName,
+      captureReady: captureReady ?? this.captureReady,
+      liveMirrorEnabled: liveMirrorEnabled ?? this.liveMirrorEnabled,
+      mirrorWaiting: mirrorWaiting ?? this.mirrorWaiting,
+      consentPending: consentPending ?? this.consentPending,
+      lastFrameAt: lastFrameAt ?? this.lastFrameAt,
+      framesFresh: framesFresh ?? this.framesFresh,
+      hubAuthFailed: hubAuthFailed ?? this.hubAuthFailed,
     );
   }
 
@@ -191,5 +244,12 @@ class ScreenCaptureState extends Equatable {
         activityFeed,
         deviceName,
         agentName,
+        captureReady,
+        liveMirrorEnabled,
+        mirrorWaiting,
+        consentPending,
+        lastFrameAt,
+        framesFresh,
+        hubAuthFailed,
       ];
 }
