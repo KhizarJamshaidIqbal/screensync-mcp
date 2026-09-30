@@ -12,21 +12,23 @@ ScreenSync is structured into distinct, decoupled subsystems. **New work MUST sl
    - `extension/pages/`: Standalone pages (`dashboard.html`, `popup.html`, `offscreen.html`).
    - `extension/styles/`: Theme tokens (`brand.css`) and component CSS.
 2. **`mcp-server/`** (Node.js & TypeScript MCP Hub Daemon):
-   - `catalog.ts` / `catalog-web.ts` (plus its `catalog-web-*.ts` siblings: capture, advanced, parity, nextgen, agent, inspect): MCP tool definitions and JSON schemas (new tool defs go in the most specific existing catalog file — never grow a file past the line limit).
-   - `hub.ts`: Express + SSE hub server relaying requests between MCP clients, the phone, and the browser extension.
+   - `catalog.ts` composes **16 `catalog*.ts` files** (MCP tool definitions and JSON schemas): `catalog-web.ts` plus its `catalog-web-*.ts` siblings (capture, advanced, parity, nextgen, agent, `agent-core`, inspect), the cognitive catalogues (`catalog-cognitive.ts`, `-cognitive-extended`, `-lifespan`, `-adolescent`, `-dynamics`, `-transcendental`) and `catalog-consolidated.ts`. New tool defs go in the most specific existing catalog file — never grow a file past the line limit (`catalog.ts` itself is already over it).
+   - `hub.ts` plus `hub-pairing.ts` / `hub-sse.ts` / `hub-watchers.ts` / `hub-app-update.ts` / `hub-web-call.ts`: Express + SSE hub server relaying requests between MCP clients, the phone, and the browser extension; `device-status.ts` is the single definition of "is the phone connected"; `app-update.ts` is the in-app update manifest.
    - `web.ts` / `web-frame.ts` / `events.ts`: web bridge, frame relay, and the sequenced SSE event stream.
    - `control.ts`: Mobile Android ADB control and OS automation.
-   - `test/`: E2E suites (`npm test`).
+   - `test/`: unit, guard and E2E suites (`npm test`).
 3. **`lib/`** (Flutter Application):
-   - Mobile and desktop companion UI built in Dart (BLoC architecture).
+   - Mobile and desktop companion UI built in Dart (BLoC architecture). Layers: `blocs/ core/ models/ repositories/ screens/ services/ widgets/`; the details are in `CLAUDE.md` section 3.
+4. **Supporting trees** (keep them as they are): `website/` (static marketing site, deployed through the `deploy` branch, see `CLAUDE.md` section 1), `tools/` (Play release, release-notes and changelog tooling), `docs/` (guides), `ci/` (one dormant workflow, see section 10) and `.agents/` (canonical agent skills and rules, see section 9).
 - **Preservation duty**: when adding a capability, first find the module that owns that concern and extend it (or create a sibling unit file); do not reshape unrelated modules.
 
 ---
 
-## 2. File Size Constraint (500 to 600 Lines Maximum)
-- **Mandatory Line Limit**: No single code file (`.js`, `.ts`, `.dart`) should exceed **500 to 600 lines**.
+## 2. File Size Constraint (500 Lines Maximum)
+- **Mandatory Line Limit**: No single code file (`.js`, `.ts`, `.dart`, `.kt`, `.py`, `.html`, `.css`, `.ps1`) may exceed **500 lines**. This is a hard cap, the same as `CLAUDE.md` section 4 and `.cursorrules`; there is no "500 to 600" allowance.
 - **Decomposition**: If a file approaches 500 lines, it must be decomposed into modular, single-responsibility files (e.g., splitting locators, interactions, extractions, device emulation into their own units).
 - **No Monoliths**: Avoid grouping unrelated tools into single monolithic script files. New capabilities go into NEW files, not into already-oversized ones.
+- **Known debt**: 15 files are over the cap today; `CLAUDE.md` section 4 holds the measured list. Do not add to them, and split one when you next touch it.
 
 ---
 
@@ -52,18 +54,37 @@ Never remove, break, or degrade any existing capabilities:
 - **Operator Data Layer**: `web_api_fetch` (authenticated request-context, multipart formData — session cookies auto-attach), persisted **Flows** (`web_flow_save/list/run/delete` with {{var}} substitution), `web_history`/`web_bookmarks` — never remove.
 - **Record/Replay + Orchestration**: `web_record`/`web_replay` (teach-once-replay-anywhere, hub-side), `web_tab_fanout` (per-tab merge), `web_clock_fast_forward` + `fixed` (clock API), `web_wait_download` (waitForDownload parity), `web_window` (window management), `web_pdf` full options, `web_expect` not/attached/detached — never remove.
 - **Round-9 Playwright Parity & Flow Chaining**: `web_emulate_media` (Playwright `page.emulateMedia` parity: media 'print'|'screen' + features prefers-reduced-motion, forced-colors, prefers-color-scheme, prefers-contrast), `web_mhtml` (DevTools Save-as-MHTML / CDP `Page.captureSnapshot` RFC 2557 snapshot with fallback), `web_cache_control` (disable, enable, clear browser cache), `web_visual_baseline` (Playwright `toHaveScreenshot` parity: save, compare, list, clear, threshold, auto-create, updateBaseline, visual heatmap), and Flow step-output chaining (`{{step.N}}` and dotted paths `{{step.N.data.field}}` across `web_flow_run` and `web_replay`) — never remove.
-- **Round-10 Playwright & Social Operator Parity**: `web_content`, `web_bounding_box`, `web_computed_style`, `web_add_script_tag`, `web_add_style_tag`, `web_tab_group`, `web_indexeddb`, `web_cache_storage`, `web_authenticated_harvest`, `web_parallel_harvest`, `web_session_vault`, `web_live_stream_sync`, `web_reader_mode`, and `web_smart_fill` — never remove.
+- **Round-10 Playwright Parity**: `web_content`, `web_bounding_box`, `web_computed_style`, `web_add_script_tag`, `web_add_style_tag`, `web_tab_group`, `web_indexeddb`, `web_cache_storage`, and `web_reader_mode` — never remove.
+- **Removed on purpose — do NOT restore, and do not list as "never remove"**: the social-harvest / session-vault / anti-bot tools `web_authenticated_harvest`, `web_parallel_harvest`, `web_session_vault`, `web_live_stream_sync` and `web_smart_fill` (plus the related `web_social_*`, `web_human_*`, `web_stealth_cloak`, `web_session_transfer`, `web_profile_sync` and `web_account_report` family) left the catalogue, the hub and the extension in the 2026-09-14 scope cut (for example commits `5fa992e`, `3672f87`, `81a2e88`, `21a95a5`). No catalogue, hub or extension source contains them any more (checked 2026-09-30), so agent skills and docs must not tell anyone to call them.
 - **Architecture 10.0 Adolescent & Adult Executive Cognition (AIE-EC)**: `web_synaptic_pruning` (use-it-or-lose-it playbook elimination + myelination), `web_critical_period` (experience-expectant sensitive windows with XP amplification), `web_working_memory_span` (Miller 7±2 digit-span growth → plan chunk budgets), `web_executive_function` (Miyake prefrontal battery: inhibition/shifting/updating), `web_erikson_identity` (8 psychosocial stages → domain identity coherence), `web_autonoetic_memory` (Tulving remember/know tagging), `web_infant_error_signature` (ERN first-error imprint + social-referencing caregiver checks), and `web_wisdom_calibration` (Baltes knowledge × calibration wisdom, overconfidence/imposter detection) — never remove.
 - **Architecture 11.0 Motivated Learning Dynamics & Prospective Memory (MLDP)**: `web_assimilation_accommodation` (Piaget equilibration: assimilate the schema or accommodate/heal it), `web_forgetting_curve` (Ebbinghaus `R = e^(-t/S)` retention + spaced-repetition review ladder), `web_reinforcement_schedule` (operant cadence: continuous → fixed → variable interval, extinction resistance), `web_prospective_memory` (Gollwitzer implementation intentions: register "WHEN event THEN plan" and fire on observed events), `web_source_monitoring` (Johnson source attribution, misattribution detection, per-source trust ledger), `web_interference_check` (proactive/retroactive interference isolation advice), `web_reward_prediction_error` (Schultz dopaminergic RPE → learning-rate modulation), and `web_cognitive_load_budget` (Sweller CLT: intrinsic + extraneous + germane vs chunk capacity, overload detection) — never remove.
 
 ---
 
-## 5. Dual Workspace Mirroring
-The repository operates across dual workspace directories:
-- Primary: `d:\Local SEO\Site\Khizar\screensync_flutter_mcp_project`
-- Secondary: `c:\Users\epsol\Downloads\screensync_flutter_mcp_project`
+## 5. Dual Workspace Mirroring (safe copy only)
+The repository can be copied across two workspace directories:
+- Primary (the real one): `d:\Local SEO\Site\Khizar\screensync_flutter_mcp_project`
+- Secondary (an optional convenience copy): `c:\Users\epsol\Downloads\screensync_flutter_mcp_project`
 
-After making modifications to any file in the primary workspace, always execute `robocopy` with `/MIR` (excluding `node_modules`, `.git`, `dist`, `.dart_tool`, `build`) to keep both directories 100% in sync.
+The secondary **does not exist on this machine** (checked 2026-09-30). The old rule was "always run `robocopy /MIR`", and that is unsafe: `/MIR` **deletes** anything in the destination that is not in the source, and without exclusions it also copies the release keystore and `key.properties`, `tools/release.config.json` (the Play key path), `.mcp.json`, `mcp-server/data/` (private screenshots) and every worktree under `.claude/`. So:
+
+1. **Skip the step when the secondary does not exist.** Never create it just to mirror into it, and never mirror toward the primary.
+2. **Never use `/MIR` or `/PURGE`.** Copy with `/E` only, so nothing is ever deleted in the destination (a file you deleted in the primary is not removed from the secondary; delete it by hand there).
+3. **Exclude secrets and machine state** every time. Mirror only when the change is final, never while another agent is mid-edit.
+
+```powershell
+$src = 'D:\Local SEO\Site\Khizar\screensync_flutter_mcp_project'
+$dst = 'C:\Users\epsol\Downloads\screensync_flutter_mcp_project'
+if (Test-Path -LiteralPath $dst) {
+    # Add /L first for a dry run that lists what would be copied and copies nothing.
+    robocopy $src $dst /E /XO /R:1 /W:1 /NFL /NDL `
+        /XD .git .claude .zcode .dart_tool build dist node_modules .gradle .kotlin .workbuddy-ai `
+            "$src\mcp-server\data" "$src\tools\.venv" "$src\tools\.build" `
+        /XF key.properties *.jks release.config.json .mcp.json .env .env.* *.pem *service-account*.json `
+            *.log analyze_out.txt local.properties
+    # robocopy exit codes 0-7 are success (8 and above are failures).
+}
+```
 
 ---
 
@@ -109,8 +130,12 @@ The hub runs a **sequenced SSE event stream** (`/api/events`): every event carri
 
 ---
 
-## 9. Screensync Operator Skill
-`/screensync-operator` (in `.agents/skills`, `.zcode/skills`, and `.claude/commands/`) is the canonical playbook for agent-driven web operations: all web work goes through the user's real logged-in browser via ScreenSync `web_*` tools — never Playwright. When you change the tool surface, update that skill file in all three locations.
+## 9. Agent skills and rules: `.agents/` is canonical
+`/screensync-operator` is the canonical playbook for agent-driven web operations: all web work goes through the user's real logged-in browser via ScreenSync `web_*` tools — never Playwright. The same holds for `screensync-learn`, `screensync-release` and `.agents/rules/screensync-cognitive.md`.
+
+- **`.agents/` is the canonical, tracked copy** (`.agents/skills/<name>/SKILL.md`, `.agents/rules/`). The copies in `.claude/commands/` and `.zcode/skills/`, `.zcode/rules/` are **local conveniences**: they are gitignored, never reviewed, and drift silently. Edit `.agents/` first, then re-copy the file to the other two locations byte for byte.
+- When you change the tool surface, update `.agents/skills/screensync-operator/SKILL.md` and re-sync the copies. A skill must never name a tool that is not in the catalogue (see the removed-tools note in section 4); a quick check is to extract every `web_*` name from the skill and confirm each one is declared in `mcp-server/catalog*.ts`.
+- Cognitive levels are earned from what the hub observes; the hub ignores `xpGain`. No skill or rule may advise sending it (see section 12).
 
 ---
 
@@ -126,21 +151,38 @@ The hub runs a **sequenced SSE event stream** (`/api/events`): every event carri
 - **Release notes are mandatory and must be real.** Play allows 500 Unicode
   characters per language. Generate them from git history with
   `python tools/release_notes.py`; generic text such as "bug fixes and
-  improvements" is rejected on a live track. See `docs/RELEASE_NOTES_GUIDE.md`.
+  improvements" is rejected (`release.ps1` runs `release_notes.py --check` on
+  every track, and `publish_play.py` refuses it again on production). See
+  `docs/RELEASE_NOTES_GUIDE.md` for exactly which phrases and where.
 - **The Play API cannot report review status.** `edits.tracks.list` exposes only
   rollout state (`draft`/`inProgress`/`halted`/`completed`); "in review" vs "live
   to users" is Play Console only. To check live, compare the public store listing.
   See `docs/PLAY_API_GUIDE.md`.
 - **Prefer a staged first production rollout** (`--user-fraction 0.10`), and
-  remember a halt does not roll back users who already updated.
-- Skill: `.agents/skills/screensync-release/SKILL.md`, mirrored in
-  `.zcode/skills/screensync-release/` and `.claude/commands/screensync-release.md`.
-  When the release tooling changes, update all three.
+  remember a halt does not roll back users who already updated. **`release.ps1`
+  cannot stage a rollout** (it has no fraction parameter); only
+  `publish_play.py --status inProgress --user-fraction 0.10` can.
+- **Never use `-BumpVersion` for a production release.** Bump and upload to
+  `internal` first, then promote that versionCode to production with
+  `-VersionCode <n>` (or `publish_play.py --version-code <n>`).
+- **A Play bundle is always `--flavor play`.** The `sideload` flavor declares
+  `REQUEST_INSTALL_PACKAGES`, which Play forbids (section 13). A release built
+  with `SCREENSYNC_ALLOW_DEBUG_SIGNING=1` is debug-signed and must never be
+  uploaded or served as an update; `release.ps1` refuses to publish with it set.
+- **`ci/github-release-workflow.yml` must not be enabled** (copied into
+  `.github/workflows/`) without a protected `production` environment that
+  requires human reviewers. It is dormant on purpose; the local tools above
+  are the release path.
+- Skill: `.agents/skills/screensync-release/SKILL.md` is canonical; the copies in
+  `.zcode/skills/screensync-release/` and `.claude/commands/screensync-release.md`
+  are local conveniences (section 9). When the release tooling changes, update
+  the canonical file and re-copy it.
+
 ---
 
 ## 11. Changelog and site publishing (user-ordered 2026-09-15)
 
-The public changelog is **generated, never hand-written**. Two tools own it:
+The public changelog is **generated, never hand-written**. Three tools own it:
 
 | Tool | What it does |
 |---|---|
@@ -150,10 +192,14 @@ The public changelog is **generated, never hand-written**. Two tools own it:
 
 **Rules:**
 
-1. **After any release, regenerate the changelog before committing.**
+1. **After any release, regenerate the changelog in a second commit.**
    A release means an app version bump (`pubspec.yaml`) or an extension bump
-   (`extension/version.json`). Run `python tools/build_changelog.py`, then commit
-   `website/changelog.html` and `website/changelog.json` together with the bump.
+   (`extension/version.json`). The generator reads *committed* history, so the
+   bump must be committed first (`chore(release): <version> - <summary>`). Then run
+   `python tools/build_changelog.py` and commit `website/changelog.html` and
+   `website/changelog.json` as their own commit
+   (`docs(website): regenerate the changelog for <release>`). Putting both in the
+   bump commit is impossible: the entry does not exist until the bump does.
 2. **Verify it is not stale:** `python tools/build_changelog.py --check` exits 1 when the
    page or feed no longer matches history. Treat a non-zero exit as a build failure.
 3. **Never edit `website/changelog.html` by hand** - the next run overwrites it. Change
@@ -203,3 +249,18 @@ The public changelog is **generated, never hand-written**. Two tools own it:
 
 5. **Cross-Session Permanent Sync (MemPalace)**:
    - Synchronize all high-level operational milestones into MemPalace diary (`mempalace_diary_write`) and Knowledge Graph (`mempalace_kg_add`).
+
+---
+
+## 13. Android build flavors: sideload vs play (added 2026-09-30)
+
+The Android app builds in two flavors that share one applicationId and one signing key. The only difference is one manifest permission.
+
+| Flavor | Manifest | Used for | Build | Output |
+|---|---|---|---|---|
+| `sideload` (the `pubspec.yaml` default-flavor) | declares `REQUEST_INSTALL_PACKAGES` (`android/app/src/sideload/AndroidManifest.xml`) | the hub OTA update: the hub serves the APK at `/apk` and the phone installs it | `flutter build apk --release` (or `tools/build_ota_apk.ps1`) | `build/app/outputs/flutter-apk/app-sideload-release.apk`; the hub reads the version from `build/app/outputs/apk/sideload/release/output-metadata.json` |
+| `play` | does not declare it (Play forbids it for a store build) | Google Play; store installs update through Play In-App Updates | `flutter build appbundle --release --flavor play` (or `tools/release.ps1`) | `build/app/outputs/bundle/playRelease/app-play-release.aab` |
+
+- Never move `REQUEST_INSTALL_PACKAGES` back into `android/app/src/main`, and never upload the sideload flavor to Play. Gradle refuses `bundleSideload*Release` for that reason.
+- A release build needs `android/app/key.properties`. Without it the build now fails instead of silently falling back to the debug key; `SCREENSYNC_ALLOW_DEBUG_SIGNING=1` overrides that for a throwaway local build only.
+- Plain `flutter run`, `flutter build apk` and `flutter test` need no `--flavor` flag because of the default-flavor. Anything that names an output path must use the flavored paths above (the old `bundle/release/app-release.aab` no longer exists).

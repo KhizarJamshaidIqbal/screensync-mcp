@@ -58,3 +58,11 @@ tools/.venv/
 tools/release.config.json
 tools/__pycache__/
 tools/.build/
+
+# Secrets and credentials (never commit): env files, private keys, Play/GCP service-account keys.
+# `.env.example` style templates stay trackable.
+.env
+.env.*
+!.env.example
+*.pem
+*service-account*.json

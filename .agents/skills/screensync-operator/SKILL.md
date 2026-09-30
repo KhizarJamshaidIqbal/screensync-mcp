@@ -1,6 +1,6 @@
 ---
 name: screensync-operator
-description: Use when the user asks to browse, search, scrape, verify, post, or sync real web data with their logged-in browser accounts — operate the user's REAL Chrome/Edge/Brave through the ScreenSync MCP web tools instead of Playwright or a fresh CDP profile. Covers multi-tab, multi-browser, social-account flows, and data sync back to the phone.
+description: Use when the user asks to browse, search, scrape, verify, post, or sync real web data with their logged-in browser accounts — operate the user's REAL Chrome/Edge/Brave through the ScreenSync MCP web tools instead of Playwright or a fresh CDP profile. Covers multi-tab, multi-browser, logged-in account flows, and data sync back to the phone.
 ---
 
 # ScreenSync Operator — real-browser web operations
@@ -139,13 +139,13 @@ The agent's per-domain memory grows through developmental stages exactly like a 
 |---|---|
 | Click / tap | `web_click` (locators or `[index=N]` ref) |
 | Type text (fast) | `web_fill` |
-| Type like a human (anti-bot) | `web_human_type` / `web_type` |
+| Type keystroke by keystroke | `web_type` |
 | Press keys / combos | `web_key`, `web_key_combo` |
 | Select option | `web_select` |
 | Check / uncheck | `web_check` {checked: true/false} |
 | Focus / blur | `web_focus` |
 | Hover | `web_hover` |
-| Scroll | `web_scroll` (container), `web_scroll_to` (element/top/middle/bottom), `web_human_scroll` |
+| Scroll | `web_scroll` (container), `web_scroll_to` (element/top/middle/bottom) |
 | Drag & drop | `web_drag_and_drop` |
 | Upload files | `web_upload_file` |
 | Paste rich content | `web_paste` |
@@ -155,8 +155,7 @@ The agent's per-domain memory grows through developmental stages exactly like a 
 | Record Chrome performance trace | `web_trace_record` {action: start/stop} (open in chrome://tracing) |
 | Fake/shift the page clock | `web_clock_set` {offsetMs or iso} / `web_clock_clear` |
 | Tail the live event stream | `web_events` {since, types, limit} — sequenced SSE ring: navigations, page loads, tab activations, tool activity |
-| Sync a login between browsers | `web_session_transfer` {domain, from, to} — copies cookies+localStorage Edge↔Chrome↔Brave |
-| Which browser is logged into X? | `web_route_for` {domain} — per-browser cookie evidence + recommended id |
+| Which browser is signed in as whom? | `web_status` → `browsers[]` (`profileEmail`, `online`, `activeTab`); route with `__browser` |
 | Run one tool on ALL browsers | `web_fanout` {tool, args, browsers} — each pass pinned to its browser; choose browsers with `browsers` (a profile hint inside args is refused); a tabId/windowId runs only in its owner, other browsers reported skipped |
 | Act inside an iframe | `web_in_frame` {tool, args, frameId|frameUrl} (frames via `web_frame_tree`) |
 | Auto-answer HTTP 401 auth dialogs | `web_network_auth` {username, password} then navigate |
@@ -167,7 +166,6 @@ The agent's per-domain memory grows through developmental stages exactly like a 
 | Restore a minimized window | `web_window` {state:'normal'|"maximized", focused:true} — needed before screenshots |
 | Call logged-in APIs directly | `web_api_fetch` {url, method, body} — session cookies attach automatically (request-context parity) |
 | Save a flow forever | `web_record` → edit → `web_flow_save` {name, steps} → daily: `web_flow_run` {name, vars} ({{var}} & `{{step.N.data.field}}` chaining) · `web_flow_list`/`web_flow_delete` |
-| One-call account dashboard | `web_account_report` — kaunsa platform kis browser mein live |
 | Operator context | `web_history` {text, hoursBack} · `web_bookmarks` {text} |
 | **Automate a flow forever** | `web_flow_schedule` {flow, everyMinutes, vars} — hub khud chalata hai · `web_flow_schedules` (last-run status) · `web_flow_unschedule` |
 | Call APIs with files | `web_api_fetch` {formData: {field: {filename, base64}}} — real multipart with session |
@@ -183,16 +181,10 @@ The agent's per-domain memory grows through developmental stages exactly like a 
 | Organize tabs in groups | `web_tab_group` {action: create/add/remove/update/list, title, color} |
 | Modern SPA IndexedDB | `web_indexeddb` {action: databases/schema/dump/query, database, store} |
 | CacheStorage API | `web_cache_storage` {action: list/keys/match} |
-| **Real User Social Harvester** | `web_authenticated_harvest` {platform: 'x'\|'linkedin'\|'github'\|'reddit'\|'facebook'\|'instagram'\|'youtube'\|'threads', task: 'feed'\|'profile'\|'notifications'\|'search', scrollPages: N, useExistingTab: true} — actual user accounts scraping without bot flags |
-| Multi-target parallel harvest | `web_parallel_harvest` {targets: [...], concurrency: 3} — multi-tab parallel scraping |
-| Hub-side session vault & sync | `web_session_vault` {action: save/restore/list/delete/sync, domain} — cross-browser persistent session cloning |
-| Live mutation stream sync | `web_live_stream_sync` {action: start/poll/stop, selector} — real-time feed update watcher |
 | Clutter-free reader mode | `web_reader_mode` — clean markdown extraction of articles/pages |
-| Smart form auto-fill | `web_smart_fill` {fields: {email, name, ...}} — human-cadence input dispatch |
 | Token-bounded page digest | `web_page_digest` {maxTokens?, includeTabs?} — accessibility-first digest with stable refs for AI reasoning |
 | Auto-wait actionability check | `web_actionable` {selector, timeoutMs?} — verifies visible, enabled, stable rect, and unoccluded before act |
 | Audit ring & privacy trail | `web_audit_log` {action: 'get'|'clear'|'export'} — local privacy-safe activity log with redaction |
-| Real session data sync | `web_real_data_sync` {url, platforms?, useActiveTab?} — real-browser multi-tab/browser data extraction without credential exfiltration |
 | Trusted OS-level input | `web_cdp_click`, `web_cdp_type`, `web_mouse`, `web_touch` |
 | **In-page Human Help Overlay** | `web_request_help` {prompt, targetSelector, timeoutMs, completionCriteria} — Shadow DOM overlay, glowing highlight, desktop OS notification, auto-resumes when criteria met |
 | **Ask for site access** | `web_request_access` {reason, url?, tabId?, waitMs≤30000} — a person answers Deny / Allow once (15 min) / Always allow in a focused window; returns allowed_* / pending / USER_DECLINED |
@@ -201,7 +193,7 @@ The agent's per-domain memory grows through developmental stages exactly like a 
 
 **Locator language everywhere:** `css=`, `>>>` (shadow piercing), `pierce/`,
 `:has-text()`, `xpath=`, `role=[name="…"]`, `placeholder=`, `label=`, `text=`,
-`testid=`. Also `get_by` (role/text/label/placeholder/testid/alt/title) and
+`testid=`. Also `web_get_by` (role/text/label/placeholder/testid/alt/title) and
 `web_find`.
 
 ## 3 · Verify (never assume success)
@@ -221,53 +213,43 @@ visual flows use `web_watch` (live frame stream) or `web_screencast`.
 - Modern web apps & offline data → **`web_indexeddb`** / **`web_cache_storage`**.
 - Multi-page → `web_batch_crawl` / `web_tab_pool` (concurrent, bounded).
 - Sync results: `publish_inspection` (findings → phone heatmap),
-  `publish_patch` (code fixes), or return the data inline. Session replay:
-  `web_session_save` / `web_storage_state` **only when the user asks**.
+  `publish_patch` (code fixes), or return the data inline.
 
-## 4b · Authenticated Real-Web Data Sync (The User's Logged-in Operator Advantage)
+## 4b · Authenticated Real-Web Data (The User's Logged-in Operator Advantage)
 
-The user's real browser already has active logins for Twitter/X, LinkedIn, GitHub, Reddit, Facebook, Instagram, YouTube, etc. **Never ask the user to log in again, and never use headless scrapers that trigger bot blocks.**
+The user's real browser already has active logins for their accounts (X, LinkedIn, GitHub, Reddit, ...). **Never ask the user to log in again, and never use headless scrapers that trigger bot blocks.**
 
-1. **One-Call Harvest (`web_authenticated_harvest`)**:
-   - Call with `platform` (e.g. `'x'`, `'linkedin'`, `'github'`) and `task` (`'feed'`, `'profile'`, `'notifications'`, `'search'`).
-   - By default `useExistingTab: true` reuses open tabs, eliminating popup noise and bot detection.
-   - `scrollPages: 2` automatically triggers natural inertia scrolling to load lazy-loaded feeds.
-2. **Parallel Multi-Platform Sweeps (`web_parallel_harvest`)**:
-   - Provide `targets: [{ platform: 'x', task: 'feed' }, { platform: 'github', task: 'notifications' }]`.
-   - Concurrently scrapes across tabs organized into a "ScreenSync Harvest" tab group, saves datasets to hub `data/harvest/`, and returns aggregated intelligence.
-3. **Session Vault (`web_session_vault`)**:
-   - `action: 'save'` saves full login state (cookies + localStorage + sessionStorage) to hub disk `data/vault/<domain>.json`.
-   - `action: 'sync'` clones an active login from Chrome to Edge or secondary browser in one step.
-   - `action: 'restore'` restores the saved vault session into any browser without re-entering credentials.
-4. **Live Stream Watcher (`web_live_stream_sync`)**:
-   - Starts a real-time mutation observer on a live page; poll with `action: 'poll'` to receive incoming tweets, chat messages, or alerts without reloading.
-5. **Smart Form Filler (`web_smart_fill`)**:
-   - Matches form inputs and types with human cadence, triggering native React/Vue/Angular events.
+1. **Read with the session that is already there**: `web_api_fetch` calls logged-in APIs directly (session cookies attach automatically); `web_table_extract`, `web_scrape_schema`, `web_markdown_extract` and `web_reader_mode` read what the page shows.
+2. **More than one page, tab or browser**: `web_batch_crawl` / `web_tab_pool` (bounded concurrency), `web_tab_fanout` (one tool across tabs), `web_fanout` (one tool across browsers).
+3. **Routines you will repeat**: `web_record` → `web_flow_save` → `web_flow_run`; `web_flow_schedule` for unattended reads (never schedule a flow with a destructive step).
+4. **Nothing leaves the device.** `web_cookies` / `web_storage` exist for debugging (§7), not for moving a login somewhere else. There is no session-vault, login-cloning, harvest or auto-fill tool: those were removed on purpose (AGENTS.md section 4), so do not look for them.
 
 ## 5 · Multi-tab & multi-browser
 
 - **Multi-tab:** pass `tabId` (from `web_tabs`) to target background tabs;
   `web_navigate {newTab: true}` opens grouped agent tabs; `web_multi_tab_sync`
   mirrors state across tabs.
-- **The full operator loop:** `web_account_report` → pick browser via `web_route_for` → `web_session_transfer` if needed → `web_api_fetch` for raw data or web tools for UI flows → `web_flow_save`/'web_flow_run' for daily reuse. Multi-tab via `web_tab_fanout`; multi-browser via `web_fanout`.
-- **Multi-browser data sync:** the flagship loop — `web_route_for {domain}` finds which browser holds the login, `web_session_transfer` clones it to the browser you want to operate, then run the task there. Use `web_fanout` for parallel sweeps across every browser.
+- **The operator loop:** `web_status` (which browser and profile is online) → route the call with `__browser` → `web_api_fetch` for raw data or the web tools for UI flows → `web_flow_save` / `web_flow_run` for daily reuse. Multi-tab via `web_tab_fanout`; multi-browser via `web_fanout`.
 - **Multi-browser:** each connected browser (Chrome, Edge, Brave, …) registers
   separately. Check `web_status → browsers[]`, then pass `__browser: "edge"`
   (name or install id) in ANY web tool's arguments to route the call to that
   specific browser. Omit to let the first responder answer. Use case: user is
-  logged into LinkedIn in Edge but GitHub in Chrome — route accordingly.
+  logged into LinkedIn in Edge but GitHub in Chrome — route accordingly. Use
+  `web_fanout` for parallel sweeps across every browser. A login is never copied
+  between browsers by a tool: operate in the browser that already holds it.
 - Emulate devices per tab: `web_device_emulate` (iphone_15, pixel_8, …),
   `web_resize`, `web_set_user_agent`.
 
-## 6 · Logged-in social intelligence (the real-account advantage)
+## 6 · Logged-in social flows (the real-account advantage)
 
-`web_profile_sync` / `web_social_matrix` discover which accounts are live.
-`web_social_scrape` / `web_social_feed_cluster` / `web_social_dossier` /
-`web_social_search` read feeds with the user's auth. `web_social_post` composes
-posts. Rules: (1) posting requires the user's explicit go-ahead for THAT post;
+There are no dedicated social-scraping or social-posting tools (they were removed on
+purpose, AGENTS.md section 4). Reading a feed and composing a post use the generic tools
+on the user's already signed-in tab: `web_aria_snapshot` / `web_scrape_schema` to read,
+`web_fill` / `web_type` / `web_click` (or the canonical playbooks in §-1) to compose.
+Rules: (1) posting requires the user's explicit go-ahead for THAT post;
 (2) never touch security settings, password fields, or payment flows; (3) on
-captcha/2FA — stop and hand back to the user; (4) prefer human-emulation tools
-(`web_human_type`/`web_human_mouse`/`web_stealth_cloak`) for posting flows.
+captcha/2FA — stop and hand back to the user (`web_request_help`); (4) act at a normal
+pace and let the extension's approval gate ask the user for anything destructive.
 
 ## 7 · Debugging superpowers
 

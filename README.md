@@ -42,37 +42,61 @@ unless you choose Google Drive BYOS as a fallback.
 
 ## Repository layout
 
+Four codebases share this repo, plus tooling and docs. The rules every contributor and agent follows
+are in [`CLAUDE.md`](CLAUDE.md) and [`AGENTS.md`](AGENTS.md).
+
 ```
-├── lib/                      Flutter app (74 files, BLoC architecture)
-│   ├── blocs/                ScreenCaptureBloc + hub-maintenance mixin
+├── lib/                      Flutter app (96 Dart files, BLoC architecture)
+│   ├── blocs/                ScreenCaptureBloc split into mixins (hub
+│   │                         maintenance, live mirror, hub events, capture sync)
 │   ├── screens/              Home, onboarding wizard, gallery, diagnose,
 │   │                         MCP catalog, settings, QR scan, annotate, diff,
-│   │                         region crop editor
+│   │                         region crop editor (+ dashboard/, settings/,
+│   │                         mcp/, pair_scan/ parts)
 │   ├── widgets/              Design system (violet tokens, glossy tiles,
 │   │                         ConnectionHero live-bridge, health HUD,
 │   │                         AI timeline, live strip, responsive shell)
 │   ├── services/             Overlay lifecycle, cross-engine trigger bridge,
 │   │                         SSE client, pairing parser, mDNS/LAN discovery,
 │   │                         capture pipeline (crop/quality/redact), shake,
-│   │                         connection metrics, session recorder
+│   │                         connection metrics, session recorder,
+│   │                         in-app update service
 │   ├── repositories/         SQLite frame cache, hub HTTP client,
 │   │                         Google Drive BYOS
 │   └── overlay_bubble.dart   Separate overlay-engine entry (bubble UI)
-├── android/                  Kotlin native layer
-│   ├── MainActivity.kt       Method channels (projection + device)
-│   └── ScreenCaptureService.kt  Foreground service, notification quick
-│                                 actions (Snap / MCP / Pause), Android 14
-│                                 surface-promote fix, timeout retry
+├── test/                     Dart tests (27 files, 223 tests)
+├── android/                  Kotlin native layer + Gradle flavors
+│   ├── app/src/main/         MainActivity + helpers (installer, Play update,
+│   │                         projection permission), ScreenCaptureService
+│   │                         (foreground service, notification quick actions
+│   │                         Snap / MCP / Pause), UpdateCheckWorker
+│   └── app/src/sideload/     Manifest that adds REQUEST_INSTALL_PACKAGES for
+│                             the hub OTA build (the `play` flavor has none)
 ├── mcp-server/               Desktop hub + MCP server (TypeScript)
-│   ├── hub.ts                Express: upload, SSE, pairing, catalog,
-│   │                         inspections, patches, control API
-│   ├── mcp.ts / catalog.ts   MCP protocol + single-source capability
-│   │                         catalog (226 tools / 17 prompts / 3 resources)
+│   ├── hub.ts + hub-*.ts     Express: upload, SSE, pairing, catalog,
+│   │                         inspections, patches, control API, app update
+│   ├── mcp.ts / catalog*.ts  MCP protocol + capability catalogue: catalog.ts
+│   │                         composes 16 catalog files (226 tools / 17 prompts
+│   │                         / 3 resources)
 │   ├── control.ts            ADB backend (input, UI tree, logcat, record)
 │   ├── storage.ts / config.ts  Retention, env, auth
-│   └── test/                 E2E suites (protocol + full aim-loop)
-└── docs at root              CONNECT_KIT.md · DEEP_DIVE_ANALYSIS.md
-                              FEATURE_UPGRADE_PLAN.md
+│   └── test/                 Unit, guard and E2E suites (`npm test`)
+├── extension/                MV3 browser extension: the `web_*` tools run
+│                             in your real browser (no build step, own tests
+│                             in extension/test, run by `npm run test:ext`)
+├── website/                  Marketing site + changelog (static HTML; served
+│                             from the `deploy` branch, not from `main`)
+├── tools/                    Play release, release-notes, changelog and
+│                             OTA-APK tooling (PowerShell + Python); see
+│                             tools/README.md
+├── docs/                     Release, Play API, release-notes, app-size and
+│                             site-changelog guides
+├── ci/                       One dormant GitHub Actions workflow (not active)
+├── .agents/                  Canonical agent skills and rules
+└── docs at root              CONNECT_KIT.md · RELEASE_NOTES.md (extension and
+                              hub notes) · DEEP_DIVE_ANALYSIS.md ·
+                              FEATURE_UPGRADE_PLAN.md · WEBSITE_PLAN.md
+                              (the last three are historical)
 ```
 
 ---
@@ -96,9 +120,12 @@ At startup the hub prints a **pairing QR** and the link
 
 ```bash
 flutter pub get
-flutter build apk --debug          # or --release
+flutter build apk --debug          # or --release (needs android/app/key.properties)
 flutter install                    # or adb install -r
 ```
+
+The app has two Android flavors, `sideload` (the default: hub OTA updates) and `play` (the Google Play
+bundle, `flutter build appbundle --release --flavor play`). See `CLAUDE.md` section 8.
 
 On first launch the onboarding wizard routes you (developer vs simple mode),
 pairs via **Scan QR code** (or paste link), and walks you through the two
@@ -139,8 +166,10 @@ Diagnose tab shows the heatmap without a manual refresh.
 
 ## MCP capability surface
 
-Single source of truth: [`mcp-server/catalog.ts`](mcp-server/catalog.ts)
-(also served at `GET /api/mcp/catalog` and `screensync://skills`).
+Single source of truth: [`mcp-server/catalog.ts`](mcp-server/catalog.ts), which composes the 16
+`mcp-server/catalog*.ts` files (the phone, ADB-control and `os_*` tools live in `catalog.ts`; the
+`web_*` browser tools and the cognitive-memory tools are in the sibling files). It is also served at `GET /api/mcp/catalog` and
+`screensync://skills`. The published tool count is kept in step by `npm run sync:toolcount`.
 
 **Capture & inspect** — `get_latest_screenshot`, `get_recent_screenshots`,
 `list_recent_screens`, `compare_frames`, `wait_for_frame`, `record_screen`,
@@ -156,7 +185,7 @@ summary → heatmap), `publish_patch` (git patch → one-tap copy)
 
 **Self-service discovery** — `get_mcp_catalog`, `get_skills`
 
-**Prompts** — `inspect_latest_mobile_screen`, `autonomous_ui_test`,
+**Prompts** (17), for example `inspect_latest_mobile_screen`, `autonomous_ui_test`,
 `reproduce_bug`, `accessibility_audit` · **Resources** —
 `screensync://status`, `screensync://workflow`, `screensync://skills`
 
@@ -170,13 +199,17 @@ summary → heatmap), `publish_patch` (git patch → one-tap copy)
 
 | Route | Auth | Purpose |
 | --- | --- | --- |
-| `GET /health` | open | Liveness + latest frame timestamp |
-| `GET /pair` · `GET /api/pair` | open | Pairing QR page / payload |
+| `GET /health` | open | Liveness, hub version + latest frame timestamp |
+| `GET /pair` · `GET /api/pair` | open (pairing window / loopback) | Pairing QR page / payload |
 | `POST /api/screens/upload` | Bearer | Frame ingest (base64 data URL) |
 | `GET /api/screens/latest` | Bearer | Latest frame + metadata |
-| `GET /api/events` | Bearer | SSE stream (`frame` · `inspection` · `patch` · `tool`) |
+| `GET /api/events` | Bearer | SSE stream (`frame` · `inspection` · `patch` · `tool`); the phone opens it as `?client=app`, which is how the hub knows the phone is online |
+| `GET /api/events/recent` | Bearer | HTTP tail of the sequenced event ring (`since`, `types`, `limit`); the phone also uses it as a cheap "is my token accepted" probe |
 | `GET /api/inspections/latest` · `/api/patches/latest` | Bearer | Agent findings for the phone |
-| `GET /api/mcp/catalog` · `/api/device/status` | Bearer | Capability + connection state |
+| `GET /api/mcp/catalog` | Bearer | Capability catalogue |
+| `GET /api/device/status` | Bearer | Connection state: `connected` (a frame in the last 60 s), `hasFrames`, `phoneOnline` (phone on the SSE stream), `state` (`streaming` · `linked_no_frames` · `no_phone`), plus the older `stale` / `lastFrameAgeMs` fields |
+| `GET /api/app/latest` · `GET /apk` | Bearer (loopback allowed on `latest`; `/apk` also takes `?token=`) | In-app update channel: newest build manifest (`versionCode`, `sha256`, `apkPath`, `versionSource`) and the APK itself |
+| `GET/POST /api/os-control` | Bearer | Host-level OS-control switch |
 | `POST /api/control/:action` | Bearer | ADB control plane |
 
 ## Configuration
@@ -208,8 +241,10 @@ summary → heatmap), `publish_patch` (git patch → one-tap copy)
 
 - **On-phone**: live latency sparkline, Health HUD (p50/p95/jitter/dropped),
   AI activity timeline, telemetry tab, session stats.
-- **Tests**: `flutter test` (bridge, metrics, overlay, pairing) and
-  `npm test` (MCP protocol E2E + full upload→agent→readback aim-loop).
+- **Tests**: `flutter test` (223 tests: live mirror, hub connection and auth, update flow, capture
+  trigger bridge, overlay bubble, pairing, layout at 320/360/393dp) and, from `mcp-server/`,
+  `npm test` (unit and contract guards, MCP protocol E2E, the full upload→agent→readback aim-loop,
+  then the browser-extension suite). The Kotlin layer has no tests: verify it on a device.
 - **Design system**: violet tokens, serif display + micro-labels, glossy
   gradient tiles, reduce-motion aware entrances, responsive shell
   (bottom bar / rail / two-pane ≥900dp), text-scale clamping.
@@ -220,16 +255,25 @@ summary → heatmap), `publish_patch` (git patch → one-tap copy)
 | --- | --- |
 | "Hub offline" on a real phone | `127.0.0.1` only works on the emulator — scan the QR or enter `http://<PC-LAN-IP>:3000` in Settings → Hub. |
 | Bubble tap does nothing | Check the notification shows "capture active"; tap the ⏸ Resume action if paused. |
+| Dashboard says **NO CAPTURE** / the live strip says **WAITING** | The hub link is up but no screen-capture session is running, so no frames are pushed. Tap **Grant screen capture** (Dashboard, or the live-mirror row in Settings) and accept the Android prompt. |
+| Hub shows **AUTH PROBLEM** / **Re-pair** | The hub is reachable but rejected the phone's pairing token (it changed on the hub, or it was cleared). Re-scan the QR from `/pair` or re-enter the token in Settings → Hub. |
 | "Timed out waiting for a screen frame" | Retried automatically once; re-grant screen-capture consent if the OS revoked it. |
 | Bubble won't show on MIUI | Permission Doctor → enable overlay + autostart + battery whitelist. |
 | Control tools fail on MIUI | Enable **USB debugging (Security settings)** in Developer options. |
 
 ## Further reading
 
+- [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) — the working rules for contributors and AI agents
 - [`CONNECT_KIT.md`](CONNECT_KIT.md) — paste-ready agent connection kit
-- [`DEEP_DIVE_ANALYSIS.md`](DEEP_DIVE_ANALYSIS.md) — forensic walkthrough of the capture loop and non-obvious engineering
-- [`FEATURE_UPGRADE_PLAN.md`](FEATURE_UPGRADE_PLAN.md) — the UX/feature roadmap and its status
+- [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — extension and hub release notes (not the Google Play notes)
+- [`docs/LOCAL_RELEASE.md`](docs/LOCAL_RELEASE.md) · [`docs/PLAY_API_GUIDE.md`](docs/PLAY_API_GUIDE.md) ·
+  [`docs/RELEASE_NOTES_GUIDE.md`](docs/RELEASE_NOTES_GUIDE.md) · [`docs/APP_SIZE_GUIDE.md`](docs/APP_SIZE_GUIDE.md) ·
+  [`tools/README.md`](tools/README.md) — building and releasing the Android app
+- [`docs/SITE_CHANGELOG_HANDOFF.md`](docs/SITE_CHANGELOG_HANDOFF.md) — the website changelog and how to roll the site back
+- Historical, not maintained: [`DEEP_DIVE_ANALYSIS.md`](DEEP_DIVE_ANALYSIS.md) (forensic walkthrough of the capture loop, written for app 2.5.0),
+  [`FEATURE_UPGRADE_PLAN.md`](FEATURE_UPGRADE_PLAN.md) (the 2026-08-29 UX roadmap) and [`WEBSITE_PLAN.md`](WEBSITE_PLAN.md)
 
 ---
 
-*App 2.5.0 · MCP server 2.6.0 · Flutter 3.38 / Android API 36 · Node 24 + TypeScript ESM · MIT-style local use.*
+*App 2.5.4 (build 32) · Hub 1.14.3 · Extension 1.14.3 · MCP server identity 3.3.0 · Flutter 3.38 / Android API 36 · Node 22+ with TypeScript ESM · MIT-style local use.*
+*The release step bumps the app version in `pubspec.yaml`; trust that file over this line.*

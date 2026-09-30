@@ -7,7 +7,7 @@ Then a verification pass re-opens the edit, reads the target track back and
 confirms the freshly uploaded versionCode is actually listed on it.
 
 Examples:
-    python tools/publish_play.py --aab build/app/outputs/bundle/release/app-release.aab
+    python tools/publish_play.py --aab build/app/outputs/bundle/playRelease/app-play-release.aab
     python tools/publish_play.py --aab ... --track internal --status draft
     python tools/publish_play.py --aab ... --notes-file build/notes.en-US.txt
     python tools/publish_play.py --aab ... --dry-run
