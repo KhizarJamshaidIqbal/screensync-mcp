@@ -124,6 +124,13 @@ Read neighbouring files before writing. Match what is there; do not import a new
   `.animate(delay: N.ms).fadeIn(duration: 420.ms).slideY(begin: 0.06, end: 0, duration: 420.ms, curve: Curves.easeOutCubic)`
 - **Never break mobile responsiveness** — the project's stated golden rule. Use
   `Flexible`/`Expanded`/`Wrap`/`LayoutBuilder`, test at ≤360dp, zero RenderFlex overflow.
+- **Every new widget follows the app theme (UI template, `docs/UI_TEMPLATE.md`).** Colours, radii,
+  type, shadows and durations come from `AppTheme` / `motion.dart`, never literals. A dialog is an
+  `AppDialog` (`AppDialog.show` / `AppDialog.showCustom`), never a stock `AlertDialog` /
+  `SimpleDialog`; progress is `AppProgressBar`; cards are `GlassPanel`. `AppTheme.light()` / `dark()`
+  also brand the stock Material dialog, text button, progress indicator and bottom sheet as a safety
+  net. Check light **and** dark and 320dp. `test/theme_guardrails_test.dart` fails the build of a new
+  stock dialog or a stripped global theme.
 - **Imports inside `lib/` are relative** (`import '../services/settings_service.dart';` — all 344
   imports of project files under `lib/` are relative and none uses a package URI). **Only `test/`
   uses the package name:** `import 'package:screensync_flutter_project/…';` (the pubspec name is

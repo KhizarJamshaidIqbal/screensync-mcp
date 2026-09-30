@@ -264,3 +264,16 @@ The Android app builds in two flavors that share one applicationId and one signi
 - Never move `REQUEST_INSTALL_PACKAGES` back into `android/app/src/main`, and never upload the sideload flavor to Play. Gradle refuses `bundleSideload*Release` for that reason.
 - A release build needs `android/app/key.properties`. Without it the build now fails instead of silently falling back to the debug key; `SCREENSYNC_ALLOW_DEBUG_SIGNING=1` overrides that for a throwaway local build only.
 - Plain `flutter run`, `flutter build apk` and `flutter test` need no `--flavor` flag because of the default-flavor. Anything that names an output path must use the flavored paths above (the old `bundle/release/app-release.aab` no longer exists).
+
+---
+
+## 14. UI template: every new widget follows the app theme (added 2026-09-30)
+
+- The app has one look: `lib/core/app_theme.dart` (tokens, `AppTheme.light()` / `dark()`) plus the shared
+  components in `lib/widgets/` (`AppDialog`, `AppProgressBar`, `GlassPanel`, ...). The full guide and the
+  new-widget checklist are in **`docs/UI_TEMPLATE.md`**: read it before adding any UI.
+- A new component, widget, dialog or screen MUST use those tokens and components. No hard-coded colours,
+  radii, type or durations; dialogs are `AppDialog` (never `AlertDialog` / `SimpleDialog`); verify light and
+  dark and 320dp, and add a widget test.
+- `test/theme_guardrails_test.dart` enforces the dialog rule and the global theme. If a real need breaks a
+  rule, change that test and explain why in the same commit.
