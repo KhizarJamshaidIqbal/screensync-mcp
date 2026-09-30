@@ -1,4 +1,5 @@
 import { appManifest } from "./app-update.js";
+import { collectDeviceStatus, fetchHubPhoneOnline } from "./device-status.js";
 import { readFile } from "node:fs/promises";
 import { execSync } from "node:child_process";
 import { isOsControlEnabled } from "./os-control.js";
@@ -221,22 +222,15 @@ export function createMcpServer() {
           sha256: manifest.sha256,
           sizeBytes: manifest.sizeBytes,
           builtAt: manifest.builtAt,
+          versionSource: manifest.versionSource,
           installedVersionCode: installed,
           updateAvailable: installed === null ? null : manifest.versionCode > installed,
         });
       }
       if (request.params.name === "get_device_status") {
-        const frame = await latestFrame();
-        const ageMs = frame ? Date.now() - Date.parse(frame.receivedAt) : null;
-        return textResult({
-          connected: frame !== undefined,
-          transport: "local-http",
-          lastFrameAt: frame?.receivedAt ?? null,
-          lastFrameAgeMs: ageMs,
-          stale: ageMs === null || ageMs > 60_000,
-          deviceModel: frame?.deviceModel ?? null,
-          retainedFrames: (await listFrames()).length,
-        });
+        // Same definition as GET /api/device/status (device-status.ts). The phone's SSE link lives in the hub process,
+        // which may not be this one, so it is asked over HTTP; connected means a frame arrived in the last minute.
+        return textResult(await collectDeviceStatus(() => fetchHubPhoneOnline()));
       }
       if (request.params.name === "publish_inspection") {
         const args = request.params.arguments as { bugs: BugRegion[]; summary: string } | undefined;

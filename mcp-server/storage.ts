@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { ARCHIVE_DIR, FRAMES_DIR, INSPECTIONS_FILE, MAX_ARCHIVE, MAX_FRAMES, PATCHES_FILE, log } from "./config.js";
@@ -73,11 +73,15 @@ export async function latestFrame(): Promise<FrameMetadata | undefined> {
   return (await listFrames())[0];
 }
 
+/** The extension a frame is stored with: the upload route writes .jpg for JPEG and .png for everything else. */
+const frameExt = (frame: Pick<FrameMetadata, "mimeType">) => (frame.mimeType === "image/jpeg" ? "jpg" : "png");
+
 export async function retainRecentFrames() {
   const frames = await listFrames();
   for (const frame of frames.slice(MAX_FRAMES)) {
     const results = await Promise.allSettled([
-      rename(frame.filePath, path.join(ARCHIVE_DIR, `${frame.id}.png`)),
+      // Keep the real extension: a JPEG renamed to .png is mislabelled for anything that trusts the name.
+      rename(frame.filePath, path.join(ARCHIVE_DIR, `${frame.id}.${frameExt(frame)}`)),
       rename(
         path.join(FRAMES_DIR, `${frame.id}.json`),
         path.join(ARCHIVE_DIR, `${frame.id}.json`),
@@ -90,26 +94,28 @@ export async function retainRecentFrames() {
 }
 
 /**
- * Prune the archive directory when it grows past MAX_ARCHIVE entries.
+ * Prune the archive directory when it grows past MAX_ARCHIVE entries, oldest first.
  *
- * BUG FIX: The archive directory previously grew indefinitely — PNG
- * screenshots are megabytes each and contain sensitive screen content.
+ * BUG FIX: The archive directory previously grew indefinitely — screenshots are megabytes each and contain
+ * sensitive screen content. Age is the metadata file's mtime: renaming a frame into the archive keeps it, so it is
+ * when the frame arrived. (UUID file names carry no time, so sorting by name pruned in arbitrary order.)
  */
 export async function pruneArchive() {
   try {
-    const entries = (await readdir(ARCHIVE_DIR))
-      .filter((name) => name.endsWith(".json"))
-      .sort(); // UUIDs are not time-sortable, but deletion order doesn't matter here
+    const entries = (await readdir(ARCHIVE_DIR)).filter((name) => name.endsWith(".json"));
     if (entries.length <= MAX_ARCHIVE) return;
-    const stale = entries.slice(0, entries.length - MAX_ARCHIVE);
-    for (const jsonName of stale) {
-      const id = jsonName.replace(".json", "");
-      await Promise.allSettled([
-        unlink(path.join(ARCHIVE_DIR, jsonName)),
-        unlink(path.join(ARCHIVE_DIR, `${id}.png`)),
-      ]);
+    const aged = await Promise.all(
+      entries.map(async (name) => ({ name, at: await stat(path.join(ARCHIVE_DIR, name)).then((s) => s.mtimeMs, () => 0) })),
+    );
+    aged.sort((a, b) => a.at - b.at || a.name.localeCompare(b.name));
+    const stale = aged.slice(0, aged.length - MAX_ARCHIVE);
+    for (const { name } of stale) {
+      const id = name.replace(/\.json$/, "");
+      await Promise.allSettled(
+        [name, `${id}.png`, `${id}.jpg`].map((file) => unlink(path.join(ARCHIVE_DIR, file))),
+      );
     }
-    log("INFO", "Archive pruned", { removed: stale.length, remaining: entries.length - stale.length });
+    log("INFO", "Archive pruned", { removed: stale.length, remaining: aged.length - stale.length });
   } catch (error) {
     log("WARN", "Archive prune failed", { error: String(error) });
   }

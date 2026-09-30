@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server as HttpServer } from "node:http";
 import path from "node:path";
@@ -7,9 +6,10 @@ import express from "express";
 import QRCode from "qrcode";
 import { buildCatalog } from "./catalog.js";
 import { osControlSource, setOsControlEnabled } from "./os-control.js";
-import { appApkPath, appManifest } from "./app-update.js";
-import { AUTH_TOKEN, FRAMES_DIR, HTTP_HOST, HTTP_PORT, HUB_VERSION, MAX_BODY_BYTES, PAIR_WINDOW_MINUTES, SSE_KEEPALIVE_MS, agentName, isAuthorized, log } from "./config.js";
-import { advertiseHub, buildPairingLink, isLoopbackReq, mountPairingRoutes, primaryBaseUrl } from "./hub-pairing.js";
+import { mountAppUpdateRoutes } from "./hub-app-update.js";
+import { collectDeviceStatus, phoneOnlineFrom } from "./device-status.js";
+import { FRAMES_DIR, HTTP_HOST, HTTP_PORT, HUB_VERSION, MAX_BODY_BYTES, PAIR_WINDOW_MINUTES, SSE_KEEPALIVE_MS, agentName, isAuthorized, log } from "./config.js";
+import { advertiseHub, buildPairingLink, mountPairingRoutes, primaryBaseUrl } from "./hub-pairing.js";
 import { hubEvents, emitHubEvent, lastEventSeq, recentHubEvents, type HubEvent } from "./events.js";
 import { createSseHub } from "./hub-sse.js";
 import { startHubWatchers } from "./hub-watchers.js";
@@ -17,7 +17,6 @@ import { sseViewOf } from "./profile-registry.js";
 import {
   ensureDataDirs,
   latestFrame,
-  listFrames,
   loadInspection,
   loadPatch,
   parseImageDimensions,
@@ -82,44 +81,8 @@ export async function startHttpHub(): Promise<HubHandle> {
   // ── Zero-friction pairing: /pair, /api/pair, /api/connect-kit, /wake (hub-pairing.ts) ──
   mountPairingRoutes(app, { pairingWindowOpen });
 
-  // ---- In-app update channel ----
-  app.get("/api/app/latest", async (req, res) => {
-    if (!isAuthorized(req.header("authorization")) && !isLoopbackReq(req)) {
-      res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
-      return;
-    }
-    const manifest = await appManifest();
-    if (!manifest) {
-      res.status(404).json({ success: false, error: "No release APK built yet. Run: flutter build apk --release" });
-      return;
-    }
-    const raw = Number(req.query.versionCode);
-    const installed = Number.isFinite(raw) ? raw : null;
-    res.json({
-      success: true,
-      ...manifest,
-      installedVersionCode: installed,
-      updateAvailable: installed === null ? null : manifest.versionCode > installed,
-      url: `${primaryBaseUrl()}/apk?token=${encodeURIComponent(AUTH_TOKEN)}`,
-    });
-  });
-
-  // Serves the APK itself so a phone can fetch the update over the LAN. The
-  // token travels in the query string because a browser download carries no
-  // headers; the path is fixed and no user input reaches it.
-  app.get("/apk", async (req, res) => {
-    const token = String(req.query.token ?? "");
-    if (!isAuthorized(`Bearer ${token}`)) {
-      res.status(403).type("text/plain").send("Invalid ScreenSync pairing token.");
-      return;
-    }
-    if (!existsSync(appApkPath())) {
-      res.status(404).type("text/plain").send("No APK built yet. Run: flutter build apk --release");
-      return;
-    }
-    log("INFO", "APK download", { ip: req.socket?.remoteAddress || req.ip || "" });
-    res.download(appApkPath(), "screensync.apk");
-  });
+  // ---- In-app update channel: /api/app/latest + /apk (hub-app-update.ts) ----
+  mountAppUpdateRoutes(app);
 
   // ── Live push (SSE, hub-sse.ts) ──
   // The phone and every extension keep one persistent stream; the hub pushes frame / inspection / patch /
@@ -258,14 +221,9 @@ export async function startHttpHub(): Promise<HubHandle> {
       res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
       return;
     }
-    const frame = await latestFrame();
-    res.json({
-      connected: Boolean(frame),
-      transport: "local-http",
-      lastFrameAt: frame?.receivedAt ?? null,
-      deviceModel: frame?.deviceModel ?? null,
-      retainedFrames: (await listFrames()).length,
-    });
+    // One shared definition (device-status.ts) with the get_device_status MCP tool: `connected` means a frame
+    // arrived in the last minute, not merely that an old frame file exists; `phoneOnline` is the phone's SSE stream.
+    res.json(await collectDeviceStatus(() => phoneOnlineFrom(sse.clients())));
   });
 
   // Full MCP capability catalog for the Flutter "MCP" page and any HTTP-only
