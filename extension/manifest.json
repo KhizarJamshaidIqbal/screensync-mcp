@@ -62,7 +62,7 @@
     }
   },
   "host_permissions": [
-    "https://screensyncmcp.epsoldev.com/*",
+    "https://www.screensyncmcp.tech/*",
     "http://localhost/*",
     "http://127.0.0.1/*",
     "<all_urls>"

@@ -18,8 +18,8 @@ export const PROBE_URLS = [
   'http://127.0.0.1:3001',
   'http://localhost:3001',
 ];
-export const GUIDE_URL = 'https://screensyncmcp.epsoldev.com/setup-guide.json';
-export const SITE_URL = 'https://screensyncmcp.epsoldev.com';
+export const GUIDE_URL = 'https://www.screensyncmcp.tech/setup-guide.json';
+export const SITE_URL = 'https://www.screensyncmcp.tech';
 export const MDNS_TYPE = '_screensync-hub._tcp';
 
 export const HEALTH_ALARM = 'health-poll';
@@ -47,7 +47,7 @@ export const FALLBACK_GUIDE = {
   hubInstall: {
     prerequisites: ['Node.js 18+'],
     steps: [
-      'Download the hub zip from screensyncmcp.epsoldev.com/extension.html and unzip it anywhere.',
+      'Download the hub zip from www.screensyncmcp.tech/extension.html and unzip it anywhere.',
       'Windows: double-click start-hub.bat · macOS/Linux: sh start-hub.sh (or node screensync-hub.js).',
       'The terminal prints a pairing link + QR and serves on http://localhost:3000 — keep it running.',
       'Scan the QR with the ScreenSync Android app; install the browser extension from the same page.',
