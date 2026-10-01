@@ -49,7 +49,7 @@ def fix_sitemap(path: Path, dry: bool) -> list[str]:
     text = path.read_text(encoding="utf-8")
     original = text
     notes: list[str] = []
-    base = "https://screensyncmcp.epsoldev.com"
+    base = "https://www.screensyncmcp.tech"
     if ("%s/index.html" % base) in text:
         text = text.replace("%s/index.html" % base, "%s/" % base)
         notes.append("sitemap: home loc -> /")
