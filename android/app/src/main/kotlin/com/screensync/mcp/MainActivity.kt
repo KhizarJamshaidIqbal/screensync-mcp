@@ -9,12 +9,10 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
-import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import java.io.File
 
 /// Flutter host activity: wires the platform channels and delegates the real
 /// work to small single-purpose classes in this package.
@@ -23,6 +21,7 @@ import java.io.File
 ///   UpdateInstaller        hub OTA: APK -> system installer
 ///   PlayUpdateHelper       Play In-App Updates
 ///   VendorSettings         brand detection + vendor settings pages
+///   FileSharer             share sheet for frames + the diagnostics report
 class MainActivity : FlutterActivity() {
     companion object {
         private const val PROJ_CHANNEL = "com.screensync.mcp/media_projection"
@@ -151,14 +150,22 @@ class MainActivity : FlutterActivity() {
             "openDeveloperSettings" ->
                 result.success(VendorSettings.openDeveloperSettings(this))
             "bringAppToFront" -> result.success(bringAppToFront())
-            "shareImage" -> {
-                val path = call.argument<String>("path")
-                if (path == null) {
-                    result.success(false)
-                } else {
-                    result.success(shareImage(path))
-                }
-            }
+            "shareImage" -> result.success(
+                call.argument<String>("path")?.let {
+                    FileSharer.share(this, it, "image/*", "Share capture")
+                } ?: false
+            )
+            "shareFile" -> result.success(
+                call.argument<String>("path")?.let {
+                    FileSharer.share(
+                        this,
+                        it,
+                        call.argument<String>("mimeType") ?: "application/octet-stream",
+                        call.argument<String>("title") ?: "Share",
+                        call.argument<String>("subject"),
+                    )
+                } ?: false
+            )
             "pendingSnapCount" -> result.success(pendingSnaps.size)
             "drainPendingSnaps" -> {
                 val drained = pendingSnaps.toList()
@@ -268,25 +275,6 @@ class MainActivity : FlutterActivity() {
             .setContentIntent(openAppIntent)
             .build()
         nm.notify(4202, notification)
-    }
-
-    private fun shareImage(path: String): Boolean {
-        return try {
-            val file = File(path)
-            if (!file.exists()) return false
-            val uri: Uri = FileProvider.getUriForFile(
-                this, "${packageName}.fileprovider", file
-            )
-            val share = Intent(Intent.ACTION_SEND).apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            startActivity(Intent.createChooser(share, "Share capture"))
-            true
-        } catch (e: Exception) {
-            false
-        }
     }
 
     private fun isBatteryWhitelisted(): Boolean {
