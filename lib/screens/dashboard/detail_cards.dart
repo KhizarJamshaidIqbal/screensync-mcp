@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -29,7 +31,8 @@ class SectionHeader extends StatelessWidget {
     return Row(
       children: [
         gradient != null
-            ? GlossyTile(icon: icon, gradient: gradient!, size: 34, iconSize: 16)
+            ? GlossyTile(
+                icon: icon, gradient: gradient!, size: 34, iconSize: 16)
             : Container(
                 width: 34,
                 height: 34,
@@ -41,8 +44,8 @@ class SectionHeader extends StatelessWidget {
               ),
         const SizedBox(width: 10),
         Expanded(
-          child: Text(title,
-              style: AppTheme.typeTitleLarge.copyWith(color: text)),
+          child:
+              Text(title, style: AppTheme.typeTitleLarge.copyWith(color: text)),
         ),
       ],
     );
@@ -132,9 +135,7 @@ class _Pill<T> extends StatelessWidget {
               children: [
                 Icon(option.icon,
                     size: 14,
-                    color: selected
-                        ? Colors.white
-                        : AppTheme.darkTextDim),
+                    color: selected ? Colors.white : AppTheme.darkTextDim),
                 const SizedBox(width: 5),
                 Text(
                   option.label,
@@ -236,9 +237,8 @@ class _MetaRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: AppTheme.typeBodyMedium.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: dark
-                      ? const Color(0xFFF2EEFB)
-                      : const Color(0xFF221A38),
+                  color:
+                      dark ? const Color(0xFFF2EEFB) : const Color(0xFF221A38),
                 ),
               ),
             ),
@@ -270,8 +270,7 @@ class _ValueChip extends StatelessWidget {
             Icon(icon, size: 11, color: color),
             const SizedBox(width: 4),
           ],
-          Text(label,
-              style: AppTheme.microLabel.copyWith(color: color)),
+          Text(label, style: AppTheme.microLabel.copyWith(color: color)),
         ],
       ),
     );
@@ -315,12 +314,67 @@ class RecentCaptureCard extends StatelessWidget {
               value: state.latestFrame?.timestamp
                   .toLocal()
                   .toString()
-                  .split('.').first),
+                  .split('.')
+                  .first),
           _MetaRow(label: 'Hub', value: state.hubUrl),
         ],
       ),
     ).animate().fadeIn(duration: 240.ms);
   }
+}
+
+/// The phone link as /api/device/status reports it. The hub's `connected` only
+/// means "a frame arrived in the last 60 s", so a paired phone that is simply
+/// not capturing showed a red "No" next to the header's "Live". `state` says
+/// what is really going on.
+({String label, Color color, IconData icon}) phoneLinkStatus(
+    Map<String, dynamic> s) {
+  switch (s['state']) {
+    case 'streaming':
+      return (
+        label: 'Streaming',
+        color: AppTheme.success,
+        icon: Icons.check_rounded
+      );
+    case 'linked_no_frames':
+      return (
+        label: 'Linked, idle',
+        color: AppTheme.warning,
+        icon: Icons.pause_rounded
+      );
+    case 'no_phone':
+      return (
+        label: 'Not linked',
+        color: AppTheme.danger,
+        icon: Icons.close_rounded
+      );
+  }
+  // Older hubs send `connected` alone, and there it only meant "a frame file
+  // exists", however old. Say exactly that; never claim a live stream.
+  return s['connected'] == true
+      ? (
+          label: 'Frames on hub',
+          color: AppTheme.warning,
+          icon: Icons.photo_library_outlined
+        )
+      : (
+          label: 'No frames',
+          color: AppTheme.warning,
+          icon: Icons.hide_image_outlined
+        );
+}
+
+/// "4m ago" from the hub's `lastFrameAgeMs`; the raw timestamp when an older
+/// hub does not send the age, and null when there has never been a frame.
+String? lastFrameText(Map<String, dynamic> s) {
+  final age = s['lastFrameAgeMs'];
+  if (age is! num) return s['lastFrameAt'] as String?;
+  final d = Duration(milliseconds: age.toInt());
+  if (d.inSeconds < 10) return 'just now';
+  if (d.inMinutes < 1) return '${d.inSeconds}s ago';
+  if (d.inHours < 1) return '${d.inMinutes}m ago';
+  if (d.inDays < 1) return '${d.inHours}h ago';
+  return '${d.inDays}d ago';
 }
 
 /// Hub-side device connection status (fetched from /api/device/status).
@@ -331,22 +385,58 @@ class DeviceStatusPanel extends StatefulWidget {
   State<DeviceStatusPanel> createState() => _DeviceStatusPanelState();
 }
 
-class _DeviceStatusPanelState extends State<DeviceStatusPanel> {
+class _DeviceStatusPanelState extends State<DeviceStatusPanel>
+    with WidgetsBindingObserver {
+  /// How often the card re-reads the hub while the app is in front. Both the
+  /// phone link and "Last frame: 4m ago" age, and the panel stays mounted in
+  /// the dashboard's IndexedStack, so a one-off fetch went stale for hours.
+  static const refreshEvery = Duration(seconds: 30);
+
   Map<String, dynamic>? _status;
   bool _loading = false;
+  Timer? _timer;
 
-  Future<void> _refresh() async {
-    setState(() => _loading = true);
+  Future<void> _refresh({bool quiet = false}) async {
+    if (!quiet) setState(() => _loading = true);
     final repo = context.read<ScreenCaptureBloc>().screenRepository;
     final result = await repo.fetchDeviceStatus();
-    if (mounted) setState(() { _status = result; _loading = false; });
+    if (mounted) {
+      setState(() {
+        _status = result;
+        _loading = false;
+      });
+    }
   }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _refresh();
+    _timer = Timer.periodic(refreshEvery, (_) {
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        _refresh(quiet: true);
+      }
+    });
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh(quiet: true);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Widget _linkRow(({String label, Color color, IconData icon}) link) =>
+      _MetaRow(
+        label: 'Phone link',
+        chip: _ValueChip(label: link.label, color: link.color, icon: link.icon),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -383,23 +473,12 @@ class _DeviceStatusPanelState extends State<DeviceStatusPanel> {
                 style: AppTheme.typeBodyMedium
                     .copyWith(color: AppTheme.darkTextDim))
           else ...[
-            _MetaRow(
-              label: 'Connected',
-              chip: s['connected'] == true
-                  ? const _ValueChip(
-                      label: 'Yes',
-                      color: AppTheme.success,
-                      icon: Icons.check_rounded)
-                  : const _ValueChip(
-                      label: 'No',
-                      color: AppTheme.danger,
-                      icon: Icons.close_rounded),
-            ),
+            _linkRow(phoneLinkStatus(s)),
             _MetaRow(label: 'Transport', value: s['transport'] as String?),
-            _MetaRow(label: 'Last frame', value: s['lastFrameAt'] as String?),
+            _MetaRow(label: 'Last frame', value: lastFrameText(s)),
             _MetaRow(label: 'Device', value: s['deviceModel'] as String?),
-            _MetaRow(value: '${s['retainedFrames'] ?? 0} / 20',
-                label: 'Retained'),
+            _MetaRow(
+                value: '${s['retainedFrames'] ?? 0} / 20', label: 'Retained'),
           ],
         ],
       ),
