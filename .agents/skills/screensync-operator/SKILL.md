@@ -240,6 +240,33 @@ The user's real browser already has active logins for their accounts (X, LinkedI
 - Emulate devices per tab: `web_device_emulate` (iphone_15, pixel_8, …),
   `web_resize`, `web_set_user_agent`.
 
+## 5b · The Android phone (control_* over ADB)
+
+`control_status` first (is an ADB device reachable), `control_screenshot` to see, then
+**`get_ui_hierarchy`** to locate. Never guess coordinates from a picture when the tree has the node.
+
+- **What a node says:** text, desc, resourceId, className, package, bounds, center, and every state
+  flag: `clickable`, `enabled`, `checkable`, `checked`, `focusable`, `focused`, `scrollable`,
+  `longClickable`, `password`, `selected`; plus `index` (among siblings), `depth` and `parent` (the
+  position of the nearest listed ancestor in the same reply, null at the top).
+- **Default view:** text, desc or clickable nodes, plus scroll containers, EditText fields and
+  checkable toggles. `all: true` lists every node; it is large, so add `fields` (e.g.
+  `["text","center","enabled"]`) or `maxDepth`.
+- **Filters (they combine):** `enabled`, `checked`, `scrollable` (true / false, omit for both),
+  `className` (substring, e.g. `"Switch"`), `region {x1,y1,x2,y2, mode: "intersect"|"inside"}` (pixels,
+  or 0..1 fractions when all four are), `maxDepth`, plus the old `onlyClickable` and `filter`.
+  `format: "tree"` nests `children` instead of the flat list.
+- **Is the toggle on?** `get_ui_hierarchy {checked: true}`. **Will the button work?** Check `enabled`
+  before tapping a submit button; a disabled one does nothing.
+- **`UI_DUMP_FAILED`** (`retryable: true`) means uiautomator could not dump twice in a row (the screen
+  was animating). Wait a second and call again. You never get an older screen's tree instead.
+- **Acting by label:** `control_tap_text {query}` picks the best enabled match (clickable first, then the
+  smallest). Disabled elements are skipped, and the error says how many; pass `enabled: false` to
+  target one on purpose. `index: N` taps the Nth match in hierarchy order (duplicate labels),
+  `className` and `clickableOnly: true` narrow it. `control_swipe_until` matches the same way. With no
+  label, `control_tap` the node's `center`.
+- Verify after acting: `compare_frames`, or read the tree again (`{checked: true}` after a toggle).
+
 ## 6 · Logged-in social flows (the real-account advantage)
 
 There are no dedicated social-scraping or social-posting tools (they were removed on

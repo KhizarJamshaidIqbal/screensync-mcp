@@ -80,6 +80,7 @@ are in [`CLAUDE.md`](CLAUDE.md) and [`AGENTS.md`](AGENTS.md).
 │   │                         / 3 resources)
 │   ├── control*.ts           ADB backend (input, UI tree, logcat, record);
 │   │                         control-adb.ts is the one adb runner (no shell),
+│   │                         control-ui.ts the UI tree and tap_text matcher,
 │   │                         mcp-control.ts the control_* / os_* handlers
 │   ├── storage.ts / config.ts  Retention, env, auth
 │   └── test/                 Unit, guard and E2E suites (`npm test`)
@@ -168,9 +169,9 @@ Diagnose tab shows the heatmap without a manual refresh.
 
 ## MCP capability surface
 
-Single source of truth: [`mcp-server/catalog.ts`](mcp-server/catalog.ts), which composes the 16
-`mcp-server/catalog*.ts` files (the phone, ADB-control and `os_*` tools live in `catalog.ts`; the
-`web_*` browser tools and the cognitive-memory tools are in the sibling files). It is also served at `GET /api/mcp/catalog` and
+Single source of truth: [`mcp-server/catalog.ts`](mcp-server/catalog.ts), which composes the 17
+`mcp-server/catalog*.ts` files (the phone, ADB-control and `os_*` tools live in `catalog-control.ts`;
+the `web_*` browser tools and the cognitive-memory tools are in the other sibling files). It is also served at `GET /api/mcp/catalog` and
 `screensync://skills`. The published tool count is kept in step by `npm run sync:toolcount`.
 
 **Capture & inspect** — `get_latest_screenshot`, `get_recent_screenshots`,

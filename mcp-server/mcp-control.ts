@@ -20,12 +20,10 @@ import {
   screenshotNow,
   scroll,
   swipe,
-  swipeUntil,
   tap,
-  tapText,
   typeText,
-  uiHierarchy,
 } from "./control.js";
+import { readMatchArgs, readUiArgs, shapeUiNodes, swipeUntil, tapText, uiHierarchy, UiDumpError } from "./control-ui.js";
 import { isOsControlEnabled } from "./os-control.js";
 import { latestFrame } from "./storage.js";
 
@@ -107,22 +105,16 @@ const HANDLERS: Record<string, (args: Args) => Promise<ControlResult>> = {
 
   // ── Advanced control / inspection (v2.6) ──
   get_ui_hierarchy: async (args) => {
-    const a = args as { onlyClickable?: boolean; filter?: string } | undefined;
-    let nodes = await uiHierarchy();
-    if (a?.onlyClickable) nodes = nodes.filter((n) => n.clickable);
-    if (a?.filter) {
-      const f = a.filter.toLowerCase();
-      nodes = nodes.filter((n) => `${n.text} ${n.desc}`.toLowerCase().includes(f));
-    }
-    return { data: { success: true, count: nodes.length, nodes } };
+    const { query, fields, format } = readUiArgs(args);
+    return { data: { success: true, ...shapeUiNodes(await uiHierarchy(query), { fields, format }) } };
   },
   control_tap_text: async (args) => {
-    const a = args as { query: string; exact?: boolean };
-    return ok(await tapText(a.query, a.exact ?? false));
+    const a = args as { query: string };
+    return ok(await tapText(a.query, readMatchArgs(args)));
   },
   control_swipe_until: async (args) => {
     const a = args as { query: string; direction?: "up" | "down" | "left" | "right"; maxSwipes?: number };
-    return ok(await swipeUntil(a.query, a.direction ?? "down", a.maxSwipes ?? 8));
+    return ok(await swipeUntil(a.query, a.direction ?? "down", a.maxSwipes ?? 8, readMatchArgs(args)));
   },
   control_open_url: async (args) => {
     const a = args as { url: string };
@@ -213,8 +205,16 @@ export function controlActionNames(): string[] {
   return Object.keys(HANDLERS);
 }
 
-/** Runs one phone, ADB-inspection or OS-plane tool. Throws what the action throws; an unknown name is an error result. */
+/**
+ * Runs one phone, ADB-inspection or OS-plane tool. An unknown name is an error result, and so is a UI dump
+ * that failed twice (code UI_DUMP_FAILED, retryable); anything else the action throws is left to the caller.
+ */
 export async function runControlAction(name: string, args?: Record<string, unknown>): Promise<ControlResult> {
   if (!isControlTool(name)) return fail({ error: `Unknown tool: ${name}` });
-  return HANDLERS[name](args);
+  try {
+    return await HANDLERS[name](args);
+  } catch (error) {
+    if (error instanceof UiDumpError) return fail({ code: error.code, retryable: error.retryable, error: error.message });
+    throw error;
+  }
 }

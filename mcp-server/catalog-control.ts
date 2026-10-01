@@ -109,12 +109,41 @@ export function controlToolDefinitions() {
     {
       name: "get_ui_hierarchy",
       description:
-        "Returns the on-screen UI element tree (text, content-desc, resource-id, class, clickable flag, pixel bounds and center) via uiautomator. Use this to locate elements PRECISELY instead of guessing tap coordinates from a screenshot.",
+        "Returns the on-screen UI elements via uiautomator: text, desc, ids, pixel bounds and center, every state flag (enabled, checked, scrollable, password, ...: see fields) and the hierarchy (depth; parent = index of the nearest listed ancestor, null at the top). Default view: nodes with text, a description or a click, plus scroll containers, EditText fields and toggles; all:true lists every node (large: cut it with fields or maxDepth). Filters combine. A failed dump is retried once, then returns code UI_DUMP_FAILED (retryable), never an older screen's tree. Use this to locate elements PRECISELY instead of guessing tap coordinates from a screenshot.",
       inputSchema: {
         type: "object",
         properties: {
           onlyClickable: { type: "boolean", default: false, description: "Return only clickable elements." },
           filter: { type: "string", description: "Case-insensitive substring to filter node text/desc." },
+          all: { type: "boolean", default: false, description: "Every node, not just the default view." },
+          enabled: { type: "boolean", description: "true: only enabled nodes; false: only disabled ones. Omit for both." },
+          checked: { type: "boolean", description: "true: only checked nodes (switches, checkboxes); false: only unchecked ones." },
+          scrollable: { type: "boolean", description: "true: only scroll containers; false: no scroll containers." },
+          className: { type: "string", maxLength: 200, description: "Case-insensitive substring of the class, e.g. 'Switch' or 'EditText'." },
+          region: {
+            type: "object",
+            description: "Screen rectangle in pixels, or 0..1 fractions when all four values are in 0..1.",
+            required: ["x1", "y1", "x2", "y2"],
+            properties: {
+              x1: { type: "number" }, y1: { type: "number" }, x2: { type: "number" }, y2: { type: "number" },
+              mode: { type: "string", enum: ["intersect", "inside"], default: "intersect", description: "intersect: the node overlaps the rectangle; inside: it lies wholly in it." },
+            },
+            additionalProperties: false,
+          },
+          maxDepth: { type: "integer", minimum: 0, maximum: 200, description: "Only nodes at most this deep (the root is 0)." },
+          fields: {
+            type: "array",
+            uniqueItems: true,
+            description: "Return only these keys per node, e.g. ['text','center','enabled'].",
+            items: {
+              type: "string",
+              enum: [
+                "text", "desc", "resourceId", "className", "clickable", "bounds", "center", "enabled", "checkable", "checked",
+                "focusable", "focused", "scrollable", "longClickable", "password", "selected", "package", "index", "depth", "parent",
+              ],
+            },
+          },
+          format: { type: "string", enum: ["flat", "tree"], default: "flat", description: "flat: a list with depth and parent; tree: nested children (no parent key)." },
         },
         additionalProperties: false,
       },
@@ -122,13 +151,17 @@ export function controlToolDefinitions() {
     {
       name: "control_tap_text",
       description:
-        "Taps the on-screen element whose visible text or content-description matches the query (no coordinates needed). Prefers clickable + most-specific match. Use this for reliable UI navigation.",
+        "Taps the on-screen element whose visible text or content-description matches the query (no coordinates needed). Prefers clickable + most-specific match; index picks the Nth match in hierarchy order instead. Disabled elements are skipped unless enabled:false. Returns the tapped node and the number of matches. Use this for reliable UI navigation.",
       inputSchema: {
         type: "object",
         required: ["query"],
         properties: {
           query: { type: "string", maxLength: 200, description: "Text/label to tap, e.g. 'Login' or 'Add to cart'." },
           exact: { type: "boolean", default: false, description: "Require an exact (not substring) match." },
+          index: { type: "integer", minimum: 0, maximum: 500, description: "Tap the Nth match (0-based, hierarchy order) instead of the best one." },
+          className: { type: "string", maxLength: 200, description: "Only elements whose class contains this, e.g. 'Button'." },
+          enabled: { type: "boolean", default: true, description: "false targets a disabled element instead of an enabled one." },
+          clickableOnly: { type: "boolean", default: false, description: "Only elements that are clickable themselves." },
         },
         additionalProperties: false,
       },
@@ -136,7 +169,7 @@ export function controlToolDefinitions() {
     {
       name: "control_swipe_until",
       description:
-        "Scrolls in a direction until an element matching the query becomes visible (or maxSwipes is reached). Returns whether it was found, how many swipes it took, and the matched node.",
+        "Scrolls in a direction until an element matching the query becomes visible (or maxSwipes is reached). Matches as control_tap_text does, so a disabled match is skipped unless enabled:false. Returns whether it was found, how many swipes it took, and the matched node.",
       inputSchema: {
         type: "object",
         required: ["query"],
@@ -144,6 +177,9 @@ export function controlToolDefinitions() {
           query: { type: "string", maxLength: 200 },
           direction: { type: "string", enum: ["up", "down", "left", "right"], default: "down" },
           maxSwipes: { type: "integer", minimum: 1, maximum: 20, default: 8 },
+          className: { type: "string", maxLength: 200, description: "Only elements whose class contains this." },
+          enabled: { type: "boolean", default: true, description: "false looks for a disabled element instead." },
+          clickableOnly: { type: "boolean", default: false, description: "Only elements that are clickable themselves." },
         },
         additionalProperties: false,
       },

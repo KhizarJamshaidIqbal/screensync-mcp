@@ -11,10 +11,12 @@ import { fileURLToPath } from "node:url";
 import { adb, setAdbRunner, type AdbRunOptions } from "../control-adb.js";
 import {
   controlDeviceInfo, getLogcat, launchApp, longPress, openUrl, pressKey, recordScreen, screenshotNow, scroll, swipe,
-  tap, typeText, uiHierarchy,
+  tap, typeText,
 } from "../control.js";
+import { tapText, uiHierarchy, UiDumpError } from "../control-ui.js";
 import { controlActionNames, isControlTool, runControlAction, toMcpContent } from "../mcp-control.js";
 import { controlToolDefinitions } from "../catalog-control.js";
+import { resolveConsolidatedCall } from "../catalog-consolidated.js";
 
 const fixture = (name: string): string =>
   readFileSync(fileURLToPath(new URL(`./fixtures/adb/${name}`, import.meta.url)), "utf-8");
@@ -196,19 +198,109 @@ test("record_screen: screenrecord gets its own time limit, the pull a larger buf
   ]);
 });
 
-test("uiHierarchy dumps to the device, reads the file back, and an empty read gives no nodes", async () => {
-  let xml = fixture("uiautomator_android14.xml");
-  const calls = fakeAdb((cmd) => (cmd.startsWith("shell cat") ? xml : "UI hierchary dumped to: /sdcard/screensync_ui.xml"));
-  assert.equal((await uiHierarchy()).length, 4);
-  assert.deepEqual(calls.map((c) => c.argv.join(" ")), [
-    "shell uiautomator dump /sdcard/screensync_ui.xml",
-    "shell cat /sdcard/screensync_ui.xml",
-  ]);
-  xml = "";
-  assert.deepEqual(await uiHierarchy(), []);
+// ── The UI tree: a dump is either this screen's or a typed UI_DUMP_FAILED ──
+
+const DUMPED = "UI hierchary dumped to: /sdcard/screensync_ui.xml"; // Android's own spelling
+const NOT_IDLE = fixture("uiautomator_dump_failed.txt"); // "ERROR: could not get idle state." (mid-animation)
+const DUMP_CALLS = ["shell rm -f /sdcard/screensync_ui.xml", "shell uiautomator dump /sdcard/screensync_ui.xml"];
+const READ_CALL = "shell cat /sdcard/screensync_ui.xml";
+
+/** A phone whose `uiautomator dump` answers from `dumps` in turn (the last repeats) and whose dump file holds `file`. */
+function fakeUiDevice(dumps: Array<string | Error>, file = () => fixture("uiautomator_states.xml")): Call[] {
+  let next = 0;
+  return fakeAdb((cmd) => {
+    if (cmd.startsWith("shell uiautomator dump")) {
+      const out = dumps[Math.min(next++, dumps.length - 1)];
+      if (out instanceof Error) throw out;
+      return out;
+    }
+    if (cmd.startsWith("shell cat")) return file();
+    if (cmd.startsWith("shell rm -f") || cmd.startsWith("shell input tap")) return "";
+    throw new Error(`unexpected adb call: ${cmd}`);
+  });
+}
+const argvOf = (calls: Call[]) => calls.map((c) => c.argv.join(" "));
+const isDumpFailure = (pattern: RegExp) => (error: unknown) => {
+  assert.ok(error instanceof UiDumpError);
+  assert.deepEqual([error.code, error.retryable, error.attempts], ["UI_DUMP_FAILED", true, 2]);
+  assert.match(error.message, pattern);
+  return true;
+};
+
+test("uiHierarchy removes the old dump, requires Android's 'dumped' line, then reads this screen back", async () => {
+  const calls = fakeUiDevice([DUMPED], () => fixture("uiautomator_android14.xml"));
+  assert.equal((await uiHierarchy()).length, 5);
+  assert.deepEqual(argvOf(calls), [...DUMP_CALLS, READ_CALL]);
 });
 
-test.todo("a failed or empty dump returns UI_DUMP_FAILED instead of re-reading the previous screen (ui-tree step)");
+test("the stale dump: a failed dump is retried once after ~400 ms, then UI_DUMP_FAILED, and the old file is never read", async () => {
+  // The file on the device still holds the PREVIOUS screen; before this step it was read back and returned.
+  const calls = fakeUiDevice([NOT_IDLE], () => fixture("uiautomator_android14.xml"));
+  const started = Date.now();
+  await assert.rejects(uiHierarchy(), isDumpFailure(/could not get idle state/));
+  assert.ok(Date.now() - started >= 380, "the retry waits for the animation to settle");
+  assert.deepEqual(argvOf(calls), [...DUMP_CALLS, ...DUMP_CALLS]);
+  assert.ok(!calls.some((c) => c.argv.includes("cat")), "the previous screen's file is never read");
+});
+
+test("one failed attempt then a good one returns this screen; a non-zero exit or an empty file also fail typed", async () => {
+  let calls = fakeUiDevice([NOT_IDLE, DUMPED]);
+  assert.equal((await uiHierarchy()).length, 17);
+  assert.deepEqual(argvOf(calls), [...DUMP_CALLS, ...DUMP_CALLS, READ_CALL]);
+
+  fakeUiDevice([new Error("Command failed: adb shell uiautomator dump\nERROR: null root node returned by UiTestAutomationBridge.")]);
+  await assert.rejects(uiHierarchy(), isDumpFailure(/null root node/));
+
+  calls = fakeUiDevice([DUMPED], () => "");
+  await assert.rejects(uiHierarchy(), isDumpFailure(/empty or not XML/));
+  assert.deepEqual(argvOf(calls), [...DUMP_CALLS, READ_CALL, ...DUMP_CALLS, READ_CALL]);
+});
+
+test("runControlAction turns UI_DUMP_FAILED into a typed reply for every UI tool, and nothing is tapped", async () => {
+  const calls = fakeUiDevice([NOT_IDLE]);
+  for (const [tool, args] of [["get_ui_hierarchy", {}], ["control_tap_text", { query: "Cancel" }], ["control_swipe_until", { query: "x" }]] as const) {
+    const reply = toMcpContent(await runControlAction(tool, args));
+    assert.equal(reply.isError, true, tool);
+    const body = JSON.parse((reply.content[0] as { text: string }).text);
+    assert.deepEqual([body.success, body.code, body.retryable], [false, "UI_DUMP_FAILED", true], tool);
+  }
+  assert.ok(!calls.some((c) => c.argv.includes("input")), "no tap and no swipe on a failed dump");
+});
+
+test("control_tap_text: disabled elements are skipped unless asked, index picks the Nth match, className and clickableOnly narrow", async () => {
+  const calls = fakeUiDevice([DUMPED]);
+  const taps = () => calls.filter((c) => c.argv.includes("tap")).map((c) => c.argv.slice(-2).join(","));
+
+  await assert.rejects(tapText("Connect"), /matching "Connect"; 1 disabled match\(es\) skipped \(pass enabled:false/);
+  assert.equal((await tapText("Connect", { enabled: false })).tapped.text, "Connect");
+  const home = await tapText("Home");
+  assert.deepEqual([home.tapped.text, home.matches], ["Home", 2], "best match: clickable first, then the smallest");
+  assert.equal((await tapText("Home", { index: 1 })).tapped.text, "Home office", "index counts in hierarchy order");
+  await assert.rejects(tapText("Home", { index: 2 }), /at index 2 \(2 match\(es\), counted from 0\)/);
+  assert.equal((await tapText("Bluetooth")).tapped.className, "android.widget.Switch", "the clickable switch beats its label");
+  assert.equal((await tapText("Bluetooth", { className: "TextView" })).tapped.className, "android.widget.TextView");
+  await assert.rejects(tapText("Use Wi-Fi", { clickableOnly: true }), /No on-screen element matching "Use Wi-Fi"\. Try/);
+  assert.deepEqual(taps(), ["789,1225", "162,711", "812,711", "954,548", "197,548"]);
+
+  // The same matcher behind control_swipe_until, through the handler: a disabled target is found at once when asked for.
+  const found = await runControlAction("control_swipe_until", { query: "Connect", enabled: false });
+  assert.deepEqual((found.data as { detail: { found: boolean; swipes: number } }).detail.found, true);
+});
+
+test("get_ui_hierarchy takes the new arguments, and the consolidated ui_hierarchy action passes them through", async () => {
+  fakeUiDevice([DUMPED]);
+  const args = { checked: true, fields: ["text", "checked"] };
+  const viaMeta = resolveConsolidatedCall("mobile_control", { action: "ui_hierarchy", args });
+  assert.deepEqual(viaMeta, { toolName: "get_ui_hierarchy", args });
+  const checked = await runControlAction("get_ui_hierarchy", (viaMeta as { args: Record<string, unknown> }).args);
+  assert.deepEqual(checked.data, { success: true, count: 2, nodes: [{ text: "", checked: true }, { text: "Home", checked: true }] });
+
+  const tree = await runControlAction("get_ui_hierarchy", { scrollable: true, fields: ["resourceId"], format: "tree" });
+  assert.deepEqual(tree.data, {
+    success: true, count: 2,
+    tree: [{ resourceId: "com.android.settings:id/recycler_view", children: [{ resourceId: "com.android.settings:id/chips" }] }],
+  });
+});
 
 test("every tool declared in catalog-control.ts is answered by runControlAction, and nothing else is", () => {
   const declared = controlToolDefinitions().map((t) => t.name);
@@ -226,6 +318,7 @@ test("runControlAction + toMcpContent keep the MCP reply shapes of every kind of
     if (cmd === "shell wm size") return fixture("wm_size.txt");
     if (cmd === "exec-out screencap -p") return PNG;
     if (cmd.startsWith("shell cat")) return fixture("uiautomator_android9.xml");
+    if (cmd.startsWith("shell uiautomator dump")) return DUMPED;
     return "";
   });
   const text = (value: unknown) => [{ type: "text", text: JSON.stringify(value, null, 2) }];
@@ -247,7 +340,7 @@ test("runControlAction + toMcpContent keep the MCP reply shapes of every kind of
   const tree = await runControlAction("get_ui_hierarchy", { onlyClickable: true });
   assert.deepEqual((tree.data as { count: number }).count, 2);
   const filtered = await runControlAction("get_ui_hierarchy", { filter: "NETWORK" });
-  assert.deepEqual((filtered.data as { nodes: Array<{ text: string }> }).nodes.map((n) => n.text), ["Network &amp; internet"]);
+  assert.deepEqual((filtered.data as { nodes: Array<{ text: string }> }).nodes.map((n) => n.text), ["Network & internet"]);
 
   const os = toMcpContent(await runControlAction("os_hotkey", { keys: ["ctrl", "r"] }));
   assert.equal(os.isError, true);

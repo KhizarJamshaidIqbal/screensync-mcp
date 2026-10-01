@@ -141,7 +141,8 @@ Read neighbouring files before writing. Match what is there; do not import a new
 - Flat, lowercase, one responsibility per file: `index.ts` (composition root), `config.ts`,
   `events.ts`, `storage.ts`, `mcp.ts`, `prompts.ts`, `hub.ts`, `hub-*.ts` (pairing, SSE, watchers,
   app-update routes), `device-status.ts`, `web.ts` and its `web-*.ts` siblings, the phone plane
-  (`control.ts` actions, `control-adb.ts` adb runner, `mcp-control.ts` control/os tool handlers),
+  (`control.ts` actions, `control-adb.ts` adb runner, `control-ui.ts` UI tree: uiautomator dump,
+  parser, filters, tap_text/swipe_until matcher; `mcp-control.ts` control/os tool handlers),
   `app-update.ts`, and the tool catalogue: `catalog.ts` composes **17 `catalog*.ts` files**
   (`catalog-control.ts` for the phone and OS tools, `catalog-web*.ts`, the cognitive catalogues,
   `catalog-consolidated.ts`). New tool definitions go in the most specific existing catalogue file,

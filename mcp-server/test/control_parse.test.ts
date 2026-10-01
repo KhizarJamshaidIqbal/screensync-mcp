@@ -1,16 +1,21 @@
 // The pure parsers of the phone control path, run on recorded adb output in test/fixtures/adb/.
 // No adb, no phone, no runner: these are the functions every control_* tool leans on.
 //
-// Some cases pin today's behaviour on purpose (the Physical size wins over an Override line, XML
-// entities stay encoded, a disabled button still counts): later steps change them deliberately, and
-// these assertions make that change visible in review.
+// Some cases pin today's behaviour on purpose (the Physical size wins over an Override line): later
+// steps change them deliberately, and these assertions make that change visible in review. The UI tree
+// step did exactly that: XML entities are decoded now, a disabled button says so (enabled: false), and
+// the default view also lists scroll containers. uiautomator_states.xml carries the state flags.
 
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chooseTarget, parseAdbDevices, parseWmSize, targetArgs } from "../control-adb.js";
-import { escapeInputText, isFractionPoint, mapPoint, parseUiAutomatorXml } from "../control.js";
+import { escapeInputText, isFractionPoint, mapPoint } from "../control.js";
+import {
+  decodeXml, parseUiAutomatorXml, parseUiTree, readMatchArgs, readUiArgs, shapeUiNodes, UI_NODE_FIELDS, type UiNode, type UiQuery,
+} from "../control-ui.js";
+import { controlToolDefinitions } from "../catalog-control.js";
 
 const fixture = (name: string): string =>
   readFileSync(fileURLToPath(new URL(`./fixtures/adb/${name}`, import.meta.url)), "utf-8");
@@ -55,49 +60,196 @@ test("wm size: plain output, an Override line, and output that is not a size", (
   assert.equal(parseWmSize("error: no devices/emulators found"), null);
 });
 
-test("uiautomator, Android 9 (single-line dump): only nodes with text, a description or a click", () => {
+test("uiautomator, Android 9 (single-line dump): text, a description, a click or a scroll container", () => {
   const nodes = parseUiAutomatorXml(fixture("uiautomator_android9.xml"));
   assert.deepEqual(
-    nodes.map((n) => [n.text, n.desc, n.clickable]),
+    nodes.map((n) => [n.text, n.desc, n.clickable, n.scrollable]),
     [
-      ["", "", true], // the search toolbar
-      ["Search settings", "", false],
-      ["", "", true], // a clickable settings row
-      ["Network &amp; internet", "", false], // XML entities are not decoded today
-      ["Wi‑Fi, mobile, data usage, hotspot", "", false],
-      ["", "Navigate up", false],
+      ["", "", true, false], // the search toolbar
+      ["Search settings", "", false, false],
+      ["", "", false, true], // the RecyclerView: listed since the UI tree step, so an agent can find what scrolls
+      ["", "", true, false], // a clickable settings row
+      ["Network & internet", "", false, false], // decoded from &amp;
+      ["Wi‑Fi, mobile, data usage, hotspot", "", false, false],
+      ["", "Navigate up", false, false],
     ],
-    "the root FrameLayout and the scrollable RecyclerView carry nothing to act on, so they are skipped",
+    "the root FrameLayout carries nothing to act on, so it is skipped",
   );
   const toolbar = nodes[0];
   assert.equal(toolbar.resourceId, "com.android.settings:id/search_action_bar");
   assert.equal(toolbar.className, "android.widget.Toolbar");
+  assert.equal(toolbar.package, "com.android.settings");
   assert.deepEqual(toolbar.bounds, { x1: 42, y1: 95, x2: 1038, y2: 221 });
   assert.deepEqual(toolbar.center, { x: 540, y: 158 });
   // Centers round half up: (189+768)/2 = 478.5 and (363+410)/2 = 386.5.
-  assert.deepEqual(nodes[4].center, { x: 479, y: 387 });
+  assert.deepEqual(nodes[5].center, { x: 479, y: 387 });
+  // The hierarchy: the row's children point at the row, and the row at the RecyclerView.
+  assert.deepEqual(nodes.map((n) => [n.depth, n.parent]), [[1, null], [2, 0], [1, null], [2, 2], [3, 3], [3, 3], [2, 2]]);
 });
 
 test("uiautomator, Android 14 (indented, with drawing-order and hint): same rules", () => {
   const nodes = parseUiAutomatorXml(fixture("uiautomator_android14.xml"));
   assert.deepEqual(
-    nodes.map((n) => [n.text, n.desc, n.className, n.center.x, n.center.y]),
+    nodes.map((n) => [n.text, n.desc, n.className, n.center.x, n.center.y, n.enabled]),
     [
-      ["Chrome", "Chrome", "android.widget.TextView", 174, 1560],
-      ["", "Play Store", "android.widget.TextView", 418, 1560],
-      // enabled="false" is not read today: a disabled button is still a tap target.
-      ["Uninstall", "", "android.widget.Button", 750, 1470],
-      // The search field has only a hint; it is kept because it is clickable.
-      ["", "", "android.widget.EditText", 540, 2220],
+      ["", "", "android.widget.ScrollView", 540, 924, true], // the scrollable workspace
+      ["Chrome", "Chrome", "android.widget.TextView", 174, 1560, true],
+      ["", "Play Store", "android.widget.TextView", 418, 1560, true],
+      // Still listed, but now it says it is disabled (control_tap_text skips it unless asked).
+      ["Uninstall", "", "android.widget.Button", 750, 1470, false],
+      // The search field has only a hint; it is an EditText, so it is listed even when not clickable.
+      ["", "", "android.widget.EditText", 540, 2220, true],
     ],
   );
-  assert.equal(nodes[3].resourceId, "com.google.android.apps.nexuslauncher:id/search_container_hotseat");
+  assert.equal(nodes[4].resourceId, "com.google.android.apps.nexuslauncher:id/search_container_hotseat");
+  assert.deepEqual(nodes.map((n) => n.parent), [null, 0, 0, 0, null], "the EditText's View parent is not listed");
 });
 
 test("uiautomator: an empty or failed dump parses to no nodes", () => {
   assert.deepEqual(parseUiAutomatorXml(""), []);
   assert.deepEqual(parseUiAutomatorXml(fixture("uiautomator_dump_failed.txt")), []);
   assert.deepEqual(parseUiAutomatorXml("<?xml version='1.0' ?><hierarchy rotation=\"0\"></hierarchy>"), []);
+});
+
+// ── The state flags, the hierarchy, the filters and the projection (uiautomator_states.xml) ──
+
+const STATES = fixture("uiautomator_states.xml");
+const label = (n: UiNode) => n.text || n.desc || n.className.split(".").pop();
+const view = (query: UiQuery) => parseUiAutomatorXml(STATES, query).map(label);
+const pick = (n: UiNode, keys: Array<keyof UiNode>) => Object.fromEntries(keys.map((k) => [k, n[k]]));
+
+test("uiautomator states: every flag is read, and XML entities are decoded", () => {
+  const all = parseUiTree(STATES);
+  assert.equal(all.length, 20);
+  assert.deepEqual(Object.keys(all[0]), [...UI_NODE_FIELDS], "a node carries exactly the documented fields, in order");
+  assert.deepEqual(pick(all[0], ["depth", "parent", "index", "package"]), { depth: 0, parent: null, index: 0, package: "com.android.settings" });
+
+  const connect = all.find((n) => n.text === "Connect")!;
+  assert.deepEqual(pick(connect, ["clickable", "enabled", "index"]), { clickable: true, enabled: false, index: 1 });
+  const wifiSwitch = all[7];
+  assert.deepEqual(pick(wifiSwitch, ["className", "checkable", "checked", "clickable"]), {
+    className: "android.widget.Switch", checkable: true, checked: true, clickable: false,
+  });
+  assert.deepEqual(pick(all[10], ["desc", "checked", "clickable"]), { desc: "Bluetooth", checked: false, clickable: true });
+  assert.deepEqual(pick(all[12], ["text", "checked", "selected"]), { text: "Home", checked: true, selected: true });
+  assert.deepEqual(pick(all[15], ["className", "password", "focused", "focusable", "longClickable", "clickable"]), {
+    className: "android.widget.EditText", password: true, focused: true, focusable: true, longClickable: true, clickable: false,
+  });
+  assert.equal(all[3].text, "Wi-Fi & network");
+  assert.equal(all[16].text, "Status:\nOnline", "&#10; is a newline");
+});
+
+test("entities are decoded once, and unknown or out-of-range ones are left alone", () => {
+  assert.equal(decodeXml("a &amp;amp; b &lt;x&gt; &quot;q&quot; &apos;s&apos;"), "a &amp; b <x> \"q\" 's'");
+  assert.equal(decodeXml("&#x1F600; &#65;"), "😀 A");
+  assert.equal(decodeXml("&nbsp; &#99999999; & plain"), "&nbsp; &#99999999; & plain");
+});
+
+test("the default view: scroll containers, EditText fields and checkable toggles join text, desc and clickable", () => {
+  const nodes = parseUiAutomatorXml(STATES);
+  assert.deepEqual(nodes.map(label), [
+    "Navigate up", "Wi-Fi & network", "RecyclerView", "LinearLayout", "Use Wi-Fi", "Switch", "LinearLayout", "Bluetooth",
+    "Bluetooth", "RecyclerView", "Home", "Work", "Home office", "EditText", "Status:\nOnline", "Cancel", "Connect",
+  ]);
+  // The button bar is a bare layout, so Cancel and Connect hang off the RecyclerView, its nearest listed ancestor.
+  assert.deepEqual(nodes.map((n) => n.parent), [null, null, null, 2, 3, 3, 2, 6, 6, 2, 9, 9, 9, 2, 2, 2, 2]);
+  assert.deepEqual(nodes.map((n) => n.depth), [2, 2, 1, 2, 3, 3, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3]);
+});
+
+test("depth and parent invariants hold in every view, filtered or not", () => {
+  const xmls = [STATES, fixture("uiautomator_android9.xml"), fixture("uiautomator_android14.xml")];
+  const queries: UiQuery[] = [{}, { all: true }, { scrollable: true }, { enabled: false }, { className: "Chip" }, { all: true, maxDepth: 2 },
+    { region: { x1: 0, y1: 300, x2: 1080, y2: 700, mode: "inside" } }];
+  for (const xml of xmls) {
+    for (const query of queries) {
+      const nodes = parseUiAutomatorXml(xml, query);
+      nodes.forEach((n, i) => {
+        if (n.parent === null) return;
+        assert.ok(n.parent < i, `a parent comes first (${JSON.stringify(query)})`);
+        assert.ok(nodes[n.parent].depth < n.depth, `a parent is shallower (${JSON.stringify(query)})`);
+      });
+    }
+    // Unfiltered, the parent is exactly one level up and only the root has none.
+    const all = parseUiTree(xml);
+    for (const n of all) assert.equal(n.parent === null ? 0 : all[n.parent].depth + 1, n.depth);
+  }
+  // A node whose bounds cannot be read is left out, but still counts for its children's depth.
+  const gap = parseUiTree('<hierarchy><node text="a" bounds="[0,0][10,10]"><node text="?"><node text="b" bounds="[1,1][2,2]" /></node></node></hierarchy>');
+  assert.deepEqual(gap.map((n) => [n.text, n.depth, n.parent]), [["a", 0, null], ["b", 2, 0]]);
+});
+
+test("filters: enabled, checked, scrollable, className, maxDepth, all, and the old two", () => {
+  assert.deepEqual(view({ enabled: false }), ["Connect"]);
+  assert.deepEqual(view({ checked: true }), ["Switch", "Home"]);
+  assert.deepEqual(view({ checked: false, className: "Switch" }), ["Bluetooth"]);
+  const scrollers = parseUiAutomatorXml(STATES, { scrollable: true });
+  assert.deepEqual(scrollers.map((n) => [n.resourceId, n.parent]), [
+    ["com.android.settings:id/recycler_view", null], ["com.android.settings:id/chips", 0], // nested RecyclerViews
+  ]);
+  assert.deepEqual(view({ className: "chip" }), ["Home", "Work", "Home office"]);
+  assert.deepEqual(view({ maxDepth: 1 }), ["RecyclerView"]);
+  assert.deepEqual(view({ all: true, maxDepth: 1 }), ["FrameLayout", "ViewGroup", "RecyclerView"]);
+  assert.equal(parseUiAutomatorXml(STATES, { all: true }).length, 20);
+  assert.deepEqual(view({ onlyClickable: true, filter: "HOME" }), ["Home", "Home office"]);
+});
+
+test("region: intersect (the default) or inside, in pixels or as 0..1 fractions of the dump's root", () => {
+  const top = ["Navigate up", "Wi-Fi & network"];
+  assert.deepEqual(view({ region: { x1: 0, y1: 0, x2: 1080, y2: 264 } }), top, "the RecyclerView only touches y=264");
+  assert.deepEqual(view({ region: { x1: 0, y1: 0, x2: 1, y2: 0.1 } }), top, "0.1 of 2400 is y=240");
+  assert.deepEqual(view({ region: { x1: 0, y1: 300, x2: 1080, y2: 700 } }), [
+    "RecyclerView", "LinearLayout", "Use Wi-Fi", "Switch", "LinearLayout", "Bluetooth", "Bluetooth", "RecyclerView", "Home", "Work", "Home office",
+  ]);
+  const inside = parseUiAutomatorXml(STATES, { region: { x1: 1080, y1: 700, x2: 0, y2: 300, mode: "inside" } });
+  assert.deepEqual(inside.map(label), ["Use Wi-Fi", "Switch", "LinearLayout", "Bluetooth", "Bluetooth"], "corners in any order");
+  assert.deepEqual(inside.map((n) => n.parent), [null, null, null, 2, 2]);
+});
+
+test("fields project each node; format tree nests children and drops parent", () => {
+  assert.deepEqual(shapeUiNodes(parseUiAutomatorXml(STATES, { className: "Chip" }), { fields: ["text", "checked", "center"] }), {
+    count: 3,
+    nodes: [
+      { text: "Home", checked: true, center: { x: 162, y: 711 } },
+      { text: "Work", checked: false, center: { x: 423, y: 711 } },
+      { text: "Home office", checked: false, center: { x: 812, y: 711 } },
+    ],
+  });
+  assert.deepEqual(shapeUiNodes(parseUiAutomatorXml(STATES, { scrollable: true }), { fields: ["resourceId"], format: "tree" }), {
+    count: 2,
+    tree: [{ resourceId: "com.android.settings:id/recycler_view", children: [{ resourceId: "com.android.settings:id/chips" }] }],
+  });
+  const full = shapeUiNodes(parseUiAutomatorXml(STATES), { format: "tree" });
+  assert.ok("tree" in full);
+  assert.equal(full.count, 17);
+  assert.deepEqual(full.tree.map((n) => n.children?.length ?? 0), [0, 0, 7]);
+  assert.equal("parent" in full.tree[2], false);
+  const flat = shapeUiNodes(parseUiAutomatorXml(STATES));
+  assert.ok("nodes" in flat && flat.nodes[3].parent === 2, "flat without fields is the whole node");
+});
+
+test("loose MCP arguments become typed options, and the catalogue's fields enum matches the node", () => {
+  const r = readUiArgs({
+    enabled: "false", checked: false, maxDepth: 2.7, className: "", format: "tree",
+    region: { x1: 0, y1: "10", x2: 5, y2: 20, mode: "inside" }, fields: ["text", "nope", "center"],
+  });
+  assert.equal(r.query.enabled, undefined, "a string is not a boolean");
+  assert.equal(r.query.checked, false);
+  assert.equal(r.query.maxDepth, 2);
+  assert.equal(r.query.className, undefined);
+  assert.deepEqual(r.query.region, { x1: 0, y1: 10, x2: 5, y2: 20, mode: "inside" });
+  assert.deepEqual(r.fields, ["text", "center"]);
+  assert.equal(r.format, "tree");
+  assert.equal(readUiArgs({ fields: ["nope"] }).fields, undefined, "no known field left: every field");
+  assert.equal(readUiArgs({ region: { x1: 0 } }).query.region, undefined);
+  assert.equal(readUiArgs(undefined).format, "flat");
+  assert.deepEqual(readMatchArgs({ index: 1, enabled: false, clickableOnly: true, className: "Chip", exact: true }), {
+    exact: true, index: 1, className: "Chip", enabled: false, clickableOnly: true,
+  });
+
+  const schema = controlToolDefinitions().find((t) => t.name === "get_ui_hierarchy")!.inputSchema as unknown as {
+    properties: Record<string, { items?: { enum?: string[] } }>;
+  };
+  assert.deepEqual(schema.properties.fields.items?.enum, [...UI_NODE_FIELDS]);
 });
 
 test("escapeInputText: spaces become %s and shell metacharacters are dropped", () => {
