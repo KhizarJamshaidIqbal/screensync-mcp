@@ -262,7 +262,7 @@ export function consolidatedToolDefinitions() {
     {
       name: "mobile_control",
       description:
-        "Control the connected Android device. Actions: tap (tap coordinates/text), swipe, type (enter text), screenshot (latest screen capture), status (device info), key (press hardware key), launch (open app), scroll, ui_hierarchy (UI element tree with every state flag; args narrow it: all, enabled, checked, scrollable, className, region, maxDepth, fields, format).",
+        "Control the connected Android device. Actions: tap (tap coordinates/text; count: 2 double-taps), swipe, type (enter text), screenshot (latest screen capture), status (device info), key (press hardware key), launch (open app: package, or query = a package-name substring, AMBIGUOUS when several match; list: true lists the launcher apps), scroll, ui_hierarchy (UI element tree with every state flag; args narrow it: all, enabled, checked, scrollable, className, region, maxDepth, fields, format).",
       inputSchema: {
         type: "object" as const,
         properties: {

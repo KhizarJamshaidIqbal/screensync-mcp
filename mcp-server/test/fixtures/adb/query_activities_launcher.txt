@@ -1,0 +1,28 @@
+9 activities found:
+  Activity #0:
+    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false
+    com.android.settings/.Settings
+  Activity #1:
+    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false
+    com.android.chrome/com.google.android.apps.chrome.Main
+  Activity #2:
+    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false
+    com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.WatchWhileActivity
+  Activity #3:
+    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false
+    com.whatsapp/.Main
+  Activity #4:
+    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false
+    com.whatsapp.w4b/com.whatsapp.Main
+  Activity #5:
+    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false
+    com.google.android.gm/.ConversationListActivityGmail
+  Activity #6:
+    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false
+    com.google.android.apps.messaging/.ui.ConversationListActivity
+  Activity #7:
+    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false
+    com.example.tools/.MainActivity
+  Activity #8:
+    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false
+    com.example.tools/.ScannerActivity$Launcher

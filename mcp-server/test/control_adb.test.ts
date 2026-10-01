@@ -135,6 +135,30 @@ test("fraction mapping: 0..1 points scale by `wm size` (read once), pixels pass 
   ]);
 });
 
+test("control_tap count 2: both taps in ONE adb shell call of whole numbers; a bad count or point taps nothing", async () => {
+  const calls = fakeAdb((cmd) => (cmd === "shell wm size" ? fixture("wm_size.txt") : ""));
+  assert.equal(await tap(0.5, 0.5, 2), "double-tapped (540, 1200)");
+  assert.deepEqual(argvOf(calls), ["shell wm size", "shell input tap 540 1200 && input tap 540 1200"]);
+  assert.deepEqual(calls.at(-1)!.argv, ["shell", "input", "tap", "540", "1200", "&&", "input", "tap", "540", "1200"]);
+
+  const viaTool = await runControlAction("control_tap", { x: 100.4, y: 200.6, count: 2 });
+  assert.deepEqual(viaTool.data, { success: true, detail: "double-tapped (100, 201)" });
+  assert.ok(calls.at(-1)!.argv.slice(1).every((a) => /^(\d+|&&|input|tap)$/.test(a)), "only numbers reach the device's sh");
+  await tap(5, 6, 1);
+  assert.deepEqual(calls.at(-1)!.argv, ["shell", "input", "tap", "5", "6"], "count 1 is today's single tap");
+
+  const before = calls.length;
+  for (const count of [0, 3, 1.5]) {
+    await assert.rejects(tap(5, 6, count), (error: unknown) => error instanceof ControlInputError && error.code === "INVALID_TAP_COUNT");
+  }
+  for (const [x, y] of [[Number.NaN, 5], [5, Number.POSITIVE_INFINITY]] as Array<[number, number]>) {
+    await assert.rejects(tap(x, y, 2), (error: unknown) => error instanceof ControlInputError && error.code === "INVALID_COORDINATES");
+  }
+  const reply = JSON.parse((toMcpContent(await runControlAction("control_tap", { x: 1, y: 1, count: 3 })).content[0] as { text: string }).text);
+  assert.deepEqual([reply.success, reply.code, reply.retryable], [false, "INVALID_TAP_COUNT", false]);
+  assert.equal(calls.length, before, "a refused tap never reaches adb");
+});
+
 test("argv shape: typed text and URLs are one argv element, quoted for the device's sh, and never meet a host shell", async () => {
   const calls = fakeAdb((cmd) => (cmd.startsWith("shell pidof") ? "4321 4322\n" : ""));
   const said = `Say "hi" & what's up? a=1`;

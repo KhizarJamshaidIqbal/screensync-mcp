@@ -22,13 +22,14 @@ export function controlToolDefinitions() {
     {
       name: "control_tap",
       description:
-        "Taps the phone screen. Coordinates may be absolute pixels OR normalized [0..1] (auto-detected). Use control_screenshot first to locate the target.",
+        "Taps the phone screen. Coordinates may be absolute pixels OR normalized [0..1] (auto-detected). count: 2 double-taps: both taps run back to back in one shell on the phone (no adb round trip between them), but each still starts its own input process, so on a slow phone verify the result (compare_frames). Use control_screenshot first to locate the target.",
       inputSchema: {
         type: "object",
         required: ["x", "y"],
         properties: {
           x: { type: "number", description: "X (pixels, or 0..1 fraction of width)." },
           y: { type: "number", description: "Y (pixels, or 0..1 fraction of height)." },
+          count: { type: "integer", enum: [1, 2], default: 1, description: "2 double-taps the point." },
         },
         additionalProperties: false,
       },
@@ -97,11 +98,16 @@ export function controlToolDefinitions() {
     },
     {
       name: "control_launch_app",
-      description: "Launches an app by package name (e.g. com.android.settings) or package/activity.",
+      description:
+        "Launches an app by package name (e.g. com.android.settings) or package/activity. Without the exact package, pass query: a case-insensitive substring of the PACKAGE name (not the home-screen label: Gmail is com.google.android.gm), matched against the launcher apps. One match launches it; several return code AMBIGUOUS with the candidates (it never guesses: pass the one you mean as package); none returns NOT_FOUND. list: true returns the launcher apps' package names instead of launching (with query, only the matches). thirdPartyOnly: true narrows query and list to user-installed apps. On an older Android without the launcher query the list is the user-installed apps only (source: third-party). Give package, or query / list.",
       inputSchema: {
         type: "object",
-        required: ["package"],
-        properties: { package: { type: "string", maxLength: 200 } },
+        properties: {
+          package: { type: "string", maxLength: 200, description: "Exact package, or package/activity." },
+          query: { type: "string", maxLength: 100, description: "Case-insensitive substring of the package name, e.g. 'whatsapp'." },
+          list: { type: "boolean", default: false, description: "Return the launcher apps' package names; launch nothing." },
+          thirdPartyOnly: { type: "boolean", default: false, description: "With query or list: user-installed apps only." },
+        },
         additionalProperties: false,
       },
     },

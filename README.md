@@ -81,6 +81,7 @@ are in [`CLAUDE.md`](CLAUDE.md) and [`AGENTS.md`](AGENTS.md).
 │   ├── control*.ts           ADB backend (input, UI tree, logcat, record);
 │   │                         control-adb.ts is the one adb runner (no shell),
 │   │                         control-ui.ts the UI tree and tap_text matcher,
+│   │                         control-apps.ts the app list and launch by query,
 │   │                         mcp-control.ts the control_* / os_* handlers
 │   ├── storage.ts / config.ts  Retention, env, auth
 │   └── test/                 Unit, guard and E2E suites (`npm test`)

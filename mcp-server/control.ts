@@ -18,8 +18,9 @@ import { adb, adbBuffer, parseWmSize, resolveTarget, screenSize, type ScreenSize
  */
 
 /**
- * A typed refusal raised BEFORE anything reaches the phone; `code` says why. runControlAction() turns it
- * into {success:false, code, retryable:false, ...details, error}.
+ * A typed refusal raised BEFORE the phone is acted on (at most it was read, e.g. the app list behind an
+ * AMBIGUOUS launch); `code` says why. runControlAction() turns it into
+ * {success:false, code, retryable:false, ...details, error}.
  */
 export class ControlInputError extends Error {
   readonly retryable = false;
@@ -131,11 +132,30 @@ async function toPixels(x: number, y: number): Promise<[number, number]> {
   return mapPoint(x, y, await screenSize());
 }
 
-export async function tap(x: number, y: number): Promise<string> {
+/**
+ * Taps once, or twice when `count` is 2 (a double tap). The double tap is ONE device shell invocation,
+ * `input tap X Y && input tap X Y`, so no adb round trip sits between the taps; every element but `&&` is a
+ * whole number. Each `input tap` still starts its own process on the phone, so a slow phone can miss
+ * Android's double-tap window: verify the result.
+ */
+export async function tap(x: number, y: number, count = 1): Promise<string> {
+  if (count !== 1 && count !== 2) {
+    throw new ControlInputError("INVALID_TAP_COUNT", `control_tap count must be 1 or 2, not ${String(count)}. Nothing was tapped.`);
+  }
   const [px, py] = await toPixels(x, y);
-  await adb(["shell", "input", "tap", String(px), String(py)]);
-  log("INFO", "control tap", { px, py });
-  return `tapped (${px}, ${py})`;
+  if (!Number.isFinite(px) || !Number.isFinite(py)) {
+    throw new ControlInputError("INVALID_COORDINATES", "control_tap needs finite numeric x and y. Nothing was tapped.");
+  }
+  const point = [String(px), String(py)];
+  if (count === 1) {
+    await adb(["shell", "input", "tap", ...point]);
+    log("INFO", "control tap", { px, py });
+    return `tapped (${px}, ${py})`;
+  }
+  // adb joins these with spaces and the device's sh runs the line.
+  await adb(["shell", "input", "tap", ...point, "&&", "input", "tap", ...point]);
+  log("INFO", "control double tap", { px, py });
+  return `double-tapped (${px}, ${py})`;
 }
 
 export async function swipe(

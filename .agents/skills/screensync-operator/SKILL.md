@@ -265,6 +265,16 @@ The user's real browser already has active logins for their accounts (X, LinkedI
   target one on purpose. `index: N` taps the Nth match in hierarchy order (duplicate labels),
   `className` and `clickableOnly: true` narrow it. `control_swipe_until` matches the same way. With no
   label, `control_tap` the node's `center`.
+- **Double tap:** `control_tap {x, y, count: 2}` runs both taps back to back in one shell on the phone
+  (no adb round trip between them). Each tap still starts its own `input` process, so a slow phone can
+  miss Android's double-tap window: check the result with `compare_frames`.
+- **Opening an app:** `control_launch_app {package}` when you know it. Otherwise `{query: "whatsapp"}`:
+  a case-insensitive substring of the PACKAGE name, not the home-screen label (Gmail is
+  `com.google.android.gm`), matched against the launcher apps. One match launches it; several return
+  `AMBIGUOUS` with `candidates` (it never guesses: pass the one you mean as `package`); none returns
+  `NOT_FOUND`. `{list: true}` returns the package names without launching (add `query` to filter,
+  `thirdPartyOnly: true` for user-installed apps only). On an older Android without the launcher query
+  the list is the user-installed apps only (`source: "third-party"`): launch system apps by package.
 - **Typing:** `control_type` types the text exactly: every printable ASCII character, quotes and
   `& ? $ ; %` included. Unicode typing is not supported yet: non-ASCII text (accents, Urdu, emoji)
   returns `UNICODE_NOT_SUPPORTED` with `count` and types nothing. A newline or tab returns

@@ -13,7 +13,6 @@ import {
   ControlInputError,
   controlDeviceInfo,
   getLogcat,
-  launchApp,
   longPress,
   openUrl,
   pressKey,
@@ -24,6 +23,7 @@ import {
   tap,
   typeText,
 } from "./control.js";
+import { runLaunchApp } from "./control-apps.js";
 import { readMatchArgs, readUiArgs, shapeUiNodes, swipeUntil, tapText, uiHierarchy, UiDumpError } from "./control-ui.js";
 import { isOsControlEnabled } from "./os-control.js";
 import { latestFrame } from "./storage.js";
@@ -76,8 +76,8 @@ const HANDLERS: Record<string, (args: Args) => Promise<ControlResult>> = {
     return { images: [{ data: shot.base64, mimeType: shot.mimeType }] };
   },
   control_tap: async (args) => {
-    const a = args as { x: number; y: number };
-    return ok(await tap(a.x, a.y));
+    const a = args as { x: number; y: number; count?: number };
+    return ok(await tap(a.x, a.y, a.count));
   },
   control_long_press: async (args) => {
     const a = args as { x: number; y: number; durationMs?: number };
@@ -99,10 +99,7 @@ const HANDLERS: Record<string, (args: Args) => Promise<ControlResult>> = {
     const a = args as { key: string };
     return ok(await pressKey(a.key));
   },
-  control_launch_app: async (args) => {
-    const a = args as { package: string };
-    return ok(await launchApp(a.package));
-  },
+  control_launch_app: async (args) => ({ data: { success: true, ...(await runLaunchApp(args)) } }),
 
   // ── Advanced control / inspection (v2.6) ──
   get_ui_hierarchy: async (args) => {
@@ -209,8 +206,8 @@ export function controlActionNames(): string[] {
 /**
  * Runs one phone, ADB-inspection or OS-plane tool. An unknown name is an error result, and so are a UI dump
  * that failed twice (code UI_DUMP_FAILED, retryable) and an input the phone cannot take (ControlInputError:
- * UNICODE_NOT_SUPPORTED, INVALID_URL, ...; not retryable). Anything else the action throws is left to the
- * caller.
+ * UNICODE_NOT_SUPPORTED, INVALID_URL, AMBIGUOUS, NOT_FOUND, ...; not retryable). Anything else the action
+ * throws is left to the caller.
  */
 export async function runControlAction(name: string, args?: Record<string, unknown>): Promise<ControlResult> {
   if (!isControlTool(name)) return fail({ error: `Unknown tool: ${name}` });
