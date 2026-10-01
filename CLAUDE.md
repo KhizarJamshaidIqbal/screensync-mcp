@@ -184,11 +184,25 @@ Read neighbouring files before writing. Match what is there; do not import a new
 - Brand: `#6541D6` / `#150E27` / `#EFEAF9`, light theme, Lucide icons, Plus Jakarta Sans.
 - Custom CSS beyond Tailwind goes in `css/custom.css`; reuse `.btn-primary` / `.btn-secondary` /
   `.lux-card` / `.grad-text` rather than inventing button styles.
-- Every page repeats the nav twice — **desktop nav and `#mobileMenu`**. Change both, or the mobile
-  menu silently loses the item.
+- **One header and footer for the whole site.** Edit them in `website/index.html` only (desktop nav
+  **and** `#mobileMenu`), then run `python tools/site_chrome.py` (copies them into every hand-written
+  page) and both generators: `python tools/build_setup_page.py` (`setup.html`, from
+  `setup-guide.json`) and `python tools/build_changelog.py`. Never hand-edit `setup.html` or
+  `changelog.html`. Gates: `site_chrome.py --check`, `build_setup_page.py --check`,
+  `build_changelog.py --check`, `link_changelog.py --audit`, `update_sitemap_lastmod.py --check`.
+- The blog at `/blogs/` (CBM site 1961 on blog.epsoldev.com, through a Cloudflare Worker) frames
+  `website/embed/header.html` and `embed/footer.html`. They are standalone copies with absolute
+  links: when the site nav changes, change them too, or the blog keeps the old menu.
 - The nav is width-constrained; adding an item can overflow at 768px. Verify no horizontal overflow
   at **375 / 768 / 1024 / 1280** before shipping. `#mobileMenu.open` has a `max-height` cap in
   `custom.css` — raise it when you add a menu item or the last one gets clipped.
+- `.reveal` hides content only under `html.js` (set by an inline script before Tailwind), so the page
+  is readable without JS. Keep the hero out of `.reveal`: it is the LCP element.
+- `website/robots.txt` is not what crawlers see on its own: Cloudflare can prepend its managed
+  AI-crawler block at the edge. Check the live file after changing either.
+- `website/.htaccess` (LiteSpeed) carries the redirects (`/index.html`, extensionless pages,
+  `/blogs` → `/blogs/`), the branded 404, security headers and the `serve.js` block. Verify it live
+  with curl after every deploy that touches it.
 - Preview locally with `node website/serve.js` (port 8899).
 
 ---
