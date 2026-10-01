@@ -17,6 +17,9 @@ Sab kuch isi machine par chalta hai - koi GitHub Actions ki zarurat nahi.
 | `bootstrap.ps1` | Ek dafa ka setup (Python venv + packages) |
 | `build_changelog.py` | Website ka changelog git history se banata hai (`--check` gate) |
 | `fix_site_paths.py` · `link_changelog.py` | Website ke home links aur changelog nav/sitemap links |
+| `site_chrome.py` | `website/index.html` ka header + footer har hand-written page mein copy karta hai (`--check` gate) |
+| `build_setup_page.py` | `website/setup-guide.json` se `website/setup.html` banata hai (`--check` gate) |
+| `update_sitemap_lastmod.py` | `website/sitemap.xml` ki `lastmod` dates git se set karta hai (`--check` gate) |
 | `release.config.json` | Local config (gitignored) - service account key ka path (sirf `serviceAccountPath` padha jata hai) |
 | `release.config.example.json` | Usi ka template (`packageName`, `track`, `defaultNotes` koi tool nahi padhta) |
 | `requirements.txt` | Python packages |
