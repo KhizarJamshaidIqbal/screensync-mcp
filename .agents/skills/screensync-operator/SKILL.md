@@ -285,6 +285,14 @@ The user's real browser already has active logins for their accounts (X, LinkedI
   `select_all`, then `control_type`.
 - **URLs:** `control_open_url` opens the whole URL, query string and fragment included; a non-http(s)
   or malformed one returns `INVALID_URL`.
+- **Consolidated mode** (`mobile_control`): `screenshot` is the live `control_screenshot`; `frame` is
+  the bubble's last upload, which can be minutes old. `tap_text`, `long_press` and `open_url` are
+  actions too.
+- **Without an MCP client** (the app's tool runner, the extension, a script): `POST
+  /api/control/<action>` with the Bearer token runs the same handler, named without `control_` (`tap`,
+  `tap_text`, `open_url`, `launch_app`; the old `launch` still works). A missing required argument is
+  `400 MISSING_ARG` (`missing` lists them) and a non-numeric coordinate `400 INVALID_ARG`, before
+  anything reaches the phone. A typed refusal keeps its `code` (400), and `UI_DUMP_FAILED` is 503.
 - Verify after acting: `compare_frames`, or read the tree again (`{checked: true}` after a toggle).
 
 ## 6 · Logged-in social flows (the real-account advantage)

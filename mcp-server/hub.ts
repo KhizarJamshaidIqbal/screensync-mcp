@@ -7,6 +7,7 @@ import QRCode from "qrcode";
 import { buildCatalog } from "./catalog.js";
 import { osControlSource, setOsControlEnabled } from "./os-control.js";
 import { mountAppUpdateRoutes } from "./hub-app-update.js";
+import { mountControlRoutes } from "./hub-control.js";
 import { collectDeviceStatus, phoneOnlineFrom } from "./device-status.js";
 import { FRAMES_DIR, HTTP_HOST, HTTP_PORT, HUB_VERSION, MAX_BODY_BYTES, PAIR_WINDOW_MINUTES, SSE_KEEPALIVE_MS, agentName, isAuthorized, log } from "./config.js";
 import { advertiseHub, buildPairingLink, mountPairingRoutes, primaryBaseUrl } from "./hub-pairing.js";
@@ -258,57 +259,9 @@ export async function startHttpHub(): Promise<HubHandle> {
     res.json(patch);
   });
 
-  // ── Remote control (gesture / input) over HTTP ──
-  // Same bearer auth as every other /api route. Lets HTTP-only agents (and
-  // this project's own tests) drive the phone via ADB input injection.
-  app.post("/api/control/:action", async (req, res) => {
-    if (!isAuthorized(req.header("authorization"))) {
-      res.status(401).json({ success: false, error: "Invalid ScreenSync pairing token." });
-      return;
-    }
-    const { action } = req.params;
-    const b = (req.body ?? {}) as Record<string, unknown>;
-    // B3: control actions also show on the phone's AI activity timeline.
-    emitHubEvent("tool", `control_${action}`, true);
-    try {
-      const control = await import("./control.js");
-      switch (action) {
-        case "status":
-          res.json({ success: true, device: await control.controlDeviceInfo() });
-          return;
-        case "screenshot": {
-          const shot = await control.screenshotNow();
-          res.json({ success: true, imageDataUrl: `data:${shot.mimeType};base64,${shot.base64}` });
-          return;
-        }
-        case "tap":
-          res.json({ success: true, detail: await control.tap(Number(b.x), Number(b.y)) });
-          return;
-        case "long_press":
-          res.json({ success: true, detail: await control.longPress(Number(b.x), Number(b.y), b.durationMs as number | undefined) });
-          return;
-        case "swipe":
-          res.json({ success: true, detail: await control.swipe(Number(b.x1), Number(b.y1), Number(b.x2), Number(b.y2), b.durationMs as number | undefined) });
-          return;
-        case "scroll":
-          res.json({ success: true, detail: await control.scroll(b.direction as "up" | "down" | "left" | "right", b.amount as number | undefined) });
-          return;
-        case "type":
-          res.json({ success: true, detail: await control.typeText(String(b.text ?? "")) });
-          return;
-        case "key":
-          res.json({ success: true, detail: await control.pressKey(String(b.key ?? "")) });
-          return;
-        case "launch":
-          res.json({ success: true, detail: await control.launchApp(String(b.package ?? "")) });
-          return;
-        default:
-          res.status(404).json({ success: false, error: `Unknown control action: ${action}` });
-      }
-    } catch (error) {
-      res.status(400).json({ success: false, error: String(error) });
-    }
-  });
+  // ── Remote control (gesture / input) over HTTP: POST /api/control/:action (hub-control.ts) ──
+  // Every control_* tool, through the same handler as MCP, behind the same bearer guard as every /api route.
+  mountControlRoutes(app);
 
   // ── Web bridge (browser access for AI agents) ──
   // The ScreenSync extension connects over SSE; these routes let agents see

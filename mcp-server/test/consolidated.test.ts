@@ -115,6 +115,36 @@ test("resolveConsolidatedCall maps actions correctly", () => {
   assert.deepEqual(tapRes, { toolName: "control_tap", args: { x: 100, y: 200 } });
 });
 
+test("mobile_control: screenshot is the live ADB grab, frame the bubble's latest upload; tap_text, long_press and open_url are reachable", () => {
+  const to = (action: string) => {
+    const r = resolveConsolidatedCall("mobile_control", { action, args: { q: 1 } });
+    assert.ok("toolName" in r, `${action}: ${JSON.stringify(r)}`);
+    assert.deepEqual(r.args, { q: 1 }, `${action} passes its args through`);
+    return r.toolName;
+  };
+  // screenshot used to map to get_latest_screenshot: the bubble's last upload, which can be minutes old.
+  assert.equal(to("screenshot"), "control_screenshot");
+  assert.equal(to("frame"), "get_latest_screenshot");
+  assert.equal(to("tap_text"), "control_tap_text");
+  assert.equal(to("long_press"), "control_long_press");
+  assert.equal(to("open_url"), "control_open_url");
+
+  const description = consolidatedToolDefinitions().find((t) => t.name === "mobile_control")!.description;
+  for (const action of ["screenshot", "frame", "tap_text", "long_press", "open_url"]) assert.match(description, new RegExp(`\\b${action}\\b`), action);
+
+  // catalogFor tells a consolidated-mode agent which action reaches a granular tool.
+  const oldEnv = process.env.TOOL_MODE;
+  process.env.TOOL_MODE = "consolidated";
+  try {
+    assert.deepEqual((catalogFor({ tool: "control_screenshot" }) as { reachedVia: unknown }).reachedVia, { tool: "mobile_control", action: "screenshot" });
+    assert.deepEqual((catalogFor({ tool: "get_latest_screenshot" }) as { reachedVia: unknown }).reachedVia, { tool: "mobile_control", action: "frame" });
+    assert.deepEqual((catalogFor({ tool: "control_open_url" }) as { reachedVia: unknown }).reachedVia, { tool: "mobile_control", action: "open_url" });
+  } finally {
+    if (oldEnv === undefined) delete process.env.TOOL_MODE;
+    else process.env.TOOL_MODE = oldEnv;
+  }
+});
+
 test("resolveConsolidatedCall error handling", () => {
   const invalidMeta = resolveConsolidatedCall("non_existent_meta", { action: "status" });
   assert.ok("error" in invalidMeta);

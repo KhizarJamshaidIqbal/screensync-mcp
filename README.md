@@ -214,7 +214,7 @@ summary → heatmap), `publish_patch` (git patch → one-tap copy)
 | `GET /api/device/status` | Bearer | Connection state: `connected` (a frame in the last 60 s), `hasFrames`, `phoneOnline` (phone on the SSE stream), `state` (`streaming` · `linked_no_frames` · `no_phone`), plus the older `stale` / `lastFrameAgeMs` fields |
 | `GET /api/app/latest` · `GET /apk` | Bearer (loopback allowed on `latest`; `/apk` also takes `?token=`) | In-app update channel: newest build manifest (`versionCode`, `sha256`, `apkPath`, `versionSource`) and the APK itself |
 | `GET/POST /api/os-control` | Bearer | Host-level OS-control switch |
-| `POST /api/control/:action` | Bearer | ADB control plane |
+| `POST /api/control/:action` | Bearer | ADB control plane: every `control_*` tool, named without the prefix (`tap`, `tap_text`, `open_url`, `launch_app`, ...; `launch` still works), through the same handler as MCP. A missing required argument is `400 MISSING_ARG` |
 
 ## Configuration
 

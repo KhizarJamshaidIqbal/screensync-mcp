@@ -140,7 +140,8 @@ Read neighbouring files before writing. Match what is there; do not import a new
 
 - Flat, lowercase, one responsibility per file: `index.ts` (composition root), `config.ts`,
   `events.ts`, `storage.ts`, `mcp.ts`, `prompts.ts`, `hub.ts`, `hub-*.ts` (pairing, SSE, watchers,
-  app-update routes), `device-status.ts`, `web.ts` and its `web-*.ts` siblings, the phone plane
+  app-update routes, and `hub-control.ts`: `POST /api/control/:action` runs every `control_*` tool
+  through `runControlAction`, checking the catalogue's required arguments first), `device-status.ts`, `web.ts` and its `web-*.ts` siblings, the phone plane
   (`control.ts` actions, `control-adb.ts` adb runner, `control-ui.ts` UI tree: uiautomator dump,
   parser, filters, tap_text/swipe_until matcher; `control-apps.ts` launcher app list and
   launch-by-query; `mcp-control.ts` control/os tool handlers),

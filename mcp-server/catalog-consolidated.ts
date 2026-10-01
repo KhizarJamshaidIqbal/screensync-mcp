@@ -120,12 +120,17 @@ const ACTION_MAP: Record<string, Record<string, string>> = {
   },
   mobile_control: {
     tap: "control_tap",
+    tap_text: "control_tap_text",
+    long_press: "control_long_press",
     swipe: "control_swipe",
     type: "control_type",
-    screenshot: "get_latest_screenshot",
+    // The live screen over ADB. The bubble's latest upload can be minutes old, so it is `frame`, not `screenshot`.
+    screenshot: "control_screenshot",
+    frame: "get_latest_screenshot",
     status: "get_device_status",
     key: "control_key",
     launch: "control_launch_app",
+    open_url: "control_open_url",
     scroll: "control_scroll",
     ui_hierarchy: "get_ui_hierarchy",
   },
@@ -262,7 +267,7 @@ export function consolidatedToolDefinitions() {
     {
       name: "mobile_control",
       description:
-        "Control the connected Android device. Actions: tap (tap coordinates/text; count: 2 double-taps), swipe, type (enter text), screenshot (latest screen capture), status (device info), key (press hardware key), launch (open app: package, or query = a package-name substring, AMBIGUOUS when several match; list: true lists the launcher apps), scroll, ui_hierarchy (UI element tree with every state flag; args narrow it: all, enabled, checked, scrollable, className, region, maxDepth, fields, format).",
+        "Control the connected Android device. Actions: tap (coordinates; count: 2 double-taps), tap_text (tap the element whose text or description matches query), long_press, swipe, type (enter text), screenshot (the live screen, grabbed over ADB now), frame (the latest bubble capture, which can be old), status (device info), key (press hardware key), launch (open app: package, or query = a package-name substring, AMBIGUOUS when several match; list: true lists the launcher apps), open_url (an http(s) URL in the phone's browser), scroll, ui_hierarchy (UI element tree with every state flag; args narrow it: all, enabled, checked, scrollable, className, region, maxDepth, fields, format).",
       inputSchema: {
         type: "object" as const,
         properties: {
