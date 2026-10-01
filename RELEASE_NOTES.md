@@ -3,6 +3,17 @@
 > These are the release notes for the **browser extension and the desktop hub** (the 1.x versions below), not for the Android app.
 > The Google Play "What's new" text is generated from git history instead: `tools/release_notes.py`, see `docs/RELEASE_NOTES_GUIDE.md`.
 
+## Version 1.14.4 (a new home) — 2026-10-01
+
+- **The website moved to [www.screensyncmcp.tech](https://www.screensyncmcp.tech).** The old address, screensyncmcp.epsoldev.com, no longer works. The extension now loads its setup guide and links from the new site, and the hub's README points there too.
+- **The hub tells the truth about the phone.** `/api/device/status` and `get_device_status` no longer say `connected` because of an old picture: connected now means a frame arrived in the last minute. They also report `hasFrames`, `phoneOnline` and a `state` (`streaming`, `linked_no_frames`, `no_phone`), so you can tell "the phone is linked but not sending" from "no phone at all".
+- **The app update the hub offers is the one it serves.** `/api/app/latest` reads the version from the built APK itself instead of `pubspec.yaml`, gives a download address the phone can reach, and the download accepts the pairing token as a header or in the link.
+- **The popup keeps the phone box while the phone pauses.** It used to vanish while the phone still had pictures on the hub.
+
+Both the extension and the hub changed: update both.
+
+---
+
 ## Version 1.14.3 (screenshots that tell the truth) — 2026-09-29
 
 - **A screenshot names the page it really shows.** Its `url` and `title` are now read after the picture is taken, not before. If the tab navigated while it was being captured (for example because another session moved it), the result says so with `navigatedDuringCapture` and a warning, instead of labelling the new page with the old address. If the window has meanwhile switched to another tab, that picture is dropped and the tab is captured through CDP instead.
