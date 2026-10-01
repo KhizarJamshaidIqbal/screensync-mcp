@@ -10,10 +10,10 @@ html { scroll-behavior: smooth; }
 body { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; }
 
 /* ---------- Scroll reveal ---------- */
-.reveal { opacity: 0; transform: translateY(28px); transition: opacity .6s cubic-bezier(.22,.61,.36,1), transform .6s cubic-bezier(.22,.61,.36,1); }
-.reveal.visible { opacity: 1; transform: none; }
+.js .reveal { opacity: 0; transform: translateY(28px); transition: opacity .6s cubic-bezier(.22,.61,.36,1), transform .6s cubic-bezier(.22,.61,.36,1); }
+.js .reveal.visible { opacity: 1; transform: none; }
 /* Ensure elements visible before JS loads never flash blank */
-@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .js .reveal { opacity: 1; transform: none; } }
 .reveal-delay-1 { transition-delay: .1s; }
 .reveal-delay-2 { transition-delay: .2s; }
 .reveal-delay-3 { transition-delay: .3s; }
@@ -60,18 +60,33 @@ body { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; }
 
 /* ---------- Screenshot frame ---------- */
 .phone-frame { border-radius: 2rem; border: 6px solid #1E1633; box-shadow: 0 24px 70px rgba(21,14,39,.25); overflow: hidden; background:#1E1633; }
-.phone-frame img { display:block; border-radius: 1.6rem; }
+.phone-frame picture, .phone-frame img { display:block; }
+.phone-frame img { border-radius: 1.6rem; }
+.shot-cap { text-align:center; font-size:.75rem; line-height:1rem; font-weight:600; color:#7A7291; margin-top:.75rem; }
+[data-shot]:focus-visible { outline: 3px solid #6541D6; outline-offset: 4px; border-radius: 2rem; }
 
-/* ---------- Marquee for tools ---------- */
+/* ---------- Lightbox (the <img> is created by js/main.js) ---------- */
+#lightbox img { max-height: 90vh; max-width: 100%; border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,.45); }
+
+/* ---------- Inline text link ---------- */
+.link { color:#6541D6; font-weight:600; text-decoration: underline; text-underline-offset: 2px; }
+.link:hover { color:#4F2FB8; }
+
+/* ---------- Marquee for tools (js/main.js clones the set, then adds .is-looping) ---------- */
 .marquee { overflow: hidden; }
-.marquee-track { display:flex; gap:.75rem; width:max-content; animation: marquee 38s linear infinite; }
+.marquee-track { display:flex; gap:.75rem; width:max-content; }
+.marquee-track.is-looping { animation: marquee 38s linear infinite; }
 .marquee:hover .marquee-track { animation-play-state: paused; }
 @keyframes marquee { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .marquee-track.is-looping { animation: none; } }
+.tool-chip { background:#fff; border:1px solid #F3E8FF; border-radius:9999px; padding:.625rem 1.25rem; font-size:.875rem; line-height:1.25rem; font-weight:600; color:#4B4460; box-shadow:0 1px 2px rgba(0,0,0,.05); white-space:nowrap; }
 
 /* ---------- FAQ ---------- */
 .faq-item .faq-a { display:grid; grid-template-rows: 0fr; transition: grid-template-rows .4s ease; }
 .faq-item.open .faq-a { grid-template-rows: 1fr; }
-.faq-item .faq-a > div { overflow: hidden; }
+/* the inner div's bottom padding would keep a closed 0fr row 24px tall and leak a line of the answer */
+.faq-item .faq-a > div { overflow: hidden; padding-bottom: 0; transition: padding-bottom .4s ease; }
+.faq-item.open .faq-a > div { padding-bottom: 1.5rem; }
 .faq-item.open .chev { transform: rotate(180deg); }
 .chev { transition: transform .3s ease; }
 
@@ -88,6 +103,12 @@ body { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; }
 /* counters */
 .stat-num { font-variant-numeric: tabular-nums; }
 
-/* mobile menu */
-#mobileMenu { transition: max-height .4s ease, opacity .3s ease; max-height: 0; opacity: 0; overflow: hidden; }
-#mobileMenu.open { max-height: 520px; opacity: 1; }
+/* mobile menu: 6 links + 2 buttons is ~430px; on a short (landscape) screen it scrolls instead of clipping */
+#mobileMenu { transition: max-height .4s ease, opacity .3s ease, visibility 0s linear .4s; max-height: 0; opacity: 0; overflow: hidden; visibility: hidden; }
+#mobileMenu.open { visibility: visible; transition-delay: 0s; max-height: 640px; max-height: min(640px, calc(100dvh - 4rem)); overflow-y: auto; opacity: 1; }
+
+/* current page: tools/site_chrome.py puts aria-current="page" on the header, menu and footer links to it */
+.site-links a[aria-current="page"], #mobileMenu a[aria-current="page"] { color:#6541D6; font-weight:600; }
+footer a[aria-current="page"] { color:#fff; }
+
+@media (prefers-reduced-motion: reduce) { .float-slow, .twinkle, .pulse-dot, .dash-line { animation: none !important; } html { scroll-behavior: auto; } }

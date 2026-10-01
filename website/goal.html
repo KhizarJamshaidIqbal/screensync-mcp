@@ -3,46 +3,58 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ScreenSync MCP Goal &amp; Roadmap — Vision by EpsolDev</title>
-<meta name="description" content="The goal and roadmap of ScreenSync MCP: making every phone a first-class citizen of the AI agent ecosystem — privately, openly, and beautifully. See what's shipped and next.">
+<title>ScreenSync MCP Roadmap: AI Agent Phone Control, What's Next</title>
+<meta name="description" content="What ScreenSync MCP has shipped, what is in progress and what comes next for private, LAN-first AI agent control of Android phones and browsers.">
 <meta name="robots" content="index,follow">
 <meta name="author" content="EpsolDev">
 <meta name="theme-color" content="#6541D6">
 <link rel="canonical" href="https://www.screensyncmcp.tech/goal.html">
-<link rel="alternate" hreflang="x-default" href="https://www.screensyncmcp.tech/goal.html">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://www.screensyncmcp.tech/goal.html">
-<meta property="og:title" content="ScreenSync MCP Goal &amp; Roadmap — Vision by EpsolDev">
-<meta property="og:description" content="Making every phone a first-class citizen of the AI agent ecosystem — privately and openly.">
-<meta property="og:image" content="https://www.screensyncmcp.tech/assets/logo.png">
 <meta property="og:site_name" content="ScreenSync MCP">
 <meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://www.screensyncmcp.tech/goal.html">
+<meta property="og:title" content="ScreenSync MCP Roadmap: AI Agent Phone Control, What's Next">
+<meta property="og:description" content="What ScreenSync MCP has shipped, what is in progress and what comes next for private, LAN-first AI agent control of Android phones and browsers.">
+<meta property="og:image" content="https://www.screensyncmcp.tech/assets/og/og-default.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="ScreenSync MCP by EpsolDev: AI agents that see and control your Android phone and browser">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:url" content="https://www.screensyncmcp.tech/goal.html">
-<meta name="twitter:title" content="ScreenSync MCP Goal &amp; Roadmap — Vision by EpsolDev">
-<meta name="twitter:description" content="Making every phone a first-class citizen of the AI agent ecosystem — privately and openly.">
-<meta name="twitter:image" content="https://www.screensyncmcp.tech/assets/logo.png">
-<link rel="icon" type="image/png" href="assets/favicon.png">
+<meta name="twitter:title" content="ScreenSync MCP Roadmap: AI Agent Phone Control, What's Next">
+<meta name="twitter:description" content="What ScreenSync MCP has shipped, what is in progress and what comes next for private, LAN-first AI agent control of Android phones and browsers.">
+<meta name="twitter:image" content="https://www.screensyncmcp.tech/assets/og/og-default.jpg">
+<meta name="twitter:image:alt" content="ScreenSync MCP by EpsolDev: AI agents that see and control your Android phone and browser">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/assets/icon-192.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
+<script>document.documentElement.classList.add("js")</script>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
 <link rel="stylesheet" href="css/custom.css">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@graph": [
+    { "@type": "Organization", "@id": "https://epsoldev.com/#organization", "name": "EpsolDev", "url": "https://epsoldev.com/", "email": "info@epsoldev.com" },
+    { "@type": "WebSite", "@id": "https://www.screensyncmcp.tech/#website", "url": "https://www.screensyncmcp.tech/", "name": "ScreenSync MCP", "alternateName": ["ScreenSync"], "publisher": { "@id": "https://epsoldev.com/#organization" }, "inLanguage": "en-US" },
     {
       "@type": "WebPage",
-      "name": "Goal & Vision — ScreenSync MCP",
+      "@id": "https://www.screensyncmcp.tech/goal.html#webpage",
       "url": "https://www.screensyncmcp.tech/goal.html",
-      "description": "The goal and roadmap of ScreenSync MCP by EpsolDev.",
-      "publisher": { "@type": "Organization", "name": "EpsolDev", "url": "https://epsoldev.com", "logo": "https://www.screensyncmcp.tech/assets/logo.png" },
+      "name": "ScreenSync MCP Roadmap: AI Agent Phone Control, What's Next",
+      "description": "What ScreenSync MCP has shipped, what is in progress and what comes next for private, LAN-first AI agent control of Android phones and browsers.",
+      "isPartOf": { "@id": "https://www.screensyncmcp.tech/#website" },
+      "breadcrumb": { "@id": "https://www.screensyncmcp.tech/goal.html#breadcrumb" },
+      "publisher": { "@id": "https://epsoldev.com/#organization" },
       "inLanguage": "en-US"
     },
     {
       "@type": "BreadcrumbList",
+      "@id": "https://www.screensyncmcp.tech/goal.html#breadcrumb",
       "itemListElement": [
         { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.screensyncmcp.tech/" },
         { "@type": "ListItem", "position": 2, "name": "Goal", "item": "https://www.screensyncmcp.tech/goal.html" }
@@ -55,47 +67,56 @@
 <body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
 
 <header class="glass-nav fixed top-0 inset-x-0 z-50">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-full focus:bg-white focus:text-[#6541D6] focus:font-semibold focus:shadow">Skip to content</a>
   <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
-    <a href="/" class="flex items-center gap-2.5">
-      <img src="assets/logo.png" alt="ScreenSync MCP logo" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
+    <a href="/" class="flex items-center gap-2.5 shrink-0">
+      <img src="assets/logo-72.webp" srcset="assets/logo-72.webp 1x, assets/logo-144.webp 2x" width="36" height="36" alt="" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
       <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
     </a>
-    <div class="hidden md:flex items-center gap-7 text-[15px] font-medium text-[#4B4460]">
-      <a href="/" class="hover:text-[#6541D6] transition">Home</a>
-      <a href="about.html" class="hover:text-[#6541D6] transition">About</a>
-      <a href="goal.html" class="hover:text-[#6541D6] transition">Goal</a>
-      <a href="privacy.html" class="hover:text-[#6541D6] transition">Privacy</a>
-      <a href="data-policy.html" class="hover:text-[#6541D6] transition">Data Policy</a>
+    <div class="site-links hidden md:flex items-center gap-4 lg:gap-6 xl:gap-7 text-[15px] font-medium text-[#4B4460] whitespace-nowrap">
+      <a href="/" class="hidden lg:inline hover:text-[#6541D6] transition">Home</a>
+      <a href="screen-mcp.html" class="hover:text-[#6541D6] transition">Screen MCP</a>
+      <a href="setup.html" class="hover:text-[#6541D6] transition">Setup</a>
       <a href="extension.html" class="hover:text-[#6541D6] transition">Extension</a>
-      <a href="changelog.html" class="hover:text-[#6541D6] transition">Changelog</a>
-      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold">Get Connected</a>
+      <a href="/blogs/" class="hover:text-[#6541D6] transition">Blog</a>
+      <span class="hidden lg:inline"><a href="changelog.html" class="hover:text-[#6541D6] transition">Changelog</a></span>
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" title="Get it on Google Play" aria-label="Get App on Google Play" class="hidden xl:inline-flex btn-secondary px-5 py-2 rounded-full text-sm font-semibold items-center gap-2 shrink-0"><i data-lucide="smartphone" class="w-4 h-4"></i> Get App</a>
+      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold shrink-0">Get Connected</a>
     </div>
-    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false"><i data-lucide="menu" class="w-6 h-6"></i></button>
+    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false" aria-controls="mobileMenu">
+      <i data-lucide="menu" class="w-6 h-6"></i>
+    </button>
   </nav>
   <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
     <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
-      <a href="/" class="py-1.5">Home</a><a href="about.html" class="py-1.5">About</a><a href="goal.html" class="py-1.5">Goal</a><a href="privacy.html" class="py-1.5">Privacy</a><a href="data-policy.html" class="py-1.5">Data Policy</a>
+      <a href="/" class="py-1.5">Home</a>
+      <a href="screen-mcp.html" class="py-1.5">Screen MCP</a>
+      <a href="setup.html" class="py-1.5">Setup</a>
       <a href="extension.html" class="py-1.5">Extension</a>
+      <a href="/blogs/" class="py-1.5">Blog</a>
       <a href="changelog.html" class="py-1.5">Changelog</a>
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" class="btn-secondary px-5 py-2.5 rounded-full text-sm font-semibold inline-flex items-center justify-center gap-2 mt-1"><i data-lucide="smartphone" class="w-4 h-4"></i> Get it on Google Play</a>
+      <a href="/#connect" class="btn-primary px-5 py-2.5 rounded-full text-sm font-semibold text-center">Get Connected</a>
     </div>
   </div>
 </header>
 
+<main id="main">
 <section class="hero-glow pt-32 pb-12 sm:pt-40 sm:pb-16">
-  <div class="max-w-4xl mx-auto px-5 sm:px-8 text-center reveal">
+  <div class="max-w-4xl mx-auto px-5 sm:px-8 text-center">
     <span class="inline-flex items-center gap-2 bg-white border border-purple-100 rounded-full px-4 py-1.5 text-xs font-semibold text-[#6541D6] shadow-sm"><i data-lucide="target" class="w-3.5 h-3.5"></i> Where we're heading</span>
-    <h1 class="mt-5 text-4xl sm:text-5xl font-extrabold tracking-tight">Our <span class="grad-text">Goal</span></h1>
+    <h1 class="mt-5 text-4xl sm:text-5xl font-extrabold tracking-tight">Our goal: <span class="grad-text">AI agent phone control</span> that stays private and open</h1>
     <p class="mt-4 text-[#4B4460] text-lg max-w-2xl mx-auto">Make every phone a first-class citizen of the AI agent ecosystem — <strong>privately, openly, and beautifully.</strong></p>
   </div>
 </section>
 
-<main class="max-w-4xl mx-auto px-5 sm:px-8 pb-24 space-y-8">
+<div class="max-w-4xl mx-auto px-5 sm:px-8 pb-24 space-y-8">
 
   <div class="lux-card p-7 sm:p-12 reveal">
     <h2 class="text-2xl font-extrabold tracking-tight">The mission</h2>
     <div class="mt-4 space-y-4 text-[#4B4460] leading-relaxed">
       <p>AI agents are becoming the way people get digital work done. But the agent revolution has a blind spot: <strong>mobile</strong>. Phones are where life actually happens — apps, messages, payments, photos — yet agents can barely see them.</p>
-      <p>Our goal is to close that gap completely: any agent, any phone, live sight and full control, <strong>without a privacy trade-off</strong>. No cloud middleman. No account with us. No data we could leak, because we never hold any — see our <a href="privacy.html" class="text-[#6541D6] font-semibold underline">Privacy Policy</a> and <a href="data-policy.html" class="text-[#6541D6] font-semibold underline">Data Policy</a> for the full picture.</p>
+      <p>Our goal is to close that gap completely: any agent, any phone, live sight and full control, <strong>without a privacy trade-off</strong>. No cloud middleman. No account with us. No data we could leak, because we never hold any. Screenshots your agent asks for do go to that agent's model provider — see our <a href="privacy.html" class="text-[#6541D6] font-semibold underline">Privacy Policy</a> and <a href="data-policy.html" class="text-[#6541D6] font-semibold underline">Data Policy</a> for the full picture.</p>
       <p>When ScreenSync MCP succeeds, "can your AI check something on my phone?" becomes as normal as sharing your screen on a video call — and as private as doing it on your own Wi-Fi.</p>
     </div>
   </div>
@@ -109,7 +130,7 @@
         <div class="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-[#6541D6] to-[#8B6AEC] flex items-center justify-center z-10 shadow-lg shadow-purple-200"><i data-lucide="check" class="w-5 h-5 text-white"></i></div>
         <div><span class="text-xs font-bold text-emerald-500 uppercase tracking-wider">Shipped · v2.5</span>
           <h3 class="font-bold text-lg mt-0.5">The live pipeline</h3>
-          <p class="text-sm text-[#4B4460] mt-1.5 leading-relaxed">Floating bubble &amp; shake capture · mDNS discovery · SSE live stream with P50/P95 health HUD · 226 MCP tools &amp; 17 agent prompts · QR Connect-Kit pairing · SQLite gallery · Google Drive BYOS fallback · light/dark themes.</p>
+          <p class="text-sm text-[#4B4460] mt-1.5 leading-relaxed">Floating bubble &amp; shake capture · mDNS discovery · SSE live stream with P50/P95 health HUD · 226 MCP tools (29 for phone and desktop, 197 for the browser) &amp; 17 agent prompts · Chrome &amp; Edge extension · QR Connect-Kit pairing · SQLite gallery · Google Drive BYOS fallback · light/dark themes.</p>
         </div>
       </div>
 
@@ -140,9 +161,9 @@
   </div>
 
   <div class="grid sm:grid-cols-3 gap-6">
-    <div class="lux-card p-7 text-center reveal"><div class="stat-num text-4xl font-extrabold grad-text" data-count="226">0</div><p class="text-sm font-semibold text-[#7A7291] mt-2">MCP tools today</p></div>
-    <div class="lux-card p-7 text-center reveal reveal-delay-1"><div class="stat-num text-4xl font-extrabold grad-text" data-count="17">0</div><p class="text-sm font-semibold text-[#7A7291] mt-2">Built-in agent prompts</p></div>
-    <div class="lux-card p-7 text-center reveal reveal-delay-2"><div class="stat-num text-4xl font-extrabold grad-text" data-count="0">0</div><p class="text-sm font-semibold text-[#7A7291] mt-2">Servers holding your data</p></div>
+    <div class="lux-card p-7 text-center reveal"><div class="stat-num text-4xl font-extrabold grad-text" data-count="226">226</div><p class="text-sm font-semibold text-[#7A7291] mt-2">MCP tools today: 29 for phone and desktop, 197 for the browser</p></div>
+    <div class="lux-card p-7 text-center reveal reveal-delay-1"><div class="stat-num text-4xl font-extrabold grad-text" data-count="17">17</div><p class="text-sm font-semibold text-[#7A7291] mt-2">Built-in agent prompts</p></div>
+    <div class="lux-card p-7 text-center reveal reveal-delay-2"><div class="stat-num text-4xl font-extrabold grad-text" data-count="0">0</div><p class="text-sm font-semibold text-[#7A7291] mt-2">EpsolDev servers holding your data</p></div>
   </div>
 
   <div class="reveal rounded-[2rem] bg-gradient-to-br from-[#6541D6] via-[#7451DE] to-[#8B6AEC] p-10 sm:p-14 text-center text-white shadow-2xl shadow-purple-300">
@@ -150,43 +171,55 @@
     <p class="mt-4 text-purple-100 max-w-xl mx-auto">Feedback and ideas shape this roadmap. Tell us what your agent should be able to do on your phone.</p>
     <a href="mailto:info@epsoldev.com" class="mt-8 inline-flex items-center gap-2 bg-white text-[#6541D6] px-8 py-3.5 rounded-full font-bold hover:scale-105 transition shadow-lg"><i data-lucide="mail" class="w-5 h-5"></i> info@epsoldev.com</a>
   </div>
-</main>
+</div>
 
 <section class="max-w-4xl mx-auto px-5 sm:px-8 pb-14">
   <p class="text-sm text-[#4B4460] leading-relaxed">Every release is written down &mdash;
     <a href="changelog.html" class="text-[#6541D6] font-semibold underline decoration-dotted">read the changelog</a>
     for what changed in the Android app and the browser extension, build by build.</p>
 </section>
+</main>
 
 <footer class="bg-[#150E27] text-purple-200/80">
-  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-3 gap-10">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
     <div>
-      <div class="flex items-center gap-2.5"><img src="assets/logo.png" alt="ScreenSync MCP" class="w-9 h-9 rounded-xl"><span class="font-extrabold text-white text-lg">ScreenSync MCP</span></div>
-      <p class="text-sm mt-4 leading-relaxed text-purple-200/60">Your AI, watching over your shoulder. Live Android screen capture &amp; control for MCP agents — LAN-first, privacy-first.</p>
+      <div class="flex items-center gap-2.5">
+        <img src="assets/logo-72.webp" srcset="assets/logo-72.webp 1x, assets/logo-144.webp 2x" width="36" height="36" alt="" class="w-9 h-9 rounded-xl" loading="lazy" decoding="async">
+        <span class="font-extrabold text-white text-lg">ScreenSync MCP</span>
+      </div>
+      <p class="text-sm mt-4 leading-relaxed text-purple-200/70">Your AI, watching over your shoulder. A free Android MCP server for Claude and any MCP agent, with phone, desktop and browser in one local-first hub.</p>
     </div>
     <div>
-      <h4 class="text-white font-bold mb-4">Pages</h4>
+      <p class="text-white font-bold mb-4">Product</p>
       <ul class="space-y-2.5 text-sm">
-        <li><a href="/" class="hover:text-white transition">Home</a></li>
-        <li><a href="about.html" class="hover:text-white transition">About Us</a></li>
-        <li><a href="goal.html" class="hover:text-white transition">Goal &amp; Vision</a></li>
-        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
-        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
-        <li><a href="extension.html" class="hover:text-white transition">Browser Extension</a></li>
+        <li><a href="screen-mcp.html" class="hover:text-white transition">Screen MCP</a></li>
+        <li><a href="android-mcp-servers.html" class="hover:text-white transition">Android MCP servers compared</a></li>
+        <li><a href="setup.html" class="hover:text-white transition">Setup guide</a></li>
+        <li><a href="extension.html" class="hover:text-white transition">Browser extension</a></li>
         <li><a href="changelog.html" class="hover:text-white transition">Changelog</a></li>
+        <li><a href="/blogs/" class="hover:text-white transition">Blog</a></li>
       </ul>
     </div>
     <div>
-      <h4 class="text-white font-bold mb-4">Contact</h4>
+      <p class="text-white font-bold mb-4">Company</p>
       <ul class="space-y-2.5 text-sm">
-        <li class="flex items-center gap-2"><i data-lucide="globe" class="w-4 h-4"></i><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
-        <li class="flex items-center gap-2"><i data-lucide="mail" class="w-4 h-4"></i><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+        <li><a href="about.html" class="hover:text-white transition">About</a></li>
+        <li><a href="goal.html" aria-current="page" class="hover:text-white transition">Goal</a></li>
+        <li><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
+        <li><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Legal</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
+        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
       </ul>
     </div>
   </div>
-  <div class="border-t border-white/10 py-6 text-center text-xs text-purple-200/50">© <span class="year"></span> EpsolDev · ScreenSync MCP v2.5 · All rights reserved.</div>
+  <div class="border-t border-white/10 py-6 px-5 text-center text-xs text-purple-200/70">© <span class="year">2026</span> EpsolDev · ScreenSync MCP · App 2.5.7 · Extension 1.14.4 · All rights reserved.</div>
 </footer>
 
-<script src="js/main.js"></script>
+<script src="js/main.js" defer></script>
 </body>
 </html>

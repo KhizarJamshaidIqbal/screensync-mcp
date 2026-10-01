@@ -3,47 +3,60 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Data Policy — ScreenSync MCP Data Lifecycle | EpsolDev</title>
-<meta name="description" content="ScreenSync MCP Data Policy: the complete data lifecycle — what data exists, where it is stored, how it moves, how long it is kept, and how to delete it. Zero server-side data.">
+<title>Data Policy: Where ScreenSync MCP Screen Captures Are Stored</title>
+<meta name="description" content="Where ScreenSync MCP data lives (phone, your hub, optional Google Drive, the AI provider you connect), how frames move, and how to delete them.">
 <meta name="robots" content="index,follow">
 <meta name="author" content="EpsolDev">
 <meta name="theme-color" content="#6541D6">
 <link rel="canonical" href="https://www.screensyncmcp.tech/data-policy.html">
-<link rel="alternate" hreflang="x-default" href="https://www.screensyncmcp.tech/data-policy.html">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://www.screensyncmcp.tech/data-policy.html">
-<meta property="og:title" content="Data Policy — ScreenSync MCP">
-<meta property="og:description" content="The complete data lifecycle of ScreenSync MCP: storage locations, transport security, retention and deletion.">
-<meta property="og:image" content="https://www.screensyncmcp.tech/assets/logo.png">
 <meta property="og:site_name" content="ScreenSync MCP">
 <meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://www.screensyncmcp.tech/data-policy.html">
+<meta property="og:title" content="Data Policy: Where ScreenSync MCP Screen Captures Are Stored">
+<meta property="og:description" content="Where ScreenSync MCP data lives (phone, your hub, optional Google Drive, the AI provider you connect), how frames move, and how to delete them.">
+<meta property="og:image" content="https://www.screensyncmcp.tech/assets/og/og-default.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="ScreenSync MCP by EpsolDev: AI agents that see and control your Android phone and browser">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:url" content="https://www.screensyncmcp.tech/data-policy.html">
-<meta name="twitter:title" content="Data Policy — ScreenSync MCP">
-<meta name="twitter:description" content="The complete data lifecycle of ScreenSync MCP: storage locations, transport security, retention and deletion.">
-<meta name="twitter:image" content="https://www.screensyncmcp.tech/assets/logo.png">
-<link rel="icon" type="image/png" href="assets/favicon.png">
+<meta name="twitter:title" content="Data Policy: Where ScreenSync MCP Screen Captures Are Stored">
+<meta name="twitter:description" content="Where ScreenSync MCP data lives (phone, your hub, optional Google Drive, the AI provider you connect), how frames move, and how to delete them.">
+<meta name="twitter:image" content="https://www.screensyncmcp.tech/assets/og/og-default.jpg">
+<meta name="twitter:image:alt" content="ScreenSync MCP by EpsolDev: AI agents that see and control your Android phone and browser">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/assets/icon-192.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
+<script>document.documentElement.classList.add("js")</script>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
 <link rel="stylesheet" href="css/custom.css">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@graph": [
+    { "@type": "Organization", "@id": "https://epsoldev.com/#organization", "name": "EpsolDev", "url": "https://epsoldev.com/", "email": "info@epsoldev.com" },
+    { "@type": "WebSite", "@id": "https://www.screensyncmcp.tech/#website", "url": "https://www.screensyncmcp.tech/", "name": "ScreenSync MCP", "alternateName": ["ScreenSync"], "publisher": { "@id": "https://epsoldev.com/#organization" }, "inLanguage": "en-US" },
     {
       "@type": "WebPage",
-      "name": "Data Policy",
+      "@id": "https://www.screensyncmcp.tech/data-policy.html#webpage",
       "url": "https://www.screensyncmcp.tech/data-policy.html",
-      "description": "The complete data lifecycle of ScreenSync MCP: storage, transport, retention and deletion.",
-      "dateModified": "2026-08-29",
-      "publisher": { "@type": "Organization", "name": "EpsolDev", "url": "https://epsoldev.com", "logo": "https://www.screensyncmcp.tech/assets/logo.png", "email": "info@epsoldev.com" },
+      "name": "Data Policy: Where ScreenSync MCP Screen Captures Are Stored",
+      "description": "Where ScreenSync MCP data lives (phone, your hub, optional Google Drive, the AI provider you connect), how frames move, and how to delete them.",
+      "isPartOf": { "@id": "https://www.screensyncmcp.tech/#website" },
+      "breadcrumb": { "@id": "https://www.screensyncmcp.tech/data-policy.html#breadcrumb" },
+      "datePublished": "2026-08-29",
+      "dateModified": "2026-10-01",
+      "publisher": { "@id": "https://epsoldev.com/#organization" },
       "inLanguage": "en-US"
     },
     {
       "@type": "BreadcrumbList",
+      "@id": "https://www.screensyncmcp.tech/data-policy.html#breadcrumb",
       "itemListElement": [
         { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.screensyncmcp.tech/" },
         { "@type": "ListItem", "position": 2, "name": "Data Policy", "item": "https://www.screensyncmcp.tech/data-policy.html" }
@@ -56,44 +69,53 @@
 <body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
 
 <header class="glass-nav fixed top-0 inset-x-0 z-50">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-full focus:bg-white focus:text-[#6541D6] focus:font-semibold focus:shadow">Skip to content</a>
   <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
-    <a href="/" class="flex items-center gap-2.5">
-      <img src="assets/logo.png" alt="ScreenSync MCP logo" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
+    <a href="/" class="flex items-center gap-2.5 shrink-0">
+      <img src="assets/logo-72.webp" srcset="assets/logo-72.webp 1x, assets/logo-144.webp 2x" width="36" height="36" alt="" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
       <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
     </a>
-    <div class="hidden md:flex items-center gap-7 text-[15px] font-medium text-[#4B4460]">
-      <a href="/" class="hover:text-[#6541D6] transition">Home</a>
-      <a href="about.html" class="hover:text-[#6541D6] transition">About</a>
-      <a href="goal.html" class="hover:text-[#6541D6] transition">Goal</a>
-      <a href="privacy.html" class="hover:text-[#6541D6] transition">Privacy</a>
-      <a href="data-policy.html" class="hover:text-[#6541D6] transition">Data Policy</a>
+    <div class="site-links hidden md:flex items-center gap-4 lg:gap-6 xl:gap-7 text-[15px] font-medium text-[#4B4460] whitespace-nowrap">
+      <a href="/" class="hidden lg:inline hover:text-[#6541D6] transition">Home</a>
+      <a href="screen-mcp.html" class="hover:text-[#6541D6] transition">Screen MCP</a>
+      <a href="setup.html" class="hover:text-[#6541D6] transition">Setup</a>
       <a href="extension.html" class="hover:text-[#6541D6] transition">Extension</a>
-      <a href="changelog.html" class="hover:text-[#6541D6] transition">Changelog</a>
-      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold">Get Connected</a>
+      <a href="/blogs/" class="hover:text-[#6541D6] transition">Blog</a>
+      <span class="hidden lg:inline"><a href="changelog.html" class="hover:text-[#6541D6] transition">Changelog</a></span>
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" title="Get it on Google Play" aria-label="Get App on Google Play" class="hidden xl:inline-flex btn-secondary px-5 py-2 rounded-full text-sm font-semibold items-center gap-2 shrink-0"><i data-lucide="smartphone" class="w-4 h-4"></i> Get App</a>
+      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold shrink-0">Get Connected</a>
     </div>
-    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false"><i data-lucide="menu" class="w-6 h-6"></i></button>
+    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false" aria-controls="mobileMenu">
+      <i data-lucide="menu" class="w-6 h-6"></i>
+    </button>
   </nav>
   <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
     <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
-      <a href="/" class="py-1.5">Home</a><a href="about.html" class="py-1.5">About</a><a href="goal.html" class="py-1.5">Goal</a><a href="privacy.html" class="py-1.5">Privacy</a><a href="data-policy.html" class="py-1.5">Data Policy</a>
+      <a href="/" class="py-1.5">Home</a>
+      <a href="screen-mcp.html" class="py-1.5">Screen MCP</a>
+      <a href="setup.html" class="py-1.5">Setup</a>
       <a href="extension.html" class="py-1.5">Extension</a>
+      <a href="/blogs/" class="py-1.5">Blog</a>
       <a href="changelog.html" class="py-1.5">Changelog</a>
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" class="btn-secondary px-5 py-2.5 rounded-full text-sm font-semibold inline-flex items-center justify-center gap-2 mt-1"><i data-lucide="smartphone" class="w-4 h-4"></i> Get it on Google Play</a>
+      <a href="/#connect" class="btn-primary px-5 py-2.5 rounded-full text-sm font-semibold text-center">Get Connected</a>
     </div>
   </div>
 </header>
 
+<main id="main">
 <section class="hero-glow pt-32 pb-12 sm:pt-40 sm:pb-16">
-  <div class="max-w-4xl mx-auto px-5 sm:px-8 text-center reveal">
+  <div class="max-w-4xl mx-auto px-5 sm:px-8 text-center">
     <span class="inline-flex items-center gap-2 bg-white border border-purple-100 rounded-full px-4 py-1.5 text-xs font-semibold text-[#6541D6] shadow-sm"><i data-lucide="database" class="w-3.5 h-3.5"></i> Full data lifecycle transparency</span>
-    <h1 class="mt-5 text-4xl sm:text-5xl font-extrabold tracking-tight">Data <span class="grad-text">Policy</span></h1>
-    <p class="mt-4 text-[#4B4460] text-lg">Where every byte lives, how it moves, and how you delete it. · Last updated: 29 August 2026</p>
+    <h1 class="mt-5 text-4xl sm:text-5xl font-extrabold tracking-tight">ScreenSync MCP Data Policy: <span class="grad-text">where every byte lives</span></h1>
+    <p class="mt-4 text-[#4B4460] text-lg">How data moves, how long it stays, and how you delete it. · Last updated: 1 October 2026</p>
   </div>
 </section>
 
-<main class="max-w-4xl mx-auto px-5 sm:px-8 pb-24">
+<div class="max-w-4xl mx-auto px-5 sm:px-8 pb-24">
   <div class="lux-card p-7 sm:p-12 prose-legal reveal">
 
-    <p>This Data Policy complements our <a href="privacy.html" class="text-[#6541D6] font-semibold">Privacy Policy</a> with an engineering-level view of the complete data lifecycle in ScreenSync MCP. Our design principle: <strong>your data stays on hardware you own, moves only over networks you control, and is deletable by you at every stage.</strong></p>
+    <p>This Data Policy complements our <a href="privacy.html" class="text-[#6541D6] font-semibold">Privacy Policy</a> with an engineering-level view of the complete data lifecycle in ScreenSync MCP. Our design principle: <strong>your data stays on hardware you own, moves only over networks you control, and is deletable by you at every stage.</strong> The exceptions are the ones you switch on: the optional Google Drive fallback, and frames or page data an AI agent you connect asks for, which go to that agent's model provider (§2, step 4).</p>
 
     <h2 id="map">1. Data Map — Every Store, Every Location</h2>
     <div class="overflow-x-auto">
@@ -105,13 +127,16 @@
         <tr><td>Capture history index</td><td>SQLite database (sqflite)</td><td>Your phone</td><td>You</td></tr>
         <tr><td>Settings &amp; feature flags</td><td>SharedPreferences</td><td>Your phone</td><td>You</td></tr>
         <tr><td>Pairing token</td><td>SharedPreferences + hub config</td><td>Your phone + your computer</td><td>You</td></tr>
-        <tr><td>Received frames</td><td>Hub data directory (`mcp-server/data`)</td><td>Your computer</td><td>You</td></tr>
+        <tr><td>Received frames</td><td>Hub data directory (<code>mcp-server/data</code>)</td><td>Your computer</td><td>You</td></tr>
         <tr><td>Event / sync logs</td><td>Hub log files</td><td>Your computer</td><td>You</td></tr>
+        <tr><td>Extension settings (hub address, pairing token, per-site permissions, agent action log, browser profile email and name)</td><td>Browser local extension storage</td><td>Your computer</td><td>You</td></tr>
+        <tr><td>Extension display preferences (theme, reduced motion, approval chime)</td><td>Browser sync storage</td><td>Your browser account, if browser sync is on</td><td>You (via your browser)</td></tr>
         <tr><td>Drive BYOS uploads (optional)</td><td>Your Google Drive folder</td><td>Google servers, your account</td><td>You (via Google)</td></tr>
+        <tr><td>Frames and page data an AI agent requested</td><td>That agent's conversation</td><td>Your AI provider's servers</td><td>Your AI provider's terms</td></tr>
       </tbody>
     </table>
     </div>
-    <p><strong>Not on this map:</strong> any EpsolDev server. We don't operate one for the App. Zero telemetry is phoned home.</p>
+    <p><strong>Not on this map:</strong> any EpsolDev server. We don't operate one for the App, Hub or Extension. Zero telemetry is phoned home.</p>
 
     <h2 id="flow">2. Data Flow — How a Frame Travels</h2>
     <ul>
@@ -120,6 +145,7 @@
       <li><strong>Step 2b — Transport (Drive BYOS, optional fallback):</strong> If enabled and the hub is unreachable, the frame uploads to a dedicated folder in <em>your</em> Google Drive over HTTPS/TLS using your OAuth token. The hub later pulls it from your Drive.</li>
       <li><strong>Step 3 — Hub storage:</strong> The Hub stores the frame in its local data directory and emits an SSE event so the app's dashboard and AI activity feed update live.</li>
       <li><strong>Step 4 — Agent access:</strong> An MCP client connected to your Hub (stdio) may fetch frames via tools like <code>get_latest_screenshot</code>. The frame then goes to that agent under the agent provider's terms — you choose whether and when any agent is connected.</li>
+      <li><strong>Browser extension:</strong> when an agent calls a browser tool, the Hub passes the request to the Extension, which returns the tab screenshot, page content or browser data (such as history, bookmarks or cookies) to the Hub and on to the agent. Web access can be turned off with one toggle or Alt+Shift+S.</li>
     </ul>
 
     <h2 id="transport">3. Transport Security</h2>
@@ -129,8 +155,10 @@
       <tbody>
         <tr><td>Phone → Hub</td><td>HTTP over your LAN</td><td>Bearer token</td><td>Local network only</td></tr>
         <tr><td>Hub → Phone (events)</td><td>SSE (HTTP)</td><td>Bearer token</td><td>Local network only</td></tr>
+        <tr><td>Extension ⟷ Hub</td><td>HTTP + SSE</td><td>Bearer token</td><td>Your computer or local network</td></tr>
         <tr><td>Phone → Google Drive (optional)</td><td>HTTPS / TLS 1.2+</td><td>OAuth 2.0</td><td>Internet (your Google account)</td></tr>
         <tr><td>Hub → AI agent</td><td>MCP stdio (local process)</td><td>OS process boundary</td><td>Your computer</td></tr>
+        <tr><td>AI agent → its model provider</td><td>The provider's own API (HTTPS)</td><td>Your account with that provider</td><td>Internet</td></tr>
       </tbody>
     </table>
     </div>
@@ -140,6 +168,7 @@
     <ul>
       <li><strong>Phone:</strong> captures and history persist until you delete them (Gallery → delete, or Settings → clear history) or uninstall the App. Uninstalling removes all app-private data automatically (Android sandbox).</li>
       <li><strong>Hub:</strong> received frames and logs persist in the hub's data folder until you delete them. There is no automatic expiry — you own the disk.</li>
+      <li><strong>Browser extension:</strong> its settings and action log persist in your browser until you remove the Extension.</li>
       <li><strong>Google Drive (optional):</strong> synced files persist in your Drive folder until you delete them or revoke the App's access.</li>
       <li><strong>AI agents:</strong> frames delivered to a connected agent are governed by that provider's retention policy — review your AI provider's terms.</li>
     </ul>
@@ -150,7 +179,8 @@
       <li><strong>2.</strong> On your computer: delete the hub's <code>data/</code> directory contents and log files.</li>
       <li><strong>3.</strong> If Drive BYOS was used: delete the ScreenSync folder in your Google Drive and revoke access at <a href="https://myaccount.google.com/permissions" rel="noopener">myaccount.google.com/permissions</a>.</li>
       <li><strong>4.</strong> Uninstall the App — Android deletes all remaining app-private data and preferences.</li>
-      <li>After these four steps, no ScreenSync MCP data exists anywhere, because none was ever held by us.</li>
+      <li><strong>5.</strong> If you used the browser extension: remove it at <code>chrome://extensions</code> (or <code>edge://extensions</code>); the browser deletes its stored settings and action log.</li>
+      <li>After these steps, no ScreenSync MCP data is left on your devices, in your Drive or with us (we never held any). Frames you already sent to an AI agent stay with that agent's provider under its retention policy (§4).</li>
     </ul>
 
     <h2 id="categories">6. What We Never Handle</h2>
@@ -158,7 +188,7 @@
       <li>No contacts, call logs, SMS, or emails.</li>
       <li>No GPS / location data.</li>
       <li>No microphone audio (screen capture is video-frame only; screen recording tools operate through your own hub).</li>
-      <li>No browsing history, no keyboard logging outside the frames you capture.</li>
+      <li>No browsing history collected by us, and no keyboard logging outside the frames you capture. (With the Extension's web access on, a connected agent can ask for your history, bookmarks or cookies through its tools; that data goes to your hub and that agent, never to us.)</li>
       <li>No advertising identifiers, no fingerprinting, no cross-app tracking.</li>
     </ul>
 
@@ -168,37 +198,49 @@
     <h2 id="questions">8. Questions</h2>
     <p>Anything unclear about how data moves? Email <a href="mailto:info@epsoldev.com" class="text-[#6541D6] font-semibold">info@epsoldev.com</a> — we'll answer with specifics, not boilerplate.</p>
   </div>
+</div>
 </main>
 
 <footer class="bg-[#150E27] text-purple-200/80">
-  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-3 gap-10">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
     <div>
-      <div class="flex items-center gap-2.5"><img src="assets/logo.png" alt="ScreenSync MCP" class="w-9 h-9 rounded-xl"><span class="font-extrabold text-white text-lg">ScreenSync MCP</span></div>
-      <p class="text-sm mt-4 leading-relaxed text-purple-200/60">Your AI, watching over your shoulder. Live Android screen capture &amp; control for MCP agents — LAN-first, privacy-first.</p>
+      <div class="flex items-center gap-2.5">
+        <img src="assets/logo-72.webp" srcset="assets/logo-72.webp 1x, assets/logo-144.webp 2x" width="36" height="36" alt="" class="w-9 h-9 rounded-xl" loading="lazy" decoding="async">
+        <span class="font-extrabold text-white text-lg">ScreenSync MCP</span>
+      </div>
+      <p class="text-sm mt-4 leading-relaxed text-purple-200/70">Your AI, watching over your shoulder. A free Android MCP server for Claude and any MCP agent, with phone, desktop and browser in one local-first hub.</p>
     </div>
     <div>
-      <h4 class="text-white font-bold mb-4">Pages</h4>
+      <p class="text-white font-bold mb-4">Product</p>
       <ul class="space-y-2.5 text-sm">
-        <li><a href="/" class="hover:text-white transition">Home</a></li>
-        <li><a href="about.html" class="hover:text-white transition">About Us</a></li>
-        <li><a href="goal.html" class="hover:text-white transition">Goal &amp; Vision</a></li>
-        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
-        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
-        <li><a href="extension.html" class="hover:text-white transition">Browser Extension</a></li>
+        <li><a href="screen-mcp.html" class="hover:text-white transition">Screen MCP</a></li>
+        <li><a href="android-mcp-servers.html" class="hover:text-white transition">Android MCP servers compared</a></li>
+        <li><a href="setup.html" class="hover:text-white transition">Setup guide</a></li>
+        <li><a href="extension.html" class="hover:text-white transition">Browser extension</a></li>
         <li><a href="changelog.html" class="hover:text-white transition">Changelog</a></li>
+        <li><a href="/blogs/" class="hover:text-white transition">Blog</a></li>
       </ul>
     </div>
     <div>
-      <h4 class="text-white font-bold mb-4">Contact</h4>
+      <p class="text-white font-bold mb-4">Company</p>
       <ul class="space-y-2.5 text-sm">
-        <li class="flex items-center gap-2"><i data-lucide="globe" class="w-4 h-4"></i><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
-        <li class="flex items-center gap-2"><i data-lucide="mail" class="w-4 h-4"></i><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+        <li><a href="about.html" class="hover:text-white transition">About</a></li>
+        <li><a href="goal.html" class="hover:text-white transition">Goal</a></li>
+        <li><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
+        <li><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Legal</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
+        <li><a href="data-policy.html" aria-current="page" class="hover:text-white transition">Data Policy</a></li>
       </ul>
     </div>
   </div>
-  <div class="border-t border-white/10 py-6 text-center text-xs text-purple-200/50">© <span class="year"></span> EpsolDev · ScreenSync MCP v2.5 · All rights reserved.</div>
+  <div class="border-t border-white/10 py-6 px-5 text-center text-xs text-purple-200/70">© <span class="year">2026</span> EpsolDev · ScreenSync MCP · App 2.5.7 · Extension 1.14.4 · All rights reserved.</div>
 </footer>
 
-<script src="js/main.js"></script>
+<script src="js/main.js" defer></script>
 </body>
 </html>

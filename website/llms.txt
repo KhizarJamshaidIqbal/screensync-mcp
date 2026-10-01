@@ -1,0 +1,39 @@
+# ScreenSync MCP
+
+> ScreenSync MCP by EpsolDev lets Claude and other AI agents see and control your Android phone and your real browser tab through the Model Context Protocol (MCP). It runs on your own network: an Android app, a desktop hub that is also the MCP server, and a Chrome/Edge extension.
+
+Key facts:
+
+- Three parts: (1) an Android app (Flutter) that captures the screen with Android MediaProjection after you consent each session, with a floating bubble, shake-to-capture, a live mirror stream to the hub, LAN pairing by QR code or mDNS, an optional Google Drive "bring your own storage" fallback and local capture history; (2) a desktop hub and MCP server on Node.js 18+ for Windows, macOS or Linux (start-hub.bat / start-hub.sh), serving HTTP on port 3000 and MCP over stdio, with bearer-token auth; (3) a browser extension for Chrome and Edge (Manifest V3) that lets the agent see, read, click, type and navigate in your real tab, with a human approval gate for risky actions.
+- Tool surface: 226 MCP tools = 29 phone/desktop/hub tools (12 control_* tools such as control_tap, control_swipe, control_type, control_launch_app; 3 os_* desktop tools; 14 capture and hub tools such as get_latest_screenshot, get_ui_hierarchy, get_logcat, record_screen) + 197 browser web_* tools. Also 17 MCP prompts and 3 resources.
+- Requirements: Android 7.0 or later. Screen capture needs no root and no ADB. The control tools (tap, swipe, type, launch app) run through ADB from the hub, over USB or wireless debugging. Phone and computer on the same network; the Google Drive fallback is optional.
+- Privacy: frames go phone to hub over your own network with a bearer token; nothing goes to EpsolDev servers. Screenshots that an AI agent requests are sent to that agent's model provider.
+- Clients: any MCP client that runs local stdio servers, such as Claude Desktop and Claude Code (Cursor and VS Code also run stdio MCP servers). ChatGPT's web app connects only to remote HTTPS MCP servers, so it is not supported today. iOS is not supported.
+- Versions: Android app 2.5.7 (build 35); browser extension and hub 1.14.4. Free while in active development. Latency: about 94 ms median on our LAN tests.
+
+## Get started
+
+- [Home](https://www.screensyncmcp.tech/): what ScreenSync MCP is, features, screenshots and FAQ
+- [What is a screen MCP server](https://www.screensyncmcp.tech/screen-mcp.html): how a screen MCP server gives an agent eyes and hands on a phone, browser or desktop
+- [Android app on Google Play](https://play.google.com/store/apps/details?id=com.screensync.mcp): package com.screensync.mcp
+- [Browser extension and hub download](https://www.screensyncmcp.tech/extension.html): install the Chrome/Edge extension and the desktop hub, step by step
+- [Extension source code](https://github.com/KhizarJamshaidIqbal/screensync-extension): the public browser-extension repository
+
+## Connect Claude
+
+- [Setup guide](https://www.screensyncmcp.tech/setup.html): run the hub, pair the phone, add the MCP server to Claude Desktop or Claude Code
+- [Setup data (JSON)](https://www.screensyncmcp.tech/setup-guide.json): exact Claude Desktop and Claude Code config snippets, hub environment variables, HTTP endpoints and troubleshooting
+
+## Policies and history
+
+- [Privacy policy](https://www.screensyncmcp.tech/privacy.html): what the app captures, where it goes, and your rights
+- [Data policy](https://www.screensyncmcp.tech/data-policy.html): the data lifecycle, storage, retention and deletion
+- [Changelog](https://www.screensyncmcp.tech/changelog.html): every Android app and extension release
+- [Changelog feed (JSON)](https://www.screensyncmcp.tech/changelog.json): the same release data, machine-readable
+
+## Optional
+
+- [Android MCP servers compared](https://www.screensyncmcp.tech/android-mcp-servers.html): ScreenSync MCP (our product) next to other Android MCP servers, with sources
+- [About EpsolDev](https://www.screensyncmcp.tech/about.html): the team behind ScreenSync MCP; contact info@epsoldev.com
+- [Roadmap](https://www.screensyncmcp.tech/goal.html): what has shipped and what comes next
+- [Blog](https://www.screensyncmcp.tech/blogs/): articles about AI agents, MCP and phone automation

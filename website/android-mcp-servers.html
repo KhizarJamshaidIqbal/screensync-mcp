@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Android MCP Servers Compared (2026): ScreenSync &amp; Others</title>
+<meta name="description" content="Eight Android MCP servers compared as of 1 October 2026: capture method, root, ADB, iOS, relays, quotas, price and licence, each fact with a source.">
+<meta name="robots" content="index,follow">
+<meta name="author" content="EpsolDev">
+<meta name="theme-color" content="#6541D6">
+<link rel="canonical" href="https://www.screensyncmcp.tech/android-mcp-servers.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ScreenSync MCP">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://www.screensyncmcp.tech/android-mcp-servers.html">
+<meta property="og:title" content="Android MCP Servers Compared (2026): ScreenSync &amp; Others">
+<meta property="og:description" content="ScreenSync MCP, ScreenMCP, mobile-mcp, Android-MCP, android-mcp-server, DroidMind, scrcpy-mcp and mobilerun, compared with sources.">
+<meta property="og:image" content="https://www.screensyncmcp.tech/assets/og/og-compare.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Android MCP servers compared: a table of eight servers by capture method, ADB, iOS support, relays and price">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Android MCP Servers Compared (2026): ScreenSync &amp; Others">
+<meta name="twitter:description" content="ScreenSync MCP, ScreenMCP, mobile-mcp, Android-MCP, android-mcp-server, DroidMind, scrcpy-mcp and mobilerun, compared with sources.">
+<meta name="twitter:image" content="https://www.screensyncmcp.tech/assets/og/og-compare.jpg">
+<meta name="twitter:image:alt" content="Android MCP servers compared: a table of eight servers by capture method, ADB, iOS support, relays and price">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/assets/icon-192.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>document.documentElement.classList.add("js")</script>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<link rel="stylesheet" href="css/custom.css">
+<link rel="stylesheet" href="css/docs.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "Organization", "@id": "https://epsoldev.com/#organization", "name": "EpsolDev", "url": "https://epsoldev.com/", "email": "info@epsoldev.com" },
+    { "@type": "WebSite", "@id": "https://www.screensyncmcp.tech/#website", "url": "https://www.screensyncmcp.tech/", "name": "ScreenSync MCP", "alternateName": ["ScreenSync"], "publisher": { "@id": "https://epsoldev.com/#organization" }, "inLanguage": "en-US" },
+    {
+      "@type": "WebPage", "@id": "https://www.screensyncmcp.tech/android-mcp-servers.html#webpage", "url": "https://www.screensyncmcp.tech/android-mcp-servers.html",
+      "name": "Android MCP Servers Compared (2026): ScreenSync & Others",
+      "description": "Eight Android MCP servers compared as of 1 October 2026: capture method, root, ADB, iOS, relays, quotas, price and licence, each fact with a source.",
+      "isPartOf": { "@id": "https://www.screensyncmcp.tech/#website" }, "breadcrumb": { "@id": "https://www.screensyncmcp.tech/android-mcp-servers.html#breadcrumb" },
+      "mainEntity": { "@id": "https://www.screensyncmcp.tech/android-mcp-servers.html#list" },
+      "author": { "@id": "https://epsoldev.com/#organization" }, "publisher": { "@id": "https://epsoldev.com/#organization" },
+      "datePublished": "2026-10-01", "dateModified": "2026-10-01", "inLanguage": "en-US"
+    },
+    {
+      "@type": "ItemList", "@id": "https://www.screensyncmcp.tech/android-mcp-servers.html#list", "name": "Android MCP servers compared", "numberOfItems": 8,
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "ScreenSync MCP", "url": "https://www.screensyncmcp.tech/" },
+        { "@type": "ListItem", "position": 2, "name": "ScreenMCP", "url": "https://screenmcp.com/" },
+        { "@type": "ListItem", "position": 3, "name": "mobile-mcp", "url": "https://github.com/mobile-next/mobile-mcp" },
+        { "@type": "ListItem", "position": 4, "name": "Android-MCP", "url": "https://github.com/CursorTouch/Android-MCP" },
+        { "@type": "ListItem", "position": 5, "name": "android-mcp-server", "url": "https://github.com/minhalvp/android-mcp-server" },
+        { "@type": "ListItem", "position": 6, "name": "DroidMind", "url": "https://github.com/hyperb1iss/droidmind" },
+        { "@type": "ListItem", "position": 7, "name": "scrcpy-mcp", "url": "https://github.com/JuanCF/scrcpy-mcp" },
+        { "@type": "ListItem", "position": 8, "name": "mobilerun", "url": "https://mobilerun.ai/" }
+      ]
+    },
+    {
+      "@type": "BreadcrumbList", "@id": "https://www.screensyncmcp.tech/android-mcp-servers.html#breadcrumb",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.screensyncmcp.tech/" },
+        { "@type": "ListItem", "position": 2, "name": "Android MCP servers compared", "item": "https://www.screensyncmcp.tech/android-mcp-servers.html" }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
+
+<header class="glass-nav fixed top-0 inset-x-0 z-50">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-full focus:bg-white focus:text-[#6541D6] focus:font-semibold focus:shadow">Skip to content</a>
+  <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
+    <a href="/" class="flex items-center gap-2.5 shrink-0">
+      <img src="assets/logo-72.webp" srcset="assets/logo-72.webp 1x, assets/logo-144.webp 2x" width="36" height="36" alt="" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
+      <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
+    </a>
+    <div class="site-links hidden md:flex items-center gap-4 lg:gap-6 xl:gap-7 text-[15px] font-medium text-[#4B4460] whitespace-nowrap">
+      <a href="/" class="hidden lg:inline hover:text-[#6541D6] transition">Home</a>
+      <a href="screen-mcp.html" class="hover:text-[#6541D6] transition">Screen MCP</a>
+      <a href="setup.html" class="hover:text-[#6541D6] transition">Setup</a>
+      <a href="extension.html" class="hover:text-[#6541D6] transition">Extension</a>
+      <a href="/blogs/" class="hover:text-[#6541D6] transition">Blog</a>
+      <span class="hidden lg:inline"><a href="changelog.html" class="hover:text-[#6541D6] transition">Changelog</a></span>
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" title="Get it on Google Play" aria-label="Get App on Google Play" class="hidden xl:inline-flex btn-secondary px-5 py-2 rounded-full text-sm font-semibold items-center gap-2 shrink-0"><i data-lucide="smartphone" class="w-4 h-4"></i> Get App</a>
+      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold shrink-0">Get Connected</a>
+    </div>
+    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false" aria-controls="mobileMenu">
+      <i data-lucide="menu" class="w-6 h-6"></i>
+    </button>
+  </nav>
+  <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
+    <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
+      <a href="/" class="py-1.5">Home</a>
+      <a href="screen-mcp.html" class="py-1.5">Screen MCP</a>
+      <a href="setup.html" class="py-1.5">Setup</a>
+      <a href="extension.html" class="py-1.5">Extension</a>
+      <a href="/blogs/" class="py-1.5">Blog</a>
+      <a href="changelog.html" class="py-1.5">Changelog</a>
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" class="btn-secondary px-5 py-2.5 rounded-full text-sm font-semibold inline-flex items-center justify-center gap-2 mt-1"><i data-lucide="smartphone" class="w-4 h-4"></i> Get it on Google Play</a>
+      <a href="/#connect" class="btn-primary px-5 py-2.5 rounded-full text-sm font-semibold text-center">Get Connected</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+<section class="hero-glow pt-28 pb-10 sm:pt-36 sm:pb-12">
+  <div class="max-w-4xl mx-auto px-5 sm:px-8">
+    <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/">Home</a></li><li aria-current="page">Android MCP servers compared</li></ol></nav>
+    <h1 class="mt-5 text-4xl sm:text-5xl font-extrabold leading-[1.1] tracking-tight">Android MCP servers <span class="grad-text">compared</span></h1>
+    <p class="mt-3 text-lg font-semibold text-[#6541D6]">As of 1 October 2026</p>
+    <p class="mt-5 text-lg text-[#4B4460] leading-relaxed">An Android MCP server lets an AI agent such as Claude see and control an Android phone through the Model Context Protocol. The eight servers below differ in how they capture the screen, whether they need ADB or a relay, whether they also cover iOS, and what they cost. Each fact links to the project's own page.</p>
+    <p class="callout mt-6 mb-0"><strong>Disclosure:</strong> ScreenSync MCP is our product. We have tried to describe every other project fairly and only from its own documentation. Spotted an error? Email <a href="mailto:info@epsoldev.com" class="text-[#6541D6] font-semibold underline">info@epsoldev.com</a> and we will fix it.</p>
+  </div>
+</section>
+
+<div class="max-w-7xl mx-auto px-5 sm:px-8 pb-20">
+  <div class="max-w-4xl mx-auto doc-prose">
+    <h2 id="quick-picks">Quick picks</h2>
+    <ul>
+      <li><strong>Live view of your own phone plus your real browser tab, kept on your network:</strong> ScreenSync MCP.</li>
+      <li><strong>No ADB, and control from anywhere through a relay:</strong> ScreenMCP.</li>
+      <li><strong>iOS and Android, including simulators and emulators:</strong> mobile-mcp.</li>
+      <li><strong>Fast screenshots and input if you already use scrcpy:</strong> scrcpy-mcp.</li>
+      <li><strong>Deep debugging: logs, files, apps and bug reports:</strong> DroidMind.</li>
+      <li><strong>Phones in the cloud, no device of your own:</strong> mobilerun.</li>
+    </ul>
+    <h2 id="table">The comparison table</h2>
+    <p>Scroll the table sideways on a small screen. &ldquo;Not stated&rdquo; means the project's documentation does not say, so we did not guess.</p>
+  </div>
+
+  <p class="scroll-hint max-w-4xl mx-auto mt-6">Swipe or scroll the table sideways to see every column.</p>
+  <div class="doc-table-wrap" tabindex="0" role="region" aria-label="Android MCP servers comparison table">
+    <table class="doc-table wide">
+      <caption>Android MCP servers compared, as of 1 October 2026. Sources are linked under each name.</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="sticky-col">Server</th><th scope="col">Capture method</th><th scope="col">Needs root?</th><th scope="col">Needs ADB?</th>
+          <th scope="col">Cable or LAN</th><th scope="col">Live stream or screenshots</th><th scope="col">iOS</th><th scope="col">Cloud relay or quotas</th>
+          <th scope="col">Price</th><th scope="col">Licence</th><th scope="col">Best for</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="ours">
+          <th scope="row" class="sticky-col">ScreenSync MCP <span class="pill pill-mid">Ours</span><span class="src"><a href="/">screensyncmcp.tech</a> &middot; <a href="setup.html">setup guide</a></span></th>
+          <td>Android MediaProjection, with your consent each session; Chrome or Edge extension for browser tabs</td>
+          <td>No</td>
+          <td>Not for capture; yes for control tools (tap, swipe, type), run from the hub</td>
+          <td>LAN: phone to hub over your network; ADB over USB or wireless debugging; optional Google Drive fallback</td>
+          <td>Live mirror stream to the hub, plus screenshots and UI tree on demand</td>
+          <td>No</td>
+          <td>None</td>
+          <td>Free while in active development</td>
+          <td>Not open source; the extension source is public</td>
+          <td>A live view of your own phone and your real browser tab in one local hub: 29 phone/desktop tools + 197 browser tools</td>
+        </tr>
+        <tr>
+          <th scope="row" class="sticky-col">ScreenMCP<span class="src"><a href="https://screenmcp.com/" rel="noopener">site</a> &middot; <a href="https://screenmcp.com/pricing" rel="noopener">pricing</a> &middot; <a href="https://github.com/shimondoodkin/screenmcp" rel="noopener">GitHub</a></span></th>
+          <td>Android app built on AccessibilityService; clients for Windows, macOS and Linux too</td>
+          <td>No*</td>
+          <td>No</td>
+          <td>Neither: commands travel through a WebSocket relay, hosted or self-hosted</td>
+          <td>Screenshots on demand</td>
+          <td>No; its README marks iOS as not available, citing Apple restrictions</td>
+          <td>Hosted relay with daily command limits: 100 (Free), 2,000 (Personal), 20,000 (Business); or self-host</td>
+          <td>Free; $9/month Personal; $29/month Business; Enterprise on request</td>
+          <td>MIT</td>
+          <td>Control without ADB from any network, and desktops as well as phones</td>
+        </tr>
+        <tr>
+          <th scope="row" class="sticky-col">mobile-mcp<span class="src"><a href="https://github.com/mobile-next/mobile-mcp" rel="noopener">GitHub</a></span></th>
+          <td>Native accessibility tree first; screenshots and coordinates as a fallback</td>
+          <td>No*</td>
+          <td>Yes for Android (Android Platform Tools); Xcode command-line tools for iOS</td>
+          <td>Local ADB or Xcode tools; connection type not stated</td>
+          <td>Accessibility snapshots; screenshots when needed</td>
+          <td>Yes: simulators and real devices</td>
+          <td>None for local use; README mentions a paid Mobile Next Cloud for devices</td>
+          <td>Free</td>
+          <td>Apache-2.0</td>
+          <td>iOS and Android automation on simulators, emulators and real devices</td>
+        </tr>
+        <tr>
+          <th scope="row" class="sticky-col">Android-MCP<span class="src"><a href="https://github.com/CursorTouch/Android-MCP" rel="noopener">GitHub</a></span></th>
+          <td>ADB and the Android Accessibility API; a State-Tool snapshot of active apps and interactive elements</td>
+          <td>No*</td>
+          <td>Yes</td>
+          <td>USB or Wi-Fi ADB</td>
+          <td>UI-state snapshots on demand</td>
+          <td>No</td>
+          <td>None</td>
+          <td>Free</td>
+          <td>MIT</td>
+          <td>A Python toolkit for Android 10+ devices and emulators</td>
+        </tr>
+        <tr>
+          <th scope="row" class="sticky-col">android-mcp-server<span class="src"><a href="https://github.com/minhalvp/android-mcp-server" rel="noopener">GitHub</a></span></th>
+          <td>ADB: screenshots and a UI layout of clickable elements</td>
+          <td>No*</td>
+          <td>Yes</td>
+          <td>Local ADB; connection type not stated</td>
+          <td>Screenshots and UI layout on demand</td>
+          <td>No</td>
+          <td>None</td>
+          <td>Free</td>
+          <td>Apache-2.0</td>
+          <td>A minimal starting point with 5 tools, including raw ADB commands</td>
+        </tr>
+        <tr>
+          <th scope="row" class="sticky-col">DroidMind<span class="src"><a href="https://github.com/hyperb1iss/droidmind" rel="noopener">GitHub</a></span></th>
+          <td>ADB: screenshots, taps, swipes, text input and key presses</td>
+          <td>No*</td>
+          <td>Yes</td>
+          <td>USB or TCP/IP ADB</td>
+          <td>Screenshots on demand</td>
+          <td>No</td>
+          <td>None</td>
+          <td>Free</td>
+          <td>Apache-2.0</td>
+          <td>Device debugging: logcat, ANR and crash logs, files, app management and bug reports, with command validation</td>
+        </tr>
+        <tr>
+          <th scope="row" class="sticky-col">scrcpy-mcp<span class="src"><a href="https://github.com/JuanCF/scrcpy-mcp" rel="noopener">GitHub</a></span></th>
+          <td>scrcpy and ADB</td>
+          <td>No*</td>
+          <td>Yes</td>
+          <td>USB or Wi-Fi ADB</td>
+          <td>Screenshots (about 33 ms with scrcpy, about 500 ms over ADB, per its README); video and audio streaming tools</td>
+          <td>No</td>
+          <td>None</td>
+          <td>Free</td>
+          <td>MIT</td>
+          <td>Speed: 44 tools with a fast scrcpy path for screenshots and input</td>
+        </tr>
+        <tr>
+          <th scope="row" class="sticky-col">mobilerun<span class="src"><a href="https://mobilerun.ai/" rel="noopener">site</a> &middot; <a href="https://mobilerun.ai/mcp/" rel="noopener">MCP</a> &middot; <a href="https://mobilerun.ai/pricing/" rel="noopener">pricing</a> &middot; <a href="https://github.com/droidrun/mobilerun" rel="noopener">GitHub</a></span></th>
+          <td>Cloud-hosted real phones; the open-source framework uses a Portal app with an accessibility service on local devices</td>
+          <td>No*</td>
+          <td>Not for the hosted MCP server (&ldquo;no ADB, no emulator, no local setup&rdquo;)</td>
+          <td>Neither: cloud phones over the internet</td>
+          <td>UI trees and screenshots</td>
+          <td>Yes: cloud iPhones as paid add-ons</td>
+          <td>Hosted MCP server; free tier of 60 device minutes and 500 credits a month</td>
+          <td>Free tier; paid plans; dedicated phones from $50/month (Android) to $160/month (iPhone, billed yearly)</td>
+          <td>Framework MIT; hosted service commercial</td>
+          <td>Agents that need phones in the cloud, from CI or a server</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="max-w-4xl mx-auto text-sm text-[#7A7291]">* Root is not among the project's stated requirements; ADB and accessibility services work without it. &ldquo;None&rdquo; for ScreenSync MCP's relay means frames go from phone to hub on your own network; screenshots your agent requests are still sent to that agent's model provider, as with any server here. mobilerun is the project formerly published as DroidRun: <a href="https://github.com/droidrun/droidrun" rel="noopener" class="text-[#6541D6] underline">github.com/droidrun/droidrun</a> now opens droidrun/mobilerun.</p>
+
+  <div class="max-w-4xl mx-auto doc-prose mt-12">
+    <h2 id="requirements">What each one needs to run</h2>
+    <div class="doc-table-wrap">
+      <table class="doc-table" style="min-width:640px">
+        <thead><tr><th scope="col">Server</th><th scope="col">Requirements (as stated)</th><th scope="col">Tools (as stated)</th></tr></thead>
+        <tbody>
+          <tr class="ours"><th scope="row">ScreenSync MCP</th><td>Android 7.0 or later; Node.js 18+ on Windows, macOS or Linux; ADB only for control tools</td><td>226: 29 phone/desktop + 197 browser; 17 prompts, 3 resources</td></tr>
+          <tr><th scope="row">ScreenMCP</th><td>Android app with its accessibility service enabled; account and API key for the hosted relay</td><td>Not stated</td></tr>
+          <tr><th scope="row">mobile-mcp</th><td>Node.js v20+; Xcode command-line tools (iOS); Android Platform Tools (Android)</td><td>Not stated</td></tr>
+          <tr><th scope="row">Android-MCP</th><td>Python 3.13; ADB; Android 10+</td><td>10 listed in its README</td></tr>
+          <tr><th scope="row">android-mcp-server</th><td>Python 3.x with uv; ADB</td><td>5</td></tr>
+          <tr><th scope="row">DroidMind</th><td>Python 3.13 with uv; ADB on your PATH; USB debugging</td><td>Not stated</td></tr>
+          <tr><th scope="row">scrcpy-mcp</th><td>Node.js 24+; ADB; scrcpy recommended; ffmpeg for streaming</td><td>44</td></tr>
+          <tr><th scope="row">mobilerun</th><td>A mobilerun account for cloud phones; <code>mobilerun setup</code> installs the Portal app for local devices</td><td>Not stated</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="choose">When to choose which</h2>
+    <h3>Choose ScreenSync MCP if&hellip;</h3>
+    <p>you want your agent to watch your own Android phone live and also work in your real Chrome or Edge tab, from one free hub on your computer. Capture needs no root and no ADB; the tap, swipe and type tools use ADB over USB or wireless debugging. Frames stay on your network (screenshots your agent requests are sent to that agent's model provider), there is no per-command quota, and the tool count splits into 29 phone/desktop tools + 197 browser tools. It does not support iOS, and it expects the phone and computer on the same network unless you turn on the Google Drive fallback. Start with the <a href="setup.html">ScreenSync MCP setup guide</a>.</p>
+    <h3>Choose ScreenMCP if&hellip;</h3>
+    <p>you cannot or do not want to enable ADB, or you need to reach the phone when it is not on your network. Its accessibility-service app talks to a relay, so it works across networks, and you can self-host the relay if you prefer. It also controls Windows, macOS and Linux machines. The hosted plans meter commands per day.</p>
+    <h3>Choose mobile-mcp if&hellip;</h3>
+    <p>you need iOS as well as Android, or you test on simulators and emulators. Its accessibility-first approach reads the UI tree before falling back to screenshots, which keeps image tokens down.</p>
+    <h3>Choose scrcpy-mcp if&hellip;</h3>
+    <p>you already rely on scrcpy and want the fastest ADB-based screenshots and input, with a large set of 44 tools covering apps, files, the shell and media streaming.</p>
+    <h3>Choose DroidMind if&hellip;</h3>
+    <p>your work is device debugging: logs (logcat, ANR, crash, battery), files, app installs and bug reports. Its command validation and risk assessment add a safety layer around ADB.</p>
+    <h3>Choose Android-MCP or android-mcp-server if&hellip;</h3>
+    <p>you want a small Python codebase you can read and extend. Android-MCP works over USB or Wi-Fi ADB on Android 10+ devices and emulators; android-mcp-server keeps to five tools, one of which runs any ADB command.</p>
+    <h3>Choose mobilerun if&hellip;</h3>
+    <p>you do not want a physical device at all. Its hosted MCP server hands your agent real Android and iOS phones in the cloud, which suits CI and server-side agents. The open-source framework also drives local devices.</p>
+
+    <h2 id="method">How we compared</h2>
+    <p>On 1 October 2026 we read each project's README, website and pricing page, linked under its name in the table. We recorded only what those pages state; where a page is silent we wrote &ldquo;not stated&rdquo; rather than guessing. We did not run benchmarks, and we do not publish speed claims for other projects beyond the numbers they publish themselves. ScreenSync MCP's own numbers come from our product: for example, frames arrive in about 94 ms median on our LAN tests.</p>
+    <p>Projects change quickly. If a row is out of date, write to <a href="mailto:info@epsoldev.com">info@epsoldev.com</a> with a link and we will update the page.</p>
+
+    <h2 id="sources">Sources</h2>
+    <ol class="text-[0.95rem]">
+      <li><a href="https://screenmcp.com/" rel="noopener">screenmcp.com</a> and <a href="https://screenmcp.com/pricing" rel="noopener">screenmcp.com/pricing</a>; <a href="https://github.com/shimondoodkin/screenmcp" rel="noopener">github.com/shimondoodkin/screenmcp</a></li>
+      <li><a href="https://github.com/mobile-next/mobile-mcp" rel="noopener">github.com/mobile-next/mobile-mcp</a></li>
+      <li><a href="https://github.com/CursorTouch/Android-MCP" rel="noopener">github.com/CursorTouch/Android-MCP</a></li>
+      <li><a href="https://github.com/minhalvp/android-mcp-server" rel="noopener">github.com/minhalvp/android-mcp-server</a></li>
+      <li><a href="https://github.com/hyperb1iss/droidmind" rel="noopener">github.com/hyperb1iss/droidmind</a></li>
+      <li><a href="https://github.com/JuanCF/scrcpy-mcp" rel="noopener">github.com/JuanCF/scrcpy-mcp</a></li>
+      <li><a href="https://mobilerun.ai/" rel="noopener">mobilerun.ai</a>, <a href="https://mobilerun.ai/mcp/" rel="noopener">mobilerun.ai/mcp</a>, <a href="https://mobilerun.ai/pricing/" rel="noopener">mobilerun.ai/pricing</a> and <a href="https://github.com/droidrun/mobilerun" rel="noopener">github.com/droidrun/mobilerun</a></li>
+    </ol>
+    <p>Background on how these servers capture and control a phone, and why a live stream differs from screenshot polling, is in our guide to the <a href="screen-mcp.html">Android screen MCP server</a>. For what ScreenSync MCP stores and where, read the <a href="data-policy.html">data policy</a>.</p>
+  </div>
+
+  <section class="max-w-4xl mx-auto mt-14 rounded-[2rem] bg-gradient-to-br from-[#6541D6] via-[#7451DE] to-[#8B6AEC] p-8 sm:p-12 text-center text-white shadow-2xl shadow-purple-300">
+    <h2 class="text-3xl font-extrabold tracking-tight">Try ScreenSync MCP on your own phone</h2>
+    <p class="mt-4 text-purple-100 max-w-xl mx-auto">Free, local-first, phone and browser in one hub, no per-command quota.</p>
+    <div class="mt-8 flex flex-wrap justify-center gap-4">
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" class="bg-white text-[#6541D6] px-7 py-3.5 rounded-full font-bold inline-flex items-center gap-2 hover:scale-105 transition shadow-lg"><i data-lucide="smartphone" class="w-5 h-5"></i> Get it on Google Play</a>
+      <a href="setup.html" class="border-2 border-white/50 px-7 py-3.5 rounded-full font-bold inline-flex items-center gap-2 hover:bg-white/10 transition"><i data-lucide="book-open" class="w-5 h-5"></i> Setup guide</a>
+      <a href="extension.html" class="border-2 border-white/50 px-7 py-3.5 rounded-full font-bold inline-flex items-center gap-2 hover:bg-white/10 transition"><i data-lucide="puzzle" class="w-5 h-5"></i> Browser extension</a>
+    </div>
+  </section>
+</div>
+</main>
+
+<footer class="bg-[#150E27] text-purple-200/80">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <img src="assets/logo-72.webp" srcset="assets/logo-72.webp 1x, assets/logo-144.webp 2x" width="36" height="36" alt="" class="w-9 h-9 rounded-xl" loading="lazy" decoding="async">
+        <span class="font-extrabold text-white text-lg">ScreenSync MCP</span>
+      </div>
+      <p class="text-sm mt-4 leading-relaxed text-purple-200/70">Your AI, watching over your shoulder. A free Android MCP server for Claude and any MCP agent, with phone, desktop and browser in one local-first hub.</p>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Product</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="screen-mcp.html" class="hover:text-white transition">Screen MCP</a></li>
+        <li><a href="android-mcp-servers.html" aria-current="page" class="hover:text-white transition">Android MCP servers compared</a></li>
+        <li><a href="setup.html" class="hover:text-white transition">Setup guide</a></li>
+        <li><a href="extension.html" class="hover:text-white transition">Browser extension</a></li>
+        <li><a href="changelog.html" class="hover:text-white transition">Changelog</a></li>
+        <li><a href="/blogs/" class="hover:text-white transition">Blog</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Company</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="about.html" class="hover:text-white transition">About</a></li>
+        <li><a href="goal.html" class="hover:text-white transition">Goal</a></li>
+        <li><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
+        <li><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Legal</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
+        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10 py-6 px-5 text-center text-xs text-purple-200/70">© <span class="year">2026</span> EpsolDev · ScreenSync MCP · App 2.5.7 · Extension 1.14.4 · All rights reserved.</div>
+</footer>
+
+<script src="js/main.js" defer></script>
+</body>
+</html>
