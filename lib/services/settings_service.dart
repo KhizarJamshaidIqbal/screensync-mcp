@@ -294,7 +294,12 @@ class SettingsService extends ChangeNotifier {
     return events;
   }
 
+  /// Called with every appended event; main.dart mirrors them into the
+  /// diagnostics log, which outlives this 30-row ring buffer.
+  void Function(TelemetryEvent event)? onTelemetryAppended;
+
   void appendTelemetry(TelemetryEvent event) {
+    onTelemetryAppended?.call(event);
     final log = telemetryLog..insert(0, event);
     if (log.length > TelemetryEvent.maxStored) {
       log.removeRange(TelemetryEvent.maxStored, log.length);

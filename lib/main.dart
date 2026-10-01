@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,6 +13,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/privacy_policy_screen.dart';
 import 'services/capture_trigger_bridge.dart';
 import 'services/device_intent_service.dart';
+import 'services/diagnostics_log_service.dart';
 import 'widgets/update_gate.dart';
 import 'services/settings_service.dart';
 
@@ -31,12 +33,47 @@ void overlayMain() {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _installCrashHooks();
   await SettingsService.instance.init();
+  _wireDiagnosticsLog();
   await CaptureTriggerBridge.configure();
   // Request POST_NOTIFICATIONS on Android 13+ so the keep-alive
   // notification is visible. Fire-and-forget — service works without it.
   DeviceIntentService.requestPostNotifications().ignore();
   runApp(const ScreenSyncApp());
+}
+
+/// Uncaught framework and async errors go to the on-device diagnostics log
+/// (Telemetry > Share diagnostics), so a crash on a user's phone leaves a
+/// trace. Installed first, so even a failing settings load is recorded.
+void _installCrashHooks() {
+  final log = DiagnosticsLogService.instance;
+  FlutterError.onError = (details) {
+    log.logError('flutter', details.exception, details.stack);
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    log.logError('platform', error, stack);
+    // Returning true stops the engine's own print, so keep the error in
+    // logcat (the hub's get_logcat tool reads it) in every build mode.
+    debugPrint('Uncaught error: $error\n$stack');
+    return true;
+  };
+}
+
+/// Redacts the stored pairing tokens from every log entry and mirrors each
+/// telemetry event into the log (the tab itself keeps only the last 30).
+void _wireDiagnosticsLog() {
+  final log = DiagnosticsLogService.instance;
+  final settings = SettingsService.instance;
+  log.secrets = () => [
+        settings.pairingToken,
+        for (final hub in settings.recentHubs) hub.token,
+      ];
+  settings.onTelemetryAppended = log.logTelemetry;
+  DeviceIntentService.appVersion()
+      .then((v) => log.log('app', 'start ${v.name} (${v.code})'))
+      .ignore();
 }
 
 class ScreenSyncApp extends StatefulWidget {

@@ -144,8 +144,27 @@ class DeviceIntentService {
   }
 
   /// Opens the Android share sheet for a captured frame (via FileProvider).
+  /// Native copies the frame into `<cache>/share/` first: captures live in
+  /// app_flutter, which no FileProvider root covers.
   static Future<bool> shareImage(String path) => _invokeBool(
         _channel.invokeMethod<bool>('shareImage', {'path': path}),
+      );
+
+  /// Opens the Android share sheet for any app file (via FileProvider, shared
+  /// from `<cache>/share/`). [subject] pre-fills an email subject.
+  static Future<bool> shareFile(
+    String path, {
+    String mimeType = 'application/octet-stream',
+    String title = 'Share',
+    String? subject,
+  }) =>
+      _invokeBool(
+        _channel.invokeMethod<bool>('shareFile', {
+          'path': path,
+          'mimeType': mimeType,
+          'title': title,
+          if (subject != null) 'subject': subject,
+        }),
       );
 
   /// Brings the ScreenSync activity to the foreground (used when a bubble

@@ -4,4 +4,7 @@
     <files-path name="captures" path="/" />
     <cache-path name="cache" path="/" />
     <external-files-path name="ext" path="/" />
+    <!-- FileSharer.kt shares every file (gallery frames, diagnostics.txt) from
+         cacheDir/share/: captures live in app_flutter, which no root covers. -->
+    <cache-path name="share" path="share/" />
 </paths>
