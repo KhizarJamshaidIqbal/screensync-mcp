@@ -1,5 +1,8 @@
 # ScreenSync MCP — Release Notes
 
+> These are the release notes for the **browser extension and the desktop hub** (the 1.x versions below), not for the Android app.
+> The Google Play "What's new" text is generated from git history instead: `tools/release_notes.py`, see `docs/RELEASE_NOTES_GUIDE.md`.
+
 ## Version 1.14.3 (screenshots that tell the truth) — 2026-09-29
 
 - **A screenshot names the page it really shows.** Its `url` and `title` are now read after the picture is taken, not before. If the tab navigated while it was being captured (for example because another session moved it), the result says so with `navigatedDuringCapture` and a warning, instead of labelling the new page with the old address. If the window has meanwhile switched to another tab, that picture is dropped and the tab is captured through CDP instead.

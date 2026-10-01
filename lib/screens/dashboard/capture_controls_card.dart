@@ -86,7 +86,7 @@ class _CaptureControlsCardState extends State<CaptureControlsCard> {
           const MicroLabel('Notification quick actions'),
           const SizedBox(height: 10),
           _actionRow(Icons.camera_alt_rounded, 'Snap',
-              'Capture now, even with the app closed'),
+              'Capture now while ScreenSync is running in the background'),
           _actionRow(Icons.bolt_rounded, 'MCP',
               'Flag the capture for the connected AI agent'),
           _actionRow(Icons.pause_rounded, 'Pause',

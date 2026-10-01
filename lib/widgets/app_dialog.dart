@@ -4,26 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../core/app_theme.dart';
+import 'app_dialog_actions.dart';
+
+// Callers build actions through the dialog, so one import is enough.
+export 'app_dialog_actions.dart' show AppDialogAction;
 
 /// Visual accent for [AppDialog] — drives the header icon tint, the icon
 /// halo, and the primary action button gradient so the dialog reads as
 /// informational, destructive, or success without any extra wiring.
 enum AppDialogTone { brand, danger, success }
-
-/// A single dialog action (button). [primary] actions render as a filled,
-/// gradient, stadium button; non-primary render as a soft ghost button so
-/// the destructive / confirming choice always stands out.
-class AppDialogAction {
-  const AppDialogAction({
-    required this.label,
-    this.onPressed,
-    this.primary = false,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final bool primary;
-}
 
 /// Brand-consistent, fully custom dialog for ScreenSync.
 ///
@@ -41,6 +30,7 @@ class AppDialog extends StatelessWidget {
     this.eyebrow,
     this.actions = const [],
     this.content,
+    this.pinned,
   });
 
   /// The single shared width for every dialog in the app.
@@ -56,6 +46,11 @@ class AppDialog extends StatelessWidget {
 
   /// Optional custom body widget rendered below the message.
   final Widget? content;
+
+  /// Optional widget pinned between the scrolling body and the buttons (a
+  /// progress bar, a result banner). Unlike [content] it never scrolls off a
+  /// short screen, so the user always sees what the action they just took did.
+  final Widget? pinned;
 
   final List<AppDialogAction> actions;
 
@@ -93,13 +88,11 @@ class AppDialog extends StatelessWidget {
     List<AppDialogAction> actions = const [],
     bool barrierDismissible = true,
   }) {
-    return showGeneralDialog<T>(
-      context: context,
-      barrierDismissible: barrierDismissible,
+    return showCustom<T>(
+      context,
       barrierLabel: title,
-      barrierColor: const Color(0x66150E27),
-      transitionDuration: const Duration(milliseconds: 220),
-      pageBuilder: (ctx, _, __) => AppDialog(
+      barrierDismissible: barrierDismissible,
+      builder: (_) => AppDialog(
         title: title,
         message: message,
         icon: icon,
@@ -108,6 +101,29 @@ class AppDialog extends StatelessWidget {
         content: content,
         actions: actions,
       ),
+    );
+  }
+
+  /// Present a dialog whose state lives in its own widget (progress, a form,
+  /// a result that arrives later) with the SAME scrim and entrance animation
+  /// as [show]. [builder] returns an [AppDialog], usually from inside a
+  /// StatefulWidget, so the dialog can rebuild itself.
+  ///
+  /// This is the only way to show a stateful dialog: do not reach for
+  /// `showDialog` + `AlertDialog` (test/theme_guardrails_test.dart fails on it).
+  static Future<T?> showCustom<T>(
+    BuildContext context, {
+    required WidgetBuilder builder,
+    String barrierLabel = 'Dialog',
+    bool barrierDismissible = true,
+  }) {
+    return showGeneralDialog<T>(
+      context: context,
+      barrierDismissible: barrierDismissible,
+      barrierLabel: barrierLabel,
+      barrierColor: const Color(0x66150E27),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (ctx, _, __) => builder(ctx),
       transitionBuilder: (ctx, anim, _, child) {
         final curved =
             CurvedAnimation(parent: anim, curve: Curves.easeOutBack);
@@ -126,73 +142,120 @@ class AppDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final surface = isDark ? AppTheme.darkSurface : AppTheme.lightSurface;
-    final border = isDark ? AppTheme.darkBorder : AppTheme.lightBorder;
+    // From the theme, not the constants, so AMOLED mode (whose surface is
+    // near-black) and any accent override reach the dialog like every stock
+    // Material widget.
+    final surface = theme.colorScheme.surface;
+    final border = theme.dividerColor;
     final accent = _accent();
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Material(
-          type: MaterialType.transparency,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppTheme.radiusL),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-              child: Container(
-                width: kAppDialogWidth,
-                padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
-                decoration: BoxDecoration(
-                  color: surface.withValues(alpha: isDark ? 0.94 : 0.96),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusL),
-                  border: Border.all(color: border),
-                  boxShadow: AppTheme.elevHigh,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (icon != null) ...[
-                      _IconHalo(icon: icon!, accent: accent),
-                      const SizedBox(height: 16),
-                    ],
-                    if (eyebrow != null) ...[
-                      Text(
-                        eyebrow!.toUpperCase(),
-                        style: AppTheme.microLabel.copyWith(color: accent),
-                      ),
-                      const SizedBox(height: 6),
-                    ],
-                    Text(
-                      title,
-                      style: AppTheme.typeDisplay.copyWith(
-                        fontSize: 22,
-                        color: theme.textTheme.titleLarge?.color,
-                      ),
+    // A dialog is its own route: name it for screen readers, and lift it above
+    // the keyboard (showGeneralDialog, unlike showDialog, does not do that).
+    return Semantics(
+      scopesRoute: true,
+      namesRoute: true,
+      explicitChildNodes: true,
+      label: title,
+      child: AnimatedPadding(
+        padding: MediaQuery.viewInsetsOf(context),
+        duration: AppTheme.motionFast,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: Material(
+              type: MaterialType.transparency,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppTheme.radiusL),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                  child: Container(
+                    width: kAppDialogWidth,
+                    decoration: BoxDecoration(
+                      color: surface.withValues(alpha: isDark ? 0.94 : 0.96),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusL),
+                      border: Border.all(color: border),
+                      boxShadow: AppTheme.elevHigh,
                     ),
-                    if (message != null) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        message!,
-                        style: AppTheme.typeBody.copyWith(
-                          fontSize: 13.5,
-                          height: 1.45,
-                          color: AppTheme.darkTextDim,
+                    // The body scrolls and the buttons stay pinned, so a long
+                    // message, a large text scale or a short (landscape) screen
+                    // never overflows and the actions are always reachable. The
+                    // padding sits INSIDE the scroll view so the halo glow and
+                    // the pills' shadows are not clipped flat at its edge.
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Flexible(
+                          flex: 3,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (icon != null) ...[
+                                  _IconHalo(icon: icon!, accent: accent),
+                                  const SizedBox(height: 16),
+                                ],
+                                if (eyebrow != null) ...[
+                                  Text(
+                                    eyebrow!.toUpperCase(),
+                                    style: AppTheme.microLabel
+                                        .copyWith(color: accent),
+                                  ),
+                                  const SizedBox(height: 6),
+                                ],
+                                Text(
+                                  title,
+                                  style: AppTheme.typeDisplay.copyWith(
+                                    fontSize: 22,
+                                    color: theme.textTheme.titleLarge?.color,
+                                  ),
+                                ),
+                                if (message != null) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    message!,
+                                    style: AppTheme.typeBody.copyWith(
+                                      fontSize: 13.5,
+                                      height: 1.45,
+                                      color: AppTheme.darkTextDim,
+                                    ),
+                                  ),
+                                ],
+                                if (content != null) ...[
+                                  const SizedBox(height: 14),
+                                  content!,
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                    if (content != null) ...[
-                      const SizedBox(height: 14),
-                      content!,
-                    ],
-                    const SizedBox(height: 22),
-                    _ActionRow(
-                      actions: actions,
-                      accent: accent,
-                      gradient: _accentGradient(),
-                      isDark: isDark,
+                        // Body and pinned slot share a short screen (3 : 2), each
+                        // scrolling inside its own share, so neither can push the
+                        // buttons off the bottom however tall it gets.
+                        if (pinned != null)
+                          Flexible(
+                            flex: 2,
+                            child: SingleChildScrollView(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 22),
+                              child: pinned!,
+                            ),
+                          ),
+                        const SizedBox(height: 22),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
+                          child: AppDialogActionRow(
+                            actions: actions,
+                            accent: accent,
+                            gradient: _accentGradient(),
+                            isDark: isDark,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -238,113 +301,5 @@ class _IconHalo extends StatelessWidget {
         .animate()
         .scaleXY(begin: 0.6, end: 1.0, duration: 320.ms, curve: Curves.easeOutBack)
         .fadeIn(duration: 220.ms);
-  }
-}
-
-/// Right-aligned action row: ghost buttons + one gradient primary button.
-class _ActionRow extends StatelessWidget {
-  const _ActionRow({
-    required this.actions,
-    required this.accent,
-    required this.gradient,
-    required this.isDark,
-  });
-
-  final List<AppDialogAction> actions;
-  final Color accent;
-  final LinearGradient gradient;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    final children = <Widget>[];
-    for (var i = 0; i < actions.length; i++) {
-      final a = actions[i];
-      if (i > 0) children.add(const SizedBox(width: 10));
-      children.add(
-        a.primary
-            ? _PrimaryButton(action: a, gradient: gradient, accent: accent)
-            : _GhostButton(action: a, isDark: isDark),
-      );
-    }
-    return Row(mainAxisAlignment: MainAxisAlignment.end, children: children);
-  }
-}
-
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton(
-      {required this.action, required this.gradient, required this.accent});
-  final AppDialogAction action;
-  final LinearGradient gradient;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: action.onPressed,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: gradient,
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: 0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Text(
-            action.label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 13.5,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GhostButton extends StatelessWidget {
-  const _GhostButton({required this.action, required this.isDark});
-  final AppDialogAction action;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    final base = isDark ? AppTheme.darkTextDim : AppTheme.darkTextDim;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: action.onPressed,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: (isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
-            ),
-          ),
-          child: Text(
-            action.label,
-            style: TextStyle(
-              color: base,
-              fontWeight: FontWeight.w700,
-              fontSize: 13.5,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

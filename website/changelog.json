@@ -1,7 +1,63 @@
 {
-  "generatedAt": "2026-09-29T11:44:07Z",
+  "generatedAt": "2026-09-30T19:45:30Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
+    {
+      "sha": "d5dd510",
+      "date": "2026-10-01",
+      "ts": 1790797527,
+      "parts": [
+        {
+          "stream": "app",
+          "streamLabel": "App",
+          "version": "2.5.6",
+          "build": "34",
+          "display": "2.5.6 (build 34)",
+          "date": "2026-10-01",
+          "ts": 1790797527,
+          "sha": "d5dd510",
+          "groups": {
+            "NEW": [
+              "A modern update dialog that follows the app theme, and a global UI template"
+            ],
+            "IMPROVED": [],
+            "FIXED": []
+          },
+          "count": 1
+        }
+      ],
+      "count": 1,
+      "title": "App 2.5.6 (build 34)"
+    },
+    {
+      "sha": "87ff657",
+      "date": "2026-09-30",
+      "ts": 1790788103,
+      "parts": [
+        {
+          "stream": "app",
+          "streamLabel": "App",
+          "version": "2.5.5",
+          "build": "33",
+          "display": "2.5.5 (build 33)",
+          "date": "2026-09-30",
+          "ts": 1790788103,
+          "sha": "87ff657",
+          "groups": {
+            "NEW": [],
+            "IMPROVED": [],
+            "FIXED": [
+              "Ask for screen-capture consent and stop showing \"connected\" when nothing is streaming",
+              "Show the update dialog, verify the download and add an auto-update switch",
+              "Split sideload and play flavors so the hub installer keeps its permission"
+            ]
+          },
+          "count": 3
+        }
+      ],
+      "count": 3,
+      "title": "App 2.5.5 (build 33)"
+    },
     {
       "sha": "a75ec0a",
       "date": "2026-09-29",
@@ -624,9 +680,9 @@
     }
   ],
   "stats": {
-    "releases": 19,
-    "appReleases": 6,
+    "releases": 21,
+    "appReleases": 8,
     "extensionReleases": 13,
-    "changes": 113
+    "changes": 117
   }
 }

@@ -37,7 +37,13 @@ class ConnectStep extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<ScreenCaptureBloc, ScreenCaptureState>(
       builder: (context, state) {
-        final online = state.hubOnline == true;
+        // Reachable and authorised are separate: /health answers for a phone
+        // with the wrong token, yet every real call then returns 401. Saying
+        // "Connected" there was the original symptom, and "Auto-find" cannot
+        // fix it, so it gets its own state that points at the QR code.
+        final reachable = state.hubOnline == true;
+        final authFailed = reachable && state.hubAuthFailed;
+        final online = reachable && !authFailed;
         return StepShell(
           icon: Icons.link_rounded,
           title: 'Connect your desktop',
@@ -60,7 +66,9 @@ class ConnectStep extends StatelessWidget {
             GlassPanel(
               borderColor: online
                   ? AppTheme.success.withValues(alpha: 0.5)
-                  : null,
+                  : (authFailed
+                      ? AppTheme.danger.withValues(alpha: 0.5)
+                      : null),
               child: Row(
                 children: [
                   Container(
@@ -69,17 +77,21 @@ class ConnectStep extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: (online
                               ? AppTheme.success
-                              : AppTheme.primary)
+                              : (authFailed
+                                  ? AppTheme.danger
+                                  : AppTheme.primary))
                           .withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       online
                           ? Icons.check_circle_rounded
-                          : Icons.wifi_find_rounded,
+                          : (authFailed
+                              ? Icons.key_off_rounded
+                              : Icons.wifi_find_rounded),
                       color: online
                           ? AppTheme.success
-                          : AppTheme.primary,
+                          : (authFailed ? AppTheme.danger : AppTheme.primary),
                       size: 20,
                     ),
                   ),
@@ -88,14 +100,17 @@ class ConnectStep extends StatelessWidget {
                     child: Text(
                       online
                           ? 'Connected! Your desktop can see this phone.'
-                          : (state.discovering
-                              ? 'Scanning your Wi-Fi for the hub…'
-                              : 'Not connected yet.'),
+                          : (authFailed
+                              ? 'Hub found, but it rejected this pairing '
+                                  'token. Scan its QR again.'
+                              : (state.discovering
+                                  ? 'Scanning your Wi-Fi for the hub…'
+                                  : 'Not connected yet.')),
                       style: const TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w600),
                     ),
                   ),
-                  if (!online)
+                  if (!online && !authFailed)
                     TextButton(
                       onPressed: state.discovering
                           ? null

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'blocs/screen_capture_bloc.dart';
+import 'core/app_navigator.dart';
 import 'core/app_theme.dart';
 import 'overlay_bubble.dart';
 import 'repositories/screen_repository.dart';
@@ -74,6 +75,9 @@ class _ScreenSyncAppState extends State<ScreenSyncApp> {
         animation: settings,
         builder: (context, _) => MaterialApp(
           title: 'ScreenSync MCP',
+          // The update gate sits above the Navigator (builder below), so it
+          // reaches the Navigator through this key to show its dialog.
+          navigatorKey: appNavigatorKey,
           debugShowCheckedModeBanner: false,
           themeMode: settings.themeMode,
           theme:

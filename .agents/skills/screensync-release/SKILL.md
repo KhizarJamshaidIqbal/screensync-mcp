@@ -17,9 +17,10 @@ Files:
 
 | File | Kaam |
 |---|---|
-| `tools/release.ps1` | Poora build + publish (Flutter build -> Play) |
-| `tools/publish_play.py` | Play API wala hissa (upload / promote / track attach) |
+| `tools/release.ps1` | Poora build + publish (Flutter build -> Play). **Play flavor** ka AAB banata hai |
+| `tools/publish_play.py` | Play API wala hissa (upload / promote / track attach / **staged rollout `--user-fraction`**) |
 | `tools/release_notes.py` | Git history se release notes + 500-char validation |
+| `tools/build_ota_apk.ps1` | Hub OTA ke liye **sideload flavor** ka APK. Play release ka hissa nahi |
 | `docs/LOCAL_RELEASE.md` | Setup aur command cheat sheet |
 | `docs/PLAY_API_GUIDE.md` | API kya kar sakta hai, kya nahi |
 | `docs/RELEASE_NOTES_GUIDE.md` | Notes ka official rule + house style |
@@ -34,12 +35,23 @@ Files:
    Kabhi bhi ye switches khud se "assume" na karein - pehle poochein.
 
 2. **Release notes lazy ya generic nahi ho sakte.**
-   "Bug fixes and improvements" jaisa text production par reject hota hai.
-   Notes `tools/release_notes.py` se banayein, aur **parh kar** approve karein.
+   "Bug fixes and improvements" jaisa text reject hota hai: `release.ps1` har track par
+   (`release_notes.py --check`), `publish_play.py` production par. Kaun sa phrase kahan:
+   `docs/RELEASE_NOTES_GUIDE.md` Section 2b. Notes `tools/release_notes.py` se banayein, aur
+   **parh kar** approve karein.
 
 3. **Commit ya push karne se kuch live nahi hota.**
    GitHub par push aur Play par publish do alag cheezein hain. Live rollout sirf
    `release.ps1` / `publish_play.py` se hota hai - aur woh approval ke bagair nahi chalta.
+
+Do aur hifazati baatein (flavors ke baad):
+
+- **Play ka bundle hamesha `--flavor play` se banta hai.** Sideload flavor `REQUEST_INSTALL_PACKAGES`
+  declare karta hai jo Play mein forbidden hai; Gradle uska bundle refuse karta hai. Sideload APK sirf
+  hub OTA ke liye hai (`tools/build_ota_apk.ps1`).
+- **Debug-signed output kabhi upload na karein.** Release build ko `android/app/key.properties` chahiye;
+  uske bagair build fail hoti hai. `SCREENSYNC_ALLOW_DEBUG_SIGNING=1` sirf throwaway local build ke liye
+  hai, aur `release.ps1` us variable ke saath publish karne se inkar karta hai.
 
 ---
 
@@ -49,12 +61,16 @@ Files:
 # Base revision dekho: kaun si release se compare karna hai
 python .\tools\release_notes.py --list-versions
 
-# Internal par release (notes lazmi)
-.\tools\release.ps1 -Track internal -BumpVersion -NotesFromGit -SinceVersion 2.5.0
+# Internal par release (notes lazmi). -BumpVersion sirf internal upload par; production par kabhi nahi
+.\tools\release.ps1 -Track internal -BumpVersion -NotesFromGit -SinceVersion 2.5.4
 ```
 
+`pubspec.yaml` mein `2.5.5+33` hai. 30 Sept 2026 ko Play par production = versionCode `32` (live),
+internal = `33`. Ye badalta rehta hai, andaza na lagayein: release se pehle
+`python .\tools\play_api.py tracks` chalayein (`docs/LOCAL_RELEASE.md` Section 0).
+
 `release.ps1` andar se ye karta hai:
-`flutter pub get` -> `flutter analyze` -> `flutter test` -> `flutter build appbundle --release`
+`flutter pub get` -> `flutter analyze` -> `flutter test` -> `flutter build appbundle --release --flavor play`
 -> notes generate + validate -> `publish_play.py` -> track par verify.
 
 Fast rehearsal (kuch publish nahi hota):
@@ -67,36 +83,34 @@ Fast rehearsal (kuch publish nahi hota):
 
 ## 2 - Production (LIVE) rollout
 
-**Pehle user se poochein.** Ijazat milne ke baad:
+**Pehle user se poochein.** Ijazat milne ke baad. Production ke liye pehle internal par upload karo aur
+uska versionCode `<n>` lo; `-BumpVersion` production par kabhi nahi.
 
 ```powershell
-.\tools\release.ps1 -Track production -VersionCode 32 -NotesFromGit -SinceVersion 2.5.4 `
+# 100% rollout. -VersionCode sirf upload skip karta hai, build/analyze/test nahi: -SkipBuild -SkipTests do
+.\tools\release.ps1 -Track production -VersionCode <n> -SkipBuild -SkipTests -NotesFromGit -SinceVersion 2.5.4 `
     -ConfirmLiveRollout -ApprovedBy "<user ka naam>"
 ```
 
 Ya sirf Play API wala hissa:
 
 ```powershell
-python .\tools\publish_play.py --version-code 32 --track production --status completed `
+python .\tools\publish_play.py --version-code <n> --track production --status completed `
     --notes-file build\notes.en-US.txt `
     --confirm-live-rollout --approved-by "<user ka naam>"
 ```
 
-Staged rollout (pehle 10% users):
+**Staged rollout (pehle 10% users): sirf `publish_play.py` se.** `release.ps1` percentage set nahi kar
+sakta (us mein fraction ka parameter hi nahi hai). Pehli production rollout ke liye yehi tareeqa behtar hai:
 
 ```powershell
-python .\tools\publish_play.py --version-code 32 --track production --status inProgress `
+python .\tools\publish_play.py --version-code <n> --track production --status inProgress `
     --user-fraction 0.10 --notes-file build\notes.en-US.txt `
     --confirm-live-rollout --approved-by "<naam>"
 ```
 
-Promote (naya build ya upload nahi, mojooda versionCode doosre track par):
-
-```powershell
-python .\tools\publish_play.py --version-code 31 --track production --status completed `
-    --notes-file build\notes.en-US.txt `
-    --confirm-live-rollout --approved-by "<naam>"
-```
+Promote (naya build ya upload nahi, mojooda versionCode doosre track par) upar wale `--status completed`
+command jaisa hi hai: `--version-code <n>` mojooda upload ko promote karta hai.
 
 ### Gate kaise kaam karta hai
 Guard `parse_args` mein hai, yani **koi bhi network call ya credential load hone se
@@ -111,10 +125,10 @@ Official rule: **500 Unicode characters per language**.
 
 ```powershell
 # Git history se notes (screen par)
-python .\tools\release_notes.py --since-version 2.5.0
+python .\tools\release_notes.py --since-version 2.5.4
 
-# File mein likho
-python .\tools\release_notes.py --since-version 2.5.0 --write build\notes.en-US.txt
+# File mein likho (file ka naam sirf naam hai; language --notes-language se tay hoti hai, default en-GB)
+python .\tools\release_notes.py --since-version 2.5.4 --write build\notes.en-US.txt
 
 # Validate karo
 python .\tools\release_notes.py --check build\notes.en-US.txt
@@ -164,7 +178,7 @@ python .\tools\publish_play.py --version-code 1 --track production --dry-run
 
 ```powershell
 # Rollout rok do (jo update kar chuke un par koi asar nahi)
-python .\tools\publish_play.py --version-code 32 --track production --status halted `
+python .\tools\publish_play.py --version-code <n> --track production --status halted `
     --user-fraction 0.10 --confirm-live-rollout --approved-by "<naam>"
 ```
 
@@ -197,7 +211,9 @@ uske baad routine releases API se. Tafseel: `docs/PLAY_API_GUIDE.md`.
 - [ ] `python .\tools\release_notes.py --check <file>` -> `[OK]`
 - [ ] Internal track par pehle bheja
 - [ ] `flutter analyze` / `flutter test` pass
-- [ ] AAB ka manifest verify (agar permissions badli hon)
+- [ ] AAB `--flavor play` se bana (`build\app\outputs\bundle\playRelease\app-play-release.aab`), aur uska
+      manifest verify (`REQUEST_INSTALL_PACKAGES` nahi honi chahiye)
+- [ ] Asli `key.properties` se sign hua; `SCREENSYNC_ALLOW_DEBUG_SIGNING` set nahi
 - [ ] **LIVE ke liye user se ijazat li** aur `-ApprovedBy` mein uska naam diya
 - [ ] Rollout ke baad store listing se "live" confirm kiya
 - [ ] Production par pehli dafa ho to chhota `--user-fraction` (jaise 0.10) consider kiya
@@ -211,6 +227,9 @@ uske baad routine releases API se. Tafseel: `docs/PLAY_API_GUIDE.md`.
 | `PRODUCTION rollout ke liye human approval lazmi hai` | Gate ne roka - user se poochein |
 | `Release notes 'bug fixes' hain` | Filler notes - `release_notes.py` se banayein |
 | `Release notes are 5xx characters` | 500 se zyada - trim karein |
+| `Refusing to build a release App Bundle of the 'sideload' flavor` | Bina `--flavor play` ke bundle banaya: `flutter build appbundle --release --flavor play` |
+| `Release build refused: android/app/key.properties was not found` | Asli signing key chahiye; debug key se release nahi banti |
+| `SCREENSYNC_ALLOW_DEBUG_SIGNING=1 set hai` | `release.ps1` ne debug-signed publish roka: variable hata dein |
 | `versionCode N is not on Play` | Pehle upload karein, ya sahi versionCode dein |
 | `Changes to releases require you to specify...` | Track body incomplete - `status` lazmi hai |
 | HTTP 403 / permission | Service account ko Play Console mein permission nahi mili |

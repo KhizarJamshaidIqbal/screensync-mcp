@@ -64,6 +64,8 @@ class DeviceIntentService {
       return await _channel.invokeMethod<String>('installerPackage') ?? '';
     } on PlatformException {
       return '';
+    } on MissingPluginException {
+      return '';
     }
   }
 
@@ -108,13 +110,38 @@ class DeviceIntentService {
       );
     } on PlatformException {
       return (name: '0.0.0', code: 0);
+    } on MissingPluginException {
+      return (name: '0.0.0', code: 0);
     }
   }
 
   /// Hands a downloaded APK to the system installer (FileProvider + ACTION_VIEW).
-  static Future<bool> installApk(String path) => _invokeBool(
-        _channel.invokeMethod<bool>('installApk', {'path': path}),
-      );
+  ///
+  /// Returns a status string, never a bool:
+  ///   * `"started"`          - the installer activity really opened.
+  ///   * `"needs_permission"` - "Install unknown apps" is not granted to
+  ///     ScreenSync (native opened that Settings page), or this build does not
+  ///     declare REQUEST_INSTALL_PACKAGES at all (the Play flavor).
+  ///   * `"error:<message>"`  - anything else, with a short reason.
+  ///
+  /// A native build that still answers with a bool is tolerated:
+  /// `true` maps to `"started"`, `false` to an error.
+  static Future<String> installApk(String path) async {
+    try {
+      final raw =
+          await _channel.invokeMethod<Object?>('installApk', {'path': path});
+      if (raw is String) return raw;
+      if (raw is bool) {
+        return raw ? 'started' : 'error:the installer could not be opened';
+      }
+      return 'error:no answer from the installer';
+    } on PlatformException catch (e) {
+      final why = e.message ?? e.code;
+      return 'error:$why';
+    } on MissingPluginException {
+      return 'error:installer is not available in this build';
+    }
+  }
 
   /// Opens the Android share sheet for a captured frame (via FileProvider).
   static Future<bool> shareImage(String path) => _invokeBool(

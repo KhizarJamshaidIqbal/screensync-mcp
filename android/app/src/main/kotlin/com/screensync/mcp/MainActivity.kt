@@ -1,12 +1,9 @@
 package com.screensync.mcp
 
-import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.ComponentName
 import android.content.Intent
-import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -17,91 +14,69 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import com.google.android.play.core.appupdate.AppUpdateManager
-import com.google.android.play.core.appupdate.AppUpdateManagerFactory
-import com.google.android.play.core.install.model.ActivityResult
-import com.google.android.play.core.install.model.AppUpdateType
-import com.google.android.play.core.install.model.UpdateAvailability
 import java.io.File
 
+/// Flutter host activity: wires the platform channels and delegates the real
+/// work to small single-purpose classes in this package.
+///   ProjectionPermission   MediaProjection consent dialog + its 60 s timeout
+///   ProjectionStateStream  "projection_state" EventChannel
+///   UpdateInstaller        hub OTA: APK -> system installer
+///   PlayUpdateHelper       Play In-App Updates
+///   VendorSettings         brand detection + vendor settings pages
 class MainActivity : FlutterActivity() {
     companion object {
         private const val PROJ_CHANNEL = "com.screensync.mcp/media_projection"
         private const val DEVICE_CHANNEL = "com.screensync.mcp/device"
-        private const val CAPTURE_PERMISSION_REQUEST = 7301
         private const val ALERT_CHANNEL_ID = "screensync_alert"
-        private const val PLAY_UPDATE_REQUEST = 7402
     }
 
-    private lateinit var projectionManager: MediaProjectionManager
-    private var pendingPermissionResult: MethodChannel.Result? = null
-    private var pendingPlayUpdate: MethodChannel.Result? = null
+    // Constructors only store the activity; they touch no system service, so
+    // creating them as properties is safe before the base context is attached
+    // (configureFlutterEngine runs inside super.onCreate).
+    private val projectionPermission = ProjectionPermission(this)
+    private val projectionState = ProjectionStateStream()
+    private val playUpdate = PlayUpdateHelper(this)
 
     // Track pending-snap bytes written by notification action receiver
     private val pendingSnaps = ArrayDeque<ByteArray>()
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
-        projectionManager = getSystemService(MediaProjectionManager::class.java)
         // Ask Play for new builds periodically, even when the app is closed.
         UpdateCheckWorker.schedule(this)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
 
         // ── MediaProjection channel ──
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PROJ_CHANNEL)
+        MethodChannel(messenger, PROJ_CHANNEL)
             .setMethodCallHandler(::handleProjectionCall)
 
+        // ── Live projection state (true while a capture session works) ──
+        projectionState.attach(messenger)
+
         // ── Device / Permission Doctor channel ──
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_CHANNEL)
+        MethodChannel(messenger, DEVICE_CHANNEL)
             .setMethodCallHandler(::handleDeviceCall)
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        projectionState.detach()
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     @Deprecated("Retained for FlutterActivity compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == PLAY_UPDATE_REQUEST) {
-            val pending = pendingPlayUpdate
-            pendingPlayUpdate = null
-            pending?.success(
-                when (resultCode) {
-                    Activity.RESULT_OK -> "installed"
-                    Activity.RESULT_CANCELED -> "canceled"
-                    ActivityResult.RESULT_IN_APP_UPDATE_FAILED -> "failed"
-                    else -> "failed"
-                }
-            )
-            return
-        }
-        if (requestCode != CAPTURE_PERMISSION_REQUEST) return
-
-        val pending = pendingPermissionResult
-        pendingPermissionResult = null
-        if (pending == null) return
-
-        if (resultCode == Activity.RESULT_OK && data != null) {
-            ScreenCaptureService.start(this, resultCode, data)
-            pending.success(true)
-        } else {
-            pending.success(false)
-        }
+        if (playUpdate.onActivityResult(requestCode, resultCode)) return
+        projectionPermission.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onDestroy() {
-        pendingPermissionResult?.error(
-            "activity_destroyed",
-            "The capture permission request was interrupted.",
-            null,
-        )
-        pendingPermissionResult = null
-        pendingPlayUpdate?.error(
-            "activity_destroyed",
-            "The Play update flow was interrupted.",
-            null,
-        )
-        pendingPlayUpdate = null
+        projectionPermission.cancelPending()
+        playUpdate.cancelPending()
         super.onDestroy()
     }
 
@@ -109,7 +84,7 @@ class MainActivity : FlutterActivity() {
 
     private fun handleProjectionCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "prepareCapture" -> prepareCapture(result)
+            "prepareCapture" -> projectionPermission.prepare(result)
             "isCaptureReady" -> result.success(ScreenCaptureService.isReady())
             "captureScreen" -> captureScreen(result)
             "stopCapture" -> {
@@ -128,27 +103,6 @@ class MainActivity : FlutterActivity() {
             "isPaused" -> result.success(ScreenCaptureService.isPausedState())
             else -> result.notImplemented()
         }
-    }
-
-    private fun prepareCapture(result: MethodChannel.Result) {
-        if (ScreenCaptureService.isReady()) {
-            result.success(true)
-            return
-        }
-        if (pendingPermissionResult != null) {
-            result.error(
-                "permission_request_active",
-                "A screen capture permission request is already open.",
-                null,
-            )
-            return
-        }
-        pendingPermissionResult = result
-        @Suppress("DEPRECATION")
-        startActivityForResult(
-            projectionManager.createScreenCaptureIntent(),
-            CAPTURE_PERMISSION_REQUEST,
-        )
     }
 
     private fun captureScreen(result: MethodChannel.Result) {
@@ -174,7 +128,7 @@ class MainActivity : FlutterActivity() {
 
     private fun handleDeviceCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "deviceBrand" -> result.success(detectBrand())
+            "deviceBrand" -> result.success(VendorSettings.detectBrand())
             "batteryWhitelisted" -> result.success(isBatteryWhitelisted())
             "notificationsGranted" -> {
                 val nm = getSystemService(NotificationManager::class.java)
@@ -192,8 +146,10 @@ class MainActivity : FlutterActivity() {
                 requestBatteryWhitelist()
                 result.success(true)
             }
-            "openVendorBackgroundSettings" -> result.success(openVendorBackgroundSettings())
-            "openDeveloperSettings" -> result.success(openDeveloperSettings())
+            "openVendorBackgroundSettings" ->
+                result.success(VendorSettings.openVendorBackgroundSettings(this))
+            "openDeveloperSettings" ->
+                result.success(VendorSettings.openDeveloperSettings(this))
             "bringAppToFront" -> result.success(bringAppToFront())
             "shareImage" -> {
                 val path = call.argument<String>("path")
@@ -210,15 +166,19 @@ class MainActivity : FlutterActivity() {
                 result.success(drained)
             }
             "installerPackage" -> result.success(installerPackage())
-            "playUpdateInfo" -> playUpdateInfo(result)
-            "startPlayUpdate" -> startPlayUpdate(
+            "playUpdateInfo" -> playUpdate.info(result)
+            "startPlayUpdate" -> playUpdate.start(
                 call.argument<String>("type") ?: "immediate",
                 result,
             )
             "versionInfo" -> result.success(versionInfo())
             "installApk" -> {
+                // "started" | "needs_permission" | "error:<message>"
                 val apkPath = call.argument<String>("path")
-                if (apkPath == null) result.success(false) else result.success(installApk(apkPath))
+                result.success(
+                    if (apkPath == null) "error:missing path"
+                    else UpdateInstaller.install(this, apkPath)
+                )
             }
             "postNotification" -> {
                 val title = call.argument<String>("title") ?: "ScreenSync"
@@ -250,95 +210,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    /// Asks Play whether a newer build exists for this install.
-    ///
-    /// An empty result (null) means Play could not be asked - a sideloaded build
-    /// has no store to talk to - and must never be read as "up to date".
-    private fun playUpdateInfo(result: MethodChannel.Result) {
-        val manager = playUpdateManager()
-        if (manager == null) {
-            result.success(null)
-            return
-        }
-        manager.appUpdateInfo
-            .addOnSuccessListener { info ->
-                result.success(
-                    mapOf(
-                        "availableVersionCode" to info.availableVersionCode(),
-                        "updateAvailability" to info.updateAvailability(),
-                        "immediateAllowed" to
-                            info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE),
-                        "flexibleAllowed" to
-                            info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE),
-                        "installStatus" to info.installStatus(),
-                        "packageName" to info.packageName(),
-                    )
-                )
-            }
-            .addOnFailureListener { result.success(null) }
-    }
-
-    /// Opens Play's own update UI. IMMEDIATE is the full-screen flow the owner
-    /// asked for: it cannot be dismissed and only ends by installing. Play does
-    /// the download, the signature check and the install, so this app never
-    /// handles the package itself - which is also why it is the only legal route
-    /// for a store-installed build.
-    private fun startPlayUpdate(type: String, result: MethodChannel.Result) {
-        val manager = playUpdateManager()
-        if (manager == null) {
-            result.success("unavailable")
-            return
-        }
-        if (pendingPlayUpdate != null) {
-            result.error(
-                "update_flow_active",
-                "An update flow is already open.",
-                null,
-            )
-            return
-        }
-        val updateType =
-            if (type == "flexible") AppUpdateType.FLEXIBLE else AppUpdateType.IMMEDIATE
-        manager.appUpdateInfo
-            .addOnSuccessListener { info ->
-                val offerable =
-                    info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
-                        info.isUpdateTypeAllowed(updateType)
-                if (!offerable) {
-                    result.success("unavailable")
-                    return@addOnSuccessListener
-                }
-                pendingPlayUpdate = result
-                try {
-                    val started = manager.startUpdateFlowForResult(
-                        info,
-                        updateType,
-                        this,
-                        PLAY_UPDATE_REQUEST,
-                    )
-                    if (!started) {
-                        // Play refused to open the flow, so no activity result
-                        // will ever arrive: release the caller instead of
-                        // leaving it to time out.
-                        pendingPlayUpdate = null
-                        result.success("unavailable")
-                    }
-                } catch (e: Exception) {
-                    pendingPlayUpdate = null
-                    result.error("update_flow_failed", e.message, null)
-                }
-            }
-            .addOnFailureListener { result.success("unavailable") }
-    }
-
-    /// Play Core needs Play services and a store install; on a sideloaded build
-    /// every call must degrade to a no-op rather than crash.
-    private fun playUpdateManager(): AppUpdateManager? = try {
-        AppUpdateManagerFactory.create(this)
-    } catch (_: Exception) {
-        null
-    }
-
     /// Who installed this build. "com.android.vending" means the Play Store
     /// owns updates for it: a self-downloaded APK can never replace a Play build
     /// (different signing key) and Play policy forbids the attempt.
@@ -368,25 +239,6 @@ class MainActivity : FlutterActivity() {
             mapOf("versionName" to (info.versionName ?: "0.0.0"), "versionCode" to code)
         } catch (_: Exception) {
             mapOf("versionName" to "0.0.0", "versionCode" to 0L)
-        }
-    }
-
-    /// Opens the system package installer for a downloaded APK. Needs
-    /// REQUEST_INSTALL_PACKAGES; Android always asks the owner to confirm, and a
-    /// sideloaded app cannot replace itself silently unless it is device owner.
-    private fun installApk(path: String): Boolean {
-        return try {
-            val file = File(path)
-            if (!file.exists()) return false
-            val uri: Uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(intent)
-            true
-        } catch (_: Exception) {
-            false
         }
     }
 
@@ -437,18 +289,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun detectBrand(): String {
-        val manufacturer = Build.MANUFACTURER.lowercase()
-        return when {
-            manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco") -> "xiaomi"
-            manufacturer.contains("samsung") -> "samsung"
-            manufacturer.contains("huawei") || manufacturer.contains("honor") -> "huawei"
-            manufacturer.contains("oppo") || manufacturer.contains("realme") || manufacturer.contains("oneplus") -> "oppo"
-            manufacturer.contains("vivo") || manufacturer.contains("iqoo") -> "vivo"
-            else -> "stock"
-        }
-    }
-
     private fun isBatteryWhitelisted(): Boolean {
         val pm = getSystemService(PowerManager::class.java)
         return pm.isIgnoringBatteryOptimizations(packageName)
@@ -478,118 +318,5 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {
             startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         }
-    }
-
-    /// Opens the Developer Options page so the user can enable the toggle
-    /// that lets ADB inject input events (tap/swipe/type) — required for the
-    /// AI gesture-control loop. On Xiaomi/MIUI/HyperOS this permission is the
-    /// "USB debugging (Security settings)" toggle, which lives on a dedicated
-    /// page; we try that exact page first, then Developer Options, then the
-    /// generic developer settings action, and finally this app's detail page.
-    private fun openDeveloperSettings(): Boolean {
-        val brand = detectBrand()
-        val candidates = mutableListOf<Intent>()
-
-        if (brand == "xiaomi") {
-            // MIUI / HyperOS dedicated "USB debugging (Security settings)" screen.
-            candidates.add(
-                Intent().setComponent(
-                    ComponentName(
-                        "com.android.settings",
-                        "com.android.settings.Settings\$DevelopmentSettingsDashboardActivity"
-                    )
-                )
-            )
-            candidates.add(
-                Intent().setComponent(
-                    ComponentName(
-                        "com.miui.securitycenter",
-                        "com.miui.permcenter.settings.SecuritySettingsActivity"
-                    )
-                )
-            )
-        }
-
-        // Standard AOSP Developer Options page.
-        candidates.add(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
-
-        for (intent in candidates) {
-            try {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-                return true
-            } catch (_: Exception) { /* try next */ }
-        }
-
-        // Fall back to this app's detail page (still one tap from settings).
-        return try {
-            startActivity(
-                Intent(
-                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.parse("package:$packageName")
-                ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-            )
-            true
-        } catch (_: Exception) { false }
-    }
-
-    private fun openVendorBackgroundSettings(): Boolean {
-        val brand = detectBrand()
-        val intents = when (brand) {
-            "xiaomi" -> listOf(
-                // MIUI / HyperOS auto-start
-                Intent().setComponent(ComponentName(
-                    "com.miui.securitycenter",
-                    "com.miui.permcenter.autostart.AutoStartManagementActivity"
-                )),
-                // HyperOS 2 path
-                Intent().setComponent(ComponentName(
-                    "com.miui.securitycenter",
-                    "com.miui.powercenter.PowerManagerActivity"
-                ))
-            )
-            "samsung" -> listOf(
-                Intent().setComponent(ComponentName(
-                    "com.samsung.android.lool",
-                    "com.samsung.android.sm.battery.ui.BatteryActivity"
-                ))
-            )
-            "huawei" -> listOf(
-                Intent().setComponent(ComponentName(
-                    "com.huawei.systemmanager",
-                    "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"
-                ))
-            )
-            "oppo" -> listOf(
-                Intent().setComponent(ComponentName(
-                    "com.coloros.safecenter",
-                    "com.coloros.safecenter.permission.startup.StartupAppListActivity"
-                ))
-            )
-            "vivo" -> listOf(
-                Intent().setComponent(ComponentName(
-                    "com.vivo.permissionmanager",
-                    "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"
-                ))
-            )
-            else -> emptyList()
-        }
-
-        for (intent in intents) {
-            try {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-                return true
-            } catch (_: Exception) { /* try next */ }
-        }
-        // Fall back to generic app settings
-        return try {
-            startActivity(
-                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.parse("package:$packageName"))
-                    .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-            )
-            true
-        } catch (_: Exception) { false }
     }
 }

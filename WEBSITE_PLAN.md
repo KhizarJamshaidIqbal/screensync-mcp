@@ -1,6 +1,8 @@
 # ScreenSync MCP — Marketing Website Master Plan (epsoldev.com)
 
-> **Status:** IN PROGRESS — check ✅ boxes below as steps complete.
+> **Historical document, written for the 2026-08-29 website build (app 2.5.0); not maintained.** The site is live and deploys through the `deploy` branch (see `CLAUDE.md` section 1); the status below and its checkboxes are frozen and no longer describe current work. The "output folder" path in section 0 is the original build machine's.
+
+> **Status (as of 2026-08-29):** IN PROGRESS — check ✅ boxes below as steps complete.
 > **Resume rule:** Agar naya account/session start ho, YEH FILE parho, "Progress Tracker"
 > dekho, aur jahan se ruka wahan se continue karo. Sab decisions is file mein locked hain.
 > **Date started:** 2026-08-29

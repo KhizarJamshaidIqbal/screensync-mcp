@@ -10,6 +10,10 @@ import '../widgets/shimmer_box.dart';
 
 /// B1: real-time thumbnail strip. Newest frames land at the head as SSE
 /// `frame` events refresh the gallery. Tap → fullscreen pinch-zoom viewer.
+///
+/// [live] must mean a frame arrived recently (see `ScreenCaptureState.framesFresh`),
+/// not merely that the SSE connection is up; otherwise the badge stays neutral
+/// and reads "waiting for frames".
 class LiveStreamStrip extends StatelessWidget {
   const LiveStreamStrip({
     super.key,
@@ -158,7 +162,7 @@ class _LivePulseBadge extends StatelessWidget {
           .scaleXY(begin: 0.8, end: 1.2, duration: 600.ms);
     }
     return Semantics(
-      label: live ? 'Live stream active' : 'Stream idle',
+      label: live ? 'Live stream active' : 'Waiting for frames',
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
@@ -171,7 +175,7 @@ class _LivePulseBadge extends StatelessWidget {
           children: [
             dot,
             const SizedBox(width: 5),
-            Text('LIVE',
+            Text(live ? 'LIVE' : 'WAITING',
                 style: AppTheme.microLabel.copyWith(color: color)),
           ],
         ),

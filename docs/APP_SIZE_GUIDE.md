@@ -3,7 +3,9 @@
 Sawal: "app ka size 5-7 MB tak ho sakta hai?" Short jawab: **Flutter ke saath nahi.**
 Neeche wo asli numbers hain jo maine AAB ke andar se nape.
 
-Measured on: `build/app/outputs/bundle/release/app-release.aab` (15 Sept 2026, versionCode 31).
+Measured on: `build/app/outputs/bundle/release/app-release.aab` (15 Sept 2026, versionCode 31). Ye flavors
+se pehle ka path hai; ab Play bundle `build/app/outputs/bundle/playRelease/app-play-release.aab` mein aata hai
+(`flutter build appbundle --release --flavor play`).
 AAB file size: **55.02 MB**. Uncompressed contents: **153.01 MB**.
 
 ---
@@ -30,7 +32,7 @@ magar kisi user tak nahi jate. Is liye "55 MB app" wala number galat tasveer det
 |---|---|---|
 | `arm64-v8a` | **23.23 MB** | Aaj ke taqreeban saare phones |
 | `armeabi-v7a` | 19.64 MB | Purane 32-bit phones |
-| `x86_64` | 25.52 MB | Emulators / Chromebooks (nagani) |
+| `x86_64` | 25.52 MB | Emulators / Chromebooks (nagani). **Ab default builds se hata diya gaya hai** (Section 8), sirf ML Kit ki ek lib (5.8 MB) reh jati hai |
 
 `arm64-v8a` ke andar:
 
@@ -52,30 +54,35 @@ ye engine ka apna size hai, hamare code ka nahi.
 
 ---
 
-## 3. Ek asli masla: hub ka OTA APK 77 MB ka hai
+## 3. Ek asli masla: hub ka OTA APK 77 MB ka tha (ab `build_ota_apk.ps1` hai)
 
 | Cheez | Size |
 |---|---|
 | Play par AAB (per-device split hota hai) | ~30 MB download |
 | **Hub ka OTA APK** (`/apk`) | **77,159,084 bytes = 77.16 MB** |
 
-Hub **universal APK** deta hai - teeno ABIs ek hi file mein:
+15 Sept 2026 ko hub **universal APK** de raha tha - teeno ABIs ek hi file mein:
 `23.23 + 19.64 + 25.52 = 68.4 MB` libs + dex + res ≈ 77 MB. Ye arithmetic bilkul
 match karti hai.
 
 Is liye sideloaded users (jo hub se install karte hain) **77 MB** download karte hain,
 jabke unhein sirf ~30 MB chahiye. **Ye sab se bara, sab se asaan, aur zero-risk fix hai.**
 
-### Fix (feature kuch nahi tootta)
+### Fix (feature kuch nahi tootta) - ab mojood hai
 ```powershell
-# Hub ke liye sirf arm64 APK banao - 77 MB se ~30 MB
-flutter build apk --release --target-platform android-arm64
+# Hub ke liye OTA APK: x86_64 ke bagair (arm64 + armeabi-v7a), ~25 MB chhoti
+.\tools\build_ota_apk.ps1
 
-# Ya dono asli ABIs ke liye alag alag APK
-flutter build apk --release --split-per-abi
+# Sab se chhoti: sirf arm64 (~30 MB). Bahut purane 32-bit phones par install nahi hogi.
+.\tools\build_ota_apk.ps1 -Arm64Only
 ```
-`hub.ts` ko phir ye APK serve karni chahiye (`/apk` route), aur phone ko apna ABI
-ke hisaab se sahi file milni chahiye. Ye kaam abhi hua nahi hai.
+`tools/build_ota_apk.ps1` `flutter build apk --release --flavor sideload --target-platform ...` chalata
+hai aur `build\app\outputs\flutter-apk\app-sideload-release.apk` banata hai. Hub isi APK ko `/apk` par
+serve karta hai (version `build\app\outputs\apk\sideload\release\output-metadata.json` se). Sideload flavor
+isliye zaroori hai ke sirf usi mein `REQUEST_INSTALL_PACKAGES` hoti hai (`docs/LOCAL_RELEASE.md` Section 6b).
+
+Note: ye ek hi APK hai (jo target platforms aap dein wohi ABIs us mein). Hub phone ke ABI ke hisaab se
+alag alag APK nahi chunta, aur `--split-per-abi` wala raasta abhi banaya nahi gaya.
 
 ---
 
@@ -83,8 +90,8 @@ ke hisaab se sahi file milni chahiye. Ye kaam abhi hua nahi hai.
 
 | # | Change | Bachat (arm64 download) | Risk |
 |---|---|---|---|
-| 1 | **Hub per-ABI APK de** (Section 3) | **77 MB -> ~30 MB** (sideloaded users) | Kam - sirf packaging |
-| 2 | `abiFilters` se `x86_64` hatao | AAB chhota; arm64 users ko farq nahi | Kam - emulator testing chali jayegi |
+| 1 | ~~Hub ka APK chhota karo~~ **Ho chuka:** `tools/build_ota_apk.ps1` (Section 3) | **~25 MB chhoti** (default: x86_64 hat jata hai), **~30 MB** (`-Arm64Only`) | Kam - sirf packaging |
+| 2 | ~~`x86_64` hatao~~ **Ho chuka:** `--target-platform android-arm,android-arm64` (`abiFilters` se nahi, Section 8) | AAB 55.03 -> 40.73 MB; arm64 users ko farq nahi | Kam - emulator testing ke liye `-TargetPlatform android-x64` |
 | 3 | **`mobile_scanner` (ML Kit) hatao**, halka QR decoder (ZXing based) lagao | **~5.8 MB** (`libbarhopper_v3.so` + tflite models) | **Medium** - QR scanning dobara test karni paregi |
 | 4 | `minifyEnabled true` + `shrinkResources true` (R8) | 1.5-2.5 MB (dex + res) | **Medium** - reflection wala code toota to crash |
 | 5 | `--split-debug-info` / `--obfuscate` | `libapp.so` thora chhota | Kam |
@@ -131,23 +138,23 @@ pehle se halka hai.
 
 ## 6. Tajweez (tarteeb ke saath)
 
-1. **Hub per-ABI APK de** - sab se bara faida (77 -> 30 MB), sab se kam risk. (Section 3)
-2. `x86_64` hatao (abiFilters) - AAB saaf hota hai.
+1. ~~Hub ka APK chhota karo~~ - ho chuka (`tools/build_ota_apk.ps1`, Section 3).
+2. ~~`x86_64` hatao~~ - ho chuka (`--target-platform`, Section 8).
 3. R8 minify + shrinkResources chalu karo, aur **device par poora regression** karo.
 4. QR scanner ko halke decoder se badlo, agar 5.8 MB ki bachat waqai chahiye.
-5. Har qadam ke baad `flutter build appbundle --release` se AAB ke andar ka
+5. Har qadam ke baad `flutter build appbundle --release --flavor play` se AAB ke andar ka
    per-ABI total dobara naapo (Section 7 ka command).
 
 **Har size change ke baad device par test lazmi hai.** App production mein live hai
-(versionCode 31), is liye size optimization ko chhote steps mein aur staged rollout
-ke saath bhejna chahiye.
+(15 Sept 2026 ke record ke mutabiq versionCode 31; `pubspec.yaml` ab `+32` hai, `docs/LOCAL_RELEASE.md`
+Section 0), is liye size optimization ko chhote steps mein aur staged rollout ke saath bhejna chahiye.
 
 ---
 
 ## 7. Naapne ka command
 
 ```powershell
-$zip = [System.IO.Compression.ZipFile]::OpenRead("build\app\outputs\bundle\release\app-release.aab")
+$zip = [System.IO.Compression.ZipFile]::OpenRead("build\app\outputs\bundle\playRelease\app-play-release.aab")
 $zip.Entries | Where-Object { $_.FullName -match '^base/lib/([^/]+)/' } |
   Group-Object { ($_.FullName -split '/')[2] } |
   ForEach-Object { "{0,-14} {1,10:N0} b = {2:N2} MB" -f $_.Name, ($_.Group | Measure-Object Length -Sum).Sum,
@@ -163,7 +170,7 @@ Asli lever `--target-platform` hai, `abiFilters` nahi:
 
 | Build | Command | AAB |
 |---|---|---|
-| Pehle | `flutter build appbundle --release` | **55.03 MB** (arm64 23.23 + armv7 19.64 + x86_64 25.52) |
+| Pehle | `flutter build appbundle --release` (flavors se pehle; ab `--flavor play` lagta hai) | **55.03 MB** (arm64 23.23 + armv7 19.64 + x86_64 25.52) |
 | Ab | `... --target-platform android-arm,android-arm64` | **40.73 MB** (arm64 23.23 + armv7 19.64 + x86_64 5.80) |
 
 Bachat: **14.3 MB (26%)**. `release.ps1` mein `-TargetPlatform` add ho gaya

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../repositories/screen_repository.dart';
@@ -14,9 +15,13 @@ class HubStatusEvent extends ScreenCaptureEvent {
   final bool ok;
   final int? ms;
   final List<DiscoveredHub>? hubs;
-  const HubStatusEvent({required this.ok, this.ms, this.hubs});
+
+  /// The hub answered but refused an authenticated call (wrong pairing token).
+  final bool authFailed;
+  const HubStatusEvent(
+      {required this.ok, this.ms, this.hubs, this.authFailed = false});
   @override
-  List<Object?> get props => [ok, ms, hubs];
+  List<Object?> get props => [ok, ms, hubs, authFailed];
 }
 
 /// Zero-config hub lifecycle: periodic health checks, auto-sync of pending
@@ -49,6 +54,7 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
         hubUrl: hubRepo.hubUrl,
         hubSource: hubRepo.hubSource,
         discoveredHubs: event.hubs ?? state.discoveredHubs,
+        hubAuthFailed: event.ok && event.authFailed,
       ));
     });
     _ensureMaintenance();
@@ -68,7 +74,7 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
   void _ensureMaintenance() {
     if (_hubMaintenance != null) return;
     _hubMaintenance =
-        Timer.periodic(const Duration(seconds: 20), (_) => _maintainHub());
+        Timer.periodic(const Duration(seconds: 20), (_) => maintainHub());
   }
 
   void disposeHubMaintenance() {
@@ -80,9 +86,12 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
   // even while the hub reports "online" (previously the tick returned early and
   // a hub that went away was never noticed), then push pending frames when
   // auto-sync is on, then fall back to discovery when the hub is unreachable.
-  Future<void> _maintainHub() async {
-    await _refreshHubStatus();
-    if (state.hubOnline == true) {
+  @visibleForTesting
+  Future<void> maintainHub() async {
+    // Use the ping result itself: add(HubStatusEvent) is only queued here, so
+    // state.hubOnline would still hold the previous tick's value.
+    final online = await _refreshHubStatus();
+    if (online) {
       if (hubSettings.autoSync && state.unsyncedCount > 0) {
         add(SyncPendingEvent());
       }
@@ -91,10 +100,17 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
     if (hubSettings.autoDiscover) await autoDiscoverHub();
   }
 
-  Future<void> _refreshHubStatus() async {
+  Future<bool> _refreshHubStatus() async {
     final res = await hubRepo.pingHubTimed();
-    add(HubStatusEvent(ok: res.ok, ms: res.ms));
+    add(HubStatusEvent(
+        ok: res.ok, ms: res.ms, authFailed: await _authRejected(res.ok)));
+    return res.ok;
   }
+
+  /// `/health` is unauthenticated, so a reachable hub can still be refusing
+  /// this phone's token. One bearer-guarded call tells the two apart.
+  Future<bool> _authRejected(bool reachable) async =>
+      reachable && await hubRepo.checkHubAuth() == HubAuthStatus.rejected;
 
   Future<bool> autoDiscoverHub() async {
     if (_scanning) return false;
@@ -131,7 +147,11 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
       if (hubs.isEmpty) return false;
       hubRepo.setAutoHubUrl(hubs.first.url);
       final res = await hubRepo.pingHubTimed();
-      add(HubStatusEvent(ok: res.ok, ms: res.ms, hubs: hubs));
+      add(HubStatusEvent(
+          ok: res.ok,
+          ms: res.ms,
+          hubs: hubs,
+          authFailed: await _authRejected(res.ok)));
       return res.ok;
     } catch (_) {
       return false;
@@ -157,11 +177,13 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
     // a previous Disconnect).
     _ensureMaintenance();
     final res = await hubRepo.pingHubTimed();
+    final authFailed = await _authRejected(res.ok);
     emit(state.copyWith(
       hubOnline: res.ok,
       hubLatencyMs: res.ok ? res.ms : null,
       hubUrl: hubRepo.hubUrl,
       hubSource: hubRepo.hubSource,
+      hubAuthFailed: authFailed,
     ));
     if (!res.ok && hubSettings.autoDiscover) await autoDiscoverHub();
   }
@@ -212,18 +234,25 @@ mixin HubMaintenanceMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
     _hubMaintenance?.cancel();
     _hubMaintenance = null;
     hubSettings.hubUrlOverride = '';
-    hubSettings.pairingToken = '';
+    // Remove the key rather than storing '': an empty token used to be read
+    // back as-is and every later call went out as "Bearer " (401) while the
+    // unauthenticated /health still made the UI say CONNECTED.
+    hubSettings.clearPairingToken();
     emit(state.copyWith(
       hubUrl: '',
       hubOnline: false,
       hubLatencyMs: null,
       liveConnected: false,
       discovering: false,
+      hubAuthFailed: false,
     ));
   }
 
   void _onSetPairingToken(
       SetPairingTokenEvent event, Emitter<ScreenCaptureState> emit) {
     hubSettings.pairingToken = event.token;
+    // A new token changes the auth verdict: re-check now instead of waiting
+    // for the next maintenance tick.
+    add(PingHubEvent());
   }
 }

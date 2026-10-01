@@ -1,5 +1,7 @@
 # ScreenSync — Full Codebase Deep Dive
 
+> **Historical document, written for app 2.5.0+25 (2026-08-28); not maintained.** File counts, line numbers and behaviour below describe that snapshot, not the current code (the app is now 2.5.4, and the capture, mirror, update and hub-connection code has been reworked since). Trust the source.
+
 **Version:** 2.5.0+25 · **Dart SDK:** `>=3.4.0 <4.0.0` · **Scope:** 54 Dart files + 2 Kotlin files + ~20 TypeScript files
 **Method:** complete read-through of every source file (read-only; nothing modified)
 

@@ -1,6 +1,8 @@
 # ScreenSync MCP — Advanced Features & UX Upgrade Plan
 
-> **Status:** PLAN ONLY — nothing here is executed yet.
+> **Historical document, written for app 2.5.0 on 2026-08-29; not maintained.** Much of this plan has since shipped, changed or been dropped, and the file was never updated to say which. Read the git history and `RELEASE_NOTES.md` for what actually exists.
+
+> **Status (as of 2026-08-29):** PLAN ONLY — nothing here is executed yet.
 > **Date:** 2026-08-29
 > **Golden rule for every item:** *never break mobile responsiveness.* Each new
 > UI element must use `Flexible`/`Expanded`/`Wrap`/`LayoutBuilder`, be tested on

@@ -93,7 +93,11 @@ refreshThumb();
 // Device info
 async function refreshDevice() {
   const d = await send({ type: 'get-device-status' });
-  if (d && d.ok && d.result && d.result.connected) {
+  // `connected` means "a frame arrived in the last 60 s" (hub status contract),
+  // so it drops to false for a phone that paused mirroring while its frames are
+  // still retained and get_latest_screenshot still works. `retainedFrames`
+  // exists on old and new hubs alike, unlike `hasFrames`.
+  if (d && d.ok && d.result && (d.result.connected || (d.result.retainedFrames || 0) > 0)) {
     devBox.hidden = false;
     devModel.textContent = d.result.deviceModel || 'Android';
     devFrames.textContent = `${d.result.retainedFrames || 0} frames`;

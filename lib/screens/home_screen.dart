@@ -1,8 +1,5 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../blocs/screen_capture_bloc.dart';
@@ -12,7 +9,9 @@ import '../services/settings_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/connect_prompt_dialog.dart';
-import 'annotate_screen.dart';
+import 'home/capture_celebration.dart';
+import 'home/capture_transitions.dart';
+import 'home/connection_toggle_button.dart';
 import 'pair_scan_screen.dart';
 import 'hub_screen.dart';
 import 'region_crop_screen.dart';
@@ -33,6 +32,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _lastRegionId = 0;
   bool _cropOpen = false;
+
+  /// One-shot celebrate / error-toast decisions (transitions, not values).
+  final _transitions = CaptureTransitions();
 
   /// "Connect your hub" prompt: shown once after install, then again on
   /// every drop of the hub link. Skipping silences it until the next drop.
@@ -86,7 +88,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _showCelebration = true;
       _celebrationPath = state.latestFramePath;
-      _celebrationSynced = state.hubOnline == true;
+      // "Delivered" only when the hub is reachable AND accepts our token.
+      _celebrationSynced = state.hubOnline == true && !state.hubAuthFailed;
     });
     Future.delayed(const Duration(milliseconds: 2600), () {
       if (mounted) setState(() => _showCelebration = false);
@@ -99,7 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
       BuildContext context, ScreenCaptureState state) async {
     if (_promptOpen || !mounted) return;
 
-    final online = state.hubOnline == true;
+    // A hub that rejects our token is as good as offline: re-pairing is the fix.
+    final online = state.hubOnline == true && !state.hubAuthFailed;
     final was = _wasHubOnline;
     _wasHubOnline = online;
 
@@ -125,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final result = await showConnectPrompt(
       context,
       hubUrl: state.hubUrl,
-      online: state.hubOnline == true,
+      online: state.hubOnline == true && !state.hubAuthFailed,
     );
     _promptOpen = false;
     if (!mounted) return;
@@ -151,7 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
           previous.errorMessage != current.errorMessage ||
           previous.regionRequestId != current.regionRequestId ||
           previous.liveConnected != current.liveConnected ||
-          previous.hubOnline != current.hubOnline,
+          previous.hubOnline != current.hubOnline ||
+          previous.hubAuthFailed != current.hubAuthFailed,
       listener: (context, state) {
         // F2: reconnect/disconnect toasts (backoff handled by the service).
         if (_lastLiveToast != null && _lastLiveToast != state.liveConnected) {
@@ -167,16 +172,20 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         _lastLiveToast = state.liveConnected;
         _maybeShowConnectPrompt(context, state);
+        // Observed before the region early return so the tracker never misses
+        // a transition.
+        final reaction = _transitions.observe(state);
         if (state.regionRequestId != _lastRegionId &&
             state.regionBytes != null) {
           _lastRegionId = state.regionRequestId;
           _openRegionEditor(context, state);
           return;
         }
-        if (state.status == CaptureStatus.success) {
+        if (reaction.celebrate) {
           HapticFeedback.mediumImpact();
           _celebrate(state);
-        } else if (state.errorMessage != null) {
+        }
+        if (reaction.showError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.errorMessage!)),
           );
@@ -274,15 +283,23 @@ class _HomeScreenState extends State<HomeScreen> {
             actions: [
               Semantics(
                 label: 'Connection toggle',
-                child: _ConnectionToggleButton(
-                  connected:
-                      state.hubOnline == true || state.liveConnected == true,
+                child: ConnectionToggleButton(
+                  // Reachable is not connected: a hub that rejects our token
+                  // answers /health but refuses every real call.
+                  connected: (state.hubOnline == true && !state.hubAuthFailed) ||
+                      state.liveConnected == true,
+                  authProblem: state.hubOnline == true &&
+                      state.hubAuthFailed &&
+                      state.liveConnected != true,
                   busy: state.discovering,
                   onDisconnect: () => _confirmDisconnect(
                       context, context.read<ScreenCaptureBloc>()),
                   onConnect: () => context
                       .read<ScreenCaptureBloc>()
                       .add(AutoConnectHubEvent()),
+                  onRepair: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PairScanScreen()),
+                  ),
                 ),
               ),
               const SizedBox(width: 2),
@@ -345,227 +362,5 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
-  }
-}
-
-/// Polished pill button that lives in the app bar and reflects the live
-/// connection state:
-///  - connected  -> a filled "Live" pill with a pulsing dot; tap disconnects.
-///  - disconnected-> a subtle outlined "Connect" pill; tap auto-connects.
-class _ConnectionToggleButton extends StatelessWidget {
-  const _ConnectionToggleButton({
-    required this.connected,
-    required this.busy,
-    required this.onDisconnect,
-    required this.onConnect,
-  });
-
-  final bool connected;
-  final bool busy;
-  final VoidCallback onDisconnect;
-  final VoidCallback onConnect;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color accent = connected ? AppTheme.success : AppTheme.primary;
-    final String label = busy
-        ? 'Connecting'
-        : connected
-            ? 'Live'
-            : 'Connect';
-
-    return Tooltip(
-      message: connected
-          ? 'Close ScreenSync MCP connection'
-          : 'Connect to ScreenSync hub',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(999),
-          onTap: busy ? null : (connected ? onDisconnect : onConnect),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-            decoration: BoxDecoration(
-              gradient: connected
-                  ? LinearGradient(colors: [
-                      accent.withValues(alpha: 0.22),
-                      accent.withValues(alpha: 0.10),
-                    ])
-                  : null,
-              color: connected ? null : Colors.transparent,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: accent.withValues(alpha: connected ? 0.55 : 0.40),
-                width: 1,
-              ),
-              boxShadow: connected
-                  ? [
-                      BoxShadow(
-                        color: accent.withValues(alpha: 0.28),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (busy)
-                  SizedBox(
-                    width: 11,
-                    height: 11,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(accent),
-                    ),
-                  )
-                else if (connected)
-                  _PulsingDot(color: accent)
-                else
-                  Icon(Icons.power_settings_new_rounded,
-                      size: 13, color: accent),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: AppTheme.microLabel.copyWith(
-                    color: accent,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A small dot that gently pulses to signal a live connection.
-class _PulsingDot extends StatelessWidget {
-  const _PulsingDot({required this.color});
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 6),
-        ],
-      ),
-    )
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .fadeIn(duration: 700.ms)
-        .scaleXY(begin: 0.85, end: 1.15, duration: 700.ms, curve: Curves.easeInOut);
-  }
-}
-
-/// Animated capture-success card: shows the ACTUAL captured pixels so the
-/// user gets instant proof the tap worked — even before any hub exists.
-class CaptureCelebration extends StatelessWidget {
-  const CaptureCelebration(
-      {super.key, required this.framePath, required this.synced});
-
-  final String? framePath;
-  final bool synced;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? const Color(0xF0111827)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(AppTheme.radiusL),
-          border: Border.all(color: AppTheme.success.withValues(alpha: 0.65)),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.success.withValues(alpha: 0.25),
-              blurRadius: 24,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            if (framePath != null && File(framePath!).existsSync())
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppTheme.radiusS),
-                child: Image.file(
-                  File(framePath!),
-                  width: 46,
-                  height: 82,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
-              )
-            else
-              Container(
-                width: 46,
-                height: 82,
-                decoration: BoxDecoration(
-                  color: AppTheme.success.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusS),
-                ),
-                child: const Icon(Icons.image_rounded,
-                    color: AppTheme.success, size: 22),
-              ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.check_circle_rounded,
-                          color: AppTheme.success, size: 18),
-                      SizedBox(width: 6),
-                      Text('Captured!',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 15)),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    synced
-                        ? 'Frame delivered — your AI can see it now.'
-                        : 'Saved to Gallery. It will sync when the hub connects.',
-                    style: TextStyle(fontSize: 12, color: dimColor(context)),
-                  ),
-                ],
-              ),
-            ),
-            if (framePath != null)
-              IconButton(
-                tooltip: 'Annotate / redact',
-                icon: const Icon(Icons.draw_rounded,
-                    color: AppTheme.accentCyan, size: 22),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => AnnotateScreen(imagePath: framePath!)),
-                ),
-              ),
-          ],
-        ),
-      ),
-    )
-        .animate()
-        .slideY(begin: 0.4, end: 0, duration: 340.ms, curve: Curves.easeOutBack)
-        .fadeIn(duration: 220.ms)
-        .then(delay: 1900.ms)
-        .fadeOut(duration: 350.ms);
   }
 }

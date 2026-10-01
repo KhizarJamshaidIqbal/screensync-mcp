@@ -40,7 +40,7 @@ export function toolDefinitions() {
     },
     {
       name: "get_device_status",
-      description: "Reports ScreenSync transport status, latest frame age, device metadata, and retained frame count.",
+      description: "Reports whether the phone is streaming: connected = a frame arrived in the last 60s, phoneOnline = the app is linked to the hub, state = streaming | linked_no_frames | no_phone, plus latest frame age, device metadata and retained frame count.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
       {

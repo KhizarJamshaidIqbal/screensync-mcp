@@ -38,8 +38,13 @@ console.log("       skills:", (catalog.prompts as Array<{ name: string }>).map((
 
 // Step 2 — freshness check
 const status = textOf(await client.callTool({ name: "get_device_status", arguments: {} }));
-console.log("STEP2 status: connected =", status.connected, "| retained =", status.retainedFrames);
-assert.equal(status.connected, true, "phone frame must exist on the shared data dir");
+// `connected` now means a frame arrived within the last 60 s, which a demo run against a shared data dir cannot
+// promise. What the workflow below needs is a retained frame to fetch, so assert that and only log the live state.
+console.log(
+  "STEP2 status: connected =", status.connected, "| state =", status.state,
+  "| hasFrames =", status.hasFrames, "| retained =", status.retainedFrames,
+);
+assert.equal(status.hasFrames, true, "at least one retained phone frame must exist on the shared data dir");
 
 // Step 3 — fetch the phone screenshot like Claude's vision would
 const shot = await client.callTool({ name: "get_latest_screenshot", arguments: { includeMetadata: true } });

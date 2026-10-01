@@ -1,32 +1,72 @@
-﻿# HOW TO ENABLE
-# 1. Copy this file to  .github/workflows/release.yml
+# DORMANT: this file is NOT active and must stay outside .github/ until the checklist below is done.
+#
+# HOW TO ENABLE (all steps, in order)
+# 1. In the repository settings create the Environment `play-internal`. Optionally add required
+#    reviewers to it. If you ever add `production` to the track options, the job binds to an
+#    Environment named `production`, and THAT ONE MUST HAVE REQUIRED REVIEWERS (a human approves each
+#    run) before this file is enabled. Without that approval gate, do not enable it.
 # 2. Add these repository secrets (Settings > Secrets and variables > Actions):
 #      ANDROID_KEYSTORE_BASE64    base64 of android/app/screensync-release.jks
 #      ANDROID_STORE_PASSWORD     key.properties storePassword
 #      ANDROID_KEY_PASSWORD       key.properties keyPassword
 #      ANDROID_KEY_ALIAS          key.properties keyAlias
 #      PLAY_SERVICE_ACCOUNT_JSON  Play Console > Setup > API access service account
-# 3. It stays here rather than in .github/workflows/ because the push token in
-#    use has no 'workflow' scope, and GitHub refuses to create workflow files
+# 3. Copy this file to .github/workflows/release.yml. It stays here rather than in .github/workflows/
+#    because the push token in use has no 'workflow' scope, and GitHub refuses to create workflow files
 #    through it. Moving the file in by hand (or with a scoped token) is enough.
-name: Release to Google Play
+# 4. Before enabling, pin the two third-party actions below (subosito/flutter-action,
+#    r0adkll/upload-google-play) to a full commit SHA. A major version tag can be repointed.
+#
+# WHAT THIS WORKFLOW DOES NOT DO (on purpose)
+# - It never runs on a push or a tag. Publishing is a deliberate, manual run.
+# - It only publishes to the `internal` track. A production release reaches real users and needs a human
+#   approval, so it goes through tools/release.ps1 or tools/publish_play.py with
+#   -ConfirmLiveRollout -ApprovedBy "<name>" (see AGENTS.md section 10 and docs/LOCAL_RELEASE.md).
+# - It never builds the sideload flavor. A Play bundle is `--flavor play`; the sideload flavor declares
+#   REQUEST_INSTALL_PACKAGES, which Play forbids, and Gradle refuses to bundle it.
+name: Release to Google Play (internal)
 
-# Publishing is the CI's job, not a manual trip to the Play Console: bump
-# pubspec.yaml, tag, push, and the bundle lands on a Play track by itself.
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
     inputs:
       track:
-        description: 'Play track (internal, alpha, beta, production)'
+        description: 'Play track. Only internal is offered; production goes through tools/release.ps1 with a human approval.'
         required: true
+        type: choice
+        options:
+          - internal
         default: internal
+      release_notes:
+        description: 'What is new for users: real changes, at most 500 characters (no "bug fixes and improvements").'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: play-release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Ties the run to a protected Environment. If `production` is ever added to the track options above,
+    # this expression automatically binds the run to the `production` Environment, which must require
+    # human reviewers. Until then every run uses `play-internal`.
+    environment: ${{ inputs.track == 'production' && 'production' || 'play-internal' }}
     steps:
+      # Belt and braces: even if someone widens the options, production never publishes from here.
+      - name: Refuse anything but the internal track
+        env:
+          TRACK: ${{ inputs.track }}
+        run: |
+          if [ "$TRACK" != "internal" ]; then
+            echo "This workflow only publishes to the internal track."
+            echo "For production use tools/release.ps1 with -ConfirmLiveRollout -ApprovedBy after asking the user."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-java@v4
@@ -37,32 +77,53 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.38.6'
 
-      # The same upload key the Play Console knows, restored from secrets.
-      - name: Restore the upload keystore
+      # The release notes go through the same validator the local tools use (length and filler phrases).
+      # They are passed through the environment, never interpolated into the script.
+      - name: Validate the release notes
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/screensync-release.jks
-          cat > android/app/key.properties <<EOF
-          storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          storeFile=screensync-release.jks
-          EOF
+          mkdir -p whatsnew
+          printf '%s' "$RELEASE_NOTES" > whatsnew/whatsnew-en-GB
+          python3 tools/release_notes.py --check whatsnew/whatsnew-en-GB
+
+      # The same upload key the Play Console knows, restored from secrets. Values are written with printf
+      # from the environment, so a $ or a quote in a password cannot be expanded by the shell.
+      - name: Restore the upload keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          printf '%s' "$KEYSTORE_B64" | base64 -d > android/app/screensync-release.jks
+          {
+            printf 'storePassword=%s\n' "$STORE_PASSWORD"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'storeFile=screensync-release.jks\n'
+          } > android/app/key.properties
 
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
 
-      # Play takes an .aab, not an .apk.
+      # Play takes an .aab, not an .apk, and it must be the play flavor.
       - name: Build the App Bundle
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --flavor play
 
-      - name: Upload to Play
+      - name: Upload to the internal track
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.screensync.mcp
-          releaseFiles: build/app/outputs/bundle/release/app-release.aab
-          track: ${{ github.event.inputs.track || 'internal' }}
+          releaseFiles: build/app/outputs/bundle/playRelease/app-play-release.aab
+          track: internal
           status: completed
+          whatsNewDirectory: whatsnew
 
+      - name: Remove the signing material
+        if: always()
+        run: rm -f android/app/screensync-release.jks android/app/key.properties

@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -66,8 +67,13 @@ export function log(level: string, message: string, context: Record<string, unkn
   console.error(JSON.stringify({ timestamp: new Date().toISOString(), level, message, ...context }));
 }
 
+/** Constant-time equality: both sides are hashed first, so the compare time reveals neither where they differ nor their length. */
+function tokenEquals(a: string, b: string): boolean {
+  return timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest());
+}
+
 export function isAuthorized(header: string | undefined): boolean {
-  return header === `Bearer ${AUTH_TOKEN}`;
+  return typeof header === "string" && tokenEquals(header, `Bearer ${AUTH_TOKEN}`);
 }
 
 /**

@@ -5,7 +5,11 @@
 
 .DESCRIPTION
     Steps: flutter pub get -> flutter analyze -> flutter test -> (optional version bump)
-           -> flutter build appbundle --release -> tools/publish_play.py
+           -> flutter build appbundle --release --flavor play -> tools/publish_play.py
+
+    Play bundle "play" flavor se banta hai (REQUEST_INSTALL_PACKAGES declare nahi hoti - Play
+    policy). "sideload" flavor sirf hub OTA APK ke liye hai (tools\build_ota_apk.ps1); usay
+    Play par kabhi upload nahi karna.
 
 .PARAMETER Track
     Play track: internal (default), alpha, beta, production.
@@ -32,7 +36,7 @@
     Build skip karo aur mojooda AAB use karo (fast validation ke liye).
 
 .PARAMETER Aab
-    Apna AAB path do (default: build\app\outputs\bundle\release\app-release.aab).
+    Apna AAB path do (default: build\app\outputs\bundle\playRelease\app-play-release.aab).
 
 .PARAMETER VersionCode
     Play par pehle se upload versionCode ko promote karo (naya build ya upload nahi).
@@ -105,7 +109,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot  = Split-Path -Parent $PSScriptRoot
 $pubspec   = Join-Path $repoRoot 'pubspec.yaml'
-$defaultAab = Join-Path $repoRoot 'build\app\outputs\bundle\release\app-release.aab'
+$defaultAab = Join-Path $repoRoot 'build\app\outputs\bundle\playRelease\app-play-release.aab'
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 function Write-Head([string]$Text) {
@@ -174,6 +178,10 @@ if ($Track -eq 'production' -and -not $DryRun) {
     if ($ApprovedBy -eq '') {
         Fail "-Track production ke saath -ApprovedBy `"<naam>`" bhi dena zaroori hai (kaun ne approval di)."
     }
+}
+
+if ($env:SCREENSYNC_ALLOW_DEBUG_SIGNING -eq '1' -and -not $DryRun) {
+    Fail "SCREENSYNC_ALLOW_DEBUG_SIGNING=1 set hai: release DEBUG key se sign ho sakta hai aur Play use reject karega.`n        Variable hata dein (Remove-Item Env:SCREENSYNC_ALLOW_DEBUG_SIGNING) aur asli android\app\key.properties rakhein."
 }
 
 if (-not $DryRun -and -not $NotesFromGit -and $Notes -eq '' -and $NotesFile -eq '') {
@@ -247,7 +255,7 @@ if ($SkipBuild) {
     Write-Head "Build"
     Write-Host "    skip (-SkipBuild)" -ForegroundColor DarkGray
 } else {
-    Invoke-Tool 'Release App Bundle (flutter build appbundle --release)' 'flutter' @('build', 'appbundle', '--release', '--target-platform', $TargetPlatform)
+    Invoke-Tool 'Release App Bundle (flutter build appbundle --release --flavor play)' 'flutter' @('build', 'appbundle', '--release', '--flavor', 'play', '--target-platform', $TargetPlatform)
 }
 
 $aabPath = ''

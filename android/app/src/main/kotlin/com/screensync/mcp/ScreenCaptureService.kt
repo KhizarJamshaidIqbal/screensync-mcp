@@ -1,10 +1,7 @@
 package com.screensync.mcp
 
 import android.app.Activity
-import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -24,18 +21,24 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.WindowManager
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
 class ScreenCaptureService : Service() {
+    /// Told whenever a projection session becomes live or ends. Fed to Dart by
+    /// [ProjectionStateStream]; may be called from any thread.
+    fun interface StateListener {
+        fun onProjectionStateChanged(active: Boolean)
+    }
+
     companion object {
         private const val ACTION_START = "com.screensync.mcp.START_PROJECTION"
         private const val ACTION_STOP = "com.screensync.mcp.STOP_PROJECTION"
         private const val EXTRA_RESULT_CODE = "resultCode"
         private const val EXTRA_RESULT_DATA = "resultData"
-        private const val NOTIFICATION_CHANNEL_ID = "screensync_capture"
-        private const val NOTIFICATION_ID = 4201
+        private const val TAG = "ScreenSync"
 
         // ── Rich notification action intents ──
         const val ACTION_SNAP = "com.screensync.mcp.SNAP"
@@ -46,6 +49,9 @@ class ScreenCaptureService : Service() {
 
         @Volatile
         private var instance: ScreenCaptureService? = null
+
+        @Volatile
+        var stateListener: StateListener? = null
 
         fun start(context: Context, resultCode: Int, resultData: Intent) {
             val intent = Intent(context, ScreenCaptureService::class.java).apply {
@@ -90,6 +96,7 @@ class ScreenCaptureService : Service() {
     private var captureCallback: ((Result<ByteArray>) -> Unit)? = null
     private val framePending = AtomicBoolean(false)
     private var captureRetried = false
+    private var promoteFailureLogged = false
     private var isPaused = false
 
     // ── Broadcast receiver for notification quick-action buttons ──
@@ -98,10 +105,10 @@ class ScreenCaptureService : Service() {
             when (intent?.action) {
                 ACTION_SNAP -> {
                     // Write a trigger file that the Dart bridge polls
-                    writeTriggerFile(context, "SNAP")
+                    writeTriggerFile(context, "SNAP", "snap")
                 }
                 ACTION_TRIGGER_MCP -> {
-                    writeTriggerFile(context, "MCP")
+                    writeTriggerFile(context, "MCP", "mcp")
                 }
                 ACTION_PAUSE -> {
                     isPaused = !isPaused
@@ -111,16 +118,24 @@ class ScreenCaptureService : Service() {
         }
     }
 
-    private fun writeTriggerFile(context: Context?, type: String) {
+    /// The Dart bridge polls this file and dedupes by the EXACT payload string,
+    /// so every tap must write a payload nobody has seen before. A constant
+    /// payload made the second Snap tap look like a repeat and get ignored:
+    /// "id" carries "<kind>:<epochMillis>" (e.g. "snap:1727712000000").
+    private fun writeTriggerFile(context: Context?, type: String, kind: String) {
         try {
-            // Must match Dart CaptureTriggerBridge._file(): both resolve to
-            // <app files dir>/screensync_capture_trigger (path_provider
-            // getApplicationDocumentsDirectory). cacheDir/code_cache differ
-            // per engine, so filesDir is the one stable shared location.
-            val dir = context?.filesDir?.path ?: return
+            // Must match Dart CaptureTriggerBridge._file(), which resolves to
+            // getApplicationDocumentsDirectory(). path_provider_android maps
+            // that to getDir("flutter", MODE_PRIVATE) = <data>/app_flutter,
+            // NOT filesDir (<data>/files, that is getApplicationSupportDirectory).
+            // Writing anywhere else means the Dart watcher never sees the tap.
+            val dir = context?.getDir("flutter", Context.MODE_PRIVATE)?.path ?: return
+            val id = "$kind:${System.currentTimeMillis()}"
             java.io.File(dir, "screensync_capture_trigger")
-                .writeText("""{"type":"NOTIFICATION_SNAP","source":"$type"}""")
-        } catch (_: Exception) {}
+                .writeText("""{"type":"NOTIFICATION_SNAP","source":"$type","id":"$id"}""")
+        } catch (e: Exception) {
+            Log.w(TAG, "could not write the capture trigger file", e)
+        }
     }
 
     private val projectionCallback = object : MediaProjection.Callback() {
@@ -139,7 +154,7 @@ class ScreenCaptureService : Service() {
         projectionManager = getSystemService(MediaProjectionManager::class.java)
         workerThread = HandlerThread("ScreenSyncCapture").apply { start() }
         workerHandler = Handler(workerThread.looper)
-        createNotificationChannel()
+        CaptureNotification.ensureChannel(this)
         registerActionReceiver()
         instance = this
     }
@@ -173,14 +188,20 @@ class ScreenCaptureService : Service() {
 
     override fun onDestroy() {
         if (instance === this) instance = null
-        try { unregisterReceiver(actionReceiver) } catch (_: Exception) {}
+        try {
+            unregisterReceiver(actionReceiver)
+        } catch (e: Exception) {
+            Log.w(TAG, "action receiver was not registered", e)
+        }
         releaseProjection(stopProjection = true)
+        // The service is gone: no session can be live, whatever released above.
+        notifyProjectionState(false)
         workerThread.quitSafely()
         super.onDestroy()
     }
 
     private fun startProjection(intent: Intent) {
-        startCaptureForeground()
+        if (!startCaptureForeground()) return
         if (mediaProjection != null) return
 
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
@@ -192,6 +213,7 @@ class ScreenCaptureService : Service() {
         }
 
         if (resultCode != Activity.RESULT_OK || resultData == null) {
+            Log.w(TAG, "projection start without a granted consent result (code=$resultCode)")
             stopSelf()
             return
         }
@@ -199,84 +221,56 @@ class ScreenCaptureService : Service() {
         try {
             val projection = projectionManager.getMediaProjection(resultCode, resultData)
             if (projection == null) {
+                Log.w(TAG, "getMediaProjection returned null")
                 stopSelf()
                 return
             }
             projection.registerCallback(projectionCallback, workerHandler)
             mediaProjection = projection
             createCaptureDisplay()
-        } catch (_: SecurityException) {
+            notifyProjectionState(isProjectionReady())
+        } catch (e: SecurityException) {
+            Log.e(TAG, "projection start was rejected", e)
             releaseProjection(stopProjection = true)
             stopSelf()
         }
     }
 
-    // ── Rich keep-alive notification with action buttons ──
-    private fun buildNotification(paused: Boolean = false): Notification {
-        val openAppIntent = PendingIntent.getActivity(
-            this, 0,
-            packageManager.getLaunchIntentForPackage(packageName),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        fun actionIntent(action: String, requestCode: Int): PendingIntent =
-            PendingIntent.getBroadcast(
-                this, requestCode,
-                Intent(action).setPackage(packageName),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-        return Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(applicationInfo.icon)
-            .setContentTitle(if (paused) "ScreenSync — paused" else "ScreenSync capture active")
-            .setContentText(
-                if (paused) "Tap ▶ to resume"
-                else "Tap bubble · long-press = region select · shake = auto-capture"
-            )
-            .setContentIntent(openAppIntent)
-            .setOngoing(true)
-            .setCategory(Notification.CATEGORY_SERVICE)
-            .setPriority(Notification.PRIORITY_LOW)
-            .addAction(
-                Notification.Action.Builder(
-                    android.graphics.drawable.Icon.createWithResource(this, applicationInfo.icon),
-                    "📸 Snap",
-                    actionIntent(ACTION_SNAP, 1)
-                ).build()
-            )
-            .addAction(
-                Notification.Action.Builder(
-                    android.graphics.drawable.Icon.createWithResource(this, applicationInfo.icon),
-                    "⚡ MCP",
-                    actionIntent(ACTION_TRIGGER_MCP, 2)
-                ).build()
-            )
-            .addAction(
-                Notification.Action.Builder(
-                    android.graphics.drawable.Icon.createWithResource(this, applicationInfo.icon),
-                    if (paused) "▶ Resume" else "⏸ Pause",
-                    actionIntent(ACTION_PAUSE, 3)
-                ).build()
-            )
-            .build()
-    }
-
-    private fun startCaptureForeground() {
-        val notification = buildNotification(isPaused)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+    /// Promotes the service to foreground. The system can refuse (missing
+    /// foreground-service permission, background-start limits): that must end
+    /// the service cleanly and leave a log line, not crash the process.
+    private fun startCaptureForeground(): Boolean {
+        return try {
+            val notification = CaptureNotification.build(this, isPaused)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    CaptureNotification.NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
+                )
+            } else {
+                startForeground(CaptureNotification.NOTIFICATION_ID, notification)
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "startForeground was refused", e)
+            stopSelf()
+            false
         }
     }
 
     private fun updateNotification() {
         val nm = getSystemService(NotificationManager::class.java)
-        nm.notify(NOTIFICATION_ID, buildNotification(isPaused))
+        nm.notify(CaptureNotification.NOTIFICATION_ID, CaptureNotification.build(this, isPaused))
+    }
+
+    /// Tells the projection_state stream. Any thread; never throws.
+    private fun notifyProjectionState(active: Boolean) {
+        try {
+            stateListener?.onProjectionStateChanged(active)
+        } catch (e: Exception) {
+            Log.w(TAG, "projection state listener failed", e)
+        }
     }
 
     private fun createCaptureDisplay() {
@@ -311,7 +305,14 @@ class ScreenCaptureService : Service() {
             // Surface#promote() is not in every compile SDK; reflect so the
             // call works at runtime on Android 14+ without build coupling.
             surface.javaClass.getMethod("promote").invoke(surface)
-        } catch (_: Exception) {/* older/renamed API: capture still works pre-14 */}
+        } catch (e: Exception) {
+            // Older/renamed API: capture still works pre-14. This runs on every
+            // capture, so say it once instead of flooding logcat.
+            if (!promoteFailureLogged) {
+                promoteFailureLogged = true
+                Log.w(TAG, "Surface.promote() unavailable; relying on default frame delivery", e)
+            }
+        }
     }
 
     private fun currentDisplayMetrics(): DisplayMetrics {
@@ -463,19 +464,7 @@ class ScreenCaptureService : Service() {
             projection.unregisterCallback(projectionCallback)
             if (stopProjection) projection.stop()
         }
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                "Screen capture",
-                NotificationManager.IMPORTANCE_LOW,
-            ).apply {
-                description = "Shown while ScreenSync can capture the display"
-                setShowBadge(false)
-            }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-        }
+        // Every way a session ends (revoked, stopped, service torn down) lands here.
+        notifyProjectionState(false)
     }
 }

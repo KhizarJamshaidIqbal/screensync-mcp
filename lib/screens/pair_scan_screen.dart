@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../blocs/screen_capture_bloc.dart';
@@ -16,6 +15,7 @@ import '../services/settings_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/ref_widgets.dart';
 import '../widgets/scan_viewfinder.dart';
+import 'pair_scan/pair_scan_parts.dart';
 
 /// Scans the desktop hub's pairing QR (terminal print or /pair page) and applies hub URL +
 /// token with zero typing.
@@ -135,7 +135,7 @@ class _PairScanScreenState extends State<PairScanScreen>
   }
 
   static String _maskToken(String token) =>
-      token.isEmpty ? '(default)' : 'â€¢â€¢â€¢â€¢${token.substring(token.length > 4 ? token.length - 4 : 0)}';
+      token.isEmpty ? '(default)' : '\u2022\u2022\u2022\u2022${token.substring(token.length > 4 ? token.length - 4 : 0)}';
 
   /// The bloc is optional here: the app always provides it, a widget test may not.
   ScreenCaptureBloc? _maybeBloc() {
@@ -239,7 +239,7 @@ class _PairScanScreenState extends State<PairScanScreen>
             onSubmitted: (_) => submit(context),
             decoration: InputDecoration(
               isDense: true,
-              hintText: 'screensync://pair?url=â€¦&token=***',
+              hintText: 'screensync://pair?url=\u2026&token=\u2026',
               errorText: err,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppTheme.radiusS),
@@ -288,57 +288,18 @@ class _PairScanScreenState extends State<PairScanScreen>
     }
   }
 
+  /// The code encodes what this phone is really using: manual override, then the
+  /// mDNS-discovered hub, then the build default (`ScreenRepository.hubUrl`), and
+  /// the token the app sends. It used to read only the manual override and fall
+  /// back to 127.0.0.1, so a phone paired via discovery showed a useless code.
   Future<void> _showMyCode() async {
-    final settings = SettingsService.instance;
-    final url = settings.hubUrlOverride.trim().isEmpty
-        ? 'http://127.0.0.1:3000'
-        : settings.hubUrlOverride.trim();
-    final link = 'screensync://pair?url=${Uri.encodeComponent(url)}'
-        '&token=${Uri.encodeComponent(settings.pairingToken)}';
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppTheme.darkSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.radiusL)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Text('Your current pairing code',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
-              const Text(
-                'Scan this from another device to pair it with the same hub.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: AppTheme.darkTextDim),
-              ),
-              const SizedBox(height: 14),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: QrImageView(data: link, size: 190),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: link));
-                  if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                },
-                icon: const Icon(Icons.copy_rounded),
-                label: const Text('Copy link'),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final pairing = currentPairing(
+      repo: _maybeBloc()?.screenRepository,
+      settings: SettingsService.instance,
+    );
+    await showMyPairingCodeSheet(
+      context,
+      link: pairingLinkFor(pairing.url, pairing.token),
     );
   }
 
@@ -373,7 +334,7 @@ class _PairScanScreenState extends State<PairScanScreen>
                       color: AppTheme.darkSurface,
                       child: Center(child: CircularProgressIndicator()),
                     ),
-                    errorBuilder: (context, error) => _CameraFailure(
+                    errorBuilder: (context, error) => PairCameraFailure(
                       message: error.errorDetails?.message ??
                           'Use "Paste link instead" below to pair manually.',
                       onOpenSettings: _openAppSettings,
@@ -396,7 +357,7 @@ class _PairScanScreenState extends State<PairScanScreen>
                           padding: const EdgeInsets.only(top: 20),
                           child: AnimatedSwitcher(
                             duration: AppTheme.motionBase,
-                            child: _StatusLine(
+                            child: PairStatusLine(
                               key: ValueKey<String>(_found
                                   ? 'found'
                                   : _reading
@@ -420,14 +381,14 @@ class _PairScanScreenState extends State<PairScanScreen>
                             mainAxisSize: MainAxisSize.min,
                             children: <Widget>[
                               if (_stalled && _reading) ...<Widget>[
-                                const _HintChip(
+                                const PairHintChip(
                                   text:
                                       'Still scanning? Try the torch, or paste the link.',
                                 ),
                                 const SizedBox(height: 10),
                               ],
                               if (_recent.isNotEmpty) ...<Widget>[
-                                _RecentHubs(
+                                PairRecentHubs(
                                   hubs: _recent,
                                   onPick: (entry) => _apply(
                                     PairingInfo(
@@ -441,7 +402,7 @@ class _PairScanScreenState extends State<PairScanScreen>
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: <Widget>[
-                                  _ScanAction(
+                                  PairScanAction(
                                     tooltip: state.torchState == TorchState.on
                                         ? 'Turn the torch off'
                                         : 'Turn the torch on',
@@ -455,12 +416,12 @@ class _PairScanScreenState extends State<PairScanScreen>
                                         ? Icons.flash_on_rounded
                                         : Icons.flash_off_rounded,
                                   ),
-                                  _ScanAction(
+                                  PairScanAction(
                                     tooltip: 'Switch between front and rear camera',
                                     onPressed: _switchCamera,
                                     icon: Icons.cameraswitch_rounded,
                                   ),
-                                  _ScanAction(
+                                  PairScanAction(
                                     tooltip: 'Show this device\u2019s pairing code',
                                     onPressed: _showMyCode,
                                     icon: Icons.qr_code_2_rounded,
@@ -484,175 +445,6 @@ class _PairScanScreenState extends State<PairScanScreen>
             },
           );
         },
-      ),
-    );
-  }
-}
-
-class _StatusLine extends StatelessWidget {
-  const _StatusLine({super.key, required this.found, required this.reading});
-
-  final bool found;
-  final bool reading;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = found
-        ? 'Code found â€” pairingâ€¦'
-        : reading
-            ? 'Looking for a codeâ€¦'
-            : 'Point at the QR shown by the desktop hub';
-    return Text(
-      label,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: found ? AppTheme.success : Colors.white,
-        shadows: const <Shadow>[Shadow(blurRadius: 8)],
-      ),
-    );
-  }
-}
-
-class _HintChip extends StatelessWidget {
-  const _HintChip({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: AppTheme.warning.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(AppTheme.radiusS),
-        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 11.5, color: AppTheme.warning),
-      ),
-    );
-  }
-}
-
-class _RecentHubs extends StatelessWidget {
-  const _RecentHubs({required this.hubs, required this.onPick});
-
-  final List<({String url, String token})> hubs;
-  final void Function(({String url, String token}) hub) onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: hubs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final hub = hubs[i];
-          final host = Uri.tryParse(hub.url)?.host ?? hub.url;
-          return ActionChip(
-            avatar: const Icon(Icons.history_rounded, size: 16),
-            label: Text(host, style: const TextStyle(fontSize: 11.5)),
-            onPressed: () => onPick(hub),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ScanAction extends StatelessWidget {
-  const _ScanAction({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final Future<void> Function()? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Tooltip(
-        message: tooltip,
-        child: IconButton.filledTonal(
-          onPressed: onPressed == null ? null : () => onPressed!(),
-          icon: AnimatedSwitcher(
-            duration: AppTheme.motionFast,
-            transitionBuilder: (child, animation) => ScaleTransition(
-              scale: animation,
-              child: RotationTransition(turns: animation, child: child),
-            ),
-            child: Icon(icon, key: ValueKey<IconData>(icon)),
-          ),
-          style: IconButton.styleFrom(
-            backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
-            foregroundColor: AppTheme.secondary,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTheme.radiusM),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CameraFailure extends StatelessWidget {
-  const _CameraFailure({
-    required this.message,
-    required this.onOpenSettings,
-    required this.onPaste,
-  });
-
-  final String message;
-  final Future<void> Function() onOpenSettings;
-  final VoidCallback onPaste;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: AppTheme.darkSurface,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(Icons.videocam_off_rounded,
-                  size: 48, color: AppTheme.warning),
-              const SizedBox(height: 12),
-              const Text(
-                'Camera unavailable on this device.',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: AppTheme.darkTextDim),
-              ),
-              const SizedBox(height: 18),
-              GradientActionButton(
-                icon: Icons.content_paste_rounded,
-                label: 'Paste link instead',
-                onTap: onPaste,
-              ),
-              const SizedBox(height: 6),
-              TextButton.icon(
-                onPressed: () => onOpenSettings(),
-                icon: const Icon(Icons.settings_rounded, size: 18),
-                label: const Text('Open settings'),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

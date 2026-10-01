@@ -5,8 +5,14 @@ zyada zaroori - kya **nahi** kar sakte. Har baat ke saath source ya evidence diy
 gaya hai.
 
 App: `com.screensync.mcp`
-Developer account: `advance-archery-505415-r2`
-Service account: `play-publish@advance-archery-505415-r2.iam.gserviceaccount.com`
+Google Cloud project (service account isi mein banta hai): `<gcp-project-id>`
+Service account: `<service-account-email>` (Play Console -> Users and permissions mein invite hota hai)
+
+> Dhyan: GCP project ka id **Play "Developer account" nahi hai**. Play developer account Play
+> Console ka apna alag account hai; GCP project sirf wo jagah hai jahan service account aur API
+> enable hoti hain. Is guide mein "Developer account" ko project id ke liye istemal na karein.
+> Asli project id, service-account email aur key ka file naam tracked files mein nahi likhte
+> (`docs/LOCAL_RELEASE.md` Section 7); Play Console -> Setup -> API access par dekh lein.
 
 ---
 
@@ -41,7 +47,9 @@ Is repo mein resolution order ye hai (dekhein `tools/publish_play.py`):
 2. env var `PLAY_SERVICE_ACCOUNT_JSON`
 3. `tools/release.config.json` ki key `serviceAccountPath`
 
-Current config: `tools/release.config.json` (path `C:\Users\epsol\Downloads\advance-archery-505415-r2-...json`).
+Current config: `tools/release.config.json` (gitignored). Key ko repo ke bahar aur kisi synced folder ke
+bahar rakhein: tay ki hui jagah `%LOCALAPPDATA%\ScreenSync\play-service-account.json`
+(`docs/LOCAL_RELEASE.md` Section 1.2).
 
 > Ye key ek **credential** hai. Isay repo mein commit na karein (`.gitignore` mein hai).
 
@@ -226,8 +234,18 @@ crash to nahi kar raha" wala automatic check chahiye.
 
 Aur ye **is repo ki read-only check** se chalti hai: `edits.tracks.list`.
 
-Production aur internal dono tracks par vc 31 attach ho chuka hai, aur
-`edits.bundles.list` se confirm hua ke `['25', '31']` mojood hain.
+15 Sept 2026 ke record ke mutabiq production aur internal dono tracks par vc 31 attach ho chuka tha, aur
+`edits.bundles.list` se confirm hua ke `['25', '31']` mojood thin.
+
+30 Sept 2026 ko `python tools\play_api.py tracks` (read-only) ne ye dikhaya:
+
+| Track | Release | versionCode | status |
+|---|---|---|---|
+| `production` | 2.5.4 | **32** | completed (live) |
+| `internal` | 2.5.5 | **33** | completed (is din upload hui, `pubspec.yaml` `2.5.5+33`) |
+
+Ye waqt ke saath badalta hai, isliye kisi purani line par bharosa na karein:
+`python tools\play_api.py tracks` chalayein.
 
 ---
 
@@ -269,9 +287,10 @@ Discovery revision 20260913 ke mutabiq ye resources hain: `apps.search`,
 `slowrenderingrate`, `excessivewakeuprate`, `stuckbackgroundwakelockrate`, `lmkrate`,
 `bitmapmemoryusage`, `anonrssandswapmemoryusage`). `apps.list` mojood nahi - `apps.search` hai.
 
-Enablement: project `advance-archery-505415-r2` par API abhi **enable nahi** (token bana,
-magar 404 aaya). gcloud se enable karne ki koshish PERMISSION_DENIED se fail hui kyunke
-gcloud `microexpertzseo@gmail.com` se authenticated tha. Enable Console se karna hoga.
+Enablement (15 Sept 2026 ki state, dobara check karein): project `<gcp-project-id>` par API us waqt
+**enable nahi** thi (token bana, magar 404 aaya). gcloud se enable karne ki koshish PERMISSION_DENIED se
+fail hui kyunke gcloud ek aise personal Google account se authenticated tha jis ke paas us project ka
+access nahi tha. Enable Console se, project ke owner account se, karna hoga.
 
 ## 12. Store listing language: en-GB
 

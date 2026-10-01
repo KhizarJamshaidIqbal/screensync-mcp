@@ -109,6 +109,7 @@ class _SignalBars extends StatelessWidget {
       LinkHealth.slow => 2,
       LinkHealth.poor => 1,
       LinkHealth.offline => 0,
+      LinkHealth.authProblem => 0,
     };
     final color = switch (health) {
       LinkHealth.excellent => AppTheme.success,
@@ -116,6 +117,7 @@ class _SignalBars extends StatelessWidget {
       LinkHealth.slow => AppTheme.warning,
       LinkHealth.poor => AppTheme.danger,
       LinkHealth.offline => AppTheme.danger,
+      LinkHealth.authProblem => AppTheme.danger,
     };
     return _BarRow(activeUpTo: active, color: color, height: 14);
   }

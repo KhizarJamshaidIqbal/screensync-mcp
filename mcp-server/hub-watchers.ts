@@ -1,6 +1,6 @@
 import { existsSync, watch, type FSWatcher } from "node:fs";
 import path from "node:path";
-import { appApkPath, appManifest, invalidateAppManifest } from "./app-update.js";
+import { appApkPath, appManifest, invalidateAppManifest, isApkArtifactName } from "./app-update.js";
 import { PROJECT_DIR, log } from "./config.js";
 import { watchExtensionDir } from "./ext-watcher.js";
 
@@ -38,7 +38,7 @@ export function startHubWatchers(broadcast: (payload: object) => void, dirs: Hub
     }
   }
 
-  // ---- APK watch: a rebuilt app-release.apk IS the release event ----
+  // ---- APK watch: a rebuilt release APK (app-sideload-release.apk, or the legacy app-release.apk) IS the release event ----
   // The hook the whole update flow hangs off. Build (or CI) writes the APK, the
   // hub notices within a second, re-hashes it and pushes app_update to every
   // phone holding an SSE connection - the same trick the extension already used
@@ -47,7 +47,7 @@ export function startHubWatchers(broadcast: (payload: object) => void, dirs: Hub
   if (existsSync(apkDir)) {
     try {
       apkWatcher = watch(apkDir, (_event, filename) => {
-        if (closed || !filename || !String(filename).startsWith("app-release.apk")) return;
+        if (closed || !filename || !isApkArtifactName(String(filename))) return;
         // Gradle rewrites the APK several times per build, so debounce and then
         // compare the hash: one release must produce exactly one event.
         if (apkBroadcastTimer) clearTimeout(apkBroadcastTimer);

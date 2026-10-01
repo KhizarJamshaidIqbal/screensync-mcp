@@ -207,6 +207,51 @@ class AppTheme {
             shape: WidgetStatePropertyAll(RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(radiusM)))),
       ),
+      // Global template. A stock Material widget nobody styled (a stray
+      // dialog, a text button, a progress bar, a bottom sheet) still inherits
+      // the brand from here. Prefer the shared components (AppDialog,
+      // AppProgressBar, GlassPanel): these themes are the safety net, and
+      // test/theme_guardrails_test.dart keeps them in place.
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusL),
+          side: BorderSide(color: border),
+        ),
+        titleTextStyle: typeDisplay.copyWith(fontSize: 22, color: text),
+        contentTextStyle: typeBody.copyWith(
+          fontSize: 13.5,
+          height: 1.45,
+          color: darkTextDim,
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: seed,
+          shape: const StadiumBorder(),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 13.5,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
+      // No circularTrackColor on purpose: a track ring makes a small spinner
+      // (e.g. the white one inside a gradient button) read as a static circle.
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: seed,
+        linearTrackColor: border,
+        linearMinHeight: 6,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(radiusL)),
+        ),
+      ),
     );
   }
 }

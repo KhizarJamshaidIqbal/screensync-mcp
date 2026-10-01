@@ -7,7 +7,37 @@ class MediaProjectionService {
     'com.screensync.mcp/media_projection',
   );
 
-  static Future<bool> prepare() async {
+  /// Emits `true` while a MediaProjection session is live and capture works,
+  /// `false` once it ended or never started. Native side: current value on
+  /// listen, then every change (projection started, `onStop`, service gone).
+  static const _stateChannel = EventChannel(
+    'com.screensync.mcp/projection_state',
+  );
+
+  /// Longest [prepare] waits for the consent flow. The native side gives up
+  /// after 60 s with `permission_timeout`; this is the Dart-side safety net so
+  /// a consent Activity that never opens can never hang a caller forever.
+  static const prepareTimeout = Duration(seconds: 70);
+
+  /// Asks for screen-capture consent (unless a session is already live) and
+  /// waits until the capture service is ready.
+  ///
+  /// Returns `true` when capture is ready, `false` when the user refused or the
+  /// consent prompt timed out (native `permission_timeout` or [timeout]).
+  /// Other native failures (for example `permission_request_active`, meaning a
+  /// consent prompt is already open) still throw a [PlatformException].
+  static Future<bool> prepare({Duration timeout = prepareTimeout}) async {
+    try {
+      return await _prepare().timeout(timeout);
+    } on TimeoutException {
+      return false;
+    } on PlatformException catch (e) {
+      if (e.code == 'permission_timeout') return false;
+      rethrow;
+    }
+  }
+
+  static Future<bool> _prepare() async {
     final granted =
         await _channel.invokeMethod<bool>('prepareCapture') ?? false;
     if (!granted) return false;
@@ -26,6 +56,14 @@ class MediaProjectionService {
   static Future<bool> isReady() async {
     return await _channel.invokeMethod<bool>('isCaptureReady') ?? false;
   }
+
+  /// Live projection state (see [_stateChannel]). Errors are swallowed so a
+  /// build whose native side predates the channel simply never emits; callers
+  /// also poll [isReady] as a fallback.
+  static Stream<bool> get stateStream => _stateChannel
+      .receiveBroadcastStream()
+      .map((event) => event == true)
+      .handleError((Object _) {});
 
   static Future<Uint8List> captureScreen() async {
     final bytes = await _channel.invokeMethod<Uint8List>('captureScreen');
