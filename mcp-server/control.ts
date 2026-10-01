@@ -1,8 +1,5 @@
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
 import { log } from "./config.js";
-
-const run = promisify(exec);
+import { adb, adbBuffer, parseWmSize, resolveTarget, screenSize, type ScreenSize } from "./control-adb.js";
 
 /**
  * Remote-control transport for the phone.
@@ -14,37 +11,14 @@ const run = promisify(exec);
  * SAFETY: input injection can do anything a user can. It is gated behind the
  * same bearer token as every other /api route, and confined to `adb input`
  * / a small allow-list of shell verbs (no arbitrary shell passthrough).
+ *
+ * Every adb call goes through adb()/adbBuffer() in control-adb.ts as an argv
+ * array (execFile, no host shell). SCREEN_SYNC_ADB_TARGET optionally pins a
+ * device (transport id or serial) so a multi-device host targets the right phone.
  */
 
-// Optional: pin a specific device (ADB transport id or serial) via env, so a
-// multi-device host targets the right phone. Falls back to the single device.
-const ADB_TARGET = process.env.SCREEN_SYNC_ADB_TARGET || "";
-const ADB_BIN = process.env.SCREEN_SYNC_ADB_BIN || "adb";
-
-// Effective target. Starts as the env pin, but controlDeviceInfo() may resolve
-// one at runtime: wireless ADB advertises the SAME phone twice (an ip:port
-// serial and an mDNS alias), and a bare `adb` call then fails with "more than
-// one device/emulator" while the device list still looks healthy.
-let resolvedTarget = "";
-
-function adbPrefix(): string {
-  const bin = /\s/.test(ADB_BIN) ? `"${ADB_BIN}"` : ADB_BIN;
-  const target = ADB_TARGET || resolvedTarget;
-  if (!target) return bin;
-  // Numeric → transport id; otherwise treat as serial (quoted for safety —
-  // wireless-ADB serials can contain spaces/parentheses).
-  if (/^\d+$/.test(target)) return `${bin} -t ${target}`;
-  return `${bin} -s "${target}"`;
-}
-
-async function adb(args: string): Promise<string> {
-  const cmd = `${adbPrefix()} ${args}`;
-  const { stdout } = await run(cmd, { maxBuffer: 64 * 1024 * 1024, timeout: 15_000 });
-  return stdout.trim();
-}
-
 /** Escapes a string for `adb shell input text` (spaces → %s, strip risky chars). */
-function escapeInputText(text: string): string {
+export function escapeInputText(text: string): string {
   return text
     .replace(/(["'`$\\;&|<>(){}])/g, "") // drop shell metacharacters
     .replace(/ /g, "%s");
@@ -62,66 +36,54 @@ export type DeviceInfo = {
 /** Confirms an ADB device is reachable and returns its basic profile. */
 export async function controlDeviceInfo(): Promise<DeviceInfo> {
   try {
-    // `devices` is a global adb subcommand — must NOT carry -s/-t target flags.
-    const bin = /\s/.test(ADB_BIN) ? `"${ADB_BIN}"` : ADB_BIN;
-    const { stdout: devices } = await run(`${bin} devices`, { timeout: 15_000 });
-    const serials = devices
-      .split("\n")
-      .slice(1)
-      .map((l) => l.trim())
-      .filter((l) => l.endsWith("device"))
-      .map((l) => l.split(/\s+/)[0])
-      .filter(Boolean);
+    // `devices` is a global adb subcommand, so resolveTarget() runs it without -s/-t target flags.
+    // With several online it pins the ip:port serial over an mDNS alias for the same phone; without
+    // that every later adb call dies on "more than one device/emulator".
+    const { serials } = await resolveTarget();
     if (!serials.length) return { available: false, error: "No ADB device is online." };
-    if (!ADB_TARGET && serials.length > 1) {
-      // Prefer the explicit ip:port serial over an mDNS alias for the same
-      // phone; without this every later adb call dies on "more than one
-      // device/emulator".
-      const wireless = serials.find((s) => /^\d+\.\d+\.\d+\.\d+:\d+$/.test(s));
-      resolvedTarget = wireless || serials[0];
-    }
 
     const [model, release, sizeLine, serial] = await Promise.all([
-      adb("shell getprop ro.product.model").catch(() => ""),
-      adb("shell getprop ro.build.version.release").catch(() => ""),
-      adb("shell wm size").catch(() => ""),
-      adb("get-serialno").catch(() => ""),
+      adb(["shell", "getprop", "ro.product.model"]).catch(() => ""),
+      adb(["shell", "getprop", "ro.build.version.release"]).catch(() => ""),
+      adb(["shell", "wm", "size"]).catch(() => ""),
+      adb(["get-serialno"]).catch(() => ""),
     ]);
-    const m = sizeLine.match(/(\d+)x(\d+)/);
     return {
       available: true,
       serial: serial || undefined,
       model: model || undefined,
       androidVersion: release || undefined,
-      screen: m ? { width: Number(m[1]), height: Number(m[2]) } : undefined,
+      screen: parseWmSize(sizeLine) ?? undefined,
     };
   } catch (error) {
     return { available: false, error: String(error) };
   }
 }
 
-/** Screen size cache for normalized-coordinate conversion. */
-let _screen: { width: number; height: number } | null = null;
-async function screenSize(): Promise<{ width: number; height: number }> {
-  if (_screen) return _screen;
-  const line = await adb("shell wm size");
-  const m = line.match(/(\d+)x(\d+)/);
-  _screen = m ? { width: Number(m[1]), height: Number(m[2]) } : { width: 1080, height: 2400 };
-  return _screen;
+/**
+ * The fraction heuristic: a point is a [0..1] fraction of the screen only when BOTH x and y lie in
+ * 0..1, so (1, 1) is the bottom-right corner while (0.5, 500) is read as pixels.
+ */
+export function isFractionPoint(x: number, y: number): boolean {
+  return x >= 0 && x <= 1 && y >= 0 && y <= 1;
+}
+
+/** Maps a point to whole device pixels: a fraction point scales by `screen`, anything else is rounded. */
+export function mapPoint(x: number, y: number, screen: ScreenSize): [number, number] {
+  if (isFractionPoint(x, y)) return [Math.round(x * screen.width), Math.round(y * screen.height)];
+  return [Math.round(x), Math.round(y)];
 }
 
 /** Accepts either absolute px or normalized [0..1] coords (auto-detected). */
 async function toPixels(x: number, y: number): Promise<[number, number]> {
-  if (x >= 0 && x <= 1 && y >= 0 && y <= 1) {
-    const s = await screenSize();
-    return [Math.round(x * s.width), Math.round(y * s.height)];
-  }
-  return [Math.round(x), Math.round(y)];
+  // `wm size` is only read (once, then cached) for a fraction point.
+  if (!isFractionPoint(x, y)) return [Math.round(x), Math.round(y)];
+  return mapPoint(x, y, await screenSize());
 }
 
 export async function tap(x: number, y: number): Promise<string> {
   const [px, py] = await toPixels(x, y);
-  await adb(`shell input tap ${px} ${py}`);
+  await adb(["shell", "input", "tap", String(px), String(py)]);
   log("INFO", "control tap", { px, py });
   return `tapped (${px}, ${py})`;
 }
@@ -131,7 +93,7 @@ export async function swipe(
 ): Promise<string> {
   const [ax, ay] = await toPixels(x1, y1);
   const [bx, by] = await toPixels(x2, y2);
-  await adb(`shell input swipe ${ax} ${ay} ${bx} ${by} ${Math.round(durationMs)}`);
+  await adb(["shell", "input", "swipe", String(ax), String(ay), String(bx), String(by), String(Math.round(durationMs))]);
   log("INFO", "control swipe", { ax, ay, bx, by, durationMs });
   return `swiped (${ax},${ay}) → (${bx},${by}) in ${durationMs}ms`;
 }
@@ -155,7 +117,8 @@ export async function scroll(direction: "up" | "down" | "left" | "right", amount
 export async function typeText(text: string): Promise<string> {
   const safe = escapeInputText(text);
   if (!safe) return "nothing to type after sanitizing input";
-  await adb(`shell input text "${safe}"`);
+  // One argv element: no host shell sees it. The device's sh still does, hence escapeInputText().
+  await adb(["shell", "input", "text", safe]);
   log("INFO", "control type", { length: text.length });
   return `typed ${text.length} chars`;
 }
@@ -173,14 +136,14 @@ export async function pressKey(key: string): Promise<string> {
   if (code === undefined) {
     throw new Error(`Unsupported key '${key}'. Allowed: ${Object.keys(KEYS).join(", ")}`);
   }
-  await adb(`shell input keyevent ${code}`);
+  await adb(["shell", "input", "keyevent", String(code)]);
   log("INFO", "control key", { key, code });
   return `pressed ${key}`;
 }
 
 export async function longPress(x: number, y: number, durationMs = 700): Promise<string> {
   const [px, py] = await toPixels(x, y);
-  await adb(`shell input swipe ${px} ${py} ${px} ${py} ${Math.round(durationMs)}`);
+  await adb(["shell", "input", "swipe", String(px), String(py), String(px), String(py), String(Math.round(durationMs))]);
   log("INFO", "control longpress", { px, py, durationMs });
   return `long-pressed (${px}, ${py}) for ${durationMs}ms`;
 }
@@ -191,9 +154,9 @@ export async function launchApp(pkg: string): Promise<string> {
     throw new Error("Invalid package/activity name.");
   }
   if (pkg.includes("/")) {
-    await adb(`shell am start -n ${pkg}`);
+    await adb(["shell", "am", "start", "-n", pkg]);
   } else {
-    await adb(`shell monkey -p ${pkg} -c android.intent.category.LAUNCHER 1`);
+    await adb(["shell", "monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1"]);
   }
   log("INFO", "control launch", { pkg });
   return `launched ${pkg}`;
@@ -205,12 +168,7 @@ export async function launchApp(pkg: string): Promise<string> {
  * even before the ScreenSync bubble is started.
  */
 export async function screenshotNow(): Promise<{ base64: string; mimeType: "image/png" }> {
-  const { stdout } = await run(`${adbPrefix()} exec-out screencap -p`, {
-    maxBuffer: 64 * 1024 * 1024,
-    timeout: 15_000,
-    encoding: "buffer",
-  });
-  const buf = stdout as unknown as Buffer;
+  const buf = await adbBuffer(["exec-out", "screencap", "-p"]);
   if (!buf || buf.length < 8 || !(buf[0] === 0x89 && buf[1] === 0x50)) {
     throw new Error("screencap did not return a PNG (is a device connected?).");
   }
@@ -231,6 +189,8 @@ export type UiNode = {
   center: { x: number; y: number };
 };
 
+const UI_DUMP_PATH = "/sdcard/screensync_ui.xml";
+
 /**
  * Dumps the on-screen UI hierarchy via `uiautomator` and returns a flat list
  * of meaningful nodes (text / content-desc / clickable) with pixel bounds and
@@ -239,12 +199,13 @@ export type UiNode = {
  */
 export async function uiHierarchy(): Promise<UiNode[]> {
   // Dump to device, then read it back (stdout dump is unreliable on some OEMs).
-  await adb("shell uiautomator dump /sdcard/screensync_ui.xml").catch(() => "");
-  const xml = await adb("shell cat /sdcard/screensync_ui.xml");
+  await adb(["shell", "uiautomator", "dump", UI_DUMP_PATH]).catch(() => "");
+  const xml = await adb(["shell", "cat", UI_DUMP_PATH]);
   return parseUiAutomatorXml(xml);
 }
 
-function parseUiAutomatorXml(xml: string): UiNode[] {
+/** Flattens a uiautomator dump to the nodes that carry text, a content-desc or a clickable flag, with pixel bounds. */
+export function parseUiAutomatorXml(xml: string): UiNode[] {
   const nodes: UiNode[] = [];
   const nodeRegex = /<node\b([^>]*?)\/?>/g;
   let match: RegExpExecArray | null;
@@ -284,7 +245,7 @@ function parseUiAutomatorXml(xml: string): UiNode[] {
 export async function tapText(query: string, exact = false): Promise<{ tapped: UiNode }> {
   const node = await findNode(query, exact);
   if (!node) throw new Error(`No on-screen element matching "${query}". Try get_ui_hierarchy to list what's visible.`);
-  await adb(`shell input tap ${node.center.x} ${node.center.y}`);
+  await adb(["shell", "input", "tap", String(node.center.x), String(node.center.y)]);
   log("INFO", "control tapText", { query, x: node.center.x, y: node.center.y });
   return { tapped: node };
 }
@@ -331,7 +292,7 @@ export async function swipeUntil(
 export async function openUrl(url: string): Promise<string> {
   if (!/^https?:\/\//i.test(url)) throw new Error("openUrl requires an http(s) URL.");
   const safe = url.replace(/(["'`$\\;&|<>(){}])/g, "");
-  await adb(`shell am start -a android.intent.action.VIEW -d "${safe}"`);
+  await adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", safe]);
   log("INFO", "control openUrl", { url: safe });
   return `opened ${safe}`;
 }
@@ -386,13 +347,13 @@ function coarseDiffRatio(a: Buffer, b: Buffer): number {
  */
 export async function getLogcat(opts: { pkg?: string; grep?: string; lines?: number } = {}): Promise<string> {
   const lines = Math.max(10, Math.min(opts.lines ?? 200, 2000));
-  let pidFilter = "";
+  const pidFilter: string[] = [];
   if (opts.pkg && /^[a-zA-Z0-9_.]+$/.test(opts.pkg)) {
-    const pid = (await adb(`shell pidof ${opts.pkg}`).catch(() => "")).trim().split(/\s+/)[0];
-    if (pid) pidFilter = `--pid=${pid}`;
+    const pid = (await adb(["shell", "pidof", opts.pkg]).catch(() => "")).trim().split(/\s+/)[0];
+    if (pid) pidFilter.push(`--pid=${pid}`);
   }
   // -d dumps and exits; -t limits to the most recent N lines.
-  const raw = await adb(`shell logcat -d -t ${lines} ${pidFilter}`).catch(() => "");
+  const raw = await adb(["shell", "logcat", "-d", "-t", String(lines), ...pidFilter]).catch(() => "");
   if (opts.grep) {
     const g = opts.grep.toLowerCase();
     return raw
@@ -411,17 +372,15 @@ export async function recordScreen(seconds = 5): Promise<{ base64: string; mimeT
   const dur = Math.max(1, Math.min(seconds, 15));
   const remote = "/sdcard/screensync_rec.mp4";
   // screenrecord blocks for the duration; add a small buffer to the timeout.
-  await run(`${adbPrefix()} shell screenrecord --time-limit ${dur} --bit-rate 4000000 ${remote}`, {
+  await adb(["shell", "screenrecord", "--time-limit", String(dur), "--bit-rate", "4000000", remote], {
     maxBuffer: 8 * 1024 * 1024,
-    timeout: (dur + 8) * 1000,
+    timeoutMs: (dur + 8) * 1000,
   });
-  const { stdout } = await run(`${adbPrefix()} exec-out cat ${remote}`, {
+  const buf = await adbBuffer(["exec-out", "cat", remote], {
     maxBuffer: 128 * 1024 * 1024,
-    timeout: 20_000,
-    encoding: "buffer",
+    timeoutMs: 20_000,
   });
-  await adb(`shell rm -f ${remote}`).catch(() => "");
-  const buf = stdout as unknown as Buffer;
+  await adb(["shell", "rm", "-f", remote]).catch(() => "");
   log("INFO", "control recordScreen", { seconds: dur, bytes: buf.length });
   return { base64: buf.toString("base64"), mimeType: "video/mp4", seconds: dur };
 }

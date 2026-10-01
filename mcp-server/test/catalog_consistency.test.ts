@@ -50,8 +50,10 @@ test("catalogue-to-handler consistency guard: zero orphan tools", async () => {
   // web.ts plus the modules its flow/recorder/visual-baseline/fanout handlers were split into.
   const webHubSrc = ["web.ts", "web-flows.ts", "web-recorder.ts", "web-visual-baseline.ts", "web-fanout.ts"]
     .map((f) => readFileSync(resolve(f), "utf-8")).join("\n");
-  const controlHubSrc = readFileSync(resolve("control.ts"), "utf-8");
-  const catalogSrc = readFileSync(resolve("catalog.ts"), "utf-8");
+  // The phone / OS tool handlers live in mcp-control.ts (a map of `name: async (args) => ...`),
+  // their definitions in catalog-control.ts; both were split out of mcp.ts and catalog.ts.
+  const controlHubSrc = readFileSync(resolve("mcp-control.ts"), "utf-8");
+  const catalogSrc = ["catalog.ts", "catalog-control.ts"].map((f) => readFileSync(resolve(f), "utf-8")).join("\n");
 
   const handledTools = new Set<string>();
 
@@ -85,11 +87,11 @@ test("catalogue-to-handler consistency guard: zero orphan tools", async () => {
   const bridgeSrc = readFileSync(join(extDir, "web-bridge.js"), "utf-8");
   for (const m of bridgeSrc.matchAll(/tool\s*===?\s*['"](web_[a-z0-9_]+)['"]/g)) handledTools.add(m[1]);
 
-  // 6. Mobile / OS control tools handled in control.ts
-  const controlCases = controlHubSrc.matchAll(/case\s+['"]([a-z0-9_]+)['"]/g);
+  // 6. Mobile / OS control tools answered by the handler map in mcp-control.ts
+  const controlCases = controlHubSrc.matchAll(/^\s+([a-z0-9_]+):\s*async\s*\(/gm);
   for (const m of controlCases) handledTools.add(m[1]);
 
-  // 7. Non-web mobile tools declared in catalog.ts (ADB/OS tools)
+  // 7. Non-web mobile tools declared in catalog.ts and catalog-control.ts (ADB/OS tools)
   const nonWebMatches = catalogSrc.matchAll(/name:\s*['"]([a-z0-9_]+)['"]/g);
   for (const m of nonWebMatches) {
     if (!m[1].startsWith("web_")) handledTools.add(m[1]);

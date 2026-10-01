@@ -1,8 +1,6 @@
 import { appManifest } from "./app-update.js";
 import { collectDeviceStatus, fetchHubPhoneOnline } from "./device-status.js";
 import { readFile } from "node:fs/promises";
-import { execSync } from "node:child_process";
-import { isOsControlEnabled } from "./os-control.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -37,39 +35,12 @@ import {
   type InspectionResult,
   type PatchResult,
 } from "./storage.js";
-import {
-  compareFrames,
-  controlDeviceInfo,
-  getLogcat,
-  launchApp,
-  longPress,
-  openUrl,
-  pressKey,
-  recordScreen,
-  screenshotNow,
-  scroll,
-  swipe,
-  swipeUntil,
-  tap,
-  tapText,
-  typeText,
-  uiHierarchy,
-} from "./control.js";
+import { isControlTool, runControlAction, toMcpContent } from "./mcp-control.js";
 // web_* tools round-trip through the HTTP hub; hub-web-call.ts also says what a failed round trip means.
 import { callHubWebTool } from "./hub-web-call.js";
 
 function textResult(value: unknown, isError = false) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }], isError };
-}
-
-
-/**
- * OS-level control (os_mouse_click / os_type / os_hotkey) moves the real mouse and types
- * real keys anywhere on the machine. It is deliberately opt-in per host rather than
- * inherited from the browser web-access toggle, because it is not scoped to a tab.
- */
-function osControlEnabled(): boolean {
-  return isOsControlEnabled();
 }
 
 export function createMcpServer() {
@@ -261,163 +232,9 @@ export function createMcpServer() {
         log("INFO", "Patch published", { bytes: args.patch.length, files: result.filesTouched });
         return textResult({ success: true, createdAt: result.createdAt });
       }
-      // ── Remote control (gesture / input) ──
-      if (request.params.name === "control_status") {
-        return textResult(await controlDeviceInfo());
-      }
-      if (request.params.name === "control_screenshot") {
-        const shot = await screenshotNow();
-        return { content: [{ type: "image" as const, data: shot.base64, mimeType: shot.mimeType }] };
-      }
-      if (request.params.name === "control_tap") {
-        const a = request.params.arguments as { x: number; y: number };
-        return textResult({ success: true, detail: await tap(a.x, a.y) });
-      }
-      if (request.params.name === "control_long_press") {
-        const a = request.params.arguments as { x: number; y: number; durationMs?: number };
-        return textResult({ success: true, detail: await longPress(a.x, a.y, a.durationMs) });
-      }
-      if (request.params.name === "control_swipe") {
-        const a = request.params.arguments as { x1: number; y1: number; x2: number; y2: number; durationMs?: number };
-        return textResult({ success: true, detail: await swipe(a.x1, a.y1, a.x2, a.y2, a.durationMs) });
-      }
-      if (request.params.name === "control_scroll") {
-        const a = request.params.arguments as { direction: "up" | "down" | "left" | "right"; amount?: number };
-        return textResult({ success: true, detail: await scroll(a.direction, a.amount) });
-      }
-      if (request.params.name === "control_type") {
-        const a = request.params.arguments as { text: string };
-        return textResult({ success: true, detail: await typeText(a.text) });
-      }
-      if (request.params.name === "control_key") {
-        const a = request.params.arguments as { key: string };
-        return textResult({ success: true, detail: await pressKey(a.key) });
-      }
-      if (request.params.name === "control_launch_app") {
-        const a = request.params.arguments as { package: string };
-        return textResult({ success: true, detail: await launchApp(a.package) });
-      }
-      // ── Advanced control / inspection (v2.6) ──
-      if (request.params.name === "get_ui_hierarchy") {
-        const a = request.params.arguments as { onlyClickable?: boolean; filter?: string } | undefined;
-        let nodes = await uiHierarchy();
-        if (a?.onlyClickable) nodes = nodes.filter((n) => n.clickable);
-        if (a?.filter) {
-          const f = a.filter.toLowerCase();
-          nodes = nodes.filter((n) => `${n.text} ${n.desc}`.toLowerCase().includes(f));
-        }
-        return textResult({ success: true, count: nodes.length, nodes });
-      }
-      if (request.params.name === "control_tap_text") {
-        const a = request.params.arguments as { query: string; exact?: boolean };
-        return textResult({ success: true, detail: await tapText(a.query, a.exact ?? false) });
-      }
-      if (request.params.name === "control_swipe_until") {
-        const a = request.params.arguments as {
-          query: string; direction?: "up" | "down" | "left" | "right"; maxSwipes?: number;
-        };
-        return textResult({ success: true, detail: await swipeUntil(a.query, a.direction ?? "down", a.maxSwipes ?? 8) });
-      }
-      if (request.params.name === "control_open_url") {
-        const a = request.params.arguments as { url: string };
-        return textResult({ success: true, detail: await openUrl(a.url) });
-      }
-      if (request.params.name === "compare_frames") {
-        const a = request.params.arguments as { delayMs?: number } | undefined;
-        const r = await compareFrames(a?.delayMs ?? 1200);
-        return {
-          content: [
-            { type: "text" as const, text: JSON.stringify({ changedRatio: r.changedRatio, changed: r.changedRatio > 0.02 }, null, 2) },
-            { type: "image" as const, data: r.before, mimeType: r.mimeType },
-            { type: "image" as const, data: r.after, mimeType: r.mimeType },
-          ],
-        };
-      }
-      if (request.params.name === "wait_for_frame") {
-        const a = request.params.arguments as { timeoutMs?: number } | undefined;
-        const timeoutMs = Math.max(1000, Math.min(a?.timeoutMs ?? 30000, 120000));
-        const startLatest = (await latestFrame())?.receivedAt ?? "";
-        const deadline = Date.now() + timeoutMs;
-        while (Date.now() < deadline) {
-          const now = await latestFrame();
-          if (now && now.receivedAt !== startLatest) {
-            const bytes = await readFile(now.filePath);
-            return {
-              content: [
-                { type: "text" as const, text: JSON.stringify({ success: true, receivedAt: now.receivedAt, frame: now }, null, 2) },
-                { type: "image" as const, data: bytes.toString("base64"), mimeType: now.mimeType },
-              ],
-            };
-          }
-          await new Promise((r) => setTimeout(r, 700));
-        }
-        return textResult({ success: false, error: "No new frame arrived before timeout. Ask the user to tap the floating bubble." }, true);
-      }
-      if (request.params.name === "get_logcat") {
-        const a = request.params.arguments as { pkg?: string; grep?: string; lines?: number } | undefined;
-        const text = await getLogcat({ pkg: a?.pkg, grep: a?.grep, lines: a?.lines });
-        return textResult({ success: true, logcat: text });
-      }
-      if (request.params.name === "record_screen") {
-        const a = request.params.arguments as { seconds?: number } | undefined;
-        const clip = await recordScreen(a?.seconds ?? 5);
-        return {
-          content: [
-            { type: "text" as const, text: JSON.stringify({ success: true, seconds: clip.seconds }, null, 2) },
-            { type: "image" as const, data: clip.base64, mimeType: clip.mimeType },
-          ],
-        };
-      }
-      // The OS plane drives the real mouse and keyboard anywhere on the machine, outside
-      // any browser tab, so it sits outside both the web-access toggle and the per-origin
-      // action grants. It is therefore OFF unless the operator opts in explicitly on the
-      // machine that runs the hub. See docs: SCREENSYNC_ALLOW_OS_CONTROL.
-      if (
-        ["os_mouse_click", "os_type", "os_hotkey"].includes(request.params.name) &&
-        !osControlEnabled()
-      ) {
-        return textResult(
-          {
-            success: false,
-            enabled: false,
-            error:
-              "OS-level control is disabled. It drives the real mouse and keyboard outside the browser, so it is off by default. Set SCREENSYNC_ALLOW_OS_CONTROL=1 on the hub host and restart the hub to enable it.",
-          },
-          true
-        );
-      }
-
-      if (request.params.name === "os_mouse_click") {
-        const a = request.params.arguments as { x: number; y: number };
-        const x = Math.round(Number(a.x));
-        const y = Math.round(Number(a.y));
-        if (!Number.isFinite(x) || !Number.isFinite(y)) {
-          return textResult({ success: false, error: "os_mouse_click requires finite numeric x and y." }, true);
-        }
-        execSync(`python -c "import ctypes, pyautogui; h = ctypes.windll.user32.OpenDesktopW('Default', 0, False, 0x01FF); h and ctypes.windll.user32.SetThreadDesktop(h); pyautogui.click(${x}, ${y})"`);
-        return textResult({ success: true, detail: `Clicked at ${x}, ${y}` });
-      }
-      if (request.params.name === "os_type") {
-        const a = request.params.arguments as { text: string };
-        const text = String(a.text ?? "");
-        if (!text.length) {
-          return textResult({ success: false, error: "os_type requires text." }, true);
-        }
-        // Text travels as a base64 argv argument — no shell metacharacter can break out.
-        const b64 = Buffer.from(text, "utf8").toString("base64");
-        execSync(`python -c "import ctypes, base64, sys, pyautogui; h = ctypes.windll.user32.OpenDesktopW('Default', 0, False, 0x01FF); h and ctypes.windll.user32.SetThreadDesktop(h); pyautogui.typewrite(base64.b64decode(sys.argv[1]).decode('utf-8'))" ${b64}`);
-        return textResult({ success: true, detail: `Typed ${text.length} characters` });
-      }
-      if (request.params.name === "os_hotkey") {
-        const a = request.params.arguments as { keys: string[] };
-        const keys = (a.keys || []).map((k) => String(k).trim().toLowerCase());
-        const allowed = /^(f([1-9]|1\d|2[0-4])|[a-z0-9]|up|down|left|right|space|tab|enter|return|esc|escape|backspace|delete|del|home|end|pageup|pagedown|insert|win|windows|command|option|printscreen)$/;
-        if (!keys.length || !keys.every((k) => allowed.test(k))) {
-          return textResult({ success: false, error: `os_hotkey keys must be simple key names (letters, digits, f1-f24, modifiers, navigation keys). Got: ${(a.keys || []).join(", ")}` }, true);
-        }
-        const keysStr = keys.map((k) => `'${k}'`).join(", ");
-        execSync(`python -c "import ctypes, pyautogui; h = ctypes.windll.user32.OpenDesktopW('Default', 0, False, 0x01FF); h and ctypes.windll.user32.SetThreadDesktop(h); pyautogui.hotkey(${keysStr})"`);
-        return textResult({ success: true, detail: `Pressed hotkey ${keys.join("+")}` });
+      // ── Phone control, ADB inspection and the OS plane (catalog-control.ts, answered in mcp-control.ts) ──
+      if (isControlTool(request.params.name)) {
+        return toMcpContent(await runControlAction(request.params.name, request.params.arguments));
       }
 
       return textResult({ success: false, error: `Unknown tool: ${request.params.name}` }, true);

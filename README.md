@@ -76,9 +76,11 @@ are in [`CLAUDE.md`](CLAUDE.md) and [`AGENTS.md`](AGENTS.md).
 │   ├── hub.ts + hub-*.ts     Express: upload, SSE, pairing, catalog,
 │   │                         inspections, patches, control API, app update
 │   ├── mcp.ts / catalog*.ts  MCP protocol + capability catalogue: catalog.ts
-│   │                         composes 16 catalog files (226 tools / 17 prompts
+│   │                         composes 17 catalog files (226 tools / 17 prompts
 │   │                         / 3 resources)
-│   ├── control.ts            ADB backend (input, UI tree, logcat, record)
+│   ├── control*.ts           ADB backend (input, UI tree, logcat, record);
+│   │                         control-adb.ts is the one adb runner (no shell),
+│   │                         mcp-control.ts the control_* / os_* handlers
 │   ├── storage.ts / config.ts  Retention, env, auth
 │   └── test/                 Unit, guard and E2E suites (`npm test`)
 ├── extension/                MV3 browser extension: the `web_*` tools run
