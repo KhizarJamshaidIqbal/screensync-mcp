@@ -102,8 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
       BuildContext context, ScreenCaptureState state) async {
     if (_promptOpen || !mounted) return;
 
-    // A hub that rejects our token is as good as offline: re-pairing is the fix.
-    final online = state.hubOnline == true && !state.hubAuthFailed;
+    final online = hubLinkUp(state);
     final was = _wasHubOnline;
     _wasHubOnline = online;
 

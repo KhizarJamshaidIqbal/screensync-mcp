@@ -6,6 +6,16 @@ import '../blocs/screen_capture_bloc.dart';
 import '../core/app_theme.dart';
 import '../services/settings_service.dart';
 
+/// Whether the hub link counts as up for the connect prompt.
+///
+/// A ping times out after 2 s, so one slow or lost ping used to read as a
+/// dropped link and popped "This phone is not linked right now" over a phone
+/// whose live stream was still connected. That stream is a persistent
+/// connection to the same hub, so while it is up the link is up. A hub that
+/// rejects our token is down whatever else answers: re-pairing is the fix.
+bool hubLinkUp(ScreenCaptureState s) =>
+    !s.hubAuthFailed && (s.hubOnline == true || s.liveConnected);
+
 /// What the user chose in the connect prompt.
 enum ConnectPromptResult {
   /// Open the QR scanner.
