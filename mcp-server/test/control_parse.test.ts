@@ -121,6 +121,23 @@ const label = (n: UiNode) => n.text || n.desc || n.className.split(".").pop();
 const view = (query: UiQuery) => parseUiAutomatorXml(STATES, query).map(label);
 const pick = (n: UiNode, keys: Array<keyof UiNode>) => Object.fromEntries(keys.map((k) => [k, n[k]]));
 
+test("uiautomator, Android 16: a value holding a double quote is single-quoted (text='...'), and is still read", () => {
+  // Recorded on an Android 16 emulator after control_type typed Wi&Fi? "net" 'x' a;b$c into the Settings search.
+  const typed = `Wi&Fi? "net" 'x' a;b$c`;
+  const all = parseUiTree(fixture("uiautomator_android16_quotes.xml"));
+  const field = all.find((n) => n.className === "android.widget.EditText")!;
+  assert.deepEqual(pick(field, ["text", "resourceId", "focused"]), {
+    text: typed, resourceId: "com.google.android.settings.intelligence:id/open_search_view_edit_text", focused: true,
+  });
+  assert.equal(all.find((n) => n.resourceId.endsWith(":id/no_results_text"))!.text, `No results for ${typed}`);
+  assert.deepEqual(parseUiAutomatorXml(fixture("uiautomator_android16_quotes.xml"), { filter: "Fi?" }).map((n) => n.className), [
+    "android.widget.EditText", "android.widget.TextView",
+  ]);
+  // Both styles in one tag, and an apostrophe inside double quotes.
+  const [mixed] = parseUiTree(`<node text="it's" content-desc='say "hi"' bounds="[0,0][10,10]" />`);
+  assert.deepEqual(pick(mixed, ["text", "desc"]), { text: "it's", desc: 'say "hi"' });
+});
+
 test("uiautomator states: every flag is read, and XML entities are decoded", () => {
   const all = parseUiTree(STATES);
   assert.equal(all.length, 20);

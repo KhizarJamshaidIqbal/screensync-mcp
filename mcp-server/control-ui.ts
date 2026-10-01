@@ -148,7 +148,8 @@ export function decodeXml(value: string): string {
 }
 
 const TAG = /<(\/?)node\b([^>]*?)(\/?)>/g;
-const ATTR = /([\w:-]+)="([^"]*)"/g;
+// Both XML quote styles: Android 16 writes a value that holds a double quote in single quotes (text='say "hi"').
+const ATTR = /([\w:-]+)=(?:"([^"]*)"|'([^']*)')/g;
 const BOUNDS = /\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]/;
 
 /**
@@ -165,7 +166,7 @@ export function parseUiTree(xml: string): UiNode[] {
       continue;
     }
     const attrs = new Map<string, string>();
-    for (const a of tag[2].matchAll(ATTR)) attrs.set(a[1], decodeXml(a[2]));
+    for (const a of tag[2].matchAll(ATTR)) attrs.set(a[1], decodeXml(a[2] ?? a[3]));
     let up = open.length - 1;
     while (up >= 0 && open[up] < 0) up--;
     const node = toNode(attrs, open.length, up >= 0 ? open[up] : null);
