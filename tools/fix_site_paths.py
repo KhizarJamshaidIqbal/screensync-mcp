@@ -68,7 +68,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     changed = 0
-    pages = sorted(SITE.glob("*.html"))
+    # Search-engine verification files (google<hex>.html) must stay byte-exact.
+    pages = [p for p in sorted(SITE.glob("*.html")) if not re.match(r"^google[0-9a-f]+\.html$", p.name)]
     for page in pages:
         notes = fix_html(page, args.dry_run)
         if notes:
