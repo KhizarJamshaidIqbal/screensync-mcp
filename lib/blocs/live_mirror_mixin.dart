@@ -267,6 +267,10 @@ mixin LiveMirrorMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
       return;
     }
     _mirrorNotReadyTicks = 0;
+    // A pause is the user's choice, not a failure: skip the tick so the mirror
+    // carries on by itself on resume. Counting it switched the mirror off after
+    // three ticks, ended the session and blamed capture/upload.
+    if (await MediaProjectionService.isPaused()) return;
     _mirrorBusy = true;
     try {
       final frame = await hubRepo.captureCurrentDisplay(

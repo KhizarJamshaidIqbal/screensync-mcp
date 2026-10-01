@@ -27,6 +27,9 @@ class FakeProjectionNative {
   bool grant = true;
   String? failWithCode;
 
+  /// What `isPaused` returns (the Capture controls switch).
+  bool paused = false;
+
   int prepareCalls = 0;
   int captureCalls = 0;
   int stopCalls = 0;
@@ -37,6 +40,8 @@ class FakeProjectionNative {
       switch (call.method) {
         case 'isCaptureReady':
           return ready;
+        case 'isPaused':
+          return paused;
         case 'prepareCapture':
           prepareCalls++;
           if (failWithCode != null) {

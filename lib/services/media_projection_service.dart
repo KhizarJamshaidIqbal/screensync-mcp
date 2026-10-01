@@ -2,6 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
+/// A capture asked for while the user has paused captures. Its text is shown
+/// to the user as is (a StateError would read "Bad state: ...").
+class CapturePausedException implements Exception {
+  const CapturePausedException();
+
+  @override
+  String toString() => 'Capture is paused. Resume it in Capture controls.';
+}
+
 class MediaProjectionService {
   static const _channel = MethodChannel(
     'com.screensync.mcp/media_projection',
@@ -78,9 +87,22 @@ class MediaProjectionService {
 
   static Future<void> stop() => _channel.invokeMethod<void>('stopCapture');
 
-  static Future<void> setPaused(bool paused) =>
-      _channel.invokeMethod<void>('pauseCapture', {'paused': paused});
+  /// Sets pause (with or without a capture session) and returns the state the
+  /// capture service now holds.
+  static Future<bool> setPaused(bool paused) async =>
+      await _channel.invokeMethod<bool>('pauseCapture', {'paused': paused}) ??
+      await isPaused();
 
-  static Future<bool> isPaused() async =>
-      await _channel.invokeMethod<bool>('isPaused') ?? false;
+  /// Whether the user paused captures. Capture paths ask this before they act,
+  /// so a native side that cannot answer counts as "not paused" rather than
+  /// failing the capture.
+  static Future<bool> isPaused() async {
+    try {
+      return await _channel.invokeMethod<bool>('isPaused') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
 }

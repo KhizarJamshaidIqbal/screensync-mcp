@@ -53,6 +53,19 @@ class ScreenCaptureService : Service() {
         @Volatile
         var stateListener: StateListener? = null
 
+        // Pause belongs to the process, not to a capture session. It used to be a field
+        // on the service that the app's switch changed with a broadcast: with no session
+        // running nobody received it, and with one the switch read the state back before
+        // the asynchronous broadcast landed. Either way the switch snapped back to off.
+        @Volatile
+        private var paused = false
+
+        /// Applies at once and survives a session restart; the notification follows.
+        fun setPausedState(value: Boolean) {
+            paused = value
+            instance?.updateNotification()
+        }
+
         fun start(context: Context, resultCode: Int, resultData: Intent) {
             val intent = Intent(context, ScreenCaptureService::class.java).apply {
                 action = ACTION_START
@@ -72,7 +85,7 @@ class ScreenCaptureService : Service() {
 
         fun isReady(): Boolean = instance?.isProjectionReady() == true
 
-        fun isPausedState(): Boolean = instance?.isPaused == true
+        fun isPausedState(): Boolean = paused
 
         fun capture(callback: (Result<ByteArray>) -> Unit) {
             val service = instance
@@ -97,7 +110,6 @@ class ScreenCaptureService : Service() {
     private val framePending = AtomicBoolean(false)
     private var captureRetried = false
     private var promoteFailureLogged = false
-    private var isPaused = false
 
     // ── Broadcast receiver for notification quick-action buttons ──
     private val actionReceiver = object : BroadcastReceiver() {
@@ -110,10 +122,7 @@ class ScreenCaptureService : Service() {
                 ACTION_TRIGGER_MCP -> {
                     writeTriggerFile(context, "MCP", "mcp")
                 }
-                ACTION_PAUSE -> {
-                    isPaused = !isPaused
-                    updateNotification()
-                }
+                ACTION_PAUSE -> setPausedState(!paused)
             }
         }
     }
@@ -241,7 +250,7 @@ class ScreenCaptureService : Service() {
     /// the service cleanly and leave a log line, not crash the process.
     private fun startCaptureForeground(): Boolean {
         return try {
-            val notification = CaptureNotification.build(this, isPaused)
+            val notification = CaptureNotification.build(this, paused)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
                     CaptureNotification.NOTIFICATION_ID,
@@ -261,7 +270,7 @@ class ScreenCaptureService : Service() {
 
     private fun updateNotification() {
         val nm = getSystemService(NotificationManager::class.java)
-        nm.notify(CaptureNotification.NOTIFICATION_ID, CaptureNotification.build(this, isPaused))
+        nm.notify(CaptureNotification.NOTIFICATION_ID, CaptureNotification.build(this, paused))
     }
 
     /// Tells the projection_state stream. Any thread; never throws.
@@ -357,8 +366,8 @@ class ScreenCaptureService : Service() {
         mediaProjection != null && virtualDisplay != null && imageReader != null
 
     private fun captureFrame(callback: (Result<ByteArray>) -> Unit) {
-        if (isPaused) {
-            callback(Result.failure(IllegalStateException("Capture is paused. Tap ▶ in the notification to resume.")))
+        if (paused) {
+            callback(Result.failure(IllegalStateException("Capture is paused. Resume it in the notification or in the app's Capture controls.")))
             return
         }
         workerHandler.post {

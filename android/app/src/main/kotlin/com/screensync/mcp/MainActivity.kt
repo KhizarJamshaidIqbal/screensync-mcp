@@ -91,13 +91,8 @@ class MainActivity : FlutterActivity() {
                 result.success(null)
             }
             "pauseCapture" -> {
-                val paused = call.argument<Boolean>("paused") ?: true
-                if (ScreenCaptureService.isPausedState() != paused) {
-                    sendBroadcast(
-                        Intent(ScreenCaptureService.ACTION_PAUSE).setPackage(packageName)
-                    )
-                }
-                result.success(null)
+                ScreenCaptureService.setPausedState(call.argument<Boolean>("paused") ?: true)
+                result.success(ScreenCaptureService.isPausedState())
             }
             "isPaused" -> result.success(ScreenCaptureService.isPausedState())
             else -> result.notImplemented()

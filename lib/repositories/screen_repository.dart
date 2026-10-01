@@ -111,6 +111,11 @@ class ScreenRepository {
     NormRect? crop,
     bool allowPrompt = true,
   }) async {
+    // The service refuses every frame while paused, so don't raise the consent
+    // dialog (or start a session) for a capture that is going to fail anyway.
+    if (await MediaProjectionService.isPaused()) {
+      throw const CapturePausedException();
+    }
     if (!await MediaProjectionService.isReady()) {
       if (!allowPrompt) {
         throw StateError('Screen capture is not active.');
@@ -336,7 +341,8 @@ class ScreenRepository {
 
     Future<String> post(String path, Map<String, dynamic> body) async {
       final res = await http
-          .post(_endpoint(path), headers: _authHeaders(), body: jsonEncode(body))
+          .post(_endpoint(path),
+              headers: _authHeaders(), body: jsonEncode(body))
           .timeout(const Duration(seconds: 12));
       return _prettyJson(res.body, res.statusCode);
     }

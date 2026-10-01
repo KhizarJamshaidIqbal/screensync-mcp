@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:screensync_flutter_project/blocs/live_mirror_mixin.dart';
 import 'package:screensync_flutter_project/blocs/screen_capture_event.dart';
 import 'package:screensync_flutter_project/blocs/screen_capture_state.dart';
+import 'package:screensync_flutter_project/repositories/screen_repository.dart';
 import 'package:screensync_flutter_project/services/media_projection_service.dart';
 import 'package:screensync_flutter_project/services/settings_service.dart';
 
@@ -180,8 +181,7 @@ void main() {
       expect(native.ready, isTrue);
     });
 
-    test('a session someone else ended is not stopped a second time',
-        () async {
+    test('a session someone else ended is not stopped a second time', () async {
       bloc.add(const SetLiveMirrorEvent(true));
       await settleBloc();
       bloc.projection.add(false); // Android revoked it
@@ -311,6 +311,42 @@ void main() {
       expect(SettingsService.instance.liveMirrorEnabled, isFalse);
       expect(bloc.telemetry.single, contains('Live mirror stopped'));
     });
+
+    // Pausing used to count as a failed capture: three ticks later the mirror
+    // switched itself off for good, ended the session and blamed the upload.
+    test('a paused capture skips ticks and keeps the mirror and the session',
+        () async {
+      bloc.add(const SetLiveMirrorEvent(true));
+      await settleBloc();
+      native.paused = true;
+
+      for (var i = 0; i < 5; i++) {
+        await bloc.liveMirrorTick();
+      }
+      await settleBloc();
+
+      expect(repo.captures, 0, reason: 'nothing is captured while paused');
+      expect(bloc.state.liveMirrorEnabled, isTrue);
+      expect(SettingsService.instance.liveMirrorEnabled, isTrue);
+      expect(native.stopCalls, 0, reason: 'the capture session is kept');
+      expect(bloc.telemetry, isEmpty);
+
+      native.paused = false;
+      await bloc.liveMirrorTick();
+      expect(repo.captures, 1, reason: 'resuming carries on by itself');
+    });
+  });
+
+  test('a paused capture never raises the consent dialog', () async {
+    native.paused = true;
+
+    await expectLater(ScreenRepository().captureCurrentDisplay(),
+        throwsA(isA<CapturePausedException>()));
+    expect(native.prepareCalls, 0);
+    expect(native.captureCalls, 0);
+    // Shown to the user as is: no "Bad state:" prefix.
+    expect(const CapturePausedException().toString(),
+        'Capture is paused. Resume it in Capture controls.');
   });
 
   group('capture readiness', () {
@@ -377,8 +413,7 @@ void main() {
       );
     });
 
-    test('gives up on its own when the consent prompt never answers',
-        () async {
+    test('gives up on its own when the consent prompt never answers', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(FakeProjectionNative.method, (call) async {
         if (call.method == 'prepareCapture') {

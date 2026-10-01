@@ -15,25 +15,45 @@ class CaptureControlsCard extends StatefulWidget {
   State<CaptureControlsCard> createState() => _CaptureControlsCardState();
 }
 
-class _CaptureControlsCardState extends State<CaptureControlsCard> {
+class _CaptureControlsCardState extends State<CaptureControlsCard>
+    with WidgetsBindingObserver {
   bool _paused = false;
   bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // The notification's Pause button flips the same flag while the app is in
+  // the background; re-read it when the app comes back.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
   }
 
   Future<void> _refresh() async {
     final paused = await MediaProjectionService.isPaused();
-    if (mounted) setState(() { _paused = paused; _loaded = true; });
+    if (mounted) {
+      setState(() {
+        _paused = paused;
+        _loaded = true;
+      });
+    }
   }
 
   Future<void> _toggle(bool paused) async {
     setState(() => _paused = paused);
-    await MediaProjectionService.setPaused(paused);
-    await _refresh();
+    final now = await MediaProjectionService.setPaused(paused);
+    if (mounted) setState(() => _paused = now);
   }
 
   @override
@@ -64,8 +84,8 @@ class _CaptureControlsCardState extends State<CaptureControlsCard> {
                     const SizedBox(height: 3),
                     Text(
                       _paused
-                          ? 'Paused — taps and snaps are ignored until resumed.'
-                          : 'Temporarily ignore bubble taps and snaps.',
+                          ? 'Paused — taps, snaps and the live mirror wait until you resume.'
+                          : 'Temporarily ignore bubble taps, snaps and the live mirror.',
                       style: AppTheme.typeBodyMedium
                           .copyWith(color: AppTheme.darkTextDim),
                     ),
@@ -87,8 +107,10 @@ class _CaptureControlsCardState extends State<CaptureControlsCard> {
           const SizedBox(height: 10),
           _actionRow(Icons.camera_alt_rounded, 'Snap',
               'Capture now while ScreenSync is running in the background'),
+          // What the button really does (SyncPendingEvent): it pushes frames
+          // that could not reach the hub yet; with none waiting it does nothing.
           _actionRow(Icons.bolt_rounded, 'MCP',
-              'Flag the capture for the connected AI agent'),
+              'Send captures still waiting to sync to the hub now'),
           _actionRow(Icons.pause_rounded, 'Pause',
               'Same switch as above — mirrored in the notification'),
         ],
