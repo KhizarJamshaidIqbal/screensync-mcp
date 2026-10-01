@@ -125,6 +125,12 @@ test("mobile_control: screenshot is the live ADB grab, frame the bubble's latest
   // screenshot used to map to get_latest_screenshot: the bubble's last upload, which can be minutes old.
   assert.equal(to("screenshot"), "control_screenshot");
   assert.equal(to("frame"), "get_latest_screenshot");
+  // ...so without ADB it still answers with that frame (liveScreenOrFrame; test/control_screenshot_fallback.test.ts).
+  assert.equal((resolveConsolidatedCall("mobile_control", { action: "screenshot" }) as { liveOrFrame?: true }).liveOrFrame, true);
+  for (const action of ["frame", "tap", "ui_hierarchy"]) {
+    assert.equal("liveOrFrame" in resolveConsolidatedCall("mobile_control", { action }), false, `${action} has no fallback`);
+  }
+  assert.equal("liveOrFrame" in resolveConsolidatedCall("web_inspect", { action: "screenshot" }), false, "only the phone's screenshot");
   assert.equal(to("tap_text"), "control_tap_text");
   assert.equal(to("long_press"), "control_long_press");
   assert.equal(to("open_url"), "control_open_url");

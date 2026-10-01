@@ -45,6 +45,16 @@ export const UI_NODE_FIELDS = [
 ] as const;
 export type UiField = (typeof UI_NODE_FIELDS)[number];
 
+/** A reply key: a node field, or `state`, the flags that apply to a node as a short list (see uiState). */
+export type UiOutputField = UiField | "state";
+
+/**
+ * The keys of a node in a reply without `fields`: the seven it always had, plus `state`. A bare call pays
+ * for every node of every dump, so the other twelve keys (each flag as a boolean, package, index, depth,
+ * parent) come only with `fields: ["all"]` or by name.
+ */
+export const UI_DEFAULT_FIELDS: readonly UiOutputField[] = ["text", "desc", "resourceId", "className", "clickable", "bounds", "center", "state"];
+
 export type UiRegion = UiBounds & { mode?: "inside" | "intersect" };
 
 /** get_ui_hierarchy's view and filters. Every filter narrows (they combine with AND). */
@@ -249,18 +259,44 @@ export function queryUiTree(tree: UiNode[], q: UiQuery = {}): UiNode[] {
   return out;
 }
 
-export type UiTreeNode = Partial<UiNode> & { children?: UiTreeNode[] };
+/**
+ * The flags that apply to a node, as short words: "disabled" when it is not enabled, then each of these
+ * that is true. `focusable` is left out: nearly every clickable node is, so it would only add bytes.
+ */
+export function uiState(n: UiNode): string[] {
+  const state = n.enabled ? [] : ["disabled"];
+  for (const flag of ["checkable", "checked", "focused", "scrollable", "longClickable", "password", "selected"] as const) {
+    if (n[flag]) state.push(flag);
+  }
+  return state;
+}
+
+export type UiReplyNode = Partial<UiNode> & { state?: string[] };
+export type UiTreeNode = UiReplyNode & { children?: UiTreeNode[] };
 
 /**
- * Shapes the reply: `fields` keeps only those keys, `format: "tree"` nests children under their parent
- * (and drops `parent`, which indexes a flat list that is then not returned).
+ * Shapes the reply. Without `fields` a node carries UI_DEFAULT_FIELDS; `fields: "all"` keeps every key and a
+ * list keeps only those (`state` is left out when no flag applies). `format: "tree"` nests children under
+ * their parent (and drops `parent`, which indexes a flat list that is then not returned).
  */
 export function shapeUiNodes(
   nodes: UiNode[],
-  opts: { fields?: UiField[]; format?: "flat" | "tree" } = {},
-): { count: number; nodes: Array<Partial<UiNode>> } | { count: number; tree: UiTreeNode[] } {
-  const pick = (n: UiNode): Partial<UiNode> =>
-    opts.fields?.length ? Object.fromEntries(opts.fields.map((f) => [f, n[f]])) : { ...n };
+  opts: { fields?: readonly UiOutputField[] | "all"; format?: "flat" | "tree" } = {},
+): { count: number; nodes: UiReplyNode[] } | { count: number; tree: UiTreeNode[] } {
+  const fields = opts.fields === "all" ? null : opts.fields?.length ? opts.fields : UI_DEFAULT_FIELDS;
+  const pick = (n: UiNode): UiReplyNode => {
+    if (!fields) return { ...n };
+    const out: Record<string, unknown> = {};
+    for (const f of fields) {
+      if (f !== "state") {
+        out[f] = n[f];
+        continue;
+      }
+      const state = uiState(n);
+      if (state.length) out.state = state;
+    }
+    return out as UiReplyNode;
+  };
   if (opts.format !== "tree") return { count: nodes.length, nodes: nodes.map(pick) };
 
   const made: UiTreeNode[] = nodes.map((n) => {
@@ -286,19 +322,23 @@ function readRegion(v: unknown): UiRegion | undefined {
   return { x1, y1, x2, y2, mode: r.mode === "inside" ? "inside" : "intersect" };
 }
 
-/** get_ui_hierarchy's arguments. Unknown `fields` names are dropped; none left means every field. */
-export function readUiArgs(args: Args): { query: UiQuery; fields?: UiField[]; format: "flat" | "tree" } {
+/**
+ * get_ui_hierarchy's arguments. `fields` is "all" (also ["all"]) for every key, or a list: unknown names are
+ * dropped, and none left means the default keys.
+ */
+export function readUiArgs(args: Args): { query: UiQuery; fields?: UiOutputField[] | "all"; format: "flat" | "tree" } {
   const a = args ?? {};
-  const fields = Array.isArray(a.fields)
-    ? UI_NODE_FIELDS.filter((f) => (a.fields as unknown[]).includes(f))
-    : undefined;
+  const asked: unknown[] = Array.isArray(a.fields) ? a.fields : a.fields === "all" ? ["all"] : [];
+  const fields: UiOutputField[] | "all" = asked.includes("all")
+    ? "all"
+    : [...UI_NODE_FIELDS, "state" as const].filter((f) => asked.includes(f));
   return {
     query: {
       all: bool(a.all), onlyClickable: bool(a.onlyClickable), filter: str(a.filter),
       enabled: bool(a.enabled), checked: bool(a.checked), scrollable: bool(a.scrollable),
       className: str(a.className), region: readRegion(a.region), maxDepth: count(a.maxDepth),
     },
-    fields: fields?.length ? fields : undefined,
+    fields: fields === "all" || fields.length ? fields : undefined,
     format: a.format === "tree" ? "tree" : "flat",
   };
 }

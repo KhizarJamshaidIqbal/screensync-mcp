@@ -15,7 +15,8 @@ import { fileURLToPath } from "node:url";
 import { chooseTarget, parseAdbDevices, parseWmSize, targetArgs } from "../control-adb.js";
 import { ControlInputError, inputTextArgs, isFractionPoint, mapPoint, quoteForDeviceShell } from "../control.js";
 import {
-  decodeXml, parseUiAutomatorXml, parseUiTree, readMatchArgs, readUiArgs, shapeUiNodes, UI_NODE_FIELDS, type UiNode, type UiQuery,
+  decodeXml, parseUiAutomatorXml, parseUiTree, readMatchArgs, readUiArgs, shapeUiNodes, UI_DEFAULT_FIELDS, UI_NODE_FIELDS,
+  type UiNode, type UiOutputField, type UiQuery,
 } from "../control-ui.js";
 import { controlToolDefinitions } from "../catalog-control.js";
 
@@ -225,8 +226,49 @@ test("fields project each node; format tree nests children and drops parent", ()
   assert.equal(full.count, 17);
   assert.deepEqual(full.tree.map((n) => n.children?.length ?? 0), [0, 0, 7]);
   assert.equal("parent" in full.tree[2], false);
+  const every = shapeUiNodes(parseUiAutomatorXml(STATES), { fields: "all" });
+  assert.ok("nodes" in every && every.nodes[3].parent === 2, "fields 'all' is the whole node");
+  assert.deepEqual(Object.keys(every.nodes[3]), [...UI_NODE_FIELDS]);
+});
+
+test("without fields a node is compact: the seven keys it always had, plus state when a flag applies", () => {
   const flat = shapeUiNodes(parseUiAutomatorXml(STATES));
-  assert.ok("nodes" in flat && flat.nodes[3].parent === 2, "flat without fields is the whole node");
+  assert.ok("nodes" in flat);
+  const seven = ["text", "desc", "resourceId", "className", "clickable", "bounds", "center"];
+  for (const n of flat.nodes) assert.deepEqual(Object.keys(n), "state" in n ? [...seven, "state"] : seven);
+  assert.deepEqual([...UI_DEFAULT_FIELDS], [...seven, "state"]);
+  const states = flat.nodes.map((n) => [n.text || n.desc || n.className!.split(".").pop(), n.state ?? null]);
+  assert.deepEqual(states, [
+    ["Navigate up", null], ["Wi-Fi & network", null], ["RecyclerView", ["scrollable"]], ["LinearLayout", null], ["Use Wi-Fi", null],
+    ["Switch", ["checkable", "checked"]], ["LinearLayout", null], ["Bluetooth", null], ["Bluetooth", ["checkable"]], ["RecyclerView", ["scrollable"]],
+    ["Home", ["checkable", "checked", "selected"]], ["Work", ["checkable"]], ["Home office", ["checkable"]],
+    // focusable is left out on purpose: nearly every clickable node is.
+    ["EditText", ["focused", "longClickable", "password"]], ["Status:\nOnline", null], ["Cancel", null], ["Connect", ["disabled"]],
+  ]);
+  // state can be asked for by name next to other keys, and is still absent when nothing applies.
+  const picked = shapeUiNodes(parseUiAutomatorXml(STATES, { className: "widget.Button" }), { fields: ["text", "state"] });
+  assert.deepEqual(picked, { count: 2, nodes: [{ text: "Cancel" }, { text: "Connect", state: ["disabled"] }] });
+  // The tree format nests the same compact nodes.
+  const tree = shapeUiNodes(parseUiAutomatorXml(STATES, { scrollable: true }), { format: "tree" });
+  assert.ok("tree" in tree);
+  assert.deepEqual(tree.tree[0].state, ["scrollable"]);
+  assert.deepEqual(Object.keys(tree.tree[0]), [...seven, "state", "children"]);
+});
+
+test("size budget: a call without fields costs about what the seven-key reply did; every key is opt-in", () => {
+  // Bytes of main's reply (seven keys, text/desc/clickable nodes only), measured 2026-10-01 with its parser.
+  const before: Record<string, number> = { "uiautomator_android9.xml": 2103, "uiautomator_android14.xml": 1435, "uiautomator_states.xml": 4325 };
+  const bytes = (v: unknown) => Buffer.byteLength(JSON.stringify({ success: true, ...(v as object) }, null, 2), "utf8");
+  const seven: UiOutputField[] = ["text", "desc", "resourceId", "className", "clickable", "bounds", "center"];
+  for (const [name, old] of Object.entries(before)) {
+    const nodes = parseUiAutomatorXml(fixture(name));
+    const compact = bytes(shapeUiNodes(nodes));
+    const all = bytes(shapeUiNodes(nodes, { fields: "all" }));
+    // `state` is the only key added; the rest of the growth is the scroll containers and fields now listed.
+    assert.ok(compact <= 1.15 * bytes(shapeUiNodes(nodes, { fields: seven })), `${name}: state costs at most 15% (${compact} bytes)`);
+    assert.ok(compact <= 1.5 * old, `${name}: ${compact} bytes against ${old} before; every key by default was ~2.5x`);
+    assert.ok(all >= 1.6 * compact, `${name}: fields 'all' (${all} bytes) is the large reply, so it is opt-in`);
+  }
 });
 
 test("loose MCP arguments become typed options, and the catalogue's fields enum matches the node", () => {
@@ -241,7 +283,12 @@ test("loose MCP arguments become typed options, and the catalogue's fields enum 
   assert.deepEqual(r.query.region, { x1: 0, y1: 10, x2: 5, y2: 20, mode: "inside" });
   assert.deepEqual(r.fields, ["text", "center"]);
   assert.equal(r.format, "tree");
-  assert.equal(readUiArgs({ fields: ["nope"] }).fields, undefined, "no known field left: every field");
+  assert.equal(readUiArgs({ fields: ["nope"] }).fields, undefined, "no known field left: the default keys");
+  assert.equal(readUiArgs({}).fields, undefined, "no fields: the default keys");
+  assert.equal(readUiArgs({ fields: ["all"] }).fields, "all");
+  assert.equal(readUiArgs({ fields: ["text", "all"] }).fields, "all", "all anywhere in the list wins");
+  assert.equal(readUiArgs({ fields: "all" }).fields, "all", "the bare string is taken too");
+  assert.deepEqual(readUiArgs({ fields: ["state", "text"] }).fields, ["text", "state"]);
   assert.equal(readUiArgs({ region: { x1: 0 } }).query.region, undefined);
   assert.equal(readUiArgs(undefined).format, "flat");
   assert.deepEqual(readMatchArgs({ index: 1, enabled: false, clickableOnly: true, className: "Chip", exact: true }), {
@@ -251,7 +298,7 @@ test("loose MCP arguments become typed options, and the catalogue's fields enum 
   const schema = controlToolDefinitions().find((t) => t.name === "get_ui_hierarchy")!.inputSchema as unknown as {
     properties: Record<string, { items?: { enum?: string[] } }>;
   };
-  assert.deepEqual(schema.properties.fields.items?.enum, [...UI_NODE_FIELDS]);
+  assert.deepEqual(schema.properties.fields.items?.enum, [...UI_NODE_FIELDS, "state", "all"]);
 });
 
 /** What the device's sh hands `input` for one word quoteForDeviceShell() built: the quoting removed. */

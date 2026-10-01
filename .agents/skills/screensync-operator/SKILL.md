@@ -245,19 +245,20 @@ The user's real browser already has active logins for their accounts (X, LinkedI
 `control_status` first (is an ADB device reachable), `control_screenshot` to see, then
 **`get_ui_hierarchy`** to locate. Never guess coordinates from a picture when the tree has the node.
 
-- **What a node says:** text, desc, resourceId, className, package, bounds, center, and every state
-  flag: `clickable`, `enabled`, `checkable`, `checked`, `focusable`, `focused`, `scrollable`,
-  `longClickable`, `password`, `selected`; plus `index` (among siblings), `depth` and `parent` (the
-  position of the nearest listed ancestor in the same reply, null at the top).
+- **What a node says** (no `fields`): text, desc, resourceId, className, clickable, bounds, center,
+  and `state`, the flags that apply: `disabled`, `checkable`, `checked`, `focused`, `scrollable`,
+  `longClickable`, `password`, `selected` (absent when none does). `fields: ["all"]` returns every key:
+  each flag as a boolean (`enabled`, `focusable`, ...), `package`, `index` (among siblings), `depth`
+  and `parent` (the position of the nearest listed ancestor in the same reply, null at the top). Or
+  name the keys you want, `state` included: `["text","center","state"]`.
 - **Default view:** text, desc or clickable nodes, plus scroll containers, EditText fields and
-  checkable toggles. `all: true` lists every node; it is large, so add `fields` (e.g.
-  `["text","center","enabled"]`) or `maxDepth`.
+  checkable toggles. `all: true` lists every node; it is large, so add `fields` or `maxDepth`.
 - **Filters (they combine):** `enabled`, `checked`, `scrollable` (true / false, omit for both),
   `className` (substring, e.g. `"Switch"`), `region {x1,y1,x2,y2, mode: "intersect"|"inside"}` (pixels,
   or 0..1 fractions when all four are), `maxDepth`, plus the old `onlyClickable` and `filter`.
   `format: "tree"` nests `children` instead of the flat list.
-- **Is the toggle on?** `get_ui_hierarchy {checked: true}`. **Will the button work?** Check `enabled`
-  before tapping a submit button; a disabled one does nothing.
+- **Is the toggle on?** `get_ui_hierarchy {checked: true}`. **Will the button work?** A submit button
+  whose `state` says `disabled` does nothing when tapped.
 - **`UI_DUMP_FAILED`** (`retryable: true`) means uiautomator could not dump twice in a row (the screen
   was animating). Wait a second and call again. You never get an older screen's tree instead.
 - **Acting by label:** `control_tap_text {query}` picks the best enabled match (clickable first, then the
@@ -284,10 +285,12 @@ The user's real browser already has active logins for their accounts (X, LinkedI
   `move_end` (cursor to the end) and `paste` (the phone's clipboard). To replace a field's text: tap it,
   `select_all`, then `control_type`.
 - **URLs:** `control_open_url` opens the whole URL, query string and fragment included; a non-http(s)
-  or malformed one returns `INVALID_URL`.
-- **Consolidated mode** (`mobile_control`): `screenshot` is the live `control_screenshot`; `frame` is
-  the bubble's last upload, which can be minutes old. `tap_text`, `long_press` and `open_url` are
-  actions too.
+  or malformed one returns `INVALID_URL`. If adb fails, the error names only the host and the length.
+- **Consolidated mode** (`mobile_control`): `screenshot` is the live `control_screenshot`, then a text
+  block (`source: "adb"`, `live: true`). With no ADB device it returns the bubble's last upload instead,
+  marked `live: false` with `ageSeconds` and a `note`: it can be old, so tap the bubble for a fresh one.
+  With neither it is `NO_SCREEN`. `frame` is always the bubble's last upload. `tap_text`, `long_press`
+  and `open_url` are actions too.
 - **Without an MCP client** (the app's tool runner, the extension, a script): `POST
   /api/control/<action>` with the Bearer token runs the same handler, named without `control_` (`tap`,
   `tap_text`, `open_url`, `launch_app`; the old `launch` still works). A missing required argument is

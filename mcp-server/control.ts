@@ -289,7 +289,8 @@ export async function screenshotNow(): Promise<{ base64: string; mimeType: "imag
 /**
  * Opens an http(s) URL in the device's default browser. The URL is parsed (new URL) and sent whole, as
  * the parser normalises it (what a browser loads: nothing stripped, & and ? kept), in one argument quoted
- * for the device's sh. Only the host and the length are logged; a query string can carry a token.
+ * for the device's sh. Only the host and the length are logged, and an adb failure names only those too: a
+ * query string can carry a token, and the caller logs a failed tool's error.
  */
 export async function openUrl(url: string): Promise<string> {
   let parsed: URL;
@@ -302,7 +303,14 @@ export async function openUrl(url: string): Promise<string> {
     throw new ControlInputError("INVALID_URL", `control_open_url opens http(s) URLs only, not ${parsed.protocol}`);
   }
   const href = parsed.href;
-  await adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", quoteForDeviceShell(href)]);
+  const quoted = quoteForDeviceShell(href);
+  await adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", quoted]).catch((error: unknown) => {
+    // adb's message quotes the command line, and `am` may echo the intent's data: keep the URL out of both.
+    let message = String(error).split(quoted).join("'<url>'").split(href).join("<url>");
+    const tail = parsed.search + parsed.hash;
+    if (tail) message = message.split(tail).join("<query>");
+    throw new Error(`am start failed for ${parsed.host} (${href.length} chars): ${message}`);
+  });
   log("INFO", "control openUrl", { host: parsed.host, length: href.length });
   return `opened ${href}`;
 }

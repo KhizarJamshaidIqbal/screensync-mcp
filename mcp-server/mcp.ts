@@ -35,7 +35,7 @@ import {
   type InspectionResult,
   type PatchResult,
 } from "./storage.js";
-import { isControlTool, runControlAction, toMcpContent } from "./mcp-control.js";
+import { isControlTool, liveScreenOrFrame, runControlAction, toMcpContent } from "./mcp-control.js";
 // web_* tools round-trip through the HTTP hub; hub-web-call.ts also says what a failed round trip means.
 import { callHubWebTool } from "./hub-web-call.js";
 
@@ -54,12 +54,15 @@ export function createMcpServer() {
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    // mobile_control screenshot: the live grab, or the bubble's frame when ADB cannot answer (liveScreenOrFrame).
+    let liveOrFrame = false;
     if (isConsolidatedMode()) {
       const resolved = resolveConsolidatedCall(
         request.params.name,
         (request.params.arguments ?? {}) as { action: string; args?: Record<string, unknown> }
       );
       if ("toolName" in resolved) {
+        liveOrFrame = resolved.liveOrFrame === true;
         request = {
           ...request,
           params: {
@@ -234,6 +237,7 @@ export function createMcpServer() {
       }
       // ── Phone control, ADB inspection and the OS plane (catalog-control.ts, answered in mcp-control.ts) ──
       if (isControlTool(request.params.name)) {
+        if (liveOrFrame) return await liveScreenOrFrame(request.params.arguments);
         return toMcpContent(await runControlAction(request.params.name, request.params.arguments));
       }
 

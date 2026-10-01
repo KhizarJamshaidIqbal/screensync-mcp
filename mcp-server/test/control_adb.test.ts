@@ -230,6 +230,31 @@ test("honest typing: Unicode and newlines are typed refusals, a literal %s takes
   });
 });
 
+test("control_open_url: a failed am start names the host and length, never the URL (its query can carry a token)", async () => {
+  const url = "https://example.com/reset?token=SECRET123#frag";
+  const hidden = (error: unknown) => {
+    const message = String(error);
+    assert.match(message, /am start failed for example\.com \(46 chars\)/);
+    assert.ok(!/SECRET123|reset\?|#frag/.test(message), message);
+    return true;
+  };
+  // The command line quoted by adb, the raw URL and its query echoed by an older `am`.
+  fakeAdb((cmd, argv) => {
+    throw new Error(`Command failed: adb ${cmd}\nError: unable to resolve Intent { dat=${argv.at(-1)!.slice(1, -1)} }\nquery ?token=SECRET123#frag`);
+  });
+  await assert.rejects(openUrl(url), hidden);
+  // Through the tool, whose error mcp.ts logs at ERROR.
+  await assert.rejects(runControlAction("control_open_url", { url }), hidden);
+
+  // The real runner: node stands in for adb and exits non-zero, so execFile's own message is what gets checked.
+  setAdbRunner(null);
+  process.env.SCREEN_SYNC_ADB_BIN = process.execPath;
+  await assert.rejects(openUrl(url), (error: unknown) => {
+    assert.match(String(error), /Command failed: .*'<url>'/s, "the command line is still there, with the URL replaced");
+    return hidden(error);
+  });
+});
+
 test("control_key: paste and move_end are keyevents, select_all is ctrl+a on Android 13+ and a typed refusal before", async () => {
   let sdk = "34";
   let comboOut = "";

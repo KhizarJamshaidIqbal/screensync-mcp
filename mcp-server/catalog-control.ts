@@ -116,7 +116,7 @@ export function controlToolDefinitions() {
     {
       name: "get_ui_hierarchy",
       description:
-        "Returns the on-screen UI elements via uiautomator: text, desc, ids, pixel bounds and center, every state flag (enabled, checked, scrollable, password, ...: see fields) and the hierarchy (depth; parent = index of the nearest listed ancestor, null at the top). Default view: nodes with text, a description or a click, plus scroll containers, EditText fields and toggles; all:true lists every node (large: cut it with fields or maxDepth). Filters combine. A failed dump is retried once, then returns code UI_DUMP_FAILED (retryable), never an older screen's tree. Use this to locate elements PRECISELY instead of guessing tap coordinates from a screenshot.",
+        "Returns the on-screen UI elements via uiautomator. Each node: text, desc, resourceId, className, clickable, pixel bounds and center, plus state: the flags that apply (disabled, checkable, checked, focused, scrollable, longClickable, password, selected; absent when none). fields picks keys instead (any node key, or state); fields ['all'] returns every key: each flag as a boolean, package, index, depth and parent (index of the nearest listed ancestor, null at the top). Default view: nodes with text, a description or a click, plus scroll containers, EditText fields and toggles; all:true lists every node (large: cut it with fields or maxDepth). Filters combine; format 'tree' nests children. A failed dump is retried once, then returns code UI_DUMP_FAILED (retryable), never an older screen's tree. Use this to locate elements PRECISELY instead of guessing tap coordinates from a screenshot.",
       inputSchema: {
         type: "object",
         properties: {
@@ -141,12 +141,13 @@ export function controlToolDefinitions() {
           fields: {
             type: "array",
             uniqueItems: true,
-            description: "Return only these keys per node, e.g. ['text','center','enabled'].",
+            description: "Keys per node instead of the default ones, e.g. ['text','center','state']; ['all'] returns every key.",
             items: {
               type: "string",
               enum: [
                 "text", "desc", "resourceId", "className", "clickable", "bounds", "center", "enabled", "checkable", "checked",
                 "focusable", "focused", "scrollable", "longClickable", "password", "selected", "package", "index", "depth", "parent",
+                "state", "all",
               ],
             },
           },

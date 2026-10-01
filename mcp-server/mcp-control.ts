@@ -5,7 +5,8 @@
 //
 // runControlAction() returns a neutral ControlResult ({data, images}); toMcpContent() renders it as the
 // MCP content array the tools have always returned. A handler that throws is left to the caller, which
-// turns it into the usual {success:false, error} reply.
+// turns it into the usual {success:false, error} reply. liveScreenOrFrame() answers the consolidated
+// mobile_control `screenshot`, which falls back to the bubble's frame when ADB cannot grab the screen.
 import { execSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import {
@@ -23,6 +24,7 @@ import {
   tap,
   typeText,
 } from "./control.js";
+import { log } from "./config.js";
 import { runLaunchApp } from "./control-apps.js";
 import { readMatchArgs, readUiArgs, shapeUiNodes, swipeUntil, tapText, uiHierarchy, UiDumpError } from "./control-ui.js";
 import { isOsControlEnabled } from "./os-control.js";
@@ -192,6 +194,49 @@ const HANDLERS: Record<string, (args: Args) => Promise<ControlResult>> = {
     return ok(`Pressed hotkey ${keys.join("+")}`);
   },
 };
+
+/**
+ * mobile_control `screenshot` (consolidated mode): the live screen over ADB, and when ADB cannot grab it (no
+ * adb binary, no device, unauthorized) the bubble's latest upload instead, marked `live: false` with its age.
+ * Before that action meant the live grab it returned the bubble's frame, so a phone that streams through the
+ * bubble without ADB keeps getting an image. Either way the reply is an image and then one text block, as
+ * get_latest_screenshot's is; includeMetadata: false drops the live reply's text, never the fallback's note.
+ * With neither a live screen nor a frame it is code NO_SCREEN, which names the `frame` action.
+ */
+export async function liveScreenOrFrame(args: Args): Promise<{ content: McpContent; isError?: boolean }> {
+  const includeMetadata = args?.includeMetadata !== false;
+  let liveError: string;
+  try {
+    const shot = await screenshotNow();
+    const image = { type: "image" as const, data: shot.base64, mimeType: shot.mimeType };
+    if (!includeMetadata) return { content: [image] };
+    const meta = { source: "adb", live: true, capturedAt: new Date().toISOString(), mimeType: shot.mimeType };
+    return { content: [image, { type: "text", text: JSON.stringify(meta, null, 2) }] };
+  } catch (error) {
+    liveError = String(error).replace(/\s+/g, " ").trim().slice(0, 300);
+  }
+  const frame = await latestFrame();
+  if (!frame) {
+    return toMcpContent(fail({
+      code: "NO_SCREEN",
+      retryable: false,
+      liveError,
+      error:
+        "No screen to return: the live grab over ADB failed and the bubble has not uploaded a frame. Connect the phone over ADB (control_status says why it is unreachable), or start capture on the phone and tap the floating bubble; mobile_control action \"frame\" then returns that upload.",
+    }));
+  }
+  log("WARN", "mobile_control screenshot: no live screen over ADB, returning the bubble frame", { error: liveError });
+  const bytes = await readFile(frame.filePath);
+  const ageSeconds = Math.max(0, Math.round((Date.now() - Date.parse(frame.receivedAt)) / 1000));
+  const note = `Not live: ADB could not grab the screen, so this is the bubble's latest upload (what mobile_control action "frame" returns), received ${ageSeconds}s ago. The phone may have moved on: tap the bubble for a fresh one.`;
+  const meta = { ...(includeMetadata ? frame : {}), source: "bubble", live: false, ageSeconds, liveError, note };
+  return {
+    content: [
+      { type: "image", data: bytes.toString("base64"), mimeType: frame.mimeType },
+      { type: "text", text: JSON.stringify(meta, null, 2) },
+    ],
+  };
+}
 
 /** True for every tool runControlAction() answers (the tools declared in catalog-control.ts). */
 export function isControlTool(name: string): boolean {
