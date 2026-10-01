@@ -6,11 +6,11 @@ this extension hands the agent your **web** — it can see, read, click and
 type on your live browser tabs through the ScreenSync hub. It also doubles as
 the live Android-screen dashboard + remote control for your phone.
 
-Product site, downloads and guide: https://screensyncmcp.epsoldev.com
+Product site, downloads and guide: https://www.screensyncmcp.tech
 
 ## Quick start (sideload)
 
-1. Grab the latest zip from https://screensyncmcp.epsoldev.com/extension.html
+1. Grab the latest zip from https://www.screensyncmcp.tech/extension.html
    (or clone this repo — the repo root **is** the extension folder).
 2. Unzip it anywhere.
 3. Open `chrome://extensions` (or `edge://extensions`) → enable **Developer mode**.
@@ -33,7 +33,7 @@ pairing link + QR that the extension and the Android app both accept.
 - **Latency telemetry** — health pings (P50 latency) + SSE liveness chip.
 - **MCP catalog browser** — 226 tools / 17 prompts / 3 resources from `/api/mcp/catalog`, with stdio-only tools flagged.
 - **One-click Connect Kit** — copies the same agent config kit the phone app produces (Claude Code `.mcp.json`, Claude Desktop, HTTP-only).
-- **Onboarding** — probes localhost, accepts pairing links (`screensync://pair…`, JSON, `http://ip:port#token`), and pulls the setup guide from `https://screensyncmcp.epsoldev.com/setup-guide.json` (bundled fallback offline).
+- **Onboarding** — probes localhost, accepts pairing links (`screensync://pair…`, JSON, `http://ip:port#token`), and pulls the setup guide from `https://www.screensyncmcp.tech/setup-guide.json` (bundled fallback offline).
 
 ## How the web bridge works
 

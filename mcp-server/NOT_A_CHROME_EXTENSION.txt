@@ -10,5 +10,5 @@ If you are trying to install the Chrome Extension and received the error:
 
 Please download the actual Chrome Extension package:
 --> screensync-extension.zip
-Available from: https://screensyncmcp.epsoldev.com/extension.html (Step 2)
+Available from: https://www.screensyncmcp.tech/extension.html (Step 2)
 ====================================================================

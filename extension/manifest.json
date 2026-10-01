@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ScreenSync MCP",
-  "version": "1.14.3",
+  "version": "1.14.4",
   "minimum_chrome_version": "114",
   "description": "Supervised AI agent bridge for live browser tabs with Playwright parity, approval gates, and mobile screen sync.",
   "icons": {
@@ -62,7 +62,7 @@
     }
   },
   "host_permissions": [
-    "https://screensyncmcp.epsoldev.com/*",
+    "https://www.screensyncmcp.tech/*",
     "http://localhost/*",
     "http://127.0.0.1/*",
     "<all_urls>"

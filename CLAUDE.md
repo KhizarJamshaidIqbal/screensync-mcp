@@ -39,7 +39,7 @@ Its tree must be a **byte-exact mirror** of `main`'s `website/` directory, hoist
 3. Mirror `main:website/` onto the `deploy` branch root.
 4. Commit on `deploy` as `deploy(web): <lowercase summary>`. Keep history **linear**.
 5. Push to `origin/deploy`. **This is the step that actually ships.**
-6. Verify live at https://screensyncmcp.epsoldev.com — fetch with `cache: 'no-store'` and confirm
+6. Verify live at https://www.screensyncmcp.tech — fetch with `cache: 'no-store'` and confirm
    `last-modified` is now, not a cached copy.
 
 ### Mirroring safely

@@ -41,7 +41,7 @@ SITE = REPO / "website"
 PAGE = SITE / "changelog.html"
 FEED = SITE / "changelog.json"
 
-SITE_ORIGIN = "https://screensyncmcp.epsoldev.com"
+SITE_ORIGIN = "https://www.screensyncmcp.tech"
 
 SKIP_TYPES = {"chore", "docs", "test", "style", "build", "ci"}
 SKIP_SCOPES = {"release", "ci", "docs", "tooling", "deps", "repo"}
@@ -240,12 +240,12 @@ TEMPLATE = r"""<!DOCTYPE html>
 <meta name="description" content="Every ScreenSync MCP release in one place: what changed in the Android app and the browser extension, per build.">
 <meta name="robots" content="index,follow">
 <meta name="theme-color" content="#6541D6">
-<link rel="canonical" href="https://screensyncmcp.epsoldev.com/changelog.html">
+<link rel="canonical" href="https://www.screensyncmcp.tech/changelog.html">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://screensyncmcp.epsoldev.com/changelog.html">
+<meta property="og:url" content="https://www.screensyncmcp.tech/changelog.html">
 <meta property="og:title" content="Changelog | ScreenSync MCP">
 <meta property="og:description" content="Every ScreenSync MCP release: app and extension changes, per build.">
-<meta property="og:image" content="https://screensyncmcp.epsoldev.com/assets/logo.png">
+<meta property="og:image" content="https://www.screensyncmcp.tech/assets/logo.png">
 <meta property="og:site_name" content="ScreenSync MCP">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">

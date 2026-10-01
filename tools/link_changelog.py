@@ -29,7 +29,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 SITE = REPO / "website"
-ORIGIN = "https://screensyncmcp.epsoldev.com"
+ORIGIN = "https://www.screensyncmcp.tech"
 SKIP_PAGES = {"changelog.html"}  # has its own header/footer with the link already
 
 # (region key, label, anchor regex, insertion, fragment used as the idempotency guard)

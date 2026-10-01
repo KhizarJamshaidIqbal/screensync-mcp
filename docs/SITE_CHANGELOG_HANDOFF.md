@@ -1,6 +1,6 @@
 # Changelog link - placement, handoff, risks and rollback
 
-Where the Changelog link lives on <https://screensyncmcp.epsoldev.com>, why, and how to
+Where the Changelog link lives on <https://www.screensyncmcp.tech>, why, and how to
 keep it correct. This is the operating note for whoever touches the site next.
 
 ---

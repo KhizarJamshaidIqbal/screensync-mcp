@@ -1,11 +1,11 @@
 {
   "version": "2.0.0",
   "product": "ScreenSync MCP",
-  "site": "https://screensyncmcp.epsoldev.com",
+  "site": "https://www.screensyncmcp.tech",
   "hubInstall": {
     "prerequisites": ["Node.js 18+", "Android phone with the ScreenSync MCP app (or ADB for control tools)"],
     "steps": [
-      "Download the hub zip from https://screensyncmcp.epsoldev.com/extension.html and unzip it anywhere on your computer.",
+      "Download the hub zip from https://www.screensyncmcp.tech/extension.html and unzip it anywhere on your computer.",
       "Windows: double-click start-hub.bat · macOS/Linux: sh start-hub.sh (or node screensync-hub.js). Needs free Node 18+.",
       "The terminal prints a pairing link + QR and serves on http://localhost:3000 — keep it running.",
       "Scan the QR with the ScreenSync Android app; install the browser extension from the same page.",

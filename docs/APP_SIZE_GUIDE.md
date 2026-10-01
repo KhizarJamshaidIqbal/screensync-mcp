@@ -125,7 +125,7 @@ Magar uska apna ek faida hai: skills ko hub ke bagair bhi update kiya ja sakta h
 Agar aap ye chahte hain to ye ek *design* change hai, size optimization nahi:
 
 - App mein ek chhota manifest (skills ki list + URLs) rakhein.
-- "Copy skill" par `https://screensyncmcp.epsoldev.com/skills/<name>.md` se fetch karein
+- "Copy skill" par `https://www.screensyncmcp.tech/skills/<name>.md` se fetch karein
   aur clipboard mein daalein, saath ek local cache (offline ke liye).
 - Yad rakhein: `lib/widgets/connect_kit_card.dart` mein pehle se "Copy this MCP server
   + skills" wala button hai, jo hub se aata hai - usay preset rakhna behtar hai taake

@@ -261,7 +261,7 @@ class PrivacyPolicyBody extends StatelessWidget {
               LinkRow(
                 icon: Icons.description_rounded,
                 label: 'Full Privacy Policy',
-                url: 'https://screensyncmcp.epsoldev.com/privacy.html',
+                url: 'https://www.screensyncmcp.tech/privacy.html',
               ),
               SizedBox(height: 4),
               LinkRow(
