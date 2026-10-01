@@ -46,11 +46,11 @@
     { "method": "GET", "path": "/api/events", "auth": true, "purpose": "SSE live stream: frame | inspection | patch | tool | agent_connect" },
     { "method": "GET", "path": "/api/screens/latest", "auth": true, "purpose": "Latest screenshot as base64 data URL" },
     { "method": "POST", "path": "/api/screens/upload", "auth": true, "purpose": "Push a capture (phone app)" },
-    { "method": "GET", "path": "/api/device/status", "auth": true, "purpose": "Connection state, device model, retained frames" },
+    { "method": "GET", "path": "/api/device/status", "auth": true, "purpose": "Phone link state (streaming, linked_no_frames or no_phone), last frame age, device model, retained frames" },
     { "method": "GET", "path": "/api/mcp/catalog", "auth": true, "purpose": "Full tool/prompt/resource catalog" },
     { "method": "GET", "path": "/api/inspections/latest", "auth": true, "purpose": "Bug regions published by the agent" },
     { "method": "GET", "path": "/api/patches/latest", "auth": true, "purpose": "Latest git patch from the agent" },
-    { "method": "POST", "path": "/api/control/:action", "auth": true, "purpose": "status | screenshot | tap | long_press | swipe | scroll | type | key | launch" }
+    { "method": "POST", "path": "/api/control/:action", "auth": true, "purpose": "Run any control_* tool by its short name: status, screenshot, tap (count 2 = double tap), long_press, swipe, swipe_until, scroll, type, key, tap_text, open_url, launch_app (launch still works). A missing required argument returns 400 MISSING_ARG." }
   ],
   "pairingFormats": [
     "screensync://pair?url=http%3A%2F%2F<IP>%3A3000&token=<TOKEN>",

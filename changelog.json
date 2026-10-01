@@ -1,6 +1,40 @@
 {
-  "generatedAt": "2026-10-01T10:06:52Z",
+  "generatedAt": "2026-10-01T22:24:30Z",
   "entries": [
+    {
+      "sha": "d138f16",
+      "date": "2026-10-01",
+      "ts": 1790893468,
+      "parts": [
+        {
+          "stream": "app",
+          "streamLabel": "App",
+          "version": "2.5.8",
+          "build": "36",
+          "display": "2.5.8 (build 36)",
+          "date": "2026-10-01",
+          "ts": 1790893468,
+          "sha": "d138f16",
+          "groups": {
+            "NEW": [
+              "Add an on-device diagnostics log and a share diagnostics action"
+            ],
+            "IMPROVED": [],
+            "FIXED": [
+              "Stop the \"not linked\" prompt from popping up over a working hub link",
+              "Show the real phone link and a live last-frame age in Hub device status",
+              "Make Pause captures stick, with or without a capture session",
+              "Show the pairing link in the MCP tab QR, not the whole Connect Kit",
+              "Share gallery frames through a cache-path FileProvider root"
+            ]
+          },
+          "count": 6
+        }
+      ],
+      "count": 6,
+      "id": "app-2.5.8",
+      "title": "App 2.5.8 (build 36)"
+    },
     {
       "sha": "2b14553",
       "date": "2026-10-01",
@@ -757,9 +791,9 @@
     }
   ],
   "stats": {
-    "releases": 23,
-    "appReleases": 9,
+    "releases": 24,
+    "appReleases": 10,
     "extensionReleases": 14,
-    "changes": 120
+    "changes": 126
   }
 }
