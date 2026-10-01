@@ -144,7 +144,8 @@ Read neighbouring files before writing. Match what is there; do not import a new
   through `runControlAction`, checking the catalogue's required arguments first), `device-status.ts`, `web.ts` and its `web-*.ts` siblings, the phone plane
   (`control.ts` actions, `control-adb.ts` adb runner, `control-ui.ts` UI tree: uiautomator dump,
   parser, filters, tap_text/swipe_until matcher; `control-apps.ts` launcher app list and
-  launch-by-query; `mcp-control.ts` control/os tool handlers),
+  launch-by-query; `control-state.ts` screen on, lock screen, focused app and rotation from dumpsys, and
+  the screenshot warnings; `mcp-control.ts` control/os tool handlers),
   `app-update.ts`, and the tool catalogue: `catalog.ts` composes **17 `catalog*.ts` files**
   (`catalog-control.ts` for the phone and OS tools, `catalog-web*.ts`, the cognitive catalogues,
   `catalog-consolidated.ts`). New tool definitions go in the most specific existing catalogue file,

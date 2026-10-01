@@ -245,6 +245,16 @@ The user's real browser already has active logins for their accounts (X, LinkedI
 `control_status` first (is an ADB device reachable), `control_screenshot` to see, then
 **`get_ui_hierarchy`** to locate. Never guess coordinates from a picture when the tree has the node.
 
+- **Is the phone usable?** `control_status` also returns `screenOn` (with `wakefulness`), `locked` (the
+  lock screen is up), `secure` (it needs a PIN), `foreground {package, activity}` (the focused app; the
+  one behind the lock screen while it is up) and `rotation` (0-3 quarter turns). A field the phone does
+  not print is left out, never guessed. Screen off: `control_key power` wakes it. **Locked: ask the user
+  to unlock it; never try to unlock it yourself.**
+- **Screenshot warnings:** `control_screenshot` puts a text block `{success, warnings: [{code,
+  message}]}` before the image when the screen is off (`SCREEN_OFF`), the lock screen is up (`LOCKED`) or
+  the frame is nearly one flat colour (`LIKELY_BLANK_OR_SECURE`: blank, or an app that blocks capture,
+  whose frames are black). The image is still returned; read the warning before acting on it.
+
 - **What a node says** (no `fields`): text, desc, resourceId, className, clickable, bounds, center,
   and `state`, the flags that apply: `disabled`, `checkable`, `checked`, `focused`, `scrollable`,
   `longClickable`, `password`, `selected` (absent when none does). `fields: ["all"]` returns every key:

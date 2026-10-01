@@ -26,6 +26,7 @@ import {
 } from "./control.js";
 import { log } from "./config.js";
 import { runLaunchApp } from "./control-apps.js";
+import { screenshotWarnings, screenState } from "./control-state.js";
 import { readMatchArgs, readUiArgs, shapeUiNodes, swipeUntil, tapText, uiHierarchy, UiDumpError } from "./control-ui.js";
 import { isOsControlEnabled } from "./os-control.js";
 import { latestFrame } from "./storage.js";
@@ -36,7 +37,7 @@ type Args = Record<string, unknown> | undefined;
 export type ControlImage = { data: string; mimeType: string };
 
 export type ControlResult = {
-  /** The JSON payload, rendered as one text block. Absent for an image-only reply (control_screenshot). */
+  /** The JSON payload, rendered as one text block. Absent for an image-only reply (control_screenshot without warnings). */
   data?: unknown;
   /** Media placed after the text block, in order. */
   images?: ControlImage[];
@@ -72,10 +73,16 @@ const OS_CONTROL_DISABLED = fail({
 
 const HANDLERS: Record<string, (args: Args) => Promise<ControlResult>> = {
   // ── Remote control (gesture / input) ──
-  control_status: async () => ({ data: await controlDeviceInfo() }),
+  control_status: async () => {
+    const info = await controlDeviceInfo();
+    return { data: info.available ? { ...info, ...(await screenState()) } : info };
+  },
   control_screenshot: async () => {
-    const shot = await screenshotNow();
-    return { images: [{ data: shot.base64, mimeType: shot.mimeType }] };
+    const [shot, state] = await Promise.all([screenshotNow(), screenState()]);
+    // Advisory only: a locked, dark or blank screen still returns its image, with a text block saying why.
+    const warnings = screenshotWarnings(state, Buffer.from(shot.base64, "base64"));
+    const images = [{ data: shot.base64, mimeType: shot.mimeType }];
+    return warnings.length ? { data: { success: true, warnings }, images } : { images };
   },
   control_tap: async (args) => {
     const a = args as { x: number; y: number; count?: number };

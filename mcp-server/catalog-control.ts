@@ -10,13 +10,13 @@ export function controlToolDefinitions() {
     {
       name: "control_status",
       description:
-        "Reports whether live remote control is available (an ADB device is reachable) plus the device model, Android version and screen size. Call before any control_* action.",
+        "Reports whether live remote control is available (an ADB device is reachable) plus the device model, Android version and screen size, and the screen state: screenOn (with wakefulness), locked (the lock screen is up) and secure (it needs a PIN), foreground {package, activity} (the focused app, the one behind the lock screen while it is up) and rotation (0-3 quarter turns). A field the phone does not report is left out. Call before any control_* action.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
     {
       name: "control_screenshot",
       description:
-        "Grabs the phone screen RIGHT NOW via ADB and returns it as an inline image — independent of the floating bubble. Use this to SEE the live screen before/after acting, closing the see→act loop.",
+        "Grabs the phone screen RIGHT NOW via ADB and returns it as an inline image — independent of the floating bubble. Use this to SEE the live screen before/after acting, closing the see→act loop. When the screen is off (SCREEN_OFF), the lock screen is up (LOCKED) or the frame is nearly one flat colour (LIKELY_BLANK_OR_SECURE: blank, or an app that blocks capture), a text block with {success, warnings: [{code, message}]} comes before the image. The image is always returned; never try to unlock the phone, ask the user.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
     {
