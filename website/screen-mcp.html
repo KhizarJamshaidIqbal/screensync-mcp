@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Screen MCP: Let AI Agents See and Control Your Screen</title>
+<meta name="description" content="What a screen MCP server is, how phone, browser and desktop versions capture and control a screen, and how ScreenSync MCP does it for free on your LAN.">
+<meta name="robots" content="index,follow">
+<meta name="author" content="EpsolDev">
+<meta name="theme-color" content="#6541D6">
+<link rel="canonical" href="https://www.screensyncmcp.tech/screen-mcp.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ScreenSync MCP">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://www.screensyncmcp.tech/screen-mcp.html">
+<meta property="og:title" content="Screen MCP: Let AI Agents See and Control Your Screen">
+<meta property="og:description" content="How screen MCP servers give AI agents eyes and hands on phones, browsers and desktops, and how ScreenSync MCP does it on your own network.">
+<meta property="og:image" content="https://www.screensyncmcp.tech/assets/og/og-screen-mcp.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Screen MCP guide: an AI agent sees and controls an Android phone and a browser tab through ScreenSync MCP">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Screen MCP: Let AI Agents See and Control Your Screen">
+<meta name="twitter:description" content="How screen MCP servers give AI agents eyes and hands on phones, browsers and desktops, and how ScreenSync MCP does it on your own network.">
+<meta name="twitter:image" content="https://www.screensyncmcp.tech/assets/og/og-screen-mcp.jpg">
+<meta name="twitter:image:alt" content="Screen MCP guide: an AI agent sees and controls an Android phone and a browser tab through ScreenSync MCP">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/assets/icon-192.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>document.documentElement.classList.add("js")</script>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<link rel="stylesheet" href="css/custom.css">
+<link rel="stylesheet" href="css/docs.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "Organization", "@id": "https://epsoldev.com/#organization", "name": "EpsolDev", "url": "https://epsoldev.com/", "email": "info@epsoldev.com" },
+    { "@type": "WebSite", "@id": "https://www.screensyncmcp.tech/#website", "url": "https://www.screensyncmcp.tech/", "name": "ScreenSync MCP", "alternateName": ["ScreenSync"], "publisher": { "@id": "https://epsoldev.com/#organization" }, "inLanguage": "en-US" },
+    {
+      "@type": "WebPage", "@id": "https://www.screensyncmcp.tech/screen-mcp.html#webpage", "url": "https://www.screensyncmcp.tech/screen-mcp.html",
+      "name": "Screen MCP: Let AI Agents See and Control Your Screen",
+      "description": "What a screen MCP server is, how phone, browser and desktop versions capture and control a screen, and how ScreenSync MCP does it for free on your LAN.",
+      "isPartOf": { "@id": "https://www.screensyncmcp.tech/#website" }, "breadcrumb": { "@id": "https://www.screensyncmcp.tech/screen-mcp.html#breadcrumb" },
+      "mainEntity": { "@id": "https://www.screensyncmcp.tech/screen-mcp.html#article" }, "datePublished": "2026-10-01", "dateModified": "2026-10-01", "inLanguage": "en-US"
+    },
+    {
+      "@type": "TechArticle", "@id": "https://www.screensyncmcp.tech/screen-mcp.html#article",
+      "headline": "Screen MCP: give AI agents eyes and hands on your phone and browser",
+      "description": "A guide to screen MCP servers: the phone, browser and desktop kinds, how Android capture and control work, live streaming versus screenshot polling, the privacy model, and how ScreenSync MCP implements it.",
+      "author": { "@id": "https://epsoldev.com/#organization" }, "publisher": { "@id": "https://epsoldev.com/#organization" },
+      "datePublished": "2026-10-01", "dateModified": "2026-10-01", "inLanguage": "en-US",
+      "image": "https://www.screensyncmcp.tech/assets/og/og-screen-mcp.jpg", "mainEntityOfPage": { "@id": "https://www.screensyncmcp.tech/screen-mcp.html#webpage" },
+      "about": ["Model Context Protocol", "Screen capture", "Android automation", "Browser automation"]
+    },
+    {
+      "@type": "BreadcrumbList", "@id": "https://www.screensyncmcp.tech/screen-mcp.html#breadcrumb",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.screensyncmcp.tech/" },
+        { "@type": "ListItem", "position": 2, "name": "Screen MCP", "item": "https://www.screensyncmcp.tech/screen-mcp.html" }
+      ]
+    },
+    {
+      "@type": "FAQPage", "@id": "https://www.screensyncmcp.tech/screen-mcp.html#faq", "isPartOf": { "@id": "https://www.screensyncmcp.tech/screen-mcp.html#webpage" },
+      "mainEntity": [
+        { "@type": "Question", "name": "What is a screen MCP server?", "acceptedAnswer": { "@type": "Answer", "text": "A screen MCP server is a Model Context Protocol server whose tools let an AI agent see a screen and act on it. It returns screenshots, a live view or the UI tree, and accepts actions such as tap, swipe, type and click. Clients like Claude Desktop or Claude Code call those tools during a conversation." } },
+        { "@type": "Question", "name": "Does an Android screen MCP server need root?", "acceptedAnswer": { "@type": "Answer", "text": "No. Capture can use MediaProjection, Android's official screen-capture API, with your consent. Control can use an accessibility service or ADB over USB or wireless debugging, and neither needs root. ScreenSync MCP captures with MediaProjection and controls the phone through ADB from the hub on your computer." } },
+        { "@type": "Question", "name": "Is my screen data private with ScreenSync MCP?", "acceptedAnswer": { "@type": "Answer", "text": "Frames go from phone to hub over your own network with a bearer token, and nothing goes to EpsolDev servers. The optional Google Drive fallback uses your own Drive account. Any screenshot your agent reads is sent to that agent's model provider, so close sensitive apps before a session." } },
+        { "@type": "Question", "name": "Which AI clients work with ScreenSync MCP?", "acceptedAnswer": { "@type": "Answer", "text": "Any MCP client that runs local stdio servers can run ScreenSync MCP, including Claude Desktop, Claude Code, Cursor and VS Code. ChatGPT's web app connects only to remote HTTPS MCP servers, so it cannot run a local hub like this one today." } },
+        { "@type": "Question", "name": "How is ScreenSync MCP different from ScreenMCP?", "acceptedAnswer": { "@type": "Answer", "text": "ScreenMCP uses an Android accessibility service and a hosted or self-hosted relay, so it needs no ADB and works away from your network; its hosted free tier allows 100 commands a day. ScreenSync MCP captures with MediaProjection, controls through ADB, stays on your LAN, adds 197 browser tools and has no per-command quota." } }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
+
+<header class="glass-nav fixed top-0 inset-x-0 z-50">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-full focus:bg-white focus:text-[#6541D6] focus:font-semibold focus:shadow">Skip to content</a>
+  <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
+    <a href="/" class="flex items-center gap-2.5 shrink-0">
+      <img src="assets/logo-72.webp" srcset="assets/logo-72.webp 1x, assets/logo-144.webp 2x" width="36" height="36" alt="" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
+      <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
+    </a>
+    <div class="site-links hidden md:flex items-center gap-4 lg:gap-6 xl:gap-7 text-[15px] font-medium text-[#4B4460] whitespace-nowrap">
+      <a href="/" class="hidden lg:inline hover:text-[#6541D6] transition">Home</a>
+      <a href="screen-mcp.html" aria-current="page" class="hover:text-[#6541D6] transition">Screen MCP</a>
+      <a href="setup.html" class="hover:text-[#6541D6] transition">Setup</a>
+      <a href="extension.html" class="hover:text-[#6541D6] transition">Extension</a>
+      <a href="/blogs/" class="hover:text-[#6541D6] transition">Blog</a>
+      <span class="hidden lg:inline"><a href="changelog.html" class="hover:text-[#6541D6] transition">Changelog</a></span>
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" title="Get it on Google Play" aria-label="Get App on Google Play" class="hidden xl:inline-flex btn-secondary px-5 py-2 rounded-full text-sm font-semibold items-center gap-2 shrink-0"><i data-lucide="smartphone" class="w-4 h-4"></i> Get App</a>
+      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold shrink-0">Get Connected</a>
+    </div>
+    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false" aria-controls="mobileMenu">
+      <i data-lucide="menu" class="w-6 h-6"></i>
+    </button>
+  </nav>
+  <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
+    <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
+      <a href="/" class="py-1.5">Home</a>
+      <a href="screen-mcp.html" aria-current="page" class="py-1.5">Screen MCP</a>
+      <a href="setup.html" class="py-1.5">Setup</a>
+      <a href="extension.html" class="py-1.5">Extension</a>
+      <a href="/blogs/" class="py-1.5">Blog</a>
+      <a href="changelog.html" class="py-1.5">Changelog</a>
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" class="btn-secondary px-5 py-2.5 rounded-full text-sm font-semibold inline-flex items-center justify-center gap-2 mt-1"><i data-lucide="smartphone" class="w-4 h-4"></i> Get it on Google Play</a>
+      <a href="/#connect" class="btn-primary px-5 py-2.5 rounded-full text-sm font-semibold text-center">Get Connected</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+<section class="hero-glow pt-28 pb-10 sm:pt-36 sm:pb-14">
+  <div class="max-w-3xl mx-auto px-5 sm:px-8">
+    <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/">Home</a></li><li aria-current="page">Screen MCP</li></ol></nav>
+    <h1 class="mt-5 text-4xl sm:text-5xl font-extrabold leading-[1.1] tracking-tight">Screen MCP: give AI agents <span class="grad-text">eyes and hands</span> on your phone and browser</h1>
+    <p class="mt-6 text-lg text-[#4B4460] leading-relaxed">A screen MCP server is a Model Context Protocol server that gives an AI agent a view of a screen and the tools to act on it: screenshots or a live stream, the UI tree, and taps, swipes, typing and clicks. ScreenSync MCP is one for Android phones and Chrome or Edge tabs that runs on your own network.</p>
+    <p class="doc-meta mt-5">By <a href="about.html" class="text-[#6541D6] font-semibold">EpsolDev</a> &middot; Published and updated 1 October 2026 &middot; About a 12-minute read</p>
+  </div>
+</section>
+
+<div class="max-w-3xl mx-auto px-5 sm:px-8 pb-20">
+  <div class="callout">
+    <span class="callout-title">Key points</span>
+    <ul class="list-disc pl-5 space-y-1.5">
+      <li>This kind of server turns &ldquo;look at my screen&rdquo; into tool calls an agent can make on its own.</li>
+      <li>Phone, browser and desktop servers differ mostly in how they capture and control, and where the frames travel.</li>
+      <li>A live stream lets an agent catch brief states that screenshot polling can miss.</li>
+      <li>ScreenSync MCP has 226 MCP tools: 29 for your phone and desktop, 197 for your browser. It is free and local-first.</li>
+    </ul>
+  </div>
+
+  <nav class="doc-toc lux-card no-lift p-6 mb-12" aria-label="On this page">
+    <p class="font-bold text-[#1E1633] mb-3">On this page</p>
+    <ol>
+      <li><a href="#what-is">The definition</a></li>
+      <li><a href="#kinds">Phone, browser and desktop</a></li>
+      <li><a href="#android">How Android capture and control work</a></li>
+      <li><a href="#streaming">Live streaming vs screenshot polling</a></li>
+      <li><a href="#privacy">The privacy model</a></li>
+      <li><a href="#screensync">How ScreenSync MCP does it</a></li>
+      <li><a href="#compare">Options compared</a></li>
+      <li><a href="#setup">Set up in four steps</a></li>
+      <li><a href="#use-cases">Use cases</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ol>
+  </nav>
+
+  <article class="doc-prose">
+    <h2 id="what-is">What is a screen MCP server?</h2>
+    <p>The <strong>Model Context Protocol</strong> (MCP) is an open standard for connecting AI applications to outside tools and data. An MCP client, such as Claude Desktop or Claude Code, starts or connects to an MCP server and asks what it offers. The server answers with <em>tools</em> (functions the agent can call), <em>prompts</em> (ready-made instructions) and <em>resources</em> (data the agent can read).</p>
+    <p>It is the kind of MCP server whose tools are about a screen. It usually exposes three groups of tools:</p>
+    <ul>
+      <li><strong>Perception:</strong> take a screenshot, read the UI hierarchy, list recent frames.</li>
+      <li><strong>Action:</strong> tap, swipe, type, press a key, open an app or a URL.</li>
+      <li><strong>Verification:</strong> wait until the screen changes, compare two frames, read the logs.</li>
+    </ul>
+    <p>With those, an agent can run the loop a person runs without thinking about it: look, act, look again, decide. Without one, <em>you</em> are the agent's eyes. You take screenshots, paste them into a chat, describe what happened after a tap, and repeat. A server like this takes you out of that loop for the mechanical parts and keeps you in it for the parts that need judgement, such as approving a risky click.</p>
+    <p>Transport matters too. Most servers of this kind run locally and talk to the client over <strong>stdio</strong>: the client launches the server as a child process on your computer. Others are remote servers reached over HTTPS, and some combine a local MCP server with a relay so the device can sit on a different network.</p>
+
+    <h2 id="kinds">Three kinds: phone, browser and desktop</h2>
+    <h3>Phone</h3>
+    <p>A phone server reads and drives a mobile device. On Android the hard parts are permission and transport, because the operating system guards screen capture and input closely, so every approach makes a trade-off (covered in the next section). iOS is more locked down still; servers that support it lean on Xcode tooling, simulators or cloud-hosted devices.</p>
+    <h3>Browser</h3>
+    <p>A browser server works inside a real browser tab, usually through an extension or the browser's debugging protocol. It can read the page's DOM and accessibility tree, not just pixels, so clicks land on the right element and extracted text is exact. The better ones act in your own signed-in browser and stop for your approval before anything you cannot undo.</p>
+    <h3>Desktop</h3>
+    <p>A desktop server captures a Windows, macOS or Linux display and sends mouse and keyboard input through operating-system APIs. It reaches native desktop apps that have no DOM, at the cost of having less structure to read than a web page or a mobile UI tree.</p>
+    <p>ScreenSync MCP covers the first two in one hub, and adds three small desktop tools (<code>os_type</code>, <code>os_mouse_click</code> and <code>os_hotkey</code>) for the computer the hub runs on.</p>
+
+    <h2 id="android">How Android screen capture and control work</h2>
+    <p>Android offers three practical routes, and every Android screen MCP server uses one of them or a mix. None is best in every case; each trades setup effort against reach.</p>
+    <h3>MediaProjection: capture</h3>
+    <p>MediaProjection is Android's official screen-capture API, the one screen recorders use. The app asks for consent in a system dialog, Android shows that the screen is being captured, and the app receives frames. It needs no root and no ADB, and it captures what you actually see, including apps that expose no accessibility labels. It only watches; it cannot tap. Consent lasts for a session, so capture stops when you stop it.</p>
+    <h3>AccessibilityService: read and act</h3>
+    <p>An accessibility service is an app component meant for assistive tools. Once you enable it in Settings, it can read the on-screen UI tree, take screenshots on recent Android versions and perform gestures, with no computer or cable involved. That is why it suits relay-based remote control. The cost is trust: an accessibility service can see and act across every app, so Android and Google Play treat it as a sensitive permission, and screens that hide content from accessibility give it less to work with.</p>
+    <h3>ADB and scrcpy: the developer bridge</h3>
+    <p>ADB, the Android Debug Bridge, is the developer channel between a computer and a phone with USB debugging or wireless debugging turned on. From the computer it can dump the UI hierarchy, take screenshots, read logcat and send taps, swipes, text and key events, all without root. scrcpy builds on ADB to mirror the screen with low latency and forward input. The cost is setup: developer options, a cable or a wireless-debugging pairing, and ADB installed on the computer.</p>
+    <div class="doc-table-wrap">
+      <table class="doc-table">
+        <caption>The three Android routes at a glance</caption>
+        <thead><tr><th scope="col">Route</th><th scope="col">What it does</th><th scope="col">Root</th><th scope="col">Computer link</th><th scope="col">Typical use</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">MediaProjection</th><td>Captures the screen</td><td>No</td><td>No; the app sends frames itself</td><td>Live view, screenshots</td></tr>
+          <tr><th scope="row">AccessibilityService</th><td>Reads the UI tree, performs gestures</td><td>No</td><td>No</td><td>Remote control without ADB</td></tr>
+          <tr><th scope="row">ADB / scrcpy</th><td>UI dump, screenshots, logs, input</td><td>No</td><td>Yes: USB or wireless debugging</td><td>Development, testing, fast control</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>ScreenSync MCP combines the first and the third. The app captures with MediaProjection, and the hub sends taps, swipes and text through ADB. Capture works with no developer setup at all; control is there once you turn on USB or wireless debugging.</p>
+
+    <h2 id="streaming">Live streaming vs screenshot polling</h2>
+    <p>A server can hand the agent pixels in two ways. With <strong>polling</strong>, the agent calls a screenshot tool and the server grabs one frame. With <strong>streaming</strong>, frames flow continuously to a local hub, and the agent's tools read the newest one, wait for a change, or compare two moments.</p>
+    <p>Polling is simple and costs nothing between calls, but the agent only sees the moments it asks about. A toast that lasts two seconds, a spinner, a crash dialog that flashes and closes, or the one frame where an animation glitches can all fall between two calls. Each poll also pays the full capture cost while the agent is waiting.</p>
+    <p>Streaming keeps a fresh frame ready, so &ldquo;what is on screen now?&rdquo; returns at once. Tools such as <code>wait_for_frame</code> and <code>compare_frames</code> can block until the screen really changes instead of sleeping for a guessed number of seconds, which makes agent loops faster and less flaky. ScreenSync MCP delivers frames in about 94 ms median on our LAN tests.</p>
+    <p>Streaming does not mean the model watches video. The agent still pulls the frames it needs, so model costs follow the screenshots it actually reads.</p>
+
+    <h2 id="privacy">The privacy model: where your screen goes</h2>
+    <p>A screen is the most personal data on a device: messages, banking apps, one-time codes. Before you install any server of this kind, ask three questions.</p>
+    <ol>
+      <li><strong>Where do frames travel?</strong> Local servers keep them on your computer or network. Relay designs pass commands, and often screenshots, through a server in between, run by the vendor or by you. Cloud-phone services run the device itself in a data centre.</li>
+      <li><strong>Who can call the tools?</strong> Look for authentication between the device and the server, such as a bearer token, so another device on the same network cannot drive your phone.</li>
+      <li><strong>What does the model provider see?</strong> Every screenshot an agent reads is sent to that agent's model provider as part of the conversation. No local design changes that, so decide what you show.</li>
+    </ol>
+    <p>ScreenSync MCP's answers: frames go from phone to hub over your own network with a bearer token, and nothing goes to EpsolDev servers. The optional Google Drive fallback uses <em>your</em> Drive account. Screenshots that your AI agent requests are sent to that agent's model provider, so close sensitive apps before a session. The browser extension adds a human approval gate for risky actions. The <a href="data-policy.html">data policy</a> lists where every byte is stored.</p>
+
+    <h2 id="screensync">How ScreenSync MCP does it</h2>
+    <p>ScreenSync MCP is an Android screen MCP server built from three parts that you run yourself:</p>
+    <ul>
+      <li><strong>The Android app</strong> (Android 7.0 or later) captures the screen with MediaProjection after your consent each session. It has a floating capture bubble, shake-to-capture, a live mirror stream to the hub, pairing by QR code or mDNS, a local capture history and an optional Google Drive fallback.</li>
+      <li><strong>The desktop hub</strong> is a Node.js 18+ program for Windows, macOS or Linux. It serves HTTP on port 3000, speaks MCP to your AI client over stdio, checks a bearer token, and drives the phone through ADB when you ask for control.</li>
+      <li><strong>The browser extension</strong> for Chrome and Edge (Manifest V3) lets the agent see, read, click, type and navigate in your real tab, and asks you before risky actions. See the <a href="extension.html">ScreenSync browser extension</a> page.</li>
+    </ul>
+    <figure>
+      <picture>
+        <source type="image/webp" srcset="assets/screenshots/mcp-540.webp 540w, assets/screenshots/mcp-828.webp 828w, assets/screenshots/mcp-1080.webp 1080w" sizes="(min-width: 640px) 256px, 224px">
+        <img src="assets/screenshots/mcp.png" width="1080" height="2400" loading="lazy" decoding="async" class="mx-auto w-56 sm:w-64 h-auto rounded-[1.6rem] border-[6px] border-[#1E1633] shadow-2xl" alt="MCP screen in the ScreenSync MCP app: a Connect an AI agent card with a Copy Connect Kit button and a pairing QR code, above the list of MCP tools">
+      </picture>
+      <figcaption>The app's MCP screen hands your AI client a Connect Kit and lists the tools.</figcaption>
+    </figure>
+    <p>Together they expose <strong>226 MCP tools: 29 for your phone and desktop, 197 for your browser</strong>. The phone and desktop side has 12 control tools (among them <code>control_tap</code>, <code>control_swipe</code>, <code>control_type</code>, <code>control_tap_text</code>, <code>control_launch_app</code>, <code>control_open_url</code> and <code>control_screenshot</code>), the 3 desktop <code>os_*</code> tools, and 14 capture and hub tools such as <code>get_latest_screenshot</code>, <code>get_ui_hierarchy</code>, <code>get_logcat</code>, <code>record_screen</code>, <code>wait_for_frame</code>, <code>compare_frames</code> and <code>get_device_status</code>. The other 197 are <code>web_*</code> tools for the browser. The server also ships 17 MCP prompts and 3 resources.</p>
+    <p>It is free while in active development, with no per-command quota. Current versions: Android app 2.5.7 (build 35), hub and extension 1.14.4.</p>
+
+    <h2 id="compare">Screen MCP options compared</h2>
+    <p>ScreenSync MCP is our product, so weigh this short table with that in mind. Facts about other projects come from their own sites as of 1 October 2026.</p>
+    <div class="doc-table-wrap">
+      <table class="doc-table" style="min-width:720px">
+        <thead><tr><th scope="col">Server</th><th scope="col">Devices</th><th scope="col">Capture and control</th><th scope="col">Network</th><th scope="col">Price</th></tr></thead>
+        <tbody>
+          <tr class="ours"><th scope="row">ScreenSync MCP</th><td>Android phone, Chrome or Edge tab</td><td>MediaProjection capture; ADB control from the hub; browser extension</td><td>Your LAN; optional Drive fallback</td><td>Free, no quota</td></tr>
+          <tr><th scope="row">ScreenMCP<span class="src"><a href="https://screenmcp.com/" rel="noopener">screenmcp.com</a></span></th><td>Android, Windows, macOS, Linux</td><td>Android AccessibilityService</td><td>Hosted or self-hosted relay</td><td>Free tier of 100 commands a day; <a href="https://screenmcp.com/pricing" rel="noopener">$9 and $29 a month</a></td></tr>
+          <tr><th scope="row">mobile-mcp<span class="src"><a href="https://github.com/mobile-next/mobile-mcp" rel="noopener">GitHub</a></span></th><td>iOS and Android: simulators, emulators, real devices</td><td>Accessibility tree first, screenshots as fallback; ADB or Xcode tools</td><td>Local</td><td>Free (Apache-2.0)</td></tr>
+          <tr><th scope="row">scrcpy-mcp<span class="src"><a href="https://github.com/JuanCF/scrcpy-mcp" rel="noopener">GitHub</a></span></th><td>Android</td><td>scrcpy and ADB</td><td>USB or Wi-Fi ADB</td><td>Free (MIT)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The full table covers eight servers across ten criteria, with a source for every fact: <a href="android-mcp-servers.html">compare Android MCP servers</a>.</p>
+
+    <h2 id="setup">Set up an Android screen MCP server in four steps</h2>
+    <ol>
+      <li>Install <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener">ScreenSync MCP from Google Play</a> on a phone running Android 7.0 or later.</li>
+      <li>Download the hub and run <code>start-hub.bat</code> on Windows or <code>sh start-hub.sh</code> on macOS and Linux. It needs Node.js 18 or later.</li>
+      <li>Scan the hub's pairing QR code in the app, or let the app find the hub on your network over mDNS.</li>
+      <li>Add the hub to your MCP client: an <code>mcpServers</code> entry with the command <code>node</code> and the hub script as its argument.</li>
+    </ol>
+    <p>For the tap, swipe and type tools, turn on USB debugging or wireless debugging so the hub can reach the phone over ADB. Copy-ready configs for Claude Code, Claude Desktop, Cursor and VS Code, plus environment variables and troubleshooting, are in the <a href="setup.html">ScreenSync MCP setup guide</a>.</p>
+
+    <h2 id="use-cases">What people use it for</h2>
+    <h3>App debugging</h3>
+    <p>The agent reads the screen, the UI hierarchy and logcat together, so &ldquo;the button does nothing&rdquo; turns into a stack trace and a likely cause instead of a guess.</p>
+    <h3>UI testing</h3>
+    <p>Describe a flow in plain words. The agent taps through it, waits for each screen, and reports where the app differs from what you expected. ScreenSync MCP ships an <code>autonomous_ui_test</code> prompt for this.</p>
+    <h3>Bug reproduction</h3>
+    <p>Hand the agent a bug report. It follows the steps on a real device, records the screen and collects logs at the moment things go wrong, using the <code>reproduce_bug</code> prompt.</p>
+    <h3>Accessibility audits</h3>
+    <p>The live UI tree shows missing labels, small touch targets and unlabelled images, and the <code>accessibility_audit</code> prompt walks through them on the running app.</p>
+    <h3>Browser tasks</h3>
+    <p>With the extension, the agent fills forms, compares pages, extracts tables and checks a web app in your own signed-in tab, and stops to ask before anything risky.</p>
+    <figure>
+      <picture>
+        <source type="image/webp" srcset="assets/screenshots/ext-agent-view.webp">
+        <img src="assets/screenshots/ext-agent-view.jpg" width="1600" height="1125" loading="lazy" decoding="async" class="w-full h-auto rounded-2xl border border-[#EDE9F7] shadow-lg" alt="ScreenSync Web Bridge test page in a browser tab, with an Increment button, a counter and a text field that an AI agent clicks and types into">
+      </picture>
+      <figcaption>A test page the agent drives through the browser extension: click the button, type in the field, read the result.</figcaption>
+    </figure>
+  </article>
+
+  <section class="doc-faq mt-16" aria-labelledby="faq">
+    <h2 id="faq" class="text-3xl font-extrabold tracking-tight mb-6" style="scroll-margin-top:6rem">Frequently asked questions</h2>
+    <details class="lux-card no-lift" open><summary>What is a screen MCP server?</summary><div class="faq-body">A screen MCP server is a Model Context Protocol server whose tools let an AI agent see a screen and act on it. It returns screenshots, a live view or the UI tree, and accepts actions such as tap, swipe, type and click. Clients like Claude Desktop or Claude Code call those tools during a conversation.</div></details>
+    <details class="lux-card no-lift"><summary>Does an Android screen MCP server need root?</summary><div class="faq-body">No. Capture can use MediaProjection, Android's official screen-capture API, with your consent. Control can use an accessibility service or ADB over USB or wireless debugging, and neither needs root. ScreenSync MCP captures with MediaProjection and controls the phone through ADB from the hub on your computer.</div></details>
+    <details class="lux-card no-lift"><summary>Is my screen data private with ScreenSync MCP?</summary><div class="faq-body">Frames go from phone to hub over your own network with a bearer token, and nothing goes to EpsolDev servers. The optional Google Drive fallback uses your own Drive account. Any screenshot your agent reads is sent to that agent's model provider, so close sensitive apps before a session.</div></details>
+    <details class="lux-card no-lift"><summary>Which AI clients work with ScreenSync MCP?</summary><div class="faq-body">Any MCP client that runs local stdio servers can run ScreenSync MCP, including Claude Desktop, Claude Code, Cursor and VS Code (see the <a href="setup.html" class="text-[#6541D6] font-semibold underline">setup guide</a>). ChatGPT's web app connects only to remote HTTPS MCP servers, so it cannot run a local hub like this one today.</div></details>
+    <details class="lux-card no-lift"><summary>How is ScreenSync MCP different from ScreenMCP?</summary><div class="faq-body">ScreenMCP uses an Android accessibility service and a hosted or self-hosted relay, so it needs no ADB and works away from your network; its hosted free tier allows 100 commands a day. ScreenSync MCP captures with MediaProjection, controls through ADB, stays on your LAN, adds 197 browser tools and has no per-command quota.</div></details>
+  </section>
+
+  <section class="mt-16 rounded-[2rem] bg-gradient-to-br from-[#6541D6] via-[#7451DE] to-[#8B6AEC] p-8 sm:p-12 text-center text-white shadow-2xl shadow-purple-300">
+    <h2 class="text-3xl font-extrabold tracking-tight">Try a free, local screen MCP</h2>
+    <p class="mt-4 text-purple-100 max-w-xl mx-auto">Phone and browser in one hub on your own computer. No per-command quota, no EpsolDev servers in the path.</p>
+    <div class="mt-8 flex flex-wrap justify-center gap-4">
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" class="bg-white text-[#6541D6] px-7 py-3.5 rounded-full font-bold inline-flex items-center gap-2 hover:scale-105 transition shadow-lg"><i data-lucide="smartphone" class="w-5 h-5"></i> Get it on Google Play</a>
+      <a href="extension.html" class="border-2 border-white/50 px-7 py-3.5 rounded-full font-bold inline-flex items-center gap-2 hover:bg-white/10 transition"><i data-lucide="puzzle" class="w-5 h-5"></i> Browser extension</a>
+      <a href="setup.html" class="border-2 border-white/50 px-7 py-3.5 rounded-full font-bold inline-flex items-center gap-2 hover:bg-white/10 transition"><i data-lucide="book-open" class="w-5 h-5"></i> Setup guide</a>
+    </div>
+  </section>
+</div>
+</main>
+
+<footer class="bg-[#150E27] text-purple-200/80">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <img src="assets/logo-72.webp" srcset="assets/logo-72.webp 1x, assets/logo-144.webp 2x" width="36" height="36" alt="" class="w-9 h-9 rounded-xl" loading="lazy" decoding="async">
+        <span class="font-extrabold text-white text-lg">ScreenSync MCP</span>
+      </div>
+      <p class="text-sm mt-4 leading-relaxed text-purple-200/70">Your AI, watching over your shoulder. A free Android MCP server for Claude and any MCP agent, with phone, desktop and browser in one local-first hub.</p>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Product</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="screen-mcp.html" aria-current="page" class="hover:text-white transition">Screen MCP</a></li>
+        <li><a href="android-mcp-servers.html" class="hover:text-white transition">Android MCP servers compared</a></li>
+        <li><a href="setup.html" class="hover:text-white transition">Setup guide</a></li>
+        <li><a href="extension.html" class="hover:text-white transition">Browser extension</a></li>
+        <li><a href="changelog.html" class="hover:text-white transition">Changelog</a></li>
+        <li><a href="/blogs/" class="hover:text-white transition">Blog</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Company</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="about.html" class="hover:text-white transition">About</a></li>
+        <li><a href="goal.html" class="hover:text-white transition">Goal</a></li>
+        <li><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
+        <li><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Legal</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
+        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10 py-6 px-5 text-center text-xs text-purple-200/70">© <span class="year">2026</span> EpsolDev · ScreenSync MCP · App 2.5.7 · Extension 1.14.4 · All rights reserved.</div>
+</footer>
+
+<script src="js/main.js" defer></script>
+</body>
+</html>

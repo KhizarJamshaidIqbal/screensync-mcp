@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control Android with Claude: ScreenSync MCP Setup Guide</title>
+<meta name="description" content="Install the ScreenSync MCP hub, pair your Android phone and add it to Claude Code, Claude Desktop, Cursor or VS Code. Copy-ready configs included.">
+<meta name="robots" content="index,follow">
+<meta name="author" content="EpsolDev">
+<meta name="theme-color" content="#6541D6">
+<link rel="canonical" href="https://www.screensyncmcp.tech/setup.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ScreenSync MCP">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://www.screensyncmcp.tech/setup.html">
+<meta property="og:title" content="Control Android with Claude: ScreenSync MCP Setup Guide">
+<meta property="og:description" content="Install the ScreenSync MCP hub, pair your Android phone and add it to Claude Code, Claude Desktop, Cursor or VS Code. Copy-ready configs included.">
+<meta property="og:image" content="https://www.screensyncmcp.tech/assets/og/og-setup.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="ScreenSync MCP setup guide: hub, phone pairing and MCP config for Claude">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Control Android with Claude: ScreenSync MCP Setup Guide">
+<meta name="twitter:description" content="Install the ScreenSync MCP hub, pair your Android phone and add it to Claude Code, Claude Desktop, Cursor or VS Code. Copy-ready configs included.">
+<meta name="twitter:image" content="https://www.screensyncmcp.tech/assets/og/og-setup.jpg">
+<meta name="twitter:image:alt" content="ScreenSync MCP setup guide: hub, phone pairing and MCP config for Claude">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/assets/icon-192.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>document.documentElement.classList.add("js")</script>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<link rel="stylesheet" href="css/custom.css">
+<link rel="stylesheet" href="css/docs.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://epsoldev.com/#organization",
+      "name": "EpsolDev",
+      "url": "https://epsoldev.com/",
+      "email": "info@epsoldev.com"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://www.screensyncmcp.tech/#website",
+      "url": "https://www.screensyncmcp.tech/",
+      "name": "ScreenSync MCP",
+      "alternateName": [
+        "ScreenSync"
+      ],
+      "publisher": {
+        "@id": "https://epsoldev.com/#organization"
+      },
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://www.screensyncmcp.tech/setup.html#webpage",
+      "url": "https://www.screensyncmcp.tech/setup.html",
+      "name": "Control Android with Claude: ScreenSync MCP Setup Guide",
+      "description": "Install the ScreenSync MCP hub, pair your Android phone and add it to Claude Code, Claude Desktop, Cursor or VS Code. Copy-ready configs included.",
+      "isPartOf": {
+        "@id": "https://www.screensyncmcp.tech/#website"
+      },
+      "breadcrumb": {
+        "@id": "https://www.screensyncmcp.tech/setup.html#breadcrumb"
+      },
+      "mainEntity": {
+        "@id": "https://www.screensyncmcp.tech/setup.html#article"
+      },
+      "datePublished": "2026-10-01",
+      "dateModified": "2026-10-01",
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "TechArticle",
+      "@id": "https://www.screensyncmcp.tech/setup.html#article",
+      "headline": "How to control Android with Claude using the ScreenSync MCP server",
+      "description": "Install the ScreenSync MCP hub, pair your Android phone and add it to Claude Code, Claude Desktop, Cursor or VS Code. Copy-ready configs included.",
+      "author": {
+        "@id": "https://epsoldev.com/#organization"
+      },
+      "publisher": {
+        "@id": "https://epsoldev.com/#organization"
+      },
+      "datePublished": "2026-10-01",
+      "dateModified": "2026-10-01",
+      "image": "https://www.screensyncmcp.tech/assets/og/og-setup.jpg",
+      "mainEntityOfPage": {
+        "@id": "https://www.screensyncmcp.tech/setup.html#webpage"
+      },
+      "inLanguage": "en-US",
+      "proficiencyLevel": "Beginner",
+      "dependencies": "ScreenSync MCP app 2.5.7 on Android 7.0 or later; Node.js 18 or later; ADB for control tools"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://www.screensyncmcp.tech/setup.html#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://www.screensyncmcp.tech/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Setup guide",
+          "item": "https://www.screensyncmcp.tech/setup.html"
+        }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body class="bg-[#FAFAFC] text-[#1E1633] antialiased">
+
+<header class="glass-nav fixed top-0 inset-x-0 z-50">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-full focus:bg-white focus:text-[#6541D6] focus:font-semibold focus:shadow">Skip to content</a>
+  <nav class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between" aria-label="Main">
+    <a href="/" class="flex items-center gap-2.5 shrink-0">
+      <img src="assets/logo-72.webp" srcset="assets/logo-72.webp 1x, assets/logo-144.webp 2x" width="36" height="36" alt="" class="w-9 h-9 rounded-xl shadow-md shadow-purple-200">
+      <span class="font-extrabold tracking-tight text-lg">ScreenSync <span class="grad-text">MCP</span></span>
+    </a>
+    <div class="site-links hidden md:flex items-center gap-4 lg:gap-6 xl:gap-7 text-[15px] font-medium text-[#4B4460] whitespace-nowrap">
+      <a href="/" class="hidden lg:inline hover:text-[#6541D6] transition">Home</a>
+      <a href="screen-mcp.html" class="hover:text-[#6541D6] transition">Screen MCP</a>
+      <a href="setup.html" aria-current="page" class="hover:text-[#6541D6] transition">Setup</a>
+      <a href="extension.html" class="hover:text-[#6541D6] transition">Extension</a>
+      <a href="/blogs/" class="hover:text-[#6541D6] transition">Blog</a>
+      <span class="hidden lg:inline"><a href="changelog.html" class="hover:text-[#6541D6] transition">Changelog</a></span>
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" title="Get it on Google Play" aria-label="Get App on Google Play" class="hidden xl:inline-flex btn-secondary px-5 py-2 rounded-full text-sm font-semibold items-center gap-2 shrink-0"><i data-lucide="smartphone" class="w-4 h-4"></i> Get App</a>
+      <a href="/#connect" class="btn-primary px-5 py-2 rounded-full text-sm font-semibold shrink-0">Get Connected</a>
+    </div>
+    <button id="burger" class="md:hidden p-2 rounded-lg hover:bg-purple-50" aria-label="Menu" aria-expanded="false" aria-controls="mobileMenu">
+      <i data-lucide="menu" class="w-6 h-6"></i>
+    </button>
+  </nav>
+  <div id="mobileMenu" class="md:hidden bg-white/95 border-b border-purple-100">
+    <div class="px-6 py-4 flex flex-col gap-3 text-[15px] font-medium">
+      <a href="/" class="py-1.5">Home</a>
+      <a href="screen-mcp.html" class="py-1.5">Screen MCP</a>
+      <a href="setup.html" aria-current="page" class="py-1.5">Setup</a>
+      <a href="extension.html" class="py-1.5">Extension</a>
+      <a href="/blogs/" class="py-1.5">Blog</a>
+      <a href="changelog.html" class="py-1.5">Changelog</a>
+      <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" class="btn-secondary px-5 py-2.5 rounded-full text-sm font-semibold inline-flex items-center justify-center gap-2 mt-1"><i data-lucide="smartphone" class="w-4 h-4"></i> Get it on Google Play</a>
+      <a href="/#connect" class="btn-primary px-5 py-2.5 rounded-full text-sm font-semibold text-center">Get Connected</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+<section class="hero-glow pt-28 pb-10 sm:pt-36 sm:pb-12"><div class="max-w-3xl mx-auto px-5 sm:px-8">
+<nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/">Home</a></li><li aria-current="page">Setup guide</li></ol></nav>
+<h1 class="mt-5 text-4xl sm:text-5xl font-extrabold leading-[1.1] tracking-tight">How to control Android with Claude using the ScreenSync MCP server</h1>
+<p class="mt-6 text-lg text-[#4B4460] leading-relaxed">To control an Android phone with Claude, run the free ScreenSync MCP hub on your computer, pair the ScreenSync MCP app with it, and add the hub to Claude Code or Claude Desktop as a local MCP server. Screen capture works at once; turn on USB or wireless debugging to let Claude tap, swipe and type. It takes about ten minutes.</p>
+<p class="doc-meta mt-5">Last updated 1 October 2026 &middot; Tested with app 2.5.7 / hub 1.14.4</p>
+<div class="mt-7 flex flex-wrap gap-3"><a href="downloads/screensync-hub.zip" class="btn-primary px-6 py-3 rounded-full font-semibold inline-flex items-center gap-2"><i data-lucide="download" class="w-5 h-5"></i> Download the hub (zip)</a><a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener" class="btn-secondary px-6 py-3 rounded-full font-semibold inline-flex items-center gap-2"><i data-lucide="smartphone" class="w-5 h-5"></i> Get the app on Google Play</a></div>
+</div></section>
+<div class="max-w-3xl mx-auto px-5 sm:px-8 pb-20">
+<nav class="doc-toc lux-card no-lift p-6 mb-12" aria-label="On this page"><p class="font-bold text-[#1E1633] mb-3">On this page</p><ol>
+<li><a href="#requirements">Requirements</a></li>
+<li><a href="#install-hub">1. Install the hub</a></li>
+<li><a href="#connect-client">2. Connect your AI client</a></li>
+<li><a href="#pair-phone">3. Pair the phone</a></li>
+<li><a href="#control">4. Turn on control tools</a></li>
+<li><a href="#env-vars">Environment variables</a></li>
+<li><a href="#endpoints">HTTP endpoints</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#privacy">Privacy and next steps</a></li>
+</ol></nav>
+<article class="doc-prose">
+<h2 id="requirements">Requirements</h2>
+<div class="doc-table-wrap"><table class="doc-table" style="min-width:560px"><thead><tr><th scope="col">Part</th><th scope="col">What you need</th></tr></thead>
+<tbody>
+<tr><th scope="row">Android phone</th><td>Android 7.0 or later with the <a href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener">ScreenSync MCP app</a> (tested with 2.5.7, build 35)</td></tr>
+<tr><th scope="row">Screen capture</th><td>No root and no ADB. Android asks for your consent each session (MediaProjection).</td></tr>
+<tr><th scope="row">Control tools</th><td>Tap, swipe, type and launch app run through ADB from the hub, with the phone on USB or wireless debugging.</td></tr>
+<tr><th scope="row">Computer</th><td>Windows, macOS or Linux with Node.js 18 or later for the hub (tested with hub 1.14.4).</td></tr>
+<tr><th scope="row">Network</th><td>Phone and computer on the same network. The Google Drive fallback is optional.</td></tr>
+<tr><th scope="row">AI client</th><td>Any MCP client that runs local stdio servers: Claude Code, Claude Desktop, Cursor or VS Code.</td></tr>
+<tr><th scope="row">Browser tools (optional)</th><td>Chrome or Edge with the <a href="extension.html">ScreenSync browser extension</a> 1.14.4.</td></tr>
+</tbody></table></div>
+<h2 id="install-hub"><span class="step-num" aria-hidden="true">1</span>Install the hub on your computer</h2>
+<p>You need: Node.js 18+; Android phone with the ScreenSync MCP app (or ADB for control tools).</p>
+<ol>
+<li>Download the hub zip from <a href="/extension.html">https://www.screensyncmcp.tech/extension.html</a> and unzip it anywhere on your computer.</li>
+<li>Windows: double-click <code>start-hub.bat</code> · macOS/Linux: <code>sh start-hub.sh</code> (or <code>node screensync-hub.js</code>). Needs free Node 18+.</li>
+<li>The terminal prints a pairing link + QR and serves on <code>http://localhost:3000</code> — keep it running.</li>
+<li>Scan the QR with the ScreenSync Android app; install the browser extension from the same page.</li>
+<li>Developers: the extension source is public — <code>git clone https://github.com/KhizarJamshaidIqbal/screensync-extension.git</code> (the clone root IS the extension folder; Load unpacked on it). Hub + app source stay private.</li>
+</ol>
+<div class="code-block"><div class="code-head"><span>Windows</span><button type="button" class="copy-btn" data-copy-target="code-1" aria-label="Copy: Windows">Copy</button></div><pre id="code-1"><code>start-hub.bat</code></pre></div>
+<div class="code-block"><div class="code-head"><span>macOS or Linux</span><button type="button" class="copy-btn" data-copy-target="code-2" aria-label="Copy: macOS or Linux">Copy</button></div><pre id="code-2"><code>sh start-hub.sh</code></pre></div>
+<p>Leave that terminal open: the hub has to keep running while your agent works.</p>
+<h2 id="connect-client"><span class="step-num" aria-hidden="true">2</span>Connect your AI client</h2>
+<p>Every client below runs the hub the same way: the command <code>node</code> with the path to <code>screensync-hub.js</code> as its argument. Replace <code>&lt;HUB_DIR&gt;</code> with the folder where you unzipped the hub (on Windows, use forward slashes or doubled backslashes inside JSON) and <code>&lt;TOKEN&gt;</code> with the hub's <code>SCREEN_SYNC_TOKEN</code> (default: <code>screensync-local-dev</code>).</p>
+<h3>Claude Code</h3>
+<p>Add the server to <code>.mcp.json</code> (project root):</p>
+<div class="code-block"><div class="code-head"><span>.mcp.json (project root)</span><button type="button" class="copy-btn" data-copy-target="code-3" aria-label="Copy: .mcp.json (project root)">Copy</button></div><pre id="code-3"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;screensync&quot;: {
+      &quot;command&quot;: &quot;node&quot;,
+      &quot;args&quot;: [&quot;&lt;HUB_DIR&gt;/screensync-hub.js&quot;],
+      &quot;env&quot;: { &quot;SCREEN_SYNC_TOKEN&quot;: &quot;&lt;TOKEN&gt;&quot; }
+    }
+  }
+}</code></pre></div>
+<p>Or register it from the terminal with one command:</p>
+<div class="code-block"><div class="code-head"><span>Claude Code CLI (one-liner)</span><button type="button" class="copy-btn" data-copy-target="code-4" aria-label="Copy: Claude Code CLI (one-liner)">Copy</button></div><pre id="code-4"><code>claude mcp add screensync node &quot;&lt;HUB_DIR&gt;/screensync-hub.js&quot;</code></pre></div>
+<h3>Claude Desktop</h3>
+<p>Open <code>claude_desktop_config.json</code> (Settings → Developer) and add the server:</p>
+<div class="code-block"><div class="code-head"><span>claude_desktop_config.json (Settings → Developer)</span><button type="button" class="copy-btn" data-copy-target="code-5" aria-label="Copy: claude_desktop_config.json (Settings → Developer)">Copy</button></div><pre id="code-5"><code>{
+  &quot;mcpServers&quot;: {
+    &quot;screensync&quot;: {
+      &quot;command&quot;: &quot;node&quot;,
+      &quot;args&quot;: [&quot;&lt;HUB_DIR&gt;/screensync-hub.js&quot;],
+      &quot;env&quot;: { &quot;SCREEN_SYNC_TOKEN&quot;: &quot;&lt;TOKEN&gt;&quot; }
+    }
+  }
+}</code></pre></div>
+<p>Restart the client after saving. Then try a first prompt such as <em>&ldquo;Take a screenshot of my phone and tell me which app is open.&rdquo;</em></p>
+<h3>Cursor, VS Code and any other stdio MCP client</h3>
+<p>Any client that runs local (stdio) MCP servers needs the same three values: the command <code>node</code>, one argument with the full path to <code>screensync-hub.js</code>, and the <code>SCREEN_SYNC_TOKEN</code> environment variable. Where the config lives and the top-level key differ between clients, so check your client's MCP docs. Two common layouts:</p>
+<ul><li><strong>Cursor:</strong> <code>.cursor/mcp.json</code> in your project (or <code>~/.cursor/mcp.json</code> for every project), using the same <code>mcpServers</code> block as Claude Code above.</li><li><strong>VS Code:</strong> <code>.vscode/mcp.json</code> in your workspace, with a <code>servers</code> key and <code>"type": "stdio"</code>:</li></ul>
+<div class="code-block"><div class="code-head"><span>.vscode/mcp.json</span><button type="button" class="copy-btn" data-copy-target="code-6" aria-label="Copy: .vscode/mcp.json">Copy</button></div><pre id="code-6"><code>{
+  &quot;servers&quot;: {
+    &quot;screensync&quot;: {
+      &quot;type&quot;: &quot;stdio&quot;,
+      &quot;command&quot;: &quot;node&quot;,
+      &quot;args&quot;: [
+        &quot;&lt;HUB_DIR&gt;/screensync-hub.js&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;SCREEN_SYNC_TOKEN&quot;: &quot;&lt;TOKEN&gt;&quot;
+      }
+    }
+  }
+}</code></pre></div>
+<h3>HTTP only (no MCP client)</h3>
+<p>Tools that do not speak MCP can call the hub over HTTP at <code>http://&lt;HUB-IP&gt;:3000</code> with the header <code>Authorization: Bearer &lt;TOKEN&gt;</code>. The browser extension uses this mode — no stdio needed.</p>
+<div class="callout warn"><span class="callout-title">Not supported: ChatGPT web</span><p>ChatGPT's web app connects only to remote HTTPS MCP servers. The ScreenSync MCP hub runs on your computer and speaks MCP over stdio, so ChatGPT web cannot use it today.</p></div>
+<h2 id="pair-phone"><span class="step-num" aria-hidden="true">3</span>Pair the phone with the hub</h2>
+<p>Open the ScreenSync MCP app and scan the QR code that the hub prints in its terminal (or shows at <code>/pair</code>).</p>
+<p><strong>Automatic discovery</strong> (mDNS service <code>_screensync-hub._tcp</code>): The phone app auto-discovers via mDNS. Browsers cannot use mDNS — the extension probes localhost and accepts manual URLs / pairing links.</p>
+<p>If you pair by hand, the app and extension accept any of these formats:</p>
+<div class="code-block"><div class="code-head"><span>Pairing formats</span><button type="button" class="copy-btn" data-copy-target="code-7" aria-label="Copy: Pairing formats">Copy</button></div><pre id="code-7"><code>screensync://pair?url=http%3A%2F%2F&lt;IP&gt;%3A3000&amp;token=&lt;TOKEN&gt;
+{&quot;url&quot;:&quot;http://&lt;IP&gt;:3000&quot;,&quot;token&quot;:&quot;&lt;TOKEN&gt;&quot;}
+http://&lt;IP&gt;:3000#&lt;TOKEN&gt;</code></pre></div>
+<p>Grant the screen-capture prompt when the app asks. Frames then stream to the hub, and your agent can call <code>get_latest_screenshot</code>.</p>
+<h2 id="control"><span class="step-num" aria-hidden="true">4</span>Turn on the control tools (ADB)</h2>
+<p>Capture needs nothing more. To let the agent tap, swipe, type and launch apps, the hub sends those actions through ADB:</p>
+<ol><li>Install ADB (Android platform-tools) on the computer that runs the hub.</li><li>On the phone, turn on developer options, then <strong>USB debugging</strong> or <strong>wireless debugging</strong>.</li><li>Connect the phone by cable or pair it for wireless debugging, accept the prompt on the phone, and check that it is listed:</li></ol>
+<div class="code-block"><div class="code-head"><span>Terminal</span><button type="button" class="copy-btn" data-copy-target="code-8" aria-label="Copy: Terminal">Copy</button></div><pre id="code-8"><code>adb devices</code></pre></div>
+<p>With more than one device attached, set <code>SCREEN_SYNC_ADB_TARGET</code> to the phone's serial. If <code>adb</code> is not on your PATH, point <code>SCREEN_SYNC_ADB_BIN</code> at it.</p>
+<h2 id="env-vars">Environment variables</h2>
+<div class="doc-table-wrap"><table class="doc-table" style="min-width:600px"><thead><tr><th scope="col">Variable</th><th scope="col">What it does</th><th scope="col">Default</th></tr></thead>
+<tbody>
+<tr><th scope="row"><code>SCREEN_SYNC_TOKEN</code></th><td>Bearer pairing token shared by app, extension and agents</td><td><code>screensync-local-dev</code></td></tr>
+<tr><th scope="row"><code>SCREEN_SYNC_PORT</code></th><td>HTTP port</td><td><code>3000</code></td></tr>
+<tr><th scope="row"><code>SCREEN_SYNC_HOST</code></th><td>Bind address</td><td><code>0.0.0.0</code></td></tr>
+<tr><th scope="row"><code>SCREEN_SYNC_DATA_DIR</code></th><td>Frame/inspection/patch storage root</td><td><code>./data</code></td></tr>
+<tr><th scope="row"><code>SCREEN_SYNC_ADB_TARGET</code></th><td>Optional: pin a specific ADB device serial</td><td>&mdash;</td></tr>
+<tr><th scope="row"><code>SCREEN_SYNC_ADB_BIN</code></th><td>Optional: path to the adb binary</td><td><code>adb</code></td></tr>
+</tbody></table></div>
+<div class="callout"><p>Change <code>SCREEN_SYNC_TOKEN</code> from its default before you run the hub on a shared network, and use the same value in the app, the extension and your MCP config.</p></div>
+<h2 id="endpoints">HTTP endpoints</h2>
+<p>The hub serves these on port 3000. Endpoints marked &ldquo;Bearer token&rdquo; need <code>Authorization: Bearer &lt;TOKEN&gt;</code>.</p>
+<div class="doc-table-wrap"><table class="doc-table" style="min-width:620px"><thead><tr><th scope="col">Endpoint</th><th scope="col">Auth</th><th scope="col">Purpose</th></tr></thead>
+<tbody>
+<tr><th scope="row"><code>GET /health</code></th><td>None</td><td>Liveness + latest frame time</td></tr>
+<tr><th scope="row"><code>GET /pair</code></th><td>None</td><td>Human pairing page with QR</td></tr>
+<tr><th scope="row"><code>GET /api/pair</code></th><td>None</td><td>Machine pairing payload {url, token, link}</td></tr>
+<tr><th scope="row"><code>GET /api/events</code></th><td>Bearer token</td><td>SSE live stream: frame | inspection | patch | tool | agent_connect</td></tr>
+<tr><th scope="row"><code>GET /api/screens/latest</code></th><td>Bearer token</td><td>Latest screenshot as base64 data URL</td></tr>
+<tr><th scope="row"><code>POST /api/screens/upload</code></th><td>Bearer token</td><td>Push a capture (phone app)</td></tr>
+<tr><th scope="row"><code>GET /api/device/status</code></th><td>Bearer token</td><td>Connection state, device model, retained frames</td></tr>
+<tr><th scope="row"><code>GET /api/mcp/catalog</code></th><td>Bearer token</td><td>Full tool/prompt/resource catalog</td></tr>
+<tr><th scope="row"><code>GET /api/inspections/latest</code></th><td>Bearer token</td><td>Bug regions published by the agent</td></tr>
+<tr><th scope="row"><code>GET /api/patches/latest</code></th><td>Bearer token</td><td>Latest git patch from the agent</td></tr>
+<tr><th scope="row"><code>POST /api/control/:action</code></th><td>Bearer token</td><td>status | screenshot | tap | long_press | swipe | scroll | type | key | launch</td></tr>
+</tbody></table></div>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<ul>
+<li><strong>Hub not reachable</strong> &mdash; ensure <code>start-hub.bat</code> / <code>start-hub.sh</code> (or <code>node screensync-hub.js</code>) is running and your firewall allows port 3000 on the LAN.</li>
+<li><strong>401 Unauthorized</strong> &mdash; the token must match <code>SCREEN_SYNC_TOKEN</code> on the hub (default: screensync-local-dev).</li>
+<li><strong>429 Too many live connections</strong> &mdash; <code>/api/events</code> allows 10 concurrent clients; close another dashboard.</li>
+<li><strong>Extension shows offline on another machine</strong> &mdash; grant the LAN origin permission in the extension&#x27;s setup step.</li>
+</ul>
+<p>Still stuck? Email <a href="mailto:info@epsoldev.com">info@epsoldev.com</a> with the hub's terminal output.</p>
+<h2 id="privacy">Privacy and next steps</h2>
+<p>Frames go from the phone to the hub over your own network with the bearer token, and nothing goes to EpsolDev servers. Screenshots that your AI agent requests are sent to that agent's model provider, so close sensitive apps before a session. The <a href="data-policy.html">data policy</a> lists where every byte is stored.</p>
+<ul><li>Learn how capture, control and live streaming work in the <a href="screen-mcp.html">screen MCP guide</a>.</li><li>See how ScreenSync MCP stacks up: <a href="android-mcp-servers.html">compare Android MCP servers</a>.</li><li>Give the agent your browser too with the <a href="extension.html">ScreenSync browser extension</a>.</li><li>Back to the <a href="/">Android MCP server for Claude</a> home page.</li></ul>
+</article></div>
+</main>
+
+<footer class="bg-[#150E27] text-purple-200/80">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <img src="assets/logo-72.webp" srcset="assets/logo-72.webp 1x, assets/logo-144.webp 2x" width="36" height="36" alt="" class="w-9 h-9 rounded-xl" loading="lazy" decoding="async">
+        <span class="font-extrabold text-white text-lg">ScreenSync MCP</span>
+      </div>
+      <p class="text-sm mt-4 leading-relaxed text-purple-200/70">Your AI, watching over your shoulder. A free Android MCP server for Claude and any MCP agent, with phone, desktop and browser in one local-first hub.</p>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Product</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="screen-mcp.html" class="hover:text-white transition">Screen MCP</a></li>
+        <li><a href="android-mcp-servers.html" class="hover:text-white transition">Android MCP servers compared</a></li>
+        <li><a href="setup.html" aria-current="page" class="hover:text-white transition">Setup guide</a></li>
+        <li><a href="extension.html" class="hover:text-white transition">Browser extension</a></li>
+        <li><a href="changelog.html" class="hover:text-white transition">Changelog</a></li>
+        <li><a href="/blogs/" class="hover:text-white transition">Blog</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Company</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="about.html" class="hover:text-white transition">About</a></li>
+        <li><a href="goal.html" class="hover:text-white transition">Goal</a></li>
+        <li><a href="https://epsoldev.com" class="hover:text-white transition">epsoldev.com</a></li>
+        <li><a href="mailto:info@epsoldev.com" class="hover:text-white transition">info@epsoldev.com</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-white font-bold mb-4">Legal</p>
+      <ul class="space-y-2.5 text-sm">
+        <li><a href="privacy.html" class="hover:text-white transition">Privacy Policy</a></li>
+        <li><a href="data-policy.html" class="hover:text-white transition">Data Policy</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10 py-6 px-5 text-center text-xs text-purple-200/70">© <span class="year">2026</span> EpsolDev · ScreenSync MCP · App 2.5.7 · Extension 1.14.4 · All rights reserved.</div>
+</footer>
+
+<script src="js/main.js" defer></script>
+<script>
+// Copy buttons on code blocks. Falls back to selecting the text so Ctrl+C / Cmd+C works.
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest ? e.target.closest('[data-copy-target]') : null;
+  if (!btn) return;
+  var el = document.getElementById(btn.getAttribute('data-copy-target'));
+  if (!el) return;
+  var say = function (label) { btn.textContent = label; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+  var select = function () {
+    var range = document.createRange(); range.selectNodeContents(el);
+    var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    say('Press Ctrl+C');
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(el.textContent).then(function () { say('Copied'); }, select);
+  } else { select(); }
+});
+</script>
+</body>
+</html>

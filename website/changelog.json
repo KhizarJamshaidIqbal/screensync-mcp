@@ -1,6 +1,5 @@
 {
-  "generatedAt": "2026-10-01T07:38:37Z",
-  "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
+  "generatedAt": "2026-10-01T10:06:52Z",
   "entries": [
     {
       "sha": "2b14553",
@@ -27,6 +26,7 @@
         }
       ],
       "count": 1,
+      "id": "app-2.5.7",
       "title": "App 2.5.7 (build 35)"
     },
     {
@@ -55,6 +55,7 @@
         }
       ],
       "count": 2,
+      "id": "ext-1.14.4",
       "title": "Extension 1.14.4"
     },
     {
@@ -82,6 +83,7 @@
         }
       ],
       "count": 1,
+      "id": "app-2.5.6",
       "title": "App 2.5.6 (build 34)"
     },
     {
@@ -111,6 +113,7 @@
         }
       ],
       "count": 3,
+      "id": "app-2.5.5",
       "title": "App 2.5.5 (build 33)"
     },
     {
@@ -138,6 +141,7 @@
         }
       ],
       "count": 1,
+      "id": "ext-1.14.3",
       "title": "Extension 1.14.3"
     },
     {
@@ -165,6 +169,7 @@
         }
       ],
       "count": 1,
+      "id": "ext-1.14.2",
       "title": "Extension 1.14.2"
     },
     {
@@ -206,6 +211,7 @@
         }
       ],
       "count": 13,
+      "id": "ext-1.14.1",
       "title": "Extension 1.14.1"
     },
     {
@@ -239,6 +245,7 @@
         }
       ],
       "count": 6,
+      "id": "ext-1.14.0",
       "title": "Extension 1.14.0"
     },
     {
@@ -266,6 +273,7 @@
         }
       ],
       "count": 1,
+      "id": "ext-1.13.1",
       "title": "Extension 1.13.1"
     },
     {
@@ -307,6 +315,7 @@
         }
       ],
       "count": 14,
+      "id": "ext-1.13.0",
       "title": "Extension 1.13.0"
     },
     {
@@ -336,6 +345,7 @@
         }
       ],
       "count": 2,
+      "id": "ext-1.12.0",
       "title": "Extension 1.12.0"
     },
     {
@@ -363,6 +373,7 @@
         }
       ],
       "count": 1,
+      "id": "ext-1.11.0",
       "title": "Extension 1.11.0"
     },
     {
@@ -391,6 +402,7 @@
         }
       ],
       "count": 2,
+      "id": "ext-1.10.1",
       "title": "Extension 1.10.1"
     },
     {
@@ -429,6 +441,7 @@
         }
       ],
       "count": 11,
+      "id": "ext-1.10.0",
       "title": "Extension 1.10.0"
     },
     {
@@ -464,6 +477,7 @@
         }
       ],
       "count": 8,
+      "id": "ext-1.9.0",
       "title": "Extension 1.9.0"
     },
     {
@@ -495,6 +509,7 @@
         }
       ],
       "count": 5,
+      "id": "app-2.5.4",
       "title": "App 2.5.4 (build 32)"
     },
     {
@@ -524,6 +539,7 @@
         }
       ],
       "count": 2,
+      "id": "app-2.5.4-b31",
       "title": "App 2.5.4 (build 31)"
     },
     {
@@ -551,6 +567,7 @@
         }
       ],
       "count": 1,
+      "id": "app-2.5.4-b29",
       "title": "App 2.5.4 (build 29)"
     },
     {
@@ -578,6 +595,7 @@
         }
       ],
       "count": 1,
+      "id": "app-2.5.2",
       "title": "App 2.5.2 (build 27)"
     },
     {
@@ -619,6 +637,7 @@
         }
       ],
       "count": 14,
+      "id": "app-2.5.1",
       "title": "App 2.5.1 (build 26)"
     },
     {
@@ -660,6 +679,7 @@
         }
       ],
       "count": 13,
+      "id": "ext-1.8.0",
       "title": "Extension 1.8.0"
     },
     {
@@ -704,6 +724,7 @@
         }
       ],
       "count": 16,
+      "id": "ext-1.7.1",
       "title": "Extension 1.7.1"
     },
     {
@@ -731,6 +752,7 @@
         }
       ],
       "count": 1,
+      "id": "app-2.5.0",
       "title": "App 2.5.0 (build 25)"
     }
   ],
