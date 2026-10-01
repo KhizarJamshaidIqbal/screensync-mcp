@@ -1,0 +1,89 @@
+# ScreenSync MCP - www.screensyncmcp.tech
+# Hostinger runs LiteSpeed, which reads Apache .htaccess syntax. Cloudflare sits in
+# front: /blogs/*, /sitemap-blogs.xml and /cbm-indexnow-* are answered by the CBM
+# Cloudflare Worker before a request reaches this server, and the rules below
+# never touch those paths. Every block is wrapped in <IfModule> so a missing
+# module skips the block instead of returning a 500.
+
+# Serve the branded 404 page (root-relative, so it works at any depth).
+ErrorDocument 404 /404.html
+
+# The web app manifest needs its own media type.
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+  AddType image/webp .webp
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Redirects
+# ---------------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # serve.js is the local preview server; it is not part of the site.
+  RewriteRule ^serve\.js$ - [F,L]
+
+  # /index.html -> / (301). THE_REQUEST is the raw request line, so the
+  # internal DirectoryIndex lookup for "/" cannot loop back into this rule.
+  RewriteCond %{THE_REQUEST} \s/index\.html[\s?] [NC]
+  RewriteRule ^index\.html$ / [R=301,L]
+
+  # /blogs -> /blogs/ (301). The blog index only exists with the trailing slash.
+  RewriteRule ^blogs$ /blogs/ [R=301,L]
+
+  # Extensionless page URLs -> .html (301), only when that .html file exists:
+  # /about -> /about.html. Real files and folders are left alone, and the blog,
+  # its sitemap and the CBM IndexNow key files are never rewritten.
+  RewriteCond %{REQUEST_URI} !^/blogs(/|$) [NC]
+  RewriteCond %{REQUEST_URI} !^/sitemap-blogs\.xml$ [NC]
+  RewriteCond %{REQUEST_URI} !^/cbm-indexnow- [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME}.html -f
+  RewriteRule ^([A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*)$ /$1.html [R=301,L]
+</IfModule>
+
+# Belt and braces for serve.js if mod_rewrite is ever unavailable.
+<FilesMatch "^serve\.js$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</FilesMatch>
+
+# ---------------------------------------------------------------------------
+# Headers
+# ---------------------------------------------------------------------------
+# Flag requests for the /embed/ pages (header and footer iframes for the blog).
+<IfModule mod_setenvif.c>
+  SetEnvIf Request_URI "^/embed/" SS_EMBED=1
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Security headers on every response.
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set Strict-Transport-Security "max-age=15552000"
+
+  # No framing by other sites, except the /embed/ pages, which the blog frames
+  # from this site and from blog.epsoldev.com. If SS_EMBED were ever not set,
+  # the embeds fall back to SAMEORIGIN, which still lets /blogs/ on this site
+  # frame them.
+  Header always set X-Frame-Options "SAMEORIGIN" env=!SS_EMBED
+  Header always set Content-Security-Policy "frame-ancestors 'self' https://blog.epsoldev.com" env=SS_EMBED
+
+  # Keep data files and the embed fragments out of search results.
+  Header set X-Robots-Tag "noindex" env=SS_EMBED
+  <FilesMatch "\.json$">
+    Header set X-Robots-Tag "noindex"
+  </FilesMatch>
+
+  # Caching: images and icons for a week, HTML for five minutes. Image names
+  # are not content-hashed, so a week is the ceiling for a replaced file.
+  <FilesMatch "\.(webp|jpe?g|png|ico)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "public, max-age=300"
+  </FilesMatch>
+</IfModule>

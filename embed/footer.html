@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScreenSync MCP footer (embed)</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#6541D6">
+<!-- Embed for the CBM blog at /blogs/ (iframe #ss-footer). Links open in the top window. -->
+<base target="_top">
+<link rel="icon" type="image/png" href="https://www.screensyncmcp.tech/assets/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+  body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; transition: color .2s ease; }
+  a:hover { color: #fff; }
+  a:focus-visible { outline: 3px solid #B39DF3; outline-offset: 3px; border-radius: 6px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  h2, p { margin: 0; }
+  svg { display: block; flex: none; }
+
+  /* Measured by the parent: this element, not <body>, is the real height. */
+  #ss-embed-root { position: relative; overflow: hidden; background: #150E27; color: rgba(233,213,255,.8); }
+  #ss-embed-root::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(139,106,236,.6), transparent); }
+
+  .ss-f { max-width: 1280px; margin: 0 auto; padding: 56px 32px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); gap: 40px; }
+  .ss-f > * { min-width: 0; }
+
+  .ss-brand { display: flex; align-items: center; gap: 10px; }
+  .ss-brand img { width: 36px; height: 36px; border-radius: 12px; }
+  .ss-brand-text { font-size: 18px; font-weight: 800; letter-spacing: -.02em; color: #fff; }
+  .ss-tag { margin-top: 16px; max-width: 360px; font-size: 14px; line-height: 1.7; color: rgba(233,213,255,.66); }
+  .ss-play { display: inline-flex; align-items: center; gap: 8px; margin-top: 20px; padding: 9px 16px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,.22); color: #fff; font-size: 13px; font-weight: 600; transition: background .25s ease, border-color .25s ease; }
+  .ss-play:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.4); }
+  .ss-play svg { width: 16px; height: 16px; }
+
+  .ss-col h2 { margin-bottom: 16px; font-size: 16px; font-weight: 700; color: #fff; }
+  .ss-col li + li { margin-top: 10px; }
+  .ss-col a { font-size: 14px; line-height: 1.5; }
+  .ss-contact li { display: flex; align-items: center; gap: 8px; }
+  .ss-contact svg { width: 16px; height: 16px; }
+  .ss-new { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(139,106,236,.25); color: #D9CCFB; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; vertical-align: 1px; }
+
+  .ss-bottom { border-top: 1px solid rgba(255,255,255,.1); padding: 22px 32px; text-align: center; font-size: 12px; line-height: 1.6; color: rgba(233,213,255,.6); }
+
+  @media (max-width: 767px) {
+    .ss-f { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 36px 24px; padding: 44px 24px; }
+    .ss-brand-col { grid-column: 1 / -1; }
+    .ss-bottom { padding: 20px 24px; }
+  }
+  @media (max-width: 479px) {
+    .ss-f { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 40px 16px; }
+    .ss-bottom { padding: 18px 16px; }
+  }
+</style>
+</head>
+<body>
+<div id="ss-embed-root">
+  <footer>
+    <div class="ss-f">
+      <div class="ss-brand-col">
+        <a class="ss-brand" href="https://www.screensyncmcp.tech/">
+          <img src="https://www.screensyncmcp.tech/assets/logo-72.webp" srcset="https://www.screensyncmcp.tech/assets/logo-72.webp 1x, https://www.screensyncmcp.tech/assets/logo-144.webp 2x" alt="" width="36" height="36">
+          <span class="ss-brand-text">ScreenSync MCP</span>
+        </a>
+        <p class="ss-tag">The Android MCP server that lets AI agents see and control your phone, plus your real browser. Free and local-first.</p>
+        <a class="ss-play" href="https://play.google.com/store/apps/details?id=com.screensync.mcp" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+          Get it on Google Play
+        </a>
+      </div>
+      <nav class="ss-col" aria-labelledby="ss-f-pages">
+        <h2 id="ss-f-pages">Product</h2>
+        <ul>
+          <li><a href="https://www.screensyncmcp.tech/screen-mcp.html">Screen MCP</a></li>
+          <li><a href="https://www.screensyncmcp.tech/android-mcp-servers.html">Android MCP servers compared</a></li>
+          <li><a href="https://www.screensyncmcp.tech/setup.html">Setup guide</a></li>
+          <li><a href="https://www.screensyncmcp.tech/extension.html">Browser extension</a></li>
+          <li><a href="https://www.screensyncmcp.tech/changelog.html">Changelog</a></li>
+          <li><a href="https://www.screensyncmcp.tech/blogs/">Blog<span class="ss-new">Guides</span></a></li>
+        </ul>
+      </nav>
+      <nav class="ss-col" aria-labelledby="ss-f-company">
+        <h2 id="ss-f-company">Company &amp; legal</h2>
+        <ul>
+          <li><a href="https://www.screensyncmcp.tech/about.html">About</a></li>
+          <li><a href="https://www.screensyncmcp.tech/goal.html">Goal</a></li>
+          <li><a href="https://epsoldev.com">epsoldev.com</a></li>
+          <li><a href="mailto:info@epsoldev.com">info@epsoldev.com</a></li>
+          <li><a href="https://www.screensyncmcp.tech/privacy.html">Privacy Policy</a></li>
+          <li><a href="https://www.screensyncmcp.tech/data-policy.html">Data Policy</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="ss-bottom">© <span class="ss-year">2026</span> EpsolDev · ScreenSync MCP · App 2.5.7 · Extension 1.14.4</div>
+  </footer>
+</div>
+<script>
+/* Year, then tell the parent page how tall this embed is.
+   Message: { type: 'screensync-embed-height', embed: 'footer', height: <px> }
+   The parent can ask again with { type: 'screensync-embed-ping' }. */
+(function () {
+  'use strict';
+  var yr = document.querySelector('.ss-year');
+  if (yr) yr.textContent = String(new Date().getFullYear());
+  var KIND = 'footer';
+  var root = document.getElementById('ss-embed-root');
+  if (!root || window.parent === window) return;
+  var last = 0, raf = 0;
+  function post(force) {
+    var h = Math.ceil(root.getBoundingClientRect().height);
+    if (!h || (!force && h === last)) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'screensync-embed-height', embed: KIND, height: h }, '*'); } catch (e) {}
+  }
+  function queue() {
+    if (raf) return;
+    raf = window.requestAnimationFrame(function () { raf = 0; post(false); });
+  }
+  post(true);
+  window.addEventListener('load', function () { post(true); });
+  window.addEventListener('resize', queue);
+  if (window.ResizeObserver) new ResizeObserver(queue).observe(root);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { post(true); });
+  window.addEventListener('message', function (e) {
+    if (e.source === window.parent && e.data && e.data.type === 'screensync-embed-ping') post(true);
+  });
+})();
+</script>
+</body>
+</html>

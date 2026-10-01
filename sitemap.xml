@@ -1,10 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://www.screensyncmcp.tech/</loc><lastmod>2026-08-29</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://www.screensyncmcp.tech/about.html</loc><lastmod>2026-08-29</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://www.screensyncmcp.tech/goal.html</loc><lastmod>2026-08-29</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://www.screensyncmcp.tech/privacy.html</loc><lastmod>2026-08-29</lastmod><changefreq>yearly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://www.screensyncmcp.tech/data-policy.html</loc><lastmod>2026-08-29</lastmod><changefreq>yearly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://www.screensyncmcp.tech/extension.html</loc><lastmod>2026-08-31</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://www.screensyncmcp.tech/changelog.html</loc><lastmod>2026-09-15</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://www.screensyncmcp.tech/</loc>
+    <lastmod>2026-10-01</lastmod>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/dashboard.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/hub.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/mcp.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/gallery.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/telemetry.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/diagnose.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/settings.png</image:loc></image:image>
+  </url>
+  <url><loc>https://www.screensyncmcp.tech/screen-mcp.html</loc><lastmod>2026-10-01</lastmod></url>
+  <url><loc>https://www.screensyncmcp.tech/setup.html</loc><lastmod>2026-10-01</lastmod></url>
+  <url><loc>https://www.screensyncmcp.tech/android-mcp-servers.html</loc><lastmod>2026-10-01</lastmod></url>
+  <url>
+    <loc>https://www.screensyncmcp.tech/extension.html</loc>
+    <lastmod>2026-10-01</lastmod>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/ext-web-access.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/ext-guide-devmode.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/ext-guide-load-unpacked.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/ext-guide-folder.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/ext-onboarding.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/ext-pairing.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/ext-permission.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/ext-dashboard.png</image:loc></image:image>
+    <image:image><image:loc>https://www.screensyncmcp.tech/assets/screenshots/ext-agent-view.jpg</image:loc></image:image>
+  </url>
+  <url><loc>https://www.screensyncmcp.tech/about.html</loc><lastmod>2026-10-01</lastmod></url>
+  <url><loc>https://www.screensyncmcp.tech/goal.html</loc><lastmod>2026-10-01</lastmod></url>
+  <url><loc>https://www.screensyncmcp.tech/changelog.html</loc><lastmod>2026-10-01</lastmod></url>
+  <url><loc>https://www.screensyncmcp.tech/privacy.html</loc><lastmod>2026-10-01</lastmod></url>
+  <url><loc>https://www.screensyncmcp.tech/data-policy.html</loc><lastmod>2026-10-01</lastmod></url>
 </urlset>

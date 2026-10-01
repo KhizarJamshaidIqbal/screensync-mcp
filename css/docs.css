@@ -1,0 +1,92 @@
+/* ScreenSync MCP: long-form docs pages (screen-mcp.html, setup.html, android-mcp-servers.html).
+   Loaded after custom.css. Reuses the brand tokens defined there (--brand, --brand-deep, --lavender). */
+
+/* ---------- Breadcrumbs + page meta ---------- */
+.crumbs { font-size: .85rem; color: #7A7291; }
+.crumbs ol { display: flex; flex-wrap: wrap; gap: .4rem; list-style: none; margin: 0; padding: 0; }
+.crumbs li + li::before { content: "/"; margin-right: .4rem; color: #C9BEEA; }
+.crumbs a { color: #6541D6; font-weight: 600; }
+.crumbs a:hover { text-decoration: underline; }
+.doc-meta { font-size: .85rem; color: #7A7291; }
+
+/* ---------- Prose ---------- */
+.doc-prose { color: #4B4460; font-size: 1.0625rem; line-height: 1.8; }
+.doc-prose > :first-child { margin-top: 0; }
+.doc-prose h2 { font-size: 1.75rem; line-height: 1.25; font-weight: 800; letter-spacing: -.02em; color: #1E1633; margin: 3.25rem 0 1rem; scroll-margin-top: 6rem; }
+.doc-prose h3 { font-size: 1.2rem; line-height: 1.35; font-weight: 700; color: #1E1633; margin: 2rem 0 .6rem; scroll-margin-top: 6rem; }
+.doc-prose p { margin: 0 0 1.1rem; }
+.doc-prose ul { list-style: disc; padding-left: 1.4rem; margin: 0 0 1.25rem; }
+.doc-prose ol { list-style: decimal; padding-left: 1.4rem; margin: 0 0 1.25rem; }
+.doc-prose li { margin-bottom: .5rem; padding-left: .2rem; }
+.doc-prose li::marker { color: #8B6AEC; font-weight: 700; }
+.doc-prose strong { color: #1E1633; }
+.doc-prose a:not(.btn-primary):not(.btn-secondary) { color: #6541D6; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(101,65,214,.35); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.doc-prose a:not(.btn-primary):not(.btn-secondary):hover { text-decoration-color: #6541D6; }
+.doc-prose code, .doc-table code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .86em; background: #F3EFFC; color: #4A2FB0; padding: .12em .4em; border-radius: .4rem; overflow-wrap: anywhere; }
+.doc-prose figure { margin: 2rem 0; }
+.doc-prose figcaption { margin-top: .75rem; font-size: .85rem; color: #7A7291; text-align: center; }
+
+/* ---------- Cards that hold reading content should not jump on hover ---------- */
+.lux-card.no-lift:hover { transform: none; box-shadow: 0 8px 40px rgba(101,65,214,.07); }
+
+/* ---------- Callouts ---------- */
+.callout { border-left: 4px solid #6541D6; background: #F6F3FD; border-radius: .9rem; padding: 1rem 1.25rem; margin: 0 0 1.5rem; color: #3B3352; font-size: 1rem; line-height: 1.7; }
+.callout p:last-child, .callout ul:last-child { margin-bottom: 0; }
+.callout.warn { border-left-color: #C2410C; background: #FFF6F0; }
+.callout-title { display: block; font-weight: 700; color: #1E1633; margin-bottom: .35rem; }
+
+/* ---------- On-page table of contents ---------- */
+.doc-toc { font-size: .95rem; }
+.doc-toc ol { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 2rem; }
+.doc-toc li { break-inside: avoid; margin: 0 0 .5rem; }
+.doc-toc a { color: #4B4460; font-weight: 600; }
+.doc-toc a:hover { color: #6541D6; }
+@media (max-width: 640px) { .doc-toc ol { columns: 1; } }
+
+/* ---------- Tables (always scroll inside their own box, never the page) ---------- */
+.doc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 0 1.75rem; border: 1px solid #EDE9F7; border-radius: 1rem; background: #fff; max-width: 100%; }
+.doc-table { width: 100%; border-collapse: collapse; font-size: .92rem; line-height: 1.55; }
+.doc-table caption { caption-side: top; text-align: left; padding: .85rem 1rem 0; font-size: .85rem; color: #7A7291; }
+.doc-table th, .doc-table td { padding: .75rem .9rem; text-align: left; vertical-align: top; }
+.doc-table thead th { background: #F6F3FD; color: #1E1633; font-weight: 700; border-bottom: 1px solid #EDE9F7; white-space: nowrap; }
+.doc-table tbody th { color: #1E1633; font-weight: 700; }
+.doc-table tbody tr + tr > * { border-top: 1px solid #F1EDF9; }
+.doc-table td { color: #4B4460; }
+.doc-table .ours > * { background: #FBF9FF; }
+.doc-table.wide { min-width: 1180px; }
+.doc-table .sticky-col { position: sticky; left: 0; z-index: 1; background: #fff; min-width: 11rem; box-shadow: 1px 0 0 #EDE9F7; }
+.doc-table thead .sticky-col { background: #F6F3FD; z-index: 2; }
+.doc-table .ours .sticky-col { background: #FBF9FF; }
+.doc-table .src { display: block; margin-top: .35rem; font-size: .78rem; font-weight: 500; }
+.doc-table .src a { color: #6541D6; text-decoration: underline; text-underline-offset: 2px; }
+.scroll-hint { display: none; font-size: .8rem; color: #7A7291; margin: -1rem 0 1rem; }
+@media (max-width: 1240px) { .scroll-hint { display: block; } }
+@media (max-width: 640px) { .doc-table .sticky-col { min-width: 8.5rem; } }
+
+/* ---------- Code blocks with a copy button ---------- */
+.code-block { position: relative; margin: 0 0 1.5rem; background: #150E27; border: 1px solid #2A2242; border-radius: 1rem; overflow: hidden; }
+.code-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .5rem .6rem .5rem 1.1rem; border-bottom: 1px solid rgba(255,255,255,.08); color: #B9AEDB; font-size: .78rem; font-weight: 600; }
+.code-head span { min-width: 0; overflow-wrap: anywhere; }
+.code-block pre { margin: 0; padding: 1rem 1.1rem; overflow-x: auto; color: #EDE7FF; font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.doc-prose .code-block code { background: none; color: inherit; padding: 0; border-radius: 0; font-size: inherit; overflow-wrap: normal; }
+.copy-btn { flex: none; display: inline-flex; align-items: center; gap: .35rem; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #EDE7FF; border-radius: 999px; padding: .3rem .8rem; font: inherit; font-size: .75rem; cursor: pointer; transition: background .2s ease, border-color .2s ease; }
+.copy-btn:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.35); }
+.copy-btn:focus-visible { outline: 2px solid #B39DF3; outline-offset: 2px; }
+
+/* ---------- Numbered steps ---------- */
+.step-num { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; margin-right: .6rem; border-radius: .7rem; background: linear-gradient(135deg, #6541D6, #8B6AEC); color: #fff; font-size: .95rem; font-weight: 800; vertical-align: middle; }
+
+/* ---------- FAQ built on <details> (works without JavaScript) ---------- */
+.doc-faq details { margin: 0 0 1rem; }
+.doc-faq summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem 1.5rem; font-weight: 700; color: #1E1633; }
+.doc-faq summary::-webkit-details-marker { display: none; }
+.doc-faq summary::after { content: ""; flex: none; width: .65rem; height: .65rem; border-right: 2.5px solid #6541D6; border-bottom: 2.5px solid #6541D6; transform: rotate(45deg) translateY(-2px); transition: transform .25s ease; }
+.doc-faq details[open] summary::after { transform: rotate(225deg) translateY(-2px); }
+.doc-faq summary:focus-visible { outline: 2px solid #6541D6; outline-offset: -2px; border-radius: 1.5rem; }
+.doc-faq .faq-body { padding: 0 1.5rem 1.4rem; color: #4B4460; font-size: .98rem; line-height: 1.75; }
+
+/* ---------- Small badges ---------- */
+.pill { display: inline-flex; align-items: center; gap: .35rem; border-radius: 999px; padding: .2rem .65rem; font-size: .75rem; font-weight: 700; }
+.pill-yes { background: #E8F7EE; color: #12733A; }
+.pill-no { background: #FDECEC; color: #A1281F; }
+.pill-mid { background: #FFF4E0; color: #8A5300; }
