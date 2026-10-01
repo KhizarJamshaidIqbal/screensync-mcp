@@ -140,10 +140,16 @@ Read neighbouring files before writing. Match what is there; do not import a new
 
 - Flat, lowercase, one responsibility per file: `index.ts` (composition root), `config.ts`,
   `events.ts`, `storage.ts`, `mcp.ts`, `prompts.ts`, `hub.ts`, `hub-*.ts` (pairing, SSE, watchers,
-  app-update routes), `device-status.ts`, `web.ts` and its `web-*.ts` siblings, `control.ts`,
-  `app-update.ts`, and the tool catalogue: `catalog.ts` composes **16 `catalog*.ts` files**
-  (`catalog-web*.ts`, the cognitive catalogues, `catalog-consolidated.ts`). New tool definitions go
-  in the most specific existing catalogue file, never past the line limit.
+  app-update routes, and `hub-control.ts`: `POST /api/control/:action` runs every `control_*` tool
+  through `runControlAction`, checking the catalogue's required arguments first), `device-status.ts`, `web.ts` and its `web-*.ts` siblings, the phone plane
+  (`control.ts` actions, `control-adb.ts` adb runner, `control-ui.ts` UI tree: uiautomator dump,
+  parser, filters, tap_text/swipe_until matcher; `control-apps.ts` launcher app list and
+  launch-by-query; `control-state.ts` screen on, lock screen, focused app and rotation from dumpsys, and
+  the screenshot warnings; `mcp-control.ts` control/os tool handlers),
+  `app-update.ts`, and the tool catalogue: `catalog.ts` composes **17 `catalog*.ts` files**
+  (`catalog-control.ts` for the phone and OS tools, `catalog-web*.ts`, the cognitive catalogues,
+  `catalog-consolidated.ts`). New tool definitions go in the most specific existing catalogue file,
+  never past the line limit.
 - **ESM: relative imports carry a `.js` extension** (`from "./catalog.js"`) — NodeNext requires it.
 - **Log to stderr only**, via `log(level, msg, ctx)` from `config.ts`. **stdout is reserved for MCP
   stdio framing** — a stray `console.log` corrupts the protocol.
@@ -153,14 +159,23 @@ Read neighbouring files before writing. Match what is there; do not import a new
   pairing window and loopback rules in `hub-pairing.ts`). Two documented variations exist:
   `/api/app/latest` also trusts a loopback caller, and `/apk` also accepts `?token=` (a browser
   download carries no headers). Do not add another exception.
-- All ADB access funnels through `adb(args)` in `control.ts`, and user text through
-  `escapeInputText()`. Never build a shell string by hand — that is a command-injection hole.
+- All ADB access funnels through `adb(argv)` / `adbBuffer(argv)` in `control-adb.ts` (execFile with
+  an argv array, no host shell). User text and URLs bound for the phone are quoted with
+  `quoteForDeviceShell()` in `control.ts` (single quotes, `'` as `'\''`), because the device's own sh
+  still parses `adb shell` arguments. `inputTextArgs()` builds the `input text` arguments from it
+  (printable ASCII kept exactly, spaces as `%s`, a literal `%s` split across two calls) and refuses
+  anything else with a typed `ControlInputError` (`UNICODE_NOT_SUPPORTED`, with a count) instead of
+  stripping it. Log typed text by length only, never the text. Never build a shell string by hand —
+  that is a command-injection hole. Tests drive the phone path with `setAdbRunner()` and the recorded
+  output in `test/fixtures/adb/`; never against a real phone.
 - Config comes from `SCREEN_SYNC_*` env vars with defaults in `config.ts`. Don't invent new config
   channels.
 - **Adding or renaming an MCP tool.** `test/e2e.ts` only asserts a short core list plus a
   minimum count, so it will not tell you. The guards that will are:
   `test/catalog_consistency.test.ts` (every catalogue tool has a handler and every handler is
-  declared; it reads source text of `catalog.ts`, `web.ts`, `control.ts` and the extension),
+  declared; it reads source text of `catalog.ts`, `catalog-control.ts`, `web.ts`, `mcp-control.ts`
+  and the extension; `test/control_adb.test.ts` also checks that every `catalog-control.ts` tool has
+  a `runControlAction` handler),
   `test/catalog_budget.test.ts` (byte budget of the cognitive tool surface) and
   `test/tool_count_sync.test.ts`. The published tool count in `README.md`, `extension/README.md` and
   the website is rewritten by `npm run sync:toolcount` (from `mcp-server/`; `npm run check:toolcount`
@@ -216,8 +231,9 @@ same in `AGENTS.md` and `.cursorrules`; there is no "500 to 600" allowance.
 The rule counts code (`.dart .ts .js .py .kt .html .css .ps1 .gradle`). Prose docs and generated
 files (`website/changelog.json`, the regenerated `changelog.html`) are not counted.
 
-Measured 2026-09-30 with `wc -l`: **15 of 485 source files** break it. Known debt — **split these
-when you next touch them**, do not add to them:
+Measured 2026-09-30 with `wc -l`: **15 of 485 source files** broke it; `mcp-server/catalog.ts` was
+split on 2026-10-01 (523 → 290, phone and OS tools moved to `catalog-control.ts`), so **14** remain.
+Known debt — **split these when you next touch them**, do not add to them:
 
 | Lines | File                                            |
 | ----- | ----------------------------------------------- |
@@ -235,7 +251,6 @@ when you next touch them**, do not add to them:
 | 551   | `tools/publish_play.py`                         |
 | 544   | `lib/widgets/ref_widgets.dart`                  |
 | 534   | `extension/lib/web-unit-extract.js`             |
-| 523   | `mcp-server/catalog.ts` (`test/catalog_consistency.test.ts` reads its source, so update that test in the same change as any split) |
 
 The 2026-09 live-mirror / update-flow / OTA-flavors work took `lib/blocs/screen_capture_bloc.dart`
 (856 → 500), `lib/screens/tabs/settings_tab.dart` (714 → 312),
@@ -254,10 +269,11 @@ once — re-run it after touching the mixins.
 them: `lib/blocs/screen_capture_bloc.dart` (**500, exactly at the limit**),
 `mcp-server/catalog-web-agent.ts` (498), `extension/lib/web-unit-action.js` (490),
 `mcp-server/cognitive-memory.ts` (485), `extension/lib/web-tools.js` (482),
-`lib/services/app_update_service.dart` (481), `website/index.html` (479),
-`mcp-server/mcp.ts` (473) and `android/.../ScreenCaptureService.kt` (469).
-`mcp-server/catalog.ts` is already over the limit and grows every time an MCP tool is added, so
-split it (e.g. phone tools vs `web_*` tools) *before* adding the tool, not after.
+`lib/services/app_update_service.dart` (481), `website/index.html` (479) and
+`android/.../ScreenCaptureService.kt` (469). (`mcp-server/mcp.ts`, 473, dropped to 290 when the
+control/os handlers moved to `mcp-control.ts`.) Phone and OS tool definitions now go in
+`catalog-control.ts`, `web_*` ones in the `catalog-web*.ts` files; `test/catalog_consistency.test.ts`
+reads the catalogue and handler sources, so update it in the same change as any further split.
 
 `website/index.html` grows with marketing copy, not logic. If it crosses 500, raise it with the
 user rather than silently exempting it.

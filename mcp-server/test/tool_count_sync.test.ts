@@ -27,7 +27,9 @@ const INDEX_ROW = [
 
 const counters = (html: string): Map<string, number> => {
   const out = new Map<string, number>();
-  for (const m of html.matchAll(/data-count="(\d+)"[^>]*>\d*<\/div>\s*<(?:p|div)[^>]*>([^<]*)</g)) out.set(m[2].trim(), Number(m[1]));
+  // A label may carry detail after a colon ("MCP tools today: 29 for phone and desktop, 197 for the browser");
+  // the part before it names the counter.
+  for (const m of html.matchAll(/data-count="(\d+)"[^>]*>\d*<\/div>\s*<(?:p|div)[^>]*>([^<]*)</g)) out.set(m[2].split(":")[0].trim(), Number(m[1]));
   return out;
 };
 
@@ -60,5 +62,5 @@ test("the published goal page agrees with the catalogue and with its own labels"
   const goal = counters(readFileSync(resolve("..", "website", "goal.html"), "utf-8"));
   assert.equal(goal.get("MCP tools today"), toolDefinitions().length);
   assert.equal(goal.get("Built-in agent prompts"), promptDefinitions().length);
-  assert.equal(goal.get("Servers holding your data"), 0, "a privacy claim is a number a rewrite must never touch");
+  assert.equal(goal.get("EpsolDev servers holding your data"), 0, "a privacy claim is a number a rewrite must never touch");
 });

@@ -28,6 +28,8 @@ from pathlib import Path
 SITE = Path(__file__).resolve().parent.parent / "website"
 INDEX = SITE / "index.html"
 GENERATED = {"setup.html", "changelog.html"}  # tools/build_setup_page.py, tools/build_changelog.py
+# Search-engine ownership files (google<hex>.html) must stay byte-exact, or verification breaks.
+VERIFICATION = re.compile(r"^google[0-9a-f]+\.html$")
 HEADER = re.compile(r'<header class="glass-nav.*?</header>', re.S)
 FOOTER = re.compile(r'<footer class="bg-\[#150E27\].*?</footer>', re.S)
 CURRENT = ' aria-current="page"'
@@ -68,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     problems: list[str] = []
-    pages = [p for p in sorted(SITE.glob("*.html")) if p.name not in GENERATED]
+    pages = [p for p in sorted(SITE.glob("*.html")) if p.name not in GENERATED and not VERIFICATION.match(p.name)]
     for path in pages:
         text = path.read_text(encoding="utf-8")
         if path.name == "404.html" and '<base href="/">' not in text:

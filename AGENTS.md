@@ -12,10 +12,10 @@ ScreenSync is structured into distinct, decoupled subsystems. **New work MUST sl
    - `extension/pages/`: Standalone pages (`dashboard.html`, `popup.html`, `offscreen.html`).
    - `extension/styles/`: Theme tokens (`brand.css`) and component CSS.
 2. **`mcp-server/`** (Node.js & TypeScript MCP Hub Daemon):
-   - `catalog.ts` composes **16 `catalog*.ts` files** (MCP tool definitions and JSON schemas): `catalog-web.ts` plus its `catalog-web-*.ts` siblings (capture, advanced, parity, nextgen, agent, `agent-core`, inspect), the cognitive catalogues (`catalog-cognitive.ts`, `-cognitive-extended`, `-lifespan`, `-adolescent`, `-dynamics`, `-transcendental`) and `catalog-consolidated.ts`. New tool defs go in the most specific existing catalog file — never grow a file past the line limit (`catalog.ts` itself is already over it).
-   - `hub.ts` plus `hub-pairing.ts` / `hub-sse.ts` / `hub-watchers.ts` / `hub-app-update.ts` / `hub-web-call.ts`: Express + SSE hub server relaying requests between MCP clients, the phone, and the browser extension; `device-status.ts` is the single definition of "is the phone connected"; `app-update.ts` is the in-app update manifest.
+   - `catalog.ts` composes **17 `catalog*.ts` files** (MCP tool definitions and JSON schemas): `catalog-control.ts` (phone `control_*`, ADB inspection and `os_*` tools), `catalog-web.ts` plus its `catalog-web-*.ts` siblings (capture, advanced, parity, nextgen, agent, `agent-core`, inspect), the cognitive catalogues (`catalog-cognitive.ts`, `-cognitive-extended`, `-lifespan`, `-adolescent`, `-dynamics`, `-transcendental`) and `catalog-consolidated.ts`. New tool defs go in the most specific existing catalog file — never grow a file past the line limit.
+   - `hub.ts` plus `hub-pairing.ts` / `hub-sse.ts` / `hub-watchers.ts` / `hub-app-update.ts` / `hub-web-call.ts` / `hub-control.ts` (`POST /api/control/:action`: every `control_*` tool over HTTP through `runControlAction`, required arguments checked against the catalogue): Express + SSE hub server relaying requests between MCP clients, the phone, and the browser extension; `device-status.ts` is the single definition of "is the phone connected"; `app-update.ts` is the in-app update manifest.
    - `web.ts` / `web-frame.ts` / `events.ts`: web bridge, frame relay, and the sequenced SSE event stream.
-   - `control.ts`: Mobile Android ADB control and OS automation.
+   - `control.ts`: Mobile Android ADB control actions; `control-adb.ts`: the single adb runner (execFile argv, no host shell; `setAdbRunner()` is the test seam); `control-ui.ts`: the UI tree (a uiautomator dump that is never stale, the parser with every state flag and the hierarchy, `get_ui_hierarchy` filters, the `control_tap_text` / `control_swipe_until` matcher); `control-apps.ts`: the launcher app list and `control_launch_app` by query (package-name match, AMBIGUOUS instead of a guess, no QUERY_ALL_PACKAGES); `mcp-control.ts`: the `control_*` / `os_*` tool handlers (`runControlAction`).
    - `test/`: unit, guard and E2E suites (`npm test`).
 3. **`lib/`** (Flutter Application):
    - Mobile and desktop companion UI built in Dart (BLoC architecture). Layers: `blocs/ core/ models/ repositories/ screens/ services/ widgets/`; the details are in `CLAUDE.md` section 3.
@@ -28,7 +28,7 @@ ScreenSync is structured into distinct, decoupled subsystems. **New work MUST sl
 - **Mandatory Line Limit**: No single code file (`.js`, `.ts`, `.dart`, `.kt`, `.py`, `.html`, `.css`, `.ps1`) may exceed **500 lines**. This is a hard cap, the same as `CLAUDE.md` section 4 and `.cursorrules`; there is no "500 to 600" allowance.
 - **Decomposition**: If a file approaches 500 lines, it must be decomposed into modular, single-responsibility files (e.g., splitting locators, interactions, extractions, device emulation into their own units).
 - **No Monoliths**: Avoid grouping unrelated tools into single monolithic script files. New capabilities go into NEW files, not into already-oversized ones.
-- **Known debt**: 15 files are over the cap today; `CLAUDE.md` section 4 holds the measured list. Do not add to them, and split one when you next touch it.
+- **Known debt**: 14 files are over the cap today; `CLAUDE.md` section 4 holds the measured list. Do not add to them, and split one when you next touch it.
 
 ---
 

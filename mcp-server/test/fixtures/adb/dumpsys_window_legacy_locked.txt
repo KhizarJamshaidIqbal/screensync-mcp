@@ -1,0 +1,9 @@
+# Synthetic excerpt in the older PhoneWindowManager spelling: no KeyguardServiceDelegate block and no isKeyguardShowing, landscape
+WINDOW MANAGER POLICY STATE (dumpsys window policy)
+    mLidState=-1 mLidOpenRotation=-1 mCameraLensCoverState=-1 mHdmiPlugged=false
+    mShowingLockscreen=true mShowingDream=false mDreamingLockscreen=true
+    mStatusBar=Window{8a41c2e u0 StatusBar} isStatusBarKeyguard=true
+WINDOW MANAGER DISPLAY CONTENTS (dumpsys window displays)
+  mCurrentFocus=Window{8a41c2e u0 StatusBar}
+  mFocusedApp=AppWindowToken{20b2cf6 token=Token{3f9d5a1 ActivityRecord{d6b4c88 u0 com.android.launcher3/.Launcher t2}}}
+    mCurrentRotation=1

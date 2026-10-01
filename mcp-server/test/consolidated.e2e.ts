@@ -7,7 +7,9 @@
  *   1. tools/list is the small meta-tool set: web_mind is in it and no granular cognitive tool is,
  *   2. help returns one exact schema on demand, and an overview of every action,
  *   3. a learn -> recall round trip works through the meta-tool (MCP -> resolve -> hub -> store -> back),
- *   4. a granular name is refused with a pointer to where it went.
+ *   4. a granular name is refused with a pointer to where it went,
+ *   5. mobile_control screenshot with no adb at all (SCREEN_SYNC_ADB_BIN points at nothing, so no phone is
+ *      ever reached): NO_SCREEN naming the `frame` action, then the bubble's upload, marked live: false.
  *
  * Prereq: `npm run build` (spawns dist/index.js).
  */
@@ -45,7 +47,10 @@ try {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: ["dist/index.js"],
-    env: { ...process.env, SCREEN_SYNC_PORT: String(PORT), SCREEN_SYNC_TOKEN: TOKEN, SCREEN_SYNC_DATA_DIR: DATA_DIR, TOOL_MODE: "consolidated" },
+    env: {
+      ...process.env, SCREEN_SYNC_PORT: String(PORT), SCREEN_SYNC_TOKEN: TOKEN, SCREEN_SYNC_DATA_DIR: DATA_DIR, TOOL_MODE: "consolidated",
+      SCREEN_SYNC_ADB_BIN: path.join(DATA_DIR, "no-adb-here"),
+    },
   });
   client = new Client({ name: "consolidated-e2e", version: "1.0.0" });
   await client.connect(transport);
@@ -96,8 +101,26 @@ try {
   assert.equal((direct as { isError?: boolean }).isError, true);
   assert.match(String(payload(direct).error), /In this mode it is web_mind with action "recall"/);
 
+  // 5. mobile_control screenshot without adb: it answered with the bubble's frame before it meant the live grab.
+  const none = await client.callTool({ name: "mobile_control", arguments: { action: "screenshot" } });
+  assert.equal((none as { isError?: boolean }).isError, true);
+  assert.equal(payload(none).code, "NO_SCREEN");
+  assert.match(String(payload(none).error), /mobile_control action "frame"/);
+  const PNG_1X1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+  const upload = await fetch(`http://127.0.0.1:${PORT}/api/screens/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}` },
+    body: JSON.stringify({ imageDataUrl: `data:image/png;base64,${PNG_1X1}`, filename: "bubble.png", timestamp: new Date().toISOString() }),
+  });
+  assert.equal(upload.status, 201, "the bubble's upload is stored");
+  const shot = await client.callTool({ name: "mobile_control", arguments: { action: "screenshot" } });
+  const parts = (shot as { content: Array<{ type: string; data?: string }> }).content;
+  assert.deepEqual(parts.map((c) => c.type), ["image", "text"], "an image, then the text, as get_latest_screenshot's reply");
+  assert.equal(parts[0].data, PNG_1X1);
+  assert.deepEqual([payload(shot).source, payload(shot).live], ["bubble", false]);
+
   await client.close();
-  console.log("PASS consolidated e2e (web_mind: listed small, help on demand, learn -> recall round trip, granular names redirected)");
+  console.log("PASS consolidated e2e (web_mind: listed small, help on demand, learn -> recall round trip, granular names redirected; mobile_control screenshot falls back to the bubble frame without adb)");
 } catch (err) {
   failed = true;
   console.error("FAIL consolidated e2e:", err);

@@ -284,11 +284,11 @@ http://&lt;IP&gt;:3000#&lt;TOKEN&gt;</code></pre></div>
 <tr><th scope="row"><code>GET /api/events</code></th><td>Bearer token</td><td>SSE live stream: frame | inspection | patch | tool | agent_connect</td></tr>
 <tr><th scope="row"><code>GET /api/screens/latest</code></th><td>Bearer token</td><td>Latest screenshot as base64 data URL</td></tr>
 <tr><th scope="row"><code>POST /api/screens/upload</code></th><td>Bearer token</td><td>Push a capture (phone app)</td></tr>
-<tr><th scope="row"><code>GET /api/device/status</code></th><td>Bearer token</td><td>Connection state, device model, retained frames</td></tr>
+<tr><th scope="row"><code>GET /api/device/status</code></th><td>Bearer token</td><td>Phone link state (streaming, linked_no_frames or no_phone), last frame age, device model, retained frames</td></tr>
 <tr><th scope="row"><code>GET /api/mcp/catalog</code></th><td>Bearer token</td><td>Full tool/prompt/resource catalog</td></tr>
 <tr><th scope="row"><code>GET /api/inspections/latest</code></th><td>Bearer token</td><td>Bug regions published by the agent</td></tr>
 <tr><th scope="row"><code>GET /api/patches/latest</code></th><td>Bearer token</td><td>Latest git patch from the agent</td></tr>
-<tr><th scope="row"><code>POST /api/control/:action</code></th><td>Bearer token</td><td>status | screenshot | tap | long_press | swipe | scroll | type | key | launch</td></tr>
+<tr><th scope="row"><code>POST /api/control/:action</code></th><td>Bearer token</td><td>Run any control_* tool by its short name: status, screenshot, tap (count 2 = double tap), long_press, swipe, swipe_until, scroll, type, key, tap_text, open_url, launch_app (launch still works). A missing required argument returns 400 MISSING_ARG.</td></tr>
 </tbody></table></div>
 <h2 id="troubleshooting">Troubleshooting</h2>
 <ul>

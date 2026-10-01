@@ -114,8 +114,8 @@ def apply_page(path: Path, dry: bool) -> list[str]:
 def audit() -> list[str]:
     problems: list[str] = []
     for page in sorted(SITE.glob("*.html")):
-        if page.name in SKIP_PAGES:
-            continue
+        if page.name in SKIP_PAGES or re.match(r"^google[0-9a-f]+\.html$", page.name):
+            continue  # search-engine verification files stay byte-exact
         text = page.read_text(encoding="utf-8")
         missing = [label for _key, label, _a, _i, guard in INSERTIONS if guard not in text]
         if page.name in CONTEXTUAL_PAGES and CONTEXTUAL_GUARD not in text:
@@ -155,8 +155,8 @@ def main(argv: list[str] | None = None) -> int:
     today = args.lastmod or date.today().isoformat()
     touched = 0
     for page in sorted(SITE.glob("*.html")):
-        if page.name in SKIP_PAGES:
-            continue
+        if page.name in SKIP_PAGES or re.match(r"^google[0-9a-f]+\.html$", page.name):
+            continue  # search-engine verification files stay byte-exact
         added = apply_page(page, args.dry_run)
         if added:
             print("  %-20s +%s" % (page.name, " +".join(added)))

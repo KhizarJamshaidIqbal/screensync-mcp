@@ -1,0 +1,4 @@
+List of devices attached
+emulator-5554	offline
+R5CT1234567	unauthorized
+

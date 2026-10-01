@@ -1,0 +1,3 @@
+# Synthetic excerpt: a dumpsys power that prints no mWakefulness, only the display power state
+POWER MANAGER (dumpsys power)
+Display Power: state=OFF

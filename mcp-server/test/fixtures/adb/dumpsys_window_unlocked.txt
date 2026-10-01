@@ -1,0 +1,64 @@
+# Excerpt of adb shell dumpsys window, Android 16 emulator (sdk_gphone64_x86_64), screen on, no lock screen, portrait
+WINDOW MANAGER POLICY STATE (dumpsys window policy)
+    KeyguardServiceDelegate
+      showing=false
+      inputRestricted=false
+      occluded=false
+      secure=false
+      dreaming=false
+      systemIsReady=true
+      deviceHasKeyguard=true
+      enabled=true
+      offReason=0
+      currentUser=-10000
+      bootCompleted=true
+      screenState=SCREEN_STATE_ON
+      interactiveState=INTERACTIVE_STATE_AWAKE
+      KeyguardStateMonitor
+        mIsShowing=false
+        mSimSecure=false
+        mInputRestricted=false
+        mTrusted=false
+WINDOW MANAGER DISPLAY CONTENTS (dumpsys window displays)
+  Display: mDisplayId=0 (organized)
+    init=1080x2400 420dpi mMinSizeOfResizeableTaskDp=220 cur=1080x2400 app=1080x2400 rng=1080x1080-2400x2400
+    deferred=false mLayoutNeeded=false
+  mLastOrientationSource=WindowedMagnification:0:31@162400118
+  deepestLastOrientationSource=ActivityRecord{208008637 u0 com.screensync.mcp/.MainActivity t178}
+  overrideConfig={1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long compactNeeded port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.9 fontWeightAdjustment=0}
+  mHasSetIgnoreOrientationRequest=false ignoreOrientationRequest=false
+  mLayoutSeq=391
+  mImeLayeringTarget=Window{5bf3905 u0 com.screensync.mcp/com.screensync.mcp.MainActivity}
+  mImeInputTarget=Window{5bf3905 u0 com.screensync.mcp/com.screensync.mcp.MainActivity}
+  mImeControlTarget=Window{5bf3905 u0 com.screensync.mcp/com.screensync.mcp.MainActivity}
+  mRemoteInsetsControlTarget=RemoteInsetsControlTarget{6d168e9 displayId=0 requestedVisibleTypes=503 animatingTypes=0}
+  mCurrentFocus=Window{5bf3905 u0 com.screensync.mcp/com.screensync.mcp.MainActivity}
+  mFocusedApp=ActivityRecord{208008637 u0 com.screensync.mcp/.MainActivity t178}
+  mFixedRotationLaunchingApp=null
+
+  mHoldScreenWindow=null
+    mCarDockEnablesAccelerometer=true mDeskDockEnablesAccelerometer=true
+    mDockMode=EXTRA_DOCK_STATE_UNDOCKED mLidState=LID_OPEN
+    mAwake=true mScreenOnEarly=true mScreenOnFully=true
+    mKeyguardDrawComplete=true mWindowManagerDrawComplete=true
+    mHdmiPlugged=false
+    mLastBehavior=SHOW_TRANSIENT_BARS_BY_SWIPE
+    mShowingDream=false mDreamingLockscreen=false
+    mStatusBar=Window{d4b4cdc u0 StatusBar}
+    mExpandedPanel=Window{c90897d u0 NotificationShade}
+    isKeyguardShowing=false
+    mNavigationBar=Window{9bda0d4 u0 Taskbar}
+    mNavBarOpacityMode=2
+      mSwipeDistanceThreshold=63
+
+  DisplayRotation
+    mCurrentAppOrientation=SCREEN_ORIENTATION_UNSPECIFIED
+    mLastOrientation=-1
+    mRotation=0 mDeferredRotationPauseCount=0
+    mLandscapeRotation=ROTATION_90 mSeascapeRotation=ROTATION_270
+    mPortraitRotation=ROTATION_0 mUpsideDownRotation=ROTATION_180
+    mSupportAutoRotation=true
+    WindowOrientationListener
+      mEnabled=true
+      mCurrentRotation=ROTATION_0
+      mSensorType=null

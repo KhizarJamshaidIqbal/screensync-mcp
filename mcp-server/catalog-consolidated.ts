@@ -120,12 +120,18 @@ const ACTION_MAP: Record<string, Record<string, string>> = {
   },
   mobile_control: {
     tap: "control_tap",
+    tap_text: "control_tap_text",
+    long_press: "control_long_press",
     swipe: "control_swipe",
     type: "control_type",
-    screenshot: "get_latest_screenshot",
+    // The live screen over ADB: the bubble's latest upload can be minutes old, so that one is `frame`. Without ADB,
+    // `screenshot` still answers with the bubble's frame, marked as such (it did before it meant the live grab).
+    screenshot: "control_screenshot",
+    frame: "get_latest_screenshot",
     status: "get_device_status",
     key: "control_key",
     launch: "control_launch_app",
+    open_url: "control_open_url",
     scroll: "control_scroll",
     ui_hierarchy: "get_ui_hierarchy",
   },
@@ -262,7 +268,7 @@ export function consolidatedToolDefinitions() {
     {
       name: "mobile_control",
       description:
-        "Control the connected Android device. Actions: tap (tap coordinates/text), swipe, type (enter text), screenshot (latest screen capture), status (device info), key (press hardware key), launch (open app), scroll, ui_hierarchy (accessibility tree).",
+        "Control the connected Android device. Actions: tap (coordinates; count: 2 double-taps), tap_text (tap the element whose text or description matches query), long_press, swipe, type (enter text), screenshot (the live screen, grabbed over ADB now; with no ADB device, the latest bubble capture instead, marked live: false with its age), frame (the latest bubble capture, which can be old), status (device info), key (press hardware key), launch (open app: package, or query = a package-name substring, AMBIGUOUS when several match; list: true lists the launcher apps), open_url (an http(s) URL in the phone's browser), scroll, ui_hierarchy (UI element tree; each node's state lists the flags that apply, fields ['all'] returns every key; args narrow it: all, enabled, checked, scrollable, className, region, maxDepth, fields, format).",
       inputSchema: {
         type: "object" as const,
         properties: {
@@ -297,12 +303,14 @@ export function consolidatedToolDefinitions() {
 }
 
 /**
- * Resolve a consolidated meta-tool call to the underlying granular tool name and args.
+ * Resolve a consolidated meta-tool call to the underlying granular tool name and args. `liveOrFrame` marks
+ * mobile_control `screenshot`: mcp.ts answers it with liveScreenOrFrame (mcp-control.ts), which falls back to
+ * the bubble's latest frame when ADB cannot grab the screen.
  */
 export function resolveConsolidatedCall(
   metaToolName: string,
   params: { action: string; args?: Record<string, unknown> }
-): { toolName: string; args: Record<string, unknown> } | { error: string } {
+): { toolName: string; args: Record<string, unknown>; liveOrFrame?: true } | { error: string } {
   const map = ACTION_MAP[metaToolName];
   if (!map) {
     // A granular name reaches here when a client calls a tool the mode does not list. Say where it went.
@@ -332,6 +340,7 @@ export function resolveConsolidatedCall(
     args.tool = String(args.action ?? args.tool ?? "web_mind").trim();
     delete args.action;
   }
+  if (metaToolName === "mobile_control" && params.action === "screenshot") return { toolName: granularName, args, liveOrFrame: true };
 
   return { toolName: granularName, args };
 }

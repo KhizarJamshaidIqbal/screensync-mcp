@@ -76,9 +76,13 @@ are in [`CLAUDE.md`](CLAUDE.md) and [`AGENTS.md`](AGENTS.md).
 │   ├── hub.ts + hub-*.ts     Express: upload, SSE, pairing, catalog,
 │   │                         inspections, patches, control API, app update
 │   ├── mcp.ts / catalog*.ts  MCP protocol + capability catalogue: catalog.ts
-│   │                         composes 16 catalog files (226 tools / 17 prompts
+│   │                         composes 17 catalog files (226 tools / 17 prompts
 │   │                         / 3 resources)
-│   ├── control.ts            ADB backend (input, UI tree, logcat, record)
+│   ├── control*.ts           ADB backend (input, UI tree, logcat, record);
+│   │                         control-adb.ts is the one adb runner (no shell),
+│   │                         control-ui.ts the UI tree and tap_text matcher,
+│   │                         control-apps.ts the app list and launch by query,
+│   │                         mcp-control.ts the control_* / os_* handlers
 │   ├── storage.ts / config.ts  Retention, env, auth
 │   └── test/                 Unit, guard and E2E suites (`npm test`)
 ├── extension/                MV3 browser extension: the `web_*` tools run
@@ -166,9 +170,9 @@ Diagnose tab shows the heatmap without a manual refresh.
 
 ## MCP capability surface
 
-Single source of truth: [`mcp-server/catalog.ts`](mcp-server/catalog.ts), which composes the 16
-`mcp-server/catalog*.ts` files (the phone, ADB-control and `os_*` tools live in `catalog.ts`; the
-`web_*` browser tools and the cognitive-memory tools are in the sibling files). It is also served at `GET /api/mcp/catalog` and
+Single source of truth: [`mcp-server/catalog.ts`](mcp-server/catalog.ts), which composes the 17
+`mcp-server/catalog*.ts` files (the phone, ADB-control and `os_*` tools live in `catalog-control.ts`;
+the `web_*` browser tools and the cognitive-memory tools are in the other sibling files). It is also served at `GET /api/mcp/catalog` and
 `screensync://skills`. The published tool count is kept in step by `npm run sync:toolcount`.
 
 **Capture & inspect** — `get_latest_screenshot`, `get_recent_screenshots`,
@@ -210,7 +214,7 @@ summary → heatmap), `publish_patch` (git patch → one-tap copy)
 | `GET /api/device/status` | Bearer | Connection state: `connected` (a frame in the last 60 s), `hasFrames`, `phoneOnline` (phone on the SSE stream), `state` (`streaming` · `linked_no_frames` · `no_phone`), plus the older `stale` / `lastFrameAgeMs` fields |
 | `GET /api/app/latest` · `GET /apk` | Bearer (loopback allowed on `latest`; `/apk` also takes `?token=`) | In-app update channel: newest build manifest (`versionCode`, `sha256`, `apkPath`, `versionSource`) and the APK itself |
 | `GET/POST /api/os-control` | Bearer | Host-level OS-control switch |
-| `POST /api/control/:action` | Bearer | ADB control plane |
+| `POST /api/control/:action` | Bearer | ADB control plane: every `control_*` tool, named without the prefix (`tap`, `tap_text`, `open_url`, `launch_app`, ...; `launch` still works), through the same handler as MCP. A missing required argument is `400 MISSING_ARG` |
 
 ## Configuration
 
@@ -227,7 +231,9 @@ summary → heatmap), `publish_patch` (git patch → one-tap copy)
 
 - **LAN-only by default** — nothing leaves your network unless you enable
   Drive mode. Bearer token guards every `/api` route; the control plane
-  strips shell metacharacters and allow-lists key codes.
+  runs adb without a host shell, quotes typed text and URLs for the
+  phone's shell, refuses what it cannot type (Unicode) instead of altering
+  it, and allow-lists key codes.
 - **Retention is a privacy feature** — hub keeps the newest 20 frames,
   archives overflow, and hard-prunes the archive at 100; the phone cache
   caps at 60 rows; Drive keeps the latest 20 in `ScreenSync_MCP/` using the

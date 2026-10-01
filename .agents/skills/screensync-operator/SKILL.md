@@ -240,6 +240,74 @@ The user's real browser already has active logins for their accounts (X, LinkedI
 - Emulate devices per tab: `web_device_emulate` (iphone_15, pixel_8, …),
   `web_resize`, `web_set_user_agent`.
 
+## 5b · The Android phone (control_* over ADB)
+
+`control_status` first (is an ADB device reachable), `control_screenshot` to see, then
+**`get_ui_hierarchy`** to locate. Never guess coordinates from a picture when the tree has the node.
+
+- **Is the phone usable?** `control_status` also returns `screenOn` (with `wakefulness`), `locked` (the
+  lock screen is up), `secure` (it needs a PIN), `foreground {package, activity}` (the focused app; the
+  one behind the lock screen while it is up) and `rotation` (0-3 quarter turns). A field the phone does
+  not print is left out, never guessed. Screen off: `control_key power` wakes it. **Locked: ask the user
+  to unlock it; never try to unlock it yourself.**
+- **Screenshot warnings:** `control_screenshot` puts a text block `{success, warnings: [{code,
+  message}]}` before the image when the screen is off (`SCREEN_OFF`), the lock screen is up (`LOCKED`) or
+  the frame is nearly one flat colour (`LIKELY_BLANK_OR_SECURE`: blank, or an app that blocks capture,
+  whose frames are black). The image is still returned; read the warning before acting on it.
+
+- **What a node says** (no `fields`): text, desc, resourceId, className, clickable, bounds, center,
+  and `state`, the flags that apply: `disabled`, `checkable`, `checked`, `focused`, `scrollable`,
+  `longClickable`, `password`, `selected` (absent when none does). `fields: ["all"]` returns every key:
+  each flag as a boolean (`enabled`, `focusable`, ...), `package`, `index` (among siblings), `depth`
+  and `parent` (the position of the nearest listed ancestor in the same reply, null at the top). Or
+  name the keys you want, `state` included: `["text","center","state"]`.
+- **Default view:** text, desc or clickable nodes, plus scroll containers, EditText fields and
+  checkable toggles. `all: true` lists every node; it is large, so add `fields` or `maxDepth`.
+- **Filters (they combine):** `enabled`, `checked`, `scrollable` (true / false, omit for both),
+  `className` (substring, e.g. `"Switch"`), `region {x1,y1,x2,y2, mode: "intersect"|"inside"}` (pixels,
+  or 0..1 fractions when all four are), `maxDepth`, plus the old `onlyClickable` and `filter`.
+  `format: "tree"` nests `children` instead of the flat list.
+- **Is the toggle on?** `get_ui_hierarchy {checked: true}`. **Will the button work?** A submit button
+  whose `state` says `disabled` does nothing when tapped.
+- **`UI_DUMP_FAILED`** (`retryable: true`) means uiautomator could not dump twice in a row (the screen
+  was animating). Wait a second and call again. You never get an older screen's tree instead.
+- **Acting by label:** `control_tap_text {query}` picks the best enabled match (clickable first, then the
+  smallest). Disabled elements are skipped, and the error says how many; pass `enabled: false` to
+  target one on purpose. `index: N` taps the Nth match in hierarchy order (duplicate labels),
+  `className` and `clickableOnly: true` narrow it. `control_swipe_until` matches the same way. With no
+  label, `control_tap` the node's `center`.
+- **Double tap:** `control_tap {x, y, count: 2}` runs both taps back to back in one shell on the phone
+  (no adb round trip between them). Each tap still starts its own `input` process, so a slow phone can
+  miss Android's double-tap window: check the result with `compare_frames`.
+- **Opening an app:** `control_launch_app {package}` when you know it. Otherwise `{query: "whatsapp"}`:
+  a case-insensitive substring of the PACKAGE name, not the home-screen label (Gmail is
+  `com.google.android.gm`), matched against the launcher apps. One match launches it; several return
+  `AMBIGUOUS` with `candidates` (it never guesses: pass the one you mean as `package`); none returns
+  `NOT_FOUND`. `{list: true}` returns the package names without launching (add `query` to filter,
+  `thirdPartyOnly: true` for user-installed apps only). On an older Android without the launcher query
+  the list is the user-installed apps only (`source: "third-party"`): launch system apps by package.
+- **Typing:** `control_type` types the text exactly: every printable ASCII character, quotes and
+  `& ? $ ; %` included. Unicode typing is not supported yet: non-ASCII text (accents, Urdu, emoji)
+  returns `UNICODE_NOT_SUPPORTED` with `count` and types nothing. A newline or tab returns
+  `CONTROL_CHARACTERS_NOT_SUPPORTED`: type the parts and `control_key enter` / `tab` between them.
+- **Editing keys:** `control_key` `select_all` (ctrl+a, Android 13+; older phones return
+  `KEY_COMBINATION_NOT_SUPPORTED`: long-press the field, then `control_tap_text "Select all"`),
+  `move_end` (cursor to the end) and `paste` (the phone's clipboard). To replace a field's text: tap it,
+  `select_all`, then `control_type`.
+- **URLs:** `control_open_url` opens the whole URL, query string and fragment included; a non-http(s)
+  or malformed one returns `INVALID_URL`. If adb fails, the error names only the host and the length.
+- **Consolidated mode** (`mobile_control`): `screenshot` is the live `control_screenshot`, then a text
+  block (`source: "adb"`, `live: true`). With no ADB device it returns the bubble's last upload instead,
+  marked `live: false` with `ageSeconds` and a `note`: it can be old, so tap the bubble for a fresh one.
+  With neither it is `NO_SCREEN`. `frame` is always the bubble's last upload. `tap_text`, `long_press`
+  and `open_url` are actions too.
+- **Without an MCP client** (the app's tool runner, the extension, a script): `POST
+  /api/control/<action>` with the Bearer token runs the same handler, named without `control_` (`tap`,
+  `tap_text`, `open_url`, `launch_app`; the old `launch` still works). A missing required argument is
+  `400 MISSING_ARG` (`missing` lists them) and a non-numeric coordinate `400 INVALID_ARG`, before
+  anything reaches the phone. A typed refusal keeps its `code` (400), and `UI_DUMP_FAILED` is 503.
+- Verify after acting: `compare_frames`, or read the tree again (`{checked: true}` after a toggle).
+
 ## 6 · Logged-in social flows (the real-account advantage)
 
 There are no dedicated social-scraping or social-posting tools (they were removed on
