@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -41,14 +43,14 @@ void main() {
 
   test('carries the token the app actually sends', () {
     SettingsService.instance.pairingToken = 'tok-42';
-    final pairing = currentPairing(
-        repo: appRepo(), settings: SettingsService.instance);
+    final pairing =
+        currentPairing(repo: appRepo(), settings: SettingsService.instance);
     expect(pairing.token, 'tok-42');
   });
 
   test('never yields an empty token', () {
-    final pairing = currentPairing(
-        repo: appRepo(), settings: SettingsService.instance);
+    final pairing =
+        currentPairing(repo: appRepo(), settings: SettingsService.instance);
     expect(pairing.token, 'screensync-local-dev');
   });
 
@@ -69,5 +71,13 @@ void main() {
     expect(parsed, isNotNull);
     expect(parsed!.url, 'http://192.168.1.77:3000');
     expect(parsed.token, 'tok 42/=');
+  });
+
+  // The MCP tab's QR code used to carry the whole Connect Kit (about 11 KB) and
+  // threw QrInputTooLongException on every build. The pairing link it shows now
+  // has to stay far inside the largest QR code at level M: 2,331 bytes.
+  test('the pairing link fits in a QR code with room to spare', () {
+    final link = pairingLinkFor('http://192.168.100.200:3000', 'x' * 128);
+    expect(utf8.encode(link).length, lessThan(2331 ~/ 4));
   });
 }

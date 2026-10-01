@@ -11,6 +11,7 @@ import '../../widgets/common_widgets.dart';
 import '../../widgets/ref_widgets.dart';
 import '../dashboard/detail_cards.dart';
 import '../mcp/update_card.dart';
+import '../pair_scan/pair_scan_parts.dart';
 
 /// "MCP" page: live catalog of the desktop hub's tools/skills/resources and
 /// a one-tap Copy Connect Kit that lets any agent self-configure.
@@ -33,8 +34,8 @@ class _McpTabState extends State<McpTab> {
 
   void _reload() {
     setState(() {
-      _catalog = context.read<ScreenCaptureBloc>().screenRepository
-          .fetchMcpCatalog();
+      _catalog =
+          context.read<ScreenCaptureBloc>().screenRepository.fetchMcpCatalog();
     });
   }
 
@@ -42,6 +43,14 @@ class _McpTabState extends State<McpTab> {
         hubUrl: context.read<ScreenCaptureBloc>().screenRepository.hubUrl,
         token: SettingsService.instance.pairingToken,
       );
+
+  String _pairingLink() {
+    final pairing = currentPairing(
+      repo: context.read<ScreenCaptureBloc>().screenRepository,
+      settings: SettingsService.instance,
+    );
+    return pairingLinkFor(pairing.url, pairing.token);
+  }
 
   Future<void> _copyKit(McpCatalog catalog) async {
     await Clipboard.setData(ClipboardData(text: _kit(catalog)));
@@ -173,8 +182,7 @@ class _McpTabState extends State<McpTab> {
               TextButton.icon(
                 onPressed: catalog == null
                     ? null
-                    : () => setState(
-                        () => _showKitPreview = !_showKitPreview),
+                    : () => setState(() => _showKitPreview = !_showKitPreview),
                 icon: Icon(
                     _showKitPreview
                         ? Icons.visibility_off_rounded
@@ -187,15 +195,14 @@ class _McpTabState extends State<McpTab> {
                 // OTA: the hub broadcasts app_update when a newer APK is built;
                 // this card is where the owner turns that into an install.
                 AppUpdateCard(
-                  hubUrl: context
-                      .read<ScreenCaptureBloc>()
-                      .screenRepository
-                      .hubUrl,
+                  hubUrl:
+                      context.read<ScreenCaptureBloc>().screenRepository.hubUrl,
                   token: SettingsService.instance.pairingToken,
                 ),
                 const SizedBox(height: 12),
-                // Both, as requested: the QR below carries the whole kit, and
-                // this address is what Settings > Hub accepts typed in by hand.
+                // Both, as requested: the QR below is the pairing link another
+                // phone scans, and this address is what Settings > Hub accepts
+                // typed in by hand.
                 GlassPanel(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,19 +236,23 @@ class _McpTabState extends State<McpTab> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // D2: QR of the same connect-kit string that gets copied.
+                // The pairing link, not the Connect Kit: the kit lists every
+                // tool (about 11 KB for 226 tools) and the largest QR code holds
+                // 2,331 bytes at level M. qr 3.0.2 does not reject that up
+                // front; it throws while painting, and the error box pushed
+                // the tool list about 110 screens down.
                 Center(
                   child: Semantics(
-                    label: 'Connect Kit QR code — scan to configure an agent',
+                    label: 'Pairing QR code — scan it with ScreenSync on '
+                        'another phone to link it to this hub',
                     child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusM),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusM),
                       ),
                       child: QrImageView(
-                        data: _kit(catalog),
+                        data: _pairingLink(),
                         size: 180,
                         backgroundColor: Colors.white,
                         errorCorrectionLevel: QrErrorCorrectLevel.M,
@@ -286,8 +297,8 @@ class _McpTabState extends State<McpTab> {
                 Wrap(
                   spacing: 6,
                   children: prompt.arguments
-                      .map((a) => MicroChip(
-                          label: 'arg: $a', color: AppTheme.warning))
+                      .map((a) =>
+                          MicroChip(label: 'arg: $a', color: AppTheme.warning))
                       .toList(),
                 ),
               ],
@@ -323,8 +334,7 @@ class _McpTabState extends State<McpTab> {
             ...catalog.usage.map((step) => Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(step,
-                      style:
-                          TextStyle(fontSize: 12, color: dimColor(context))),
+                      style: TextStyle(fontSize: 12, color: dimColor(context))),
                 )),
           ],
         ),
@@ -375,8 +385,8 @@ class _ToolTileState extends State<_ToolTile> {
           tilePadding: EdgeInsets.zero,
           childrenPadding: const EdgeInsets.only(top: 6),
           title: Text(widget.tool.name,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600, fontSize: 14)),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
           subtitle: Text(widget.tool.description,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -385,8 +395,7 @@ class _ToolTileState extends State<_ToolTile> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(widget.tool.description,
-                  style:
-                      TextStyle(fontSize: 12, color: dimColor(context))),
+                  style: TextStyle(fontSize: 12, color: dimColor(context))),
             ),
             const SizedBox(height: 10),
             Row(
@@ -415,8 +424,8 @@ class _ToolTileState extends State<_ToolTile> {
                       color: AppTheme.danger.withValues(alpha: 0.35)),
                 ),
                 child: Text(_error!,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.danger)),
+                    style:
+                        const TextStyle(fontSize: 12, color: AppTheme.danger)),
               ),
             ],
             if (_result != null) ...[
