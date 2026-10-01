@@ -1,7 +1,145 @@
 {
-  "generatedAt": "2026-09-25T20:48:43Z",
+  "generatedAt": "2026-10-01T07:38:37Z",
   "repo": "github.com/KhizarJamshaidIqbal/screensync-mcp",
   "entries": [
+    {
+      "sha": "2b14553",
+      "date": "2026-10-01",
+      "ts": 1790839335,
+      "parts": [
+        {
+          "stream": "app",
+          "streamLabel": "App",
+          "version": "2.5.7",
+          "build": "35",
+          "display": "2.5.7 (build 35)",
+          "date": "2026-10-01",
+          "ts": 1790839335,
+          "sha": "2b14553",
+          "groups": {
+            "NEW": [],
+            "IMPROVED": [],
+            "FIXED": [
+              "Open the privacy policy and hub download on www.screensyncmcp.tech"
+            ]
+          },
+          "count": 1
+        }
+      ],
+      "count": 1,
+      "title": "App 2.5.7 (build 35)"
+    },
+    {
+      "sha": "26544ae",
+      "date": "2026-10-01",
+      "ts": 1790839334,
+      "parts": [
+        {
+          "stream": "extension",
+          "streamLabel": "Extension",
+          "version": "1.14.4",
+          "build": "",
+          "display": "1.14.4",
+          "date": "2026-10-01",
+          "ts": 1790839334,
+          "sha": "26544ae",
+          "groups": {
+            "NEW": [],
+            "IMPROVED": [],
+            "FIXED": [
+              "Load the setup guide and site links from www.screensyncmcp.tech",
+              "Keep the popup device box visible while the phone has frames but paused"
+            ]
+          },
+          "count": 2
+        }
+      ],
+      "count": 2,
+      "title": "Extension 1.14.4"
+    },
+    {
+      "sha": "d5dd510",
+      "date": "2026-10-01",
+      "ts": 1790797527,
+      "parts": [
+        {
+          "stream": "app",
+          "streamLabel": "App",
+          "version": "2.5.6",
+          "build": "34",
+          "display": "2.5.6 (build 34)",
+          "date": "2026-10-01",
+          "ts": 1790797527,
+          "sha": "d5dd510",
+          "groups": {
+            "NEW": [
+              "A modern update dialog that follows the app theme, and a global UI template"
+            ],
+            "IMPROVED": [],
+            "FIXED": []
+          },
+          "count": 1
+        }
+      ],
+      "count": 1,
+      "title": "App 2.5.6 (build 34)"
+    },
+    {
+      "sha": "87ff657",
+      "date": "2026-09-30",
+      "ts": 1790788103,
+      "parts": [
+        {
+          "stream": "app",
+          "streamLabel": "App",
+          "version": "2.5.5",
+          "build": "33",
+          "display": "2.5.5 (build 33)",
+          "date": "2026-09-30",
+          "ts": 1790788103,
+          "sha": "87ff657",
+          "groups": {
+            "NEW": [],
+            "IMPROVED": [],
+            "FIXED": [
+              "Ask for screen-capture consent and stop showing \"connected\" when nothing is streaming",
+              "Show the update dialog, verify the download and add an auto-update switch",
+              "Split sideload and play flavors so the hub installer keeps its permission"
+            ]
+          },
+          "count": 3
+        }
+      ],
+      "count": 3,
+      "title": "App 2.5.5 (build 33)"
+    },
+    {
+      "sha": "a75ec0a",
+      "date": "2026-09-29",
+      "ts": 1790682199,
+      "parts": [
+        {
+          "stream": "extension",
+          "streamLabel": "Extension",
+          "version": "1.14.3",
+          "build": "",
+          "display": "1.14.3",
+          "date": "2026-09-29",
+          "ts": 1790682199,
+          "sha": "a75ec0a",
+          "groups": {
+            "NEW": [],
+            "IMPROVED": [],
+            "FIXED": [
+              "Report what a screenshot really captured"
+            ]
+          },
+          "count": 1
+        }
+      ],
+      "count": 1,
+      "title": "Extension 1.14.3"
+    },
     {
       "sha": "b94d315",
       "date": "2026-09-26",
@@ -597,9 +735,9 @@
     }
   ],
   "stats": {
-    "releases": 18,
-    "appReleases": 6,
-    "extensionReleases": 12,
-    "changes": 112
+    "releases": 23,
+    "appReleases": 9,
+    "extensionReleases": 14,
+    "changes": 120
   }
 }
