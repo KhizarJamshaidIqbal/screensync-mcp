@@ -4,8 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/screen_capture_bloc.dart';
 import '../../core/app_theme.dart';
 import '../../models/telemetry_event.dart';
+import '../../services/diagnostics_share_service.dart';
 import '../../widgets/ref_widgets.dart';
 import '../dashboard/detail_cards.dart';
+import '../telemetry/share_diagnostics_button.dart';
 
 class TelemetryTab extends StatelessWidget {
   const TelemetryTab({super.key});
@@ -43,6 +45,13 @@ class TelemetryTab extends StatelessWidget {
                         .copyWith(color: AppTheme.darkTextDim),
                   ),
                   const SizedBox(height: 12),
+                  ShareDiagnosticsButton(
+                    onShare: () => DiagnosticsShareService.instance.share(
+                      hubUrl: state.hubUrl,
+                      telemetry: state.telemetry,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
