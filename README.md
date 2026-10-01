@@ -230,7 +230,9 @@ summary → heatmap), `publish_patch` (git patch → one-tap copy)
 
 - **LAN-only by default** — nothing leaves your network unless you enable
   Drive mode. Bearer token guards every `/api` route; the control plane
-  strips shell metacharacters and allow-lists key codes.
+  runs adb without a host shell, quotes typed text and URLs for the
+  phone's shell, refuses what it cannot type (Unicode) instead of altering
+  it, and allow-lists key codes.
 - **Retention is a privacy feature** — hub keeps the newest 20 frames,
   archives overflow, and hard-prunes the archive at 100; the phone cache
   caps at 60 rows; Drive keeps the latest 20 in `ScreenSync_MCP/` using the

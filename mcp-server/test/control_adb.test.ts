@@ -10,8 +10,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { adb, setAdbRunner, type AdbRunOptions } from "../control-adb.js";
 import {
-  controlDeviceInfo, getLogcat, launchApp, longPress, openUrl, pressKey, recordScreen, screenshotNow, scroll, swipe,
-  tap, typeText,
+  ControlInputError, controlDeviceInfo, getLogcat, launchApp, longPress, openUrl, pressKey, recordScreen, screenshotNow,
+  scroll, swipe, tap, typeText,
 } from "../control.js";
 import { tapText, uiHierarchy, UiDumpError } from "../control-ui.js";
 import { controlActionNames, isControlTool, runControlAction, toMcpContent } from "../mcp-control.js";
@@ -38,6 +38,7 @@ function fakeAdb(respond: (cmd: string, argv: string[]) => string | Buffer): Cal
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 const timeoutError = (cmd: string) =>
   Object.assign(new Error(`Command failed: adb ${cmd}`), { killed: true, signal: "SIGTERM", code: null });
+const argvOf = (calls: Call[]) => calls.map((c) => c.argv.join(" "));
 const noEmptyArgs = (calls: Call[]) =>
   assert.ok(calls.every((c) => c.argv.every((a) => a !== "")), "no call may carry an empty argv element");
 
@@ -134,20 +135,29 @@ test("fraction mapping: 0..1 points scale by `wm size` (read once), pixels pass 
   ]);
 });
 
-test("argv shape: typed text and URLs are one argv element, sanitised, and never meet a host shell", async () => {
+test("argv shape: typed text and URLs are one argv element, quoted for the device's sh, and never meet a host shell", async () => {
   const calls = fakeAdb((cmd) => (cmd.startsWith("shell pidof") ? "4321 4322\n" : ""));
-  const hostile = 'Hello world; rm -rf / && echo "x"';
-  assert.equal(await typeText(hostile), `typed ${hostile.length} chars`);
-  assert.deepEqual(calls.at(-1)!.argv, ["shell", "input", "text", "Hello%sworld%srm%s-rf%s/%s%secho%sx"]);
+  const said = `Say "hi" & what's up? a=1`;
+  assert.equal(await typeText(said), `typed ${said.length} chars`);
+  assert.deepEqual(calls.at(-1)!.argv, ["shell", "input", "text", `'Say%s"hi"%s&%swhat'\\''s%sup?%sa=1'`]);
+  const hostile = 'Hello world; rm -rf / && echo "x" $(reboot)';
+  await typeText(hostile);
+  assert.deepEqual(calls.at(-1)!.argv, ["shell", "input", "text", `'Hello%sworld;%srm%s-rf%s/%s&&%secho%s"x"%s$(reboot)'`]);
 
   const before = calls.length;
-  assert.equal(await typeText("$();|&"), "nothing to type after sanitizing input");
-  assert.equal(calls.length, before, "nothing left to type: adb is not called");
+  assert.equal(await typeText(""), "nothing to type: the text is empty");
+  assert.equal(calls.length, before, "nothing to type: adb is not called");
 
-  // & $ ( ) are stripped (today's sanitising, which also mangles the query; the text-entry step fixes that).
-  assert.equal(await openUrl("https://example.com/a?b=1&c=$(id)"), "opened https://example.com/a?b=1c=id");
-  assert.deepEqual(calls.at(-1)!.argv, ["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "https://example.com/a?b=1c=id"]);
-  await assert.rejects(openUrl("javascript:alert(1)"), /requires an http\(s\) URL/);
+  // The query string survives whole: ? & $ ( ) are kept (they used to be stripped, opening the wrong page).
+  assert.equal(await openUrl("https://example.com/a?b=1&c=$(id)"), "opened https://example.com/a?b=1&c=$(id)");
+  assert.deepEqual(calls.at(-1)!.argv, ["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "'https://example.com/a?b=1&c=$(id)'"]);
+  await openUrl(" https://example.com/it's?q=a b&x=1#top ");
+  assert.deepEqual(calls.at(-1)!.argv.at(-1), "'https://example.com/it'\\''s?q=a%20b&x=1#top'", "parsed (space encoded), ' quoted");
+  const before2 = calls.length;
+  for (const bad of ["javascript:alert(1)", "file:///sdcard/x", "example.com/no-scheme", ""]) {
+    await assert.rejects(openUrl(bad), (error: unknown) => error instanceof ControlInputError && error.code === "INVALID_URL", bad);
+  }
+  assert.equal(calls.length, before2, "a refused URL never reaches adb");
 
   await launchApp("com.android.settings");
   assert.deepEqual(calls.at(-1)!.argv, ["shell", "monkey", "-p", "com.android.settings", "-c", "android.intent.category.LAUNCHER", "1"]);
@@ -162,6 +172,73 @@ test("argv shape: typed text and URLs are one argv element, sanitised, and never
   assert.deepEqual(calls.at(-1)!.argv, ["shell", "logcat", "-d", "-t", "10"], "no pid filter: no empty argv element either");
   assert.ok(!calls.some((c) => c.argv.includes("com.x;reboot")), "an invalid package never reaches adb");
   noEmptyArgs(calls);
+});
+
+test("honest typing: Unicode and newlines are typed refusals, a literal %s takes two calls, and adb errors hide the text", async () => {
+  const calls = fakeAdb(() => "");
+  const body = async (tool: string, args: Record<string, unknown>) => {
+    const reply = toMcpContent(await runControlAction(tool, args));
+    assert.equal(reply.isError, true, tool);
+    return JSON.parse((reply.content[0] as { text: string }).text);
+  };
+  const urdu = await body("control_type", { text: "سلام دنیا" });
+  assert.deepEqual([urdu.success, urdu.code, urdu.retryable, urdu.count], [false, "UNICODE_NOT_SUPPORTED", false, 8]);
+  assert.match(urdu.error, /Unicode typing is not supported yet/);
+  assert.ok(!urdu.error.includes("سلام"), "the refusal never echoes the text");
+  const injected = await body("control_type", { text: "x\nreboot" });
+  assert.deepEqual([injected.code, injected.count], ["CONTROL_CHARACTERS_NOT_SUPPORTED", 1]);
+  assert.equal(calls.length, 0, "a refused text never reaches adb: nothing is half-typed");
+
+  assert.equal(await typeText("100%sure"), "typed 8 chars");
+  assert.deepEqual(argvOf(calls), ["shell input text '100%'", "shell input text 'sure'"]);
+
+  const url = await body("control_open_url", { url: "intent://x#Intent;end" });
+  assert.deepEqual([url.code, url.retryable], ["INVALID_URL", false]);
+
+  fakeAdb((cmd, argv) => {
+    throw new Error(`Command failed: adb ${cmd}\nerror: device '${argv.at(-1)}' not found`);
+  });
+  await assert.rejects(typeText("my secret pin 1234"), (error: unknown) => {
+    const message = String(error);
+    assert.match(message, /input text failed \(18 chars\): .*'<text>'/s);
+    assert.ok(!message.includes("secret") && !message.includes("1234"), message);
+    return true;
+  });
+});
+
+test("control_key: paste and move_end are keyevents, select_all is ctrl+a on Android 13+ and a typed refusal before", async () => {
+  let sdk = "34";
+  let comboOut = "";
+  const calls = fakeAdb((cmd) => {
+    if (cmd === "shell getprop ro.build.version.sdk") {
+      if (sdk === "fail") throw new Error("Command failed: adb shell getprop");
+      return `${sdk}\n`;
+    }
+    return cmd.startsWith("shell input keycombination") ? comboOut : "";
+  });
+  assert.equal(await pressKey("paste"), "pressed paste");
+  assert.equal(await pressKey("move_end"), "pressed move_end");
+  assert.equal(await pressKey("SELECT_ALL"), "pressed select_all");
+  assert.deepEqual(argvOf(calls), [
+    "shell input keyevent 279",
+    "shell input keyevent 123",
+    "shell getprop ro.build.version.sdk",
+    "shell input keycombination 113 29",
+  ]);
+
+  sdk = "31";
+  const before = calls.length;
+  const old = toMcpContent(await runControlAction("control_key", { key: "select_all" }));
+  const reply = JSON.parse((old.content[0] as { text: string }).text);
+  assert.deepEqual([reply.code, reply.retryable, reply.key, reply.sdk], ["KEY_COMBINATION_NOT_SUPPORTED", false, "select_all", 31]);
+  assert.match(reply.error, /long-press the text field, then control_tap_text "Select all"/);
+  assert.deepEqual(argvOf(calls.slice(before)), ["shell getprop ro.build.version.sdk"], "no keycombination on API 31");
+
+  // Unknown API level: it is tried, and an old `input` that prints an error (exit 0) is still a refusal.
+  sdk = "fail";
+  comboOut = "Error: Unknown command: keycombination";
+  await assert.rejects(pressKey("select_all"), (error: unknown) => error instanceof ControlInputError && error.code === "KEY_COMBINATION_NOT_SUPPORTED");
+  await assert.rejects(pressKey("paste_all"), /Unsupported key 'paste_all'\. Allowed: .*paste, move_end, select_all/);
 });
 
 test("the real runner: argv reaches the child verbatim (node stands in for adb), and a timeout kills it", async () => {
@@ -219,7 +296,6 @@ function fakeUiDevice(dumps: Array<string | Error>, file = () => fixture("uiauto
     throw new Error(`unexpected adb call: ${cmd}`);
   });
 }
-const argvOf = (calls: Call[]) => calls.map((c) => c.argv.join(" "));
 const isDumpFailure = (pattern: RegExp) => (error: unknown) => {
   assert.ok(error instanceof UiDumpError);
   assert.deepEqual([error.code, error.retryable, error.attempts], ["UI_DUMP_FAILED", true, 2]);

@@ -10,6 +10,7 @@ import { execSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import {
   compareFrames,
+  ControlInputError,
   controlDeviceInfo,
   getLogcat,
   launchApp,
@@ -206,8 +207,10 @@ export function controlActionNames(): string[] {
 }
 
 /**
- * Runs one phone, ADB-inspection or OS-plane tool. An unknown name is an error result, and so is a UI dump
- * that failed twice (code UI_DUMP_FAILED, retryable); anything else the action throws is left to the caller.
+ * Runs one phone, ADB-inspection or OS-plane tool. An unknown name is an error result, and so are a UI dump
+ * that failed twice (code UI_DUMP_FAILED, retryable) and an input the phone cannot take (ControlInputError:
+ * UNICODE_NOT_SUPPORTED, INVALID_URL, ...; not retryable). Anything else the action throws is left to the
+ * caller.
  */
 export async function runControlAction(name: string, args?: Record<string, unknown>): Promise<ControlResult> {
   if (!isControlTool(name)) return fail({ error: `Unknown tool: ${name}` });
@@ -215,6 +218,9 @@ export async function runControlAction(name: string, args?: Record<string, unkno
     return await HANDLERS[name](args);
   } catch (error) {
     if (error instanceof UiDumpError) return fail({ code: error.code, retryable: error.retryable, error: error.message });
+    if (error instanceof ControlInputError) {
+      return fail({ code: error.code, retryable: error.retryable, ...error.details, error: error.message });
+    }
     throw error;
   }
 }

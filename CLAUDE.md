@@ -157,10 +157,14 @@ Read neighbouring files before writing. Match what is there; do not import a new
   `/api/app/latest` also trusts a loopback caller, and `/apk` also accepts `?token=` (a browser
   download carries no headers). Do not add another exception.
 - All ADB access funnels through `adb(argv)` / `adbBuffer(argv)` in `control-adb.ts` (execFile with
-  an argv array, no host shell), and user text through `escapeInputText()` in `control.ts` (the
-  device's own sh still parses `adb shell` arguments). Never build a shell string by hand — that is a
-  command-injection hole. Tests drive the phone path with `setAdbRunner()` and the recorded output in
-  `test/fixtures/adb/`; never against a real phone.
+  an argv array, no host shell). User text and URLs bound for the phone are quoted with
+  `quoteForDeviceShell()` in `control.ts` (single quotes, `'` as `'\''`), because the device's own sh
+  still parses `adb shell` arguments. `inputTextArgs()` builds the `input text` arguments from it
+  (printable ASCII kept exactly, spaces as `%s`, a literal `%s` split across two calls) and refuses
+  anything else with a typed `ControlInputError` (`UNICODE_NOT_SUPPORTED`, with a count) instead of
+  stripping it. Log typed text by length only, never the text. Never build a shell string by hand —
+  that is a command-injection hole. Tests drive the phone path with `setAdbRunner()` and the recorded
+  output in `test/fixtures/adb/`; never against a real phone.
 - Config comes from `SCREEN_SYNC_*` env vars with defaults in `config.ts`. Don't invent new config
   channels.
 - **Adding or renaming an MCP tool.** `test/e2e.ts` only asserts a short core list plus a

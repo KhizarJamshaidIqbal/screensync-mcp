@@ -4,14 +4,16 @@
 // Some cases pin today's behaviour on purpose (the Physical size wins over an Override line): later
 // steps change them deliberately, and these assertions make that change visible in review. The UI tree
 // step did exactly that: XML entities are decoded now, a disabled button says so (enabled: false), and
-// the default view also lists scroll containers. uiautomator_states.xml carries the state flags.
+// the default view also lists scroll containers. uiautomator_states.xml carries the state flags. The
+// text-entry step replaced the old metacharacter stripping with quoting for the device's sh, proven
+// below by decoding every argument the way that sh and Android's `input text` do.
 
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chooseTarget, parseAdbDevices, parseWmSize, targetArgs } from "../control-adb.js";
-import { escapeInputText, isFractionPoint, mapPoint } from "../control.js";
+import { ControlInputError, inputTextArgs, isFractionPoint, mapPoint, quoteForDeviceShell } from "../control.js";
 import {
   decodeXml, parseUiAutomatorXml, parseUiTree, readMatchArgs, readUiArgs, shapeUiNodes, UI_NODE_FIELDS, type UiNode, type UiQuery,
 } from "../control-ui.js";
@@ -252,13 +254,67 @@ test("loose MCP arguments become typed options, and the catalogue's fields enum 
   assert.deepEqual(schema.properties.fields.items?.enum, [...UI_NODE_FIELDS]);
 });
 
-test("escapeInputText: spaces become %s and shell metacharacters are dropped", () => {
-  assert.equal(escapeInputText("Hello world"), "Hello%sworld");
-  assert.equal(escapeInputText("a\"b'c`d$e\\f;g&h|i<j>k(l)m{n}o"), "abcdefghijklmno");
-  assert.equal(escapeInputText("$();|&"), "");
-  // What survives today (the device's sh still sees it; the text-entry step quotes for that sh).
-  assert.equal(escapeInputText("50% off*"), "50%%soff*");
-  assert.equal(escapeInputText("café ☕"), "café%s☕");
+/** What the device's sh hands `input` for one word quoteForDeviceShell() built: the quoting removed. */
+const shUnquote = (word: string): string => {
+  assert.match(word, /^'.*'$/s, "always single-quoted");
+  return word.slice(1, -1).split("'\\''").join("'");
+};
+
+/** Android's `input text` decoding (InputShellCommand.sendText): "%s" becomes a space, nothing else changes. */
+const androidInputText = (arg: string): string => {
+  const text = [...arg];
+  let escape = false;
+  for (let i = 0; i < text.length; i++) {
+    if (escape) {
+      escape = false;
+      if (text[i] === "s") {
+        text[i] = " ";
+        text.splice(--i, 1);
+      }
+    }
+    if (text[i] === "%") escape = true;
+  }
+  return text.join("");
+};
+
+const typedOnDevice = (text: string) => inputTextArgs(text).map(shUnquote).map(androidInputText).join("");
+
+test("quoteForDeviceShell: one single-quoted word, ' as '\\''", () => {
+  assert.equal(quoteForDeviceShell("Hello world"), "'Hello world'");
+  assert.equal(quoteForDeviceShell("it's"), "'it'\\''s'");
+  assert.equal(quoteForDeviceShell("$(reboot); `id` & \"x\""), "'$(reboot); `id` & \"x\"'");
+  assert.equal(quoteForDeviceShell(""), "''");
+});
+
+test("inputTextArgs: every printable ASCII character reaches the field exactly, %s included", () => {
+  assert.deepEqual(inputTextArgs("Hello world"), ["'Hello%sworld'"]);
+  assert.deepEqual(inputTextArgs("50% off"), ["'50%%soff'"], "a % before a space decodes as '% '");
+  assert.deepEqual(inputTextArgs("100%sure"), ["'100%'", "'sure'"], "a literal %s is split across two calls");
+  assert.deepEqual(inputTextArgs(""), []);
+
+  const allPrintable = Array.from({ length: 0x7f - 0x20 }, (_, i) => String.fromCharCode(0x20 + i)).join("");
+  for (const text of [
+    "Hello world", "a\"b'c`d$e\\f;g&h|i<j>k(l)m{n}o", "$();|&", "50% off*", "100%sure", "%%s", "%s", "% s", "s%", "%",
+    "it's", "'", "''", "a  b", " ", "Hello world; rm -rf / && echo \"x\"", allPrintable,
+  ]) {
+    assert.equal(typedOnDevice(text), text, JSON.stringify(text));
+  }
+});
+
+test("inputTextArgs: Unicode and control characters are refused with a count, never stripped", () => {
+  const refusal = (code: string, count: number) => (error: unknown) => {
+    assert.ok(error instanceof ControlInputError);
+    assert.deepEqual([error.code, error.retryable, error.details], [code, false, { count }]);
+    assert.match(error.message, new RegExp(`^${code}: `));
+    assert.doesNotMatch(error.message, /paste/i, "no tool that does not exist is suggested");
+    return true;
+  };
+  assert.throws(() => inputTextArgs("café ☕"), refusal("UNICODE_NOT_SUPPORTED", 2));
+  assert.throws(() => inputTextArgs("سلام دنیا"), refusal("UNICODE_NOT_SUPPORTED", 8));
+  assert.throws(() => inputTextArgs("ok 👍"), refusal("UNICODE_NOT_SUPPORTED", 1), "an emoji is one character, not two halves");
+  assert.throws(() => inputTextArgs("a\nb\tc\x7f"), refusal("CONTROL_CHARACTERS_NOT_SUPPORTED", 3));
+  assert.throws(() => inputTextArgs("é\n"), refusal("UNICODE_NOT_SUPPORTED", 1), "Unicode is reported first");
+  assert.throws(() => inputTextArgs("سلام"), /Unicode typing is not supported yet: .* Nothing was typed\./);
 });
 
 test("fraction heuristic: BOTH coordinates in 0..1 means a fraction of the screen", () => {

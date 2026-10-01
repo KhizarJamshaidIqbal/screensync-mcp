@@ -75,7 +75,8 @@ export function controlToolDefinitions() {
     },
     {
       name: "control_type",
-      description: "Types text into the currently focused field. Shell metacharacters are stripped for safety.",
+      description:
+        "Types text into the currently focused field, exactly as given: every printable ASCII character is kept (quotes, & ? $ ; % and spaces included). Unicode typing is not supported yet: non-ASCII text returns code UNICODE_NOT_SUPPORTED with the count of affected characters, and newlines or tabs return CONTROL_CHARACTERS_NOT_SUPPORTED (type the parts and press control_key enter/tab between them). Nothing is typed when it refuses.",
       inputSchema: {
         type: "object",
         required: ["text"],
@@ -86,7 +87,7 @@ export function controlToolDefinitions() {
     {
       name: "control_key",
       description:
-        "Presses a hardware/navigation key: back, home, recents, menu, enter, tab, delete, escape, space, search, power, volume_up, volume_down, dpad_up/down/left/right/center.",
+        "Presses a hardware/navigation/editing key: back, home, recents, menu, enter, tab, delete, escape, space, search, power, volume_up, volume_down, dpad_up/down/left/right/center, paste (the clipboard into the focused field), move_end (cursor to the end of the field), select_all (ctrl+a via input keycombination, Android 13+; older Android returns KEY_COMBINATION_NOT_SUPPORTED: long-press the field and control_tap_text 'Select all' instead).",
       inputSchema: {
         type: "object",
         required: ["key"],
@@ -186,7 +187,8 @@ export function controlToolDefinitions() {
     },
     {
       name: "control_open_url",
-      description: "Opens an http(s) URL in the device's default browser. Handy for testing a live website on the phone.",
+      description:
+        "Opens an http(s) URL in the device's default browser, whole: the query string (? and &) and fragment are kept. Any other scheme or a malformed URL returns code INVALID_URL. Handy for testing a live website on the phone.",
       inputSchema: {
         type: "object",
         required: ["url"],

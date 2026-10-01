@@ -4,7 +4,7 @@
 // serial with spaces or parentheses, an adb path with spaces ("C:\Program Files\..."), or user text can no
 // longer be re-split or interpreted on the hub machine, and nothing has to be hand-quoted. The DEVICE
 // still joins `adb shell` arguments and runs them through its own sh, so callers that forward user text
-// keep sanitising it (escapeInputText in control.ts).
+// quote it for that sh (quoteForDeviceShell in control.ts).
 //
 // SCREEN_SYNC_ADB_BIN and SCREEN_SYNC_ADB_TARGET are read on every call, not frozen at module load, and
 // setAdbRunner() swaps the process runner: together they are the test seam, so unit tests drive the

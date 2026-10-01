@@ -17,11 +17,61 @@ import { adb, adbBuffer, parseWmSize, resolveTarget, screenSize, type ScreenSize
  * device (transport id or serial) so a multi-device host targets the right phone.
  */
 
-/** Escapes a string for `adb shell input text` (spaces → %s, strip risky chars). */
-export function escapeInputText(text: string): string {
-  return text
-    .replace(/(["'`$\\;&|<>(){}])/g, "") // drop shell metacharacters
-    .replace(/ /g, "%s");
+/**
+ * A typed refusal raised BEFORE anything reaches the phone; `code` says why. runControlAction() turns it
+ * into {success:false, code, retryable:false, ...details, error}.
+ */
+export class ControlInputError extends Error {
+  readonly retryable = false;
+  constructor(readonly code: string, detail: string, readonly details: Record<string, unknown> = {}) {
+    super(`${code}: ${detail}`);
+    this.name = "ControlInputError";
+  }
+}
+
+/**
+ * Quotes one argument for the DEVICE's sh: adb joins `adb shell` arguments with spaces and runs the line
+ * through it. Inside single quotes nothing is special, so only ' itself needs care ('\'').
+ */
+export function quoteForDeviceShell(arg: string): string {
+  return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+/**
+ * The `input text` arguments that type `text` exactly, each quoted for the device's sh. `input text`
+ * reads "%s" as a space, so spaces travel as %s, and a literal "%s" is split across two calls (each call
+ * is decoded on its own, so a trailing % stays a %). Only printable ASCII can be typed this way; anything
+ * else is a ControlInputError, never silently dropped.
+ */
+export function inputTextArgs(text: string): string[] {
+  const codes = [...text].map((c) => c.codePointAt(0)!);
+  const unicode = codes.filter((c) => c > 0x7f).length;
+  if (unicode) {
+    throw new ControlInputError(
+      "UNICODE_NOT_SUPPORTED",
+      `Unicode typing is not supported yet: control_type types printable ASCII only, and this text has ${unicode} non-ASCII character(s). Nothing was typed.`,
+      { count: unicode },
+    );
+  }
+  const control = codes.filter((c) => c < 0x20 || c === 0x7f).length;
+  if (control) {
+    throw new ControlInputError(
+      "CONTROL_CHARACTERS_NOT_SUPPORTED",
+      `control_type types printable ASCII only, and this text has ${control} control character(s) (newline, tab, ...). Type the parts separately and press control_key enter or tab between them. Nothing was typed.`,
+      { count: control },
+    );
+  }
+  const chunks: string[] = [];
+  let current = "";
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "s" && text[i - 1] === "%") {
+      chunks.push(current);
+      current = "";
+    }
+    current += text[i];
+  }
+  if (current) chunks.push(current);
+  return chunks.map((chunk) => quoteForDeviceShell(chunk.replace(/ /g, "%s")));
 }
 
 export type DeviceInfo = {
@@ -114,31 +164,67 @@ export async function scroll(direction: "up" | "down" | "left" | "right", amount
   }
 }
 
+/** Types `text` exactly (printable ASCII) into the focused field. The text itself is never logged. */
 export async function typeText(text: string): Promise<string> {
-  const safe = escapeInputText(text);
-  if (!safe) return "nothing to type after sanitizing input";
-  // One argv element: no host shell sees it. The device's sh still does, hence escapeInputText().
-  await adb(["shell", "input", "text", safe]);
-  log("INFO", "control type", { length: text.length });
+  const args = inputTextArgs(text);
+  if (!args.length) return "nothing to type: the text is empty";
+  for (const [i, arg] of args.entries()) {
+    // One argv element: no host shell sees it, and the quoting above is for the device's own sh.
+    await adb(["shell", "input", "text", arg]).catch((error: unknown) => {
+      // adb's error message quotes the command line; keep the typed text out of it (and the hub log).
+      const part = args.length > 1 ? ` on part ${i + 1} of ${args.length}` : "";
+      throw new Error(`input text failed${part} (${text.length} chars): ${String(error).split(arg).join("'<text>'")}`);
+    });
+  }
+  log("INFO", "control type", { length: text.length, calls: args.length });
   return `typed ${text.length} chars`;
 }
 
-// Allow-listed hardware / navigation keys → Android keycodes.
+// Allow-listed hardware / navigation / editing keys → Android keycodes.
 const KEYS: Record<string, number> = {
   back: 4, home: 3, recents: 187, menu: 82, power: 26,
   enter: 66, tab: 61, delete: 67, escape: 111, space: 62,
   volume_up: 24, volume_down: 25, search: 84,
   dpad_up: 19, dpad_down: 20, dpad_left: 21, dpad_right: 22, dpad_center: 23,
+  paste: 279, move_end: 123,
 };
 
+// Keys pressed together through `input keycombination`, which Android 13 (API 33) added.
+const KEY_COMBOS: Record<string, number[]> = { select_all: [113, 29] }; // ctrl_left + a
+
+/** Every key name pressKey() accepts. */
+const KEY_NAMES =[...Object.keys(KEYS), ...Object.keys(KEY_COMBOS)];
+
 export async function pressKey(key: string): Promise<string> {
-  const code = KEYS[key.toLowerCase()];
+  const name = key.toLowerCase();
+  if (KEY_COMBOS[name]) return pressCombo(name, KEY_COMBOS[name]);
+  const code = KEYS[name];
   if (code === undefined) {
-    throw new Error(`Unsupported key '${key}'. Allowed: ${Object.keys(KEYS).join(", ")}`);
+    throw new Error(`Unsupported key '${key}'. Allowed: ${KEY_NAMES.join(", ")}`);
   }
   await adb(["shell", "input", "keyevent", String(code)]);
   log("INFO", "control key", { key, code });
   return `pressed ${key}`;
+}
+
+/**
+ * Presses a key combination with `input keycombination`. Android 12 and older have no such command (and an
+ * old `input` prints its usage yet exits 0), so the API level is read first and an older phone gets the
+ * typed KEY_COMBINATION_NOT_SUPPORTED with the fallback, instead of a silent no-op.
+ */
+async function pressCombo(name: string, codes: number[]): Promise<string> {
+  const sdk = Number.parseInt(await adb(["shell", "getprop", "ro.build.version.sdk"]).catch(() => ""), 10);
+  const unsupported = (seen: string) =>
+    new ControlInputError(
+      "KEY_COMBINATION_NOT_SUPPORTED",
+      `${name} needs input keycombination (Android 13, API 33, or later); ${seen}. Fallback: long-press the text field, then control_tap_text "Select all".`,
+      { key: name, ...(Number.isFinite(sdk) ? { sdk } : {}) },
+    );
+  if (Number.isFinite(sdk) && sdk < 33) throw unsupported(`this phone is API ${sdk}`);
+  const out = await adb(["shell", "input", "keycombination", ...codes.map(String)]);
+  if (/unknown command|error/i.test(out)) throw unsupported("the phone's input command rejected it");
+  log("INFO", "control key", { key: name, codes });
+  return `pressed ${name}`;
 }
 
 export async function longPress(x: number, y: number, durationMs = 700): Promise<string> {
@@ -180,13 +266,25 @@ export async function screenshotNow(): Promise<{ base64: string; mimeType: "imag
 // lives in control-ui.ts.
 // ────────────────────────────────────────────────────────────────────────
 
-/** Opens a URL in the device's default browser. */
+/**
+ * Opens an http(s) URL in the device's default browser. The URL is parsed (new URL) and sent whole, as
+ * the parser normalises it (what a browser loads: nothing stripped, & and ? kept), in one argument quoted
+ * for the device's sh. Only the host and the length are logged; a query string can carry a token.
+ */
 export async function openUrl(url: string): Promise<string> {
-  if (!/^https?:\/\//i.test(url)) throw new Error("openUrl requires an http(s) URL.");
-  const safe = url.replace(/(["'`$\\;&|<>(){}])/g, "");
-  await adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", safe]);
-  log("INFO", "control openUrl", { url: safe });
-  return `opened ${safe}`;
+  let parsed: URL;
+  try {
+    parsed = new URL(String(url).trim());
+  } catch {
+    throw new ControlInputError("INVALID_URL", "control_open_url needs an absolute http(s) URL.");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new ControlInputError("INVALID_URL", `control_open_url opens http(s) URLs only, not ${parsed.protocol}`);
+  }
+  const href = parsed.href;
+  await adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", quoteForDeviceShell(href)]);
+  log("INFO", "control openUrl", { host: parsed.host, length: href.length });
+  return `opened ${href}`;
 }
 
 /**

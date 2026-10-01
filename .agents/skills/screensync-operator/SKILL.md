@@ -265,6 +265,16 @@ The user's real browser already has active logins for their accounts (X, LinkedI
   target one on purpose. `index: N` taps the Nth match in hierarchy order (duplicate labels),
   `className` and `clickableOnly: true` narrow it. `control_swipe_until` matches the same way. With no
   label, `control_tap` the node's `center`.
+- **Typing:** `control_type` types the text exactly: every printable ASCII character, quotes and
+  `& ? $ ; %` included. Unicode typing is not supported yet: non-ASCII text (accents, Urdu, emoji)
+  returns `UNICODE_NOT_SUPPORTED` with `count` and types nothing. A newline or tab returns
+  `CONTROL_CHARACTERS_NOT_SUPPORTED`: type the parts and `control_key enter` / `tab` between them.
+- **Editing keys:** `control_key` `select_all` (ctrl+a, Android 13+; older phones return
+  `KEY_COMBINATION_NOT_SUPPORTED`: long-press the field, then `control_tap_text "Select all"`),
+  `move_end` (cursor to the end) and `paste` (the phone's clipboard). To replace a field's text: tap it,
+  `select_all`, then `control_type`.
+- **URLs:** `control_open_url` opens the whole URL, query string and fragment included; a non-http(s)
+  or malformed one returns `INVALID_URL`.
 - Verify after acting: `compare_frames`, or read the tree again (`{checked: true}` after a toggle).
 
 ## 6 · Logged-in social flows (the real-account advantage)
