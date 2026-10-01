@@ -3,6 +3,20 @@
 > These are the release notes for the **browser extension and the desktop hub** (the 1.x versions below), not for the Android app.
 > The Google Play "What's new" text is generated from git history instead: `tools/release_notes.py`, see `docs/RELEASE_NOTES_GUIDE.md`.
 
+## Version 1.14.5 (phone control you can trust) — 2026-10-01
+
+- **`get_ui_hierarchy` sees state.** Every node now says whether it is enabled, checked, checkable, focusable, focused, scrollable, long-clickable, selected or a password field, plus its package, depth and parent. New filters: `all`, `enabled`, `checked`, `scrollable`, `className`, `region`, `maxDepth`, `fields` (to keep replies small) and `format: "tree"`. A dump that fails now returns `UI_DUMP_FAILED` instead of quietly handing back the previous screen.
+- **`control_status` knows the screen.** It reports `screenOn`, `locked`, `secure`, the foreground app and activity, and the rotation. `control_screenshot` adds a warning when the screen is off, locked, or looks blank (for example an app that blocks screenshots). Nothing is ever unlocked for you.
+- **Typing is exact.** `control_type` keeps every printable character, including `& " ' ? ;`, instead of silently dropping some. Text with non-ASCII characters returns a clear error rather than typing something else. `control_open_url` keeps `&` and `?`, so links with several query parameters open the right page. New keys: `paste`, `select_all`, `move_end`.
+- **Double tap and apps by name.** `control_tap` takes `count: 2`. `control_launch_app` accepts `query` (part of the package name; several matches return the candidates, never a guess) and `list: true`.
+- **Every control action works from the app.** `/api/control/:action` now runs every `control_*` tool, so buttons that returned 404 work, and a missing argument returns a 400 that says which one.
+- **Android 16 fix.** UI text that contains a double quote was read as empty.
+- adb now runs without a shell in between. Point `SCREEN_SYNC_ADB_BIN` at `adb` itself, not at a `.bat` or `.cmd` wrapper.
+
+Only the hub changed: update the hub. The extension stays 1.14.4.
+
+---
+
 ## Version 1.14.4 (a new home) — 2026-10-01
 
 - **The website moved to [www.screensyncmcp.tech](https://www.screensyncmcp.tech).** The old address, screensyncmcp.epsoldev.com, no longer works. The extension now loads its setup guide and links from the new site, and the hub's README points there too.
