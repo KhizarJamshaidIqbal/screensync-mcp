@@ -48,7 +48,7 @@ mixin CaptureSyncMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
         timestamp: frame.timestamp,
       );
     } catch (_) {
-      // Redaction must never lose a capture — fall back to the original.
+      // Redaction must never lose a capture â€” fall back to the original.
       return frame;
     }
   }
@@ -61,7 +61,13 @@ mixin CaptureSyncMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
     // C2: apply opt-in privacy redaction BEFORE anything is persisted or
     // uploaded. No-op when the setting is off.
     final frame = await _applyRedaction(rawFrame);
-    final cacheId = await _persistFrame(frame);
+
+    // Saving the frame (file, thumbnail, history row) and delivering it do not
+    // depend on each other, so they run together: the hub no longer waits for the
+    // thumbnail decode and the database insert. [_persistFrame] never throws, and
+    // every path below awaits [saved] before it needs the row id, before it says
+    // "saved locally" and before it reads the gallery.
+    final saved = _persistFrame(frame);
 
     // Live-bridge: every successful capture (regardless of where it ends up)
     // bumps the session counter so the hero stats stay accurate.
@@ -81,7 +87,8 @@ mixin CaptureSyncMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
       }
       if (!hubOk) metrics.recordDroppedFrame();
       if (hubOk) add(FrameSeenEvent(DateTime.now()));
-      if (cacheId != null && hubOk) {
+      final cacheId = hubOk ? await saved : null;
+      if (cacheId != null) {
         await cacheRepo.markSyncedHub(cacheId);
         metrics.incrementHubPush();
         add(const SessionStatsChangedEvent());
@@ -93,6 +100,7 @@ mixin CaptureSyncMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
       try {
         await hubRepo.uploadToGoogleDrive(frame);
         driveOk = true;
+        final cacheId = await saved;
         if (cacheId != null) await cacheRepo.markSyncedDrive(cacheId);
         metrics.incrementDrivePush();
         add(const SessionStatsChangedEvent());
@@ -100,11 +108,12 @@ mixin CaptureSyncMixin on Bloc<ScreenCaptureEvent, ScreenCaptureState> {
         driveOk = false;
       }
     }
+    await saved;
     if (!hubOk && !driveOk) {
       if (state.syncMode == SyncMode.lanMdns) {
         throw StateError(
           'Captured the screen, but could not reach the desktop ScreenSync '
-          'hub at ${hubRepo.hubUrl}. Open Settings → Hub to pick one.',
+          'hub at ${hubRepo.hubUrl}. Open Settings â†’ Hub to pick one.',
         );
       }
       throw StateError(

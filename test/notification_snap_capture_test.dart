@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:screensync_flutter_project/blocs/screen_capture_bloc.dart';
@@ -10,6 +12,7 @@ import 'package:screensync_flutter_project/models/captured_frame.dart';
 import 'package:screensync_flutter_project/models/frame_entry.dart';
 import 'package:screensync_flutter_project/repositories/capture_cache_repository.dart';
 import 'package:screensync_flutter_project/repositories/screen_repository.dart';
+import 'package:screensync_flutter_project/repositories/sync_mode.dart';
 import 'package:screensync_flutter_project/services/capture_trigger_bridge.dart';
 import 'package:screensync_flutter_project/services/settings_service.dart';
 
@@ -21,6 +24,10 @@ import 'package:screensync_flutter_project/services/settings_service.dart';
 /// gives up on a frame.
 class _NoNetworkRepo extends ScreenRepository {
   final pushed = <CapturedFrame>[];
+
+  /// When the hub got each frame (the call starts), and whether it takes it.
+  final pushStartedAt = <DateTime>[];
+  bool pushOk = true;
 
   @override
   String get hubUrl => '';
@@ -37,12 +44,35 @@ class _NoNetworkRepo extends ScreenRepository {
       HubAuthStatus.ok;
   @override
   Future<bool> pushToLocalMcpServer(CapturedFrame frame) async {
+    pushStartedAt.add(DateTime.now());
+    if (!pushOk) return false;
     pushed.add(frame);
     return true;
   }
 }
 
 class _FakeCache extends CaptureCacheRepository {
+  /// Row ids handed out by [saveFrame], and the ones marked as delivered.
+  static const savedId = 42;
+  final saves = <DateTime>[];
+  final syncedHub = <int>[];
+
+  @override
+  Future<int> saveFrame({
+    required String filename,
+    required String filePath,
+    required int width,
+    required int height,
+    required int byteLength,
+    required String thumbPath,
+  }) async {
+    saves.add(DateTime.now());
+    return savedId;
+  }
+
+  @override
+  Future<void> markSyncedHub(int id) async => syncedHub.add(id);
+
   @override
   Future<List<FrameEntry>> recentFrames({int limit = 30}) async => const [];
   @override
@@ -57,6 +87,10 @@ class _Native {
 
   final captureCalledAt = <DateTime>[];
   int prepareCalls = 0;
+
+  /// What `captureScreen` hands back. Not an image by default, so saving the
+  /// thumbnail fails; a test that needs the frame saved swaps in a real PNG.
+  Uint8List frameBytes = Uint8List.fromList(<int>[1, 2, 3]);
 
   /// When set, `captureScreen` fails the way the native frame timeout does.
   String? captureError;
@@ -78,7 +112,7 @@ class _Native {
             throw PlatformException(
                 code: 'capture_failed', message: captureError);
           }
-          return Uint8List.fromList(<int>[1, 2, 3]);
+          return frameBytes;
         default:
           return null;
       }
@@ -98,6 +132,7 @@ void main() {
 
   late _Native native;
   late _NoNetworkRepo repo;
+  late _FakeCache cache;
   late ScreenCaptureBloc bloc;
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -133,8 +168,8 @@ void main() {
           onListen: (arguments, events) => events.success(true)),
     );
     repo = _NoNetworkRepo();
-    bloc = ScreenCaptureBloc(
-        screenRepository: repo, cacheRepository: _FakeCache());
+    cache = _FakeCache();
+    bloc = ScreenCaptureBloc(screenRepository: repo, cacheRepository: cache);
     // Native PNG passes straight through, so the fake bytes need no decoding.
     bloc.add(const SetQualityEvent(CaptureQuality.inspection));
     await until(() => bloc.state.quality == CaptureQuality.inspection);
@@ -156,6 +191,9 @@ void main() {
       ..prepareCalls = 0
       ..captureError = null;
     repo.pushed.clear();
+    repo.pushStartedAt.clear();
+    cache.saves.clear();
+    cache.syncedHub.clear();
     // The bloc drops a trigger within 1 s of the previous one.
     await Future<void>.delayed(const Duration(milliseconds: 1100));
   });
@@ -172,7 +210,8 @@ void main() {
     // here would mean the Dart side, not the frame wait, is slow.
     expect(native.captureCalledAt.single.difference(tappedAt),
         lessThan(const Duration(seconds: 2)));
-    expect(bloc.state.status, CaptureStatus.success);
+    // The upload no longer follows the save, so success lands a moment after it.
+    await until(() => bloc.state.status == CaptureStatus.success);
   });
 
   test('a native frame timeout ends the Snap as a failure, and the next one works',
@@ -189,5 +228,83 @@ void main() {
     _trigger().writeAsStringSync('snap:1700000201500', flush: true);
     await until(() => repo.pushed.length == 1);
     expect(native.captureCalledAt, hasLength(2));
+  });
+
+  // Saving the frame (file, thumbnail, history row) and uploading it used to run one
+  // after the other, so the hub waited for the thumbnail and the database. The
+  // path_provider answer below holds the save up for [persistDelay]: nothing the
+  // save does can finish before it, which makes "the upload began first"
+  // observable without depending on how fast the machine is.
+  group('saving the frame and uploading it run together', () {
+    const persistDelay = Duration(milliseconds: 800);
+    const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+    late Directory docs;
+    late SyncMode originalMode;
+    DateTime? saveReleasedAt;
+    final statuses = <(CaptureStatus, DateTime)>[];
+    StreamSubscription<ScreenCaptureState>? listening;
+
+    DateTime when(CaptureStatus status) =>
+        statuses.firstWhere((s) => s.$1 == status).$2;
+
+    setUp(() async {
+      docs = Directory.systemTemp.createTempSync('snap_save_test');
+      saveReleasedAt = null;
+      statuses.clear();
+      native.frameBytes =
+          Uint8List.fromList(img.encodePng(img.Image(width: 8, height: 8)));
+      messenger.setMockMethodCallHandler(pathProvider, (call) async {
+        if (call.method != 'getApplicationDocumentsDirectory') return null;
+        await Future<void>.delayed(persistDelay);
+        saveReleasedAt = DateTime.now();
+        return docs.path;
+      });
+      originalMode = bloc.state.syncMode;
+      bloc.add(const ToggleSyncModeEvent(SyncMode.lanMdns));
+      await until(() => bloc.state.syncMode == SyncMode.lanMdns);
+      listening =
+          bloc.stream.listen((s) => statuses.add((s.status, DateTime.now())));
+    });
+
+    tearDown(() async {
+      await listening?.cancel();
+      messenger.setMockMethodCallHandler(pathProvider, null);
+      native.frameBytes = Uint8List.fromList(<int>[1, 2, 3]);
+      repo.pushOk = true;
+      bloc.add(ToggleSyncModeEvent(originalMode));
+      await until(() => bloc.state.syncMode == originalMode);
+      if (docs.existsSync()) docs.deleteSync(recursive: true);
+    });
+
+    test('the hub gets the frame while it is still being saved', () async {
+      _trigger().writeAsStringSync('snap:1700000300000', flush: true);
+      await until(() => statuses.any((s) => s.$1 == CaptureStatus.success));
+
+      expect(repo.pushStartedAt, hasLength(1));
+      expect(saveReleasedAt, isNotNull);
+      // The save could not have finished before saveReleasedAt: an upload that
+      // began earlier did not wait for it.
+      expect(repo.pushStartedAt.single.isBefore(saveReleasedAt!), isTrue);
+      // The row is written after that, and the Snap is only done after the row,
+      // marked as delivered under the id the save returned.
+      expect(cache.saves, hasLength(1));
+      expect(cache.syncedHub, [_FakeCache.savedId]);
+      expect(when(CaptureStatus.success).isBefore(cache.saves.single), isFalse);
+    });
+
+    test('a Snap the hub refuses still waits for the save before it fails',
+        () async {
+      repo.pushOk = false;
+      _trigger().writeAsStringSync('snap:1700000400000', flush: true);
+      await until(() => statuses.any((s) => s.$1 == CaptureStatus.failure));
+
+      expect(bloc.state.errorMessage, contains('could not reach'));
+      // The upload was refused at once, but the message says the frame is safe
+      // locally, so the save has to be done first.
+      expect(repo.pushStartedAt.single.isBefore(saveReleasedAt!), isTrue);
+      expect(cache.saves, hasLength(1));
+      expect(when(CaptureStatus.failure).isBefore(cache.saves.single), isFalse);
+      expect(cache.syncedHub, isEmpty);
+    });
   });
 }

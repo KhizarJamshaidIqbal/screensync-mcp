@@ -20,8 +20,11 @@ screen used to take about 8 s, and how to measure a Snap end to end.
 5. Dart gets a finished picture (`ProjectionCapture.processed`) and does not decode
    or re-encode it. A bare PNG reply (a native side without the encoder) still goes
    through `CapturePipeline.process()`, which is also what the region editor uses
-   to crop a PNG it already holds. The frame is persisted with a thumbnail, then
-   `pushToLocalMcpServer()` uploads it.
+   to crop a PNG it already holds. `persistAndSync()` then saves the frame (file,
+   thumbnail, history row) and uploads it with `pushToLocalMcpServer()` **at the
+   same time**: the hub does not wait for the save. The save is awaited before the
+   row id is needed (marking the frame delivered), before the "saved locally"
+   failure message and before the gallery is read.
 
 ## Which frame answers a capture
 
@@ -191,10 +194,15 @@ Read these with care:
   (text and icons equally sharp) and is about 40% smaller (37 KB against 61 KB for
   the same screen).
 
-What is left in a `fast` Snap after this (about 1.5 s here): the 350 ms settle
-window on a still screen, persisting the frame and its thumbnail (it runs before
-the upload, so the hub waits for it), and the upload. Pushing to the hub while the
-frame is being persisted would take the persist time off the hub's wait.
+What was left in a `fast` Snap after the encode change (about 1.5 s here): the
+350 ms settle window on a still screen, persisting the frame and its thumbnail
+(about 0.37 s, and it ran before the upload, so the hub waited for it), and the
+upload (about 0.43 s). The save and the upload now run together, so the hub no
+longer waits for the save. That should take about the save time off the hub's wait,
+but it has **not been re-measured on a device**: the numbers above are from before
+this change. `test/notification_snap_capture_test.dart` pins the ordering (the
+upload starts while the save is still held up, and success or failure is only
+reported once the save is done).
 
 Things that bit this run:
 
