@@ -8,11 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
-import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
-import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
@@ -20,11 +18,10 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.WindowManager
-import java.io.ByteArrayOutputStream
-import java.util.concurrent.atomic.AtomicBoolean
 
 class ScreenCaptureService : Service() {
     /// Told whenever a projection session becomes live or ends. Fed to Dart by
@@ -44,8 +41,6 @@ class ScreenCaptureService : Service() {
         const val ACTION_SNAP = "com.screensync.mcp.SNAP"
         const val ACTION_TRIGGER_MCP = "com.screensync.mcp.TRIGGER_MCP"
         const val ACTION_PAUSE = "com.screensync.mcp.PAUSE"
-
-        private const val FRAME_TIMEOUT_MS = 4_000L
 
         @Volatile
         private var instance: ScreenCaptureService? = null
@@ -106,9 +101,7 @@ class ScreenCaptureService : Service() {
     private var captureWidth = 0
     private var captureHeight = 0
     private var captureDensityDpi = 0
-    private var captureCallback: ((Result<ByteArray>) -> Unit)? = null
-    private val framePending = AtomicBoolean(false)
-    private var captureRetried = false
+    private lateinit var frames: FrameWaiter
     private var promoteFailureLogged = false
 
     // ── Broadcast receiver for notification quick-action buttons ──
@@ -150,11 +143,20 @@ class ScreenCaptureService : Service() {
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             workerHandler.post {
-                failPendingCapture("Screen capture permission was revoked.")
+                frames.fail("Screen capture permission was revoked.")
                 releaseProjection(stopProjection = false)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
+        }
+    }
+
+    // A frame held from before the screen went off may not be what the screen
+    // shows once it is back on (the lock screen), so drop it. On the worker, so it
+    // cannot race a capture that is answering with that frame.
+    private val screenOffReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            workerHandler.post { frames.dropHeld() }
         }
     }
 
@@ -163,8 +165,12 @@ class ScreenCaptureService : Service() {
         projectionManager = getSystemService(MediaProjectionManager::class.java)
         workerThread = HandlerThread("ScreenSyncCapture").apply { start() }
         workerHandler = Handler(workerThread.looper)
+        frames = FrameWaiter(workerHandler, ::promoteCaptureSurface) {
+            getSystemService(PowerManager::class.java)?.isInteractive != false
+        }
         CaptureNotification.ensureChannel(this)
         registerActionReceiver()
+        registerScreenOffReceiver()
         instance = this
     }
 
@@ -178,6 +184,15 @@ class ScreenCaptureService : Service() {
             registerReceiver(actionReceiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(actionReceiver, filter)
+        }
+    }
+
+    private fun registerScreenOffReceiver() {
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(screenOffReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(screenOffReceiver, filter)
         }
     }
 
@@ -199,6 +214,7 @@ class ScreenCaptureService : Service() {
         if (instance === this) instance = null
         try {
             unregisterReceiver(actionReceiver)
+            unregisterReceiver(screenOffReceiver)
         } catch (e: Exception) {
             Log.w(TAG, "action receiver was not registered", e)
         }
@@ -342,7 +358,9 @@ class ScreenCaptureService : Service() {
 
     private fun createImageReader(width: Int, height: Int): ImageReader =
         ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2).apply {
-            setOnImageAvailableListener({ reader -> onImageAvailable(reader) }, workerHandler)
+            setOnImageAvailableListener({ reader ->
+                reader.acquireLatestImage()?.let(frames::onFrame)
+            }, workerHandler)
         }
 
     private fun resizeCaptureIfNeeded() {
@@ -359,6 +377,7 @@ class ScreenCaptureService : Service() {
         captureHeight = metrics.heightPixels
         captureDensityDpi = metrics.densityDpi
         oldReader?.setOnImageAvailableListener(null, null)
+        frames.dropHeld()
         oldReader?.close()
     }
 
@@ -377,93 +396,18 @@ class ScreenCaptureService : Service() {
             }
             resizeCaptureIfNeeded()
             promoteCaptureSurface()
-            if (!framePending.compareAndSet(false, true)) {
+            if (!frames.begin(imageReader, callback)) {
                 callback(Result.failure(IllegalStateException("A screen capture is already in progress.")))
-                return@post
             }
-
-            imageReader?.acquireLatestImage()?.close()
-            captureCallback = callback
-            captureRetried = false
-            armFrameTimeout()
-        }
-    }
-
-    /**
-     * Some devices (notably Android 13) don't push a frame until the
-     * virtual-display surface is re-primed — retry once before failing.
-     */
-    private fun armFrameTimeout() {
-        workerHandler.postDelayed({
-            if (!framePending.get()) return@postDelayed
-            if (!captureRetried) {
-                captureRetried = true
-                imageReader?.acquireLatestImage()?.close()
-                promoteCaptureSurface()
-                armFrameTimeout()
-                return@postDelayed
-            }
-            if (framePending.compareAndSet(true, false)) {
-                val pending = captureCallback
-                captureCallback = null
-                pending?.invoke(Result.failure(IllegalStateException("Timed out waiting for a screen frame.")))
-            }
-        }, FRAME_TIMEOUT_MS)
-    }
-
-    private fun onImageAvailable(reader: ImageReader) {
-        val image = reader.acquireLatestImage() ?: return
-        if (!framePending.compareAndSet(true, false)) {
-            image.close()
-            return
-        }
-
-        val callback = captureCallback
-        captureCallback = null
-        try {
-            callback?.invoke(Result.success(imageToPng(image)))
-        } catch (error: Throwable) {
-            callback?.invoke(Result.failure(error))
-        } finally {
-            image.close()
-        }
-    }
-
-    private fun imageToPng(image: Image): ByteArray {
-        val plane = image.planes.first()
-        val buffer = plane.buffer
-        val pixelStride = plane.pixelStride
-        val rowStride = plane.rowStride
-        val rowPadding = rowStride - pixelStride * image.width
-        val paddedWidth = image.width + rowPadding / pixelStride
-
-        val paddedBitmap = Bitmap.createBitmap(paddedWidth, image.height, Bitmap.Config.ARGB_8888)
-        paddedBitmap.copyPixelsFromBuffer(buffer)
-        val croppedBitmap = Bitmap.createBitmap(paddedBitmap, 0, 0, image.width, image.height)
-
-        return ByteArrayOutputStream().use { output ->
-            if (!croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
-                throw IllegalStateException("Could not encode the captured frame as PNG.")
-            }
-            croppedBitmap.recycle()
-            paddedBitmap.recycle()
-            output.toByteArray()
-        }
-    }
-
-    private fun failPendingCapture(message: String) {
-        if (framePending.compareAndSet(true, false)) {
-            val pending = captureCallback
-            captureCallback = null
-            pending?.invoke(Result.failure(IllegalStateException(message)))
         }
     }
 
     private fun releaseProjection(stopProjection: Boolean) {
-        failPendingCapture("Screen capture session stopped.")
+        frames.fail("Screen capture session stopped.")
         imageReader?.setOnImageAvailableListener(null, null)
         virtualDisplay?.release()
         virtualDisplay = null
+        frames.dropHeld()
         imageReader?.close()
         imageReader = null
 
