@@ -82,13 +82,13 @@ class ScreenCaptureService : Service() {
 
         fun isPausedState(): Boolean = paused
 
-        fun capture(callback: (Result<ByteArray>) -> Unit) {
+        fun capture(request: CaptureRequest, callback: (Result<EncodedCapture>) -> Unit) {
             val service = instance
             if (service == null) {
                 callback(Result.failure(IllegalStateException("Screen capture session is not active.")))
                 return
             }
-            service.captureFrame(callback)
+            service.captureFrame(request, callback)
         }
     }
 
@@ -384,7 +384,7 @@ class ScreenCaptureService : Service() {
     private fun isProjectionReady(): Boolean =
         mediaProjection != null && virtualDisplay != null && imageReader != null
 
-    private fun captureFrame(callback: (Result<ByteArray>) -> Unit) {
+    private fun captureFrame(request: CaptureRequest, callback: (Result<EncodedCapture>) -> Unit) {
         if (paused) {
             callback(Result.failure(IllegalStateException("Capture is paused. Resume it in the notification or in the app's Capture controls.")))
             return
@@ -396,7 +396,7 @@ class ScreenCaptureService : Service() {
             }
             resizeCaptureIfNeeded()
             promoteCaptureSurface()
-            if (!frames.begin(imageReader, callback)) {
+            if (!frames.begin(imageReader, request, callback)) {
                 callback(Result.failure(IllegalStateException("A screen capture is already in progress.")))
             }
         }

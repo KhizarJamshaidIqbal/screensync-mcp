@@ -31,19 +31,25 @@ class FrameWaiter(
     private val pending = AtomicBoolean(false)
     private val latest = LatestFrame()
     @Volatile
-    private var callback: ((Result<ByteArray>) -> Unit)? = null
+    private var callback: ((Result<EncodedCapture>) -> Unit)? = null
+    private var request = CaptureRequest()
     private var retried = false
     private var requestedAt = 0L
     private val timeout = Runnable { onTimeout() }
     private val settle = Runnable { answerWithLatest() }
 
     /**
-     * Starts the wait for the frame that answers [onResult]. Returns false when
-     * another capture is still waiting.
+     * Starts the wait for the frame that answers [onResult], as the picture
+     * [captureRequest] describes. Returns false when another capture is still waiting.
      */
-    fun begin(reader: ImageReader?, onResult: (Result<ByteArray>) -> Unit): Boolean {
+    fun begin(
+        reader: ImageReader?,
+        captureRequest: CaptureRequest,
+        onResult: (Result<EncodedCapture>) -> Unit,
+    ): Boolean {
         if (!pending.compareAndSet(false, true)) return false
         callback = onResult
+        request = captureRequest
         retried = false
         requestedAt = SystemClock.uptimeMillis()
         // A frame already queued was drawn before this request: it cannot answer
@@ -85,8 +91,8 @@ class FrameWaiter(
         val waiting = callback
         callback = null
         try {
-            val png = latest.png() ?: throw IllegalStateException("Screen capture session stopped.")
-            waiting?.invoke(Result.success(png))
+            val picture = latest.encode(request) ?: throw IllegalStateException("Screen capture session stopped.")
+            waiting?.invoke(Result.success(picture))
         } catch (error: Throwable) {
             waiting?.invoke(Result.failure(error))
         }

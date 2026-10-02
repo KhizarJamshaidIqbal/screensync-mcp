@@ -1,6 +1,28 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+
+import '../models/capture_quality.dart';
+import 'capture_pipeline_service.dart';
+
+/// The picture the native capture service handed back.
+class ProjectionCapture {
+  const ProjectionCapture(
+    this.bytes, {
+    required this.processed,
+    this.mimeType = 'image/png',
+  });
+
+  final Uint8List bytes;
+
+  /// True when Kotlin already applied the crop, the width limit and the encoding
+  /// that was asked for, so [bytes] are final. False for a bare full-resolution
+  /// PNG, which [CapturePipeline.process] still has to turn into the preset.
+  final bool processed;
+
+  final String mimeType;
+}
 
 /// A capture asked for while the user has paused captures. Its text is shown
 /// to the user as is (a StateError would read "Bad state: ...").
@@ -74,15 +96,52 @@ class MediaProjectionService {
       .map((event) => event == true)
       .handleError((Object _) {});
 
-  static Future<Uint8List> captureScreen() async {
-    final bytes = await _channel.invokeMethod<Uint8List>('captureScreen');
-    if (bytes == null || bytes.isEmpty) {
+  /// What the native `captureScreen` call is asked to produce for [quality]
+  /// (and [crop], as fractions of the frame). Kotlin crops, scales and encodes,
+  /// so a JPEG preset never makes a full-resolution PNG first. `inspection`
+  /// leaves out `maxWidth`: native resolution.
+  @visibleForTesting
+  static Map<String, Object?> captureArguments(
+    CaptureQuality quality, {
+    NormRect? crop,
+  }) =>
+      {
+        'format': quality == CaptureQuality.inspection ? 'png' : 'jpeg',
+        if (quality.maxWidthPreset != null) 'maxWidth': quality.maxWidthPreset,
+        if (quality != CaptureQuality.inspection)
+          'jpegQuality': quality.jpegQuality,
+        if (crop != null)
+          'crop': {'x': crop.nx, 'y': crop.ny, 'w': crop.nw, 'h': crop.nh},
+      };
+
+  /// Grabs the screen as [quality] (and [crop]) describes. A native side that
+  /// does the encoding replies with a finished picture ([ProjectionCapture.processed]);
+  /// a bare PNG reply still needs [CapturePipeline.process].
+  static Future<ProjectionCapture> captureScreen({
+    CaptureQuality quality = CaptureQuality.inspection,
+    NormRect? crop,
+  }) async {
+    final reply = await _channel.invokeMethod<Object?>(
+      'captureScreen',
+      captureArguments(quality, crop: crop),
+    );
+    final capture = switch (reply) {
+      final Uint8List bytes => ProjectionCapture(bytes, processed: false),
+      {'bytes': final Uint8List bytes, 'format': final Object? format} =>
+        ProjectionCapture(
+          bytes,
+          processed: true,
+          mimeType: format == 'jpeg' ? 'image/jpeg' : 'image/png',
+        ),
+      _ => null,
+    };
+    if (capture == null || capture.bytes.isEmpty) {
       throw PlatformException(
         code: 'empty_capture',
         message: 'Android returned an empty screen capture.',
       );
     }
-    return bytes;
+    return capture;
   }
 
   static Future<void> stop() => _channel.invokeMethod<void>('stopCapture');

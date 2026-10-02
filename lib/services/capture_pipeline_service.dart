@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
@@ -13,8 +14,14 @@ class NormRect {
   const NormRect(this.nx, this.ny, this.nw, this.nh);
 }
 
-/// Pure-Dart frame post-processing:
-/// adaptive downscale + format preset, and region cropping.
+/// Dart-side frame post-processing: adaptive downscale + format preset, and
+/// region cropping, for a PNG that Kotlin did not already finish.
+///
+/// A live capture does not come here: the native capture service crops, scales
+/// and encodes to the preset itself (see `MediaProjectionService.captureScreen`),
+/// which is far cheaper than decoding a full-resolution PNG and re-encoding it.
+/// This stays for the region editor (it crops a PNG it already holds), and for a
+/// native side that returns a bare PNG.
 ///
 /// Quality presets:
 ///   inspection → native-resolution PNG (best for Claude).
@@ -109,27 +116,38 @@ class CapturePipeline {
     // native allocations, so both are released on every path.
     final codec =
         await ui.instantiateImageCodec(input, targetWidth: targetWidth);
-    final img.Image image;
+    final Uint8List rgba;
+    final int width;
+    final int height;
     try {
       final frame = await codec.getNextFrame();
       try {
         final data = await frame.image
             .toByteData(format: ui.ImageByteFormat.rawStraightRgba);
         if (data == null) return input;
-        image = img.Image.fromBytes(
-          width: frame.image.width,
-          height: frame.image.height,
-          bytes: data.buffer,
-          numChannels: 4,
-          order: img.ChannelOrder.rgba,
-        );
+        rgba = data.buffer.asUint8List();
+        width = frame.image.width;
+        height = frame.image.height;
       } finally {
         frame.image.dispose();
       }
     } finally {
       codec.dispose();
     }
-    return Uint8List.fromList(img.encodeJpg(image, quality: jpegQuality));
+    // The decode above runs in the engine; the JPEG encode is pure Dart and takes
+    // long enough to drop frames if it ran on the UI isolate.
+    return Isolate.run(
+      () => img.encodeJpg(
+        img.Image.fromBytes(
+          width: width,
+          height: height,
+          bytes: rgba.buffer,
+          numChannels: 4,
+          order: img.ChannelOrder.rgba,
+        ),
+        quality: jpegQuality,
+      ),
+    );
   }
 
   /// C2 privacy redaction: Dart-side pixelation blur applied BEFORE any
@@ -141,7 +159,17 @@ class CapturePipeline {
     bool jpeg = false,
     int jpegQuality = 74,
     int blockSize = 14,
-  }) async {
+  }) =>
+      // Decode, pixelate and encode are all pure Dart: off the UI isolate.
+      Isolate.run(() => _redactSync(bytes,
+          jpeg: jpeg, jpegQuality: jpegQuality, blockSize: blockSize));
+
+  static Uint8List _redactSync(
+    Uint8List bytes, {
+    required bool jpeg,
+    required int jpegQuality,
+    required int blockSize,
+  }) {
     final decoded = img.decodeImage(bytes);
     if (decoded == null) return bytes;
     final redacted = img.pixelate(decoded,

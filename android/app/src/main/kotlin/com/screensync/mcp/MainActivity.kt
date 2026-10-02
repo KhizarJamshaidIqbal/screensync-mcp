@@ -85,7 +85,7 @@ class MainActivity : FlutterActivity() {
         when (call.method) {
             "prepareCapture" -> projectionPermission.prepare(result)
             "isCaptureReady" -> result.success(ScreenCaptureService.isReady())
-            "captureScreen" -> captureScreen(result)
+            "captureScreen" -> captureScreen(call, result)
             "stopCapture" -> {
                 ScreenCaptureService.stop(this)
                 result.success(null)
@@ -99,11 +99,13 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun captureScreen(result: MethodChannel.Result) {
-        ScreenCaptureService.capture { captureResult ->
+    /// Replies with the final picture (see [CaptureRequest]); a call without arguments
+    /// still gets a native-resolution PNG.
+    private fun captureScreen(call: MethodCall, result: MethodChannel.Result) {
+        ScreenCaptureService.capture(CaptureRequest.fromArguments(call.arguments)) { captureResult ->
             runOnUiThread {
                 captureResult.fold(
-                    onSuccess = { pngBytes -> result.success(pngBytes) },
+                    onSuccess = { picture -> result.success(picture.toChannelReply()) },
                     onFailure = { error ->
                         result.error(
                             "capture_failed",

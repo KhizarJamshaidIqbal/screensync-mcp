@@ -125,8 +125,17 @@ class ScreenRepository {
         throw StateError('Screen capture permission was not granted.');
       }
     }
-    final raw = await MediaProjectionService.captureScreen();
-    final bytes = await CapturePipeline.process(raw, quality, crop: crop);
+    final capture = await MediaProjectionService.captureScreen(
+      quality: quality,
+      crop: crop,
+    );
+    // Kotlin crops, scales and encodes: nothing is left to decode and re-encode here.
+    if (capture.processed) {
+      return CapturedFrame(
+          imageBytes: capture.bytes, mimeType: capture.mimeType);
+    }
+    final bytes =
+        await CapturePipeline.process(capture.bytes, quality, crop: crop);
     return CapturedFrame(imageBytes: bytes, mimeType: quality.mime);
   }
 

@@ -60,6 +60,29 @@ void main() {
     expect(img.decodeJpg(out), isNotNull);
   });
 
+  // redact() runs off the UI isolate now; its output must be what it always was.
+  test('redaction keeps the size and the format of a PNG', () async {
+    final out = await CapturePipeline.redact(png);
+
+    final decoded = img.decodePng(out);
+    expect(decoded, isNotNull);
+    expect(decoded!.width, 120);
+    expect(decoded.height, 200);
+  });
+
+  test('redaction of a JPEG stays a JPEG', () async {
+    final jpeg = Uint8List.fromList(img.encodeJpg(img.decodePng(png)!));
+    final out = await CapturePipeline.redact(jpeg, jpeg: true);
+
+    expect(img.decodeJpg(out), isNotNull);
+  });
+
+  test('redaction hands back bytes it cannot decode unchanged', () async {
+    // Long enough that no format sniffer reads past the end of it.
+    final junk = Uint8List.fromList(List<int>.filled(256, 7));
+    expect(await CapturePipeline.redact(junk), junk);
+  });
+
   test('thumbnail is a 320 px wide PNG at most', () async {
     final big = img.Image(width: 640, height: 400);
     img.fill(big, color: img.ColorRgb8(10, 120, 200));
