@@ -1,6 +1,37 @@
 {
-  "generatedAt": "2026-10-01T22:24:30Z",
+  "generatedAt": "2026-10-02T17:04:05Z",
   "entries": [
+    {
+      "sha": "d6e7ce3",
+      "date": "2026-10-02",
+      "ts": 1790959810,
+      "parts": [
+        {
+          "stream": "app",
+          "streamLabel": "App",
+          "version": "2.5.9",
+          "build": "37",
+          "display": "2.5.9 (build 37)",
+          "date": "2026-10-02",
+          "ts": 1790959810,
+          "sha": "d6e7ce3",
+          "groups": {
+            "NEW": [],
+            "IMPROVED": [
+              "Upload the frame while it is still being saved",
+              "Make the capture's final JPEG in Kotlin, skip the Dart re-encode"
+            ],
+            "FIXED": [
+              "Answer a capture on a still screen with the newest frame"
+            ]
+          },
+          "count": 3
+        }
+      ],
+      "count": 3,
+      "id": "app-2.5.9",
+      "title": "App 2.5.9 (build 37)"
+    },
     {
       "sha": "d138f16",
       "date": "2026-10-01",
@@ -791,9 +822,9 @@
     }
   ],
   "stats": {
-    "releases": 24,
-    "appReleases": 10,
+    "releases": 25,
+    "appReleases": 11,
     "extensionReleases": 14,
-    "changes": 126
+    "changes": 129
   }
 }
