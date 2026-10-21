@@ -4,6 +4,48 @@ These rules apply to **all** AI agents working on the ScreenSync codebase. They 
 
 ---
 
+## 0. Fork contributions: sync, verify, then submit a pull request
+
+For work in a fork, this section replaces the maintainer-only automatic merge,
+branch deletion, deployment and release delivery steps elsewhere in this file and
+`CLAUDE.md`. Section 10's release safety and human approval requirements still apply
+to any separately authorized release. Contribute through a pull request; the
+original owner decides when to merge.
+
+1. **Check upstream at the start of every work session, before editing.** Inspect
+   `git status --short --branch` and `git remote -v`. Verify the fork's parent and
+   both default branches through the GitHub API or `gh`; `origin` must be the
+   contributor's fork and `upstream` the verified original repository.
+2. **Fetch and sync before work.** Fetch both remotes with pruning and compare
+   ahead/behind counts. Fast-forward a clean local base to the latest upstream
+   default branch and, when authorized, fast-forward the fork's remote base too.
+   Create a contribution branch from that base. When resuming a contribution,
+   incorporate new upstream commits without rewriting published history.
+   Preserve unrelated work and existing contribution commits; use an isolated
+   worktree when needed. Never discard changes, hard-reset or force-push to sync.
+   If access, conflicts or divergent base history prevent a safe sync, report
+   the blocker before making dependent edits; never silently work from a stale base.
+3. **Verify the final changes before delivery.** Follow section 7 and the checks
+   for each affected subsystem in `CLAUDE.md`. Exercise changed runtime behavior
+   live through ScreenSync MCP, with the actual browser/device identity recorded.
+   Record commands, results and limitations. Documentation-only changes require
+   content/link review and `git diff --check`; runtime testing is not applicable
+   unless the documentation changes executable instructions that need validation.
+   Missing runtime access is a blocker to claiming a behavioral change is verified.
+4. **Deliver after checks pass and within the user's authorization.** Review the
+   diff for secrets and unrelated files, stage only named task files, and make a
+   conventional commit. Re-fetch upstream before pushing; incorporate any new
+   commits and repeat affected checks. Push the contribution branch with `-u` to
+   the fork, then create or update its PR against the original owner's verified
+   default branch (`main` when that is the default). Include the change and test
+   evidence. Verify the remote commit and the PR's base/head, and return the SHA
+   and PR URL. Report access failures without claiming push or PR success.
+5. **Keep the PR available for review.** Do not merge it, delete its branch, push
+   directly to upstream, mirror deployment branches or publish a release unless
+   separately authorized. Use Git/GitHub CLI or API for this workflow.
+
+---
+
 ## 1. Architectural Integrity & Structure (MUST BE MAINTAINED)
 ScreenSync is structured into distinct, decoupled subsystems. **New work MUST slot into this layout — never create top-level sprawl or parallel structures:**
 1. **`extension/`** (Chrome Manifest V3 Extension):
